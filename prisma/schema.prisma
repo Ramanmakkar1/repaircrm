@@ -1,0 +1,612 @@
+// RepairFlow — multi-tenant repair-shop management schema
+//
+// CONVENTIONS
+// 1. Multi-tenancy: every tenant-owned row carries `shopId` and is indexed on it.
+//    Application code MUST filter every query by the session's shopId (see lib/db.ts).
+//    Pure child rows (EstimateLine, InvoiceLine, Contact, PortalToken) are only ever
+//    reached through an already-scoped parent, so they inherit the tenant boundary.
+// 2. Money is ALWAYS an integer number of cents (`*Cents`). Never a float.
+// 3. Tax rates are ALWAYS integer basis points (`*Bps`). 8.25% => 825.
+// 4. Human-facing document numbers (ticket/estimate/invoice) are per-shop sequential
+//    integers guarded by @@unique([shopId, number]) — see lib/sequence.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  OWNER
+  TECH
+  FRONT_DESK
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum CommentChannel {
+  NOTE
+  EMAIL
+  SMS
+}
+
+enum EstimateStatus {
+  DRAFT
+  SENT
+  APPROVED
+  DECLINED
+  CONVERTED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  CHECK
+  OTHER
+  CREDIT
+}
+
+enum CommunicationType {
+  EMAIL
+  SMS
+}
+
+enum CommunicationDirection {
+  OUT
+  IN
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+
+model Shop {
+  id         String  @id @default(cuid())
+  name       String
+  slug       String  @unique
+  address1   String?
+  address2   String?
+  city       String?
+  state      String?
+  postalCode String?
+  country    String  @default("US")
+  phone      String?
+  email      String?
+  logoUrl    String?
+  timezone   String  @default("America/Edmonton")
+  /// Default sales tax in basis points (825 = 8.25%)
+  taxRateBps Int     @default(0)
+  settings   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations         Location[]
+  users             User[]
+  customers         Customer[]
+  assets            Asset[]
+  tickets           Ticket[]
+  ticketComments    TicketComment[]
+  ticketCharges     TicketCharge[]
+  timeEntries       TimeEntry[]
+  cannedResponses   CannedResponse[]
+  estimates         Estimate[]
+  invoices          Invoice[]
+  payments          Payment[]
+  products          Product[]
+  attachments       Attachment[]
+  communicationLogs CommunicationLog[]
+}
+
+model Location {
+  id         String  @id @default(cuid())
+  shopId     String
+  name       String
+  address1   String?
+  address2   String?
+  city       String?
+  state      String?
+  postalCode String?
+  phone      String?
+  isDefault  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([shopId])
+}
+
+// Email is globally unique (a person belongs to exactly one shop) — keeps the
+// login lookup a single indexed read with no tenant hint required.
+model User {
+  id           String  @id @default(cuid())
+  shopId       String
+  email        String  @unique
+  passwordHash String
+  name         String
+  role         Role    @default(TECH)
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop            Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  assignedTickets Ticket[]
+  comments        TicketComment[]
+  timeEntries     TimeEntry[]
+  paymentsTaken   Payment[]
+  attachments     Attachment[]
+
+  @@index([shopId])
+  @@index([shopId, role])
+}
+
+// ---------------------------------------------------------------------------
+// CRM
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                 String  @id @default(cuid())
+  shopId             String
+  firstName          String
+  lastName           String
+  businessName       String?
+  email              String?
+  phone              String?
+  mobile             String?
+  address1           String?
+  address2           String?
+  city               String?
+  state              String?
+  postalCode         String?
+  country            String  @default("US")
+  notes              String?
+  smsOptIn           Boolean @default(false)
+  emailOptIn         Boolean @default(true)
+  /// Store credit held for this customer, in cents.
+  creditBalanceCents Int     @default(0)
+  referredBy         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  contacts          Contact[]
+  assets            Asset[]
+  tickets           Ticket[]
+  estimates         Estimate[]
+  invoices          Invoice[]
+  attachments       Attachment[]
+  communicationLogs CommunicationLog[]
+  portalTokens      PortalToken[]
+
+  @@index([shopId, lastName])
+  @@index([shopId, createdAt])
+  @@index([shopId, email])
+  @@index([shopId, phone])
+}
+
+model Contact {
+  id         String  @id @default(cuid())
+  customerId String
+  name       String
+  email      String?
+  phone      String?
+  label      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+/// A device belonging to a customer (laptop, phone, console...).
+model Asset {
+  id         String  @id @default(cuid())
+  shopId     String
+  customerId String
+  type       String
+  make       String?
+  model      String?
+  serial     String?
+  /// Device unlock code / password captured at intake.
+  password   String?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tickets  Ticket[]
+
+  @@index([shopId])
+  @@index([customerId])
+  @@index([shopId, serial])
+}
+
+// ---------------------------------------------------------------------------
+// Tickets
+// ---------------------------------------------------------------------------
+
+/// status is a free-form string so shops can add their own workflow states.
+/// Built-ins: New | In Progress | Waiting for Parts | Waiting on Customer |
+///            Ready for Pickup | Resolved
+model Ticket {
+  id                     String    @id @default(cuid())
+  shopId                 String
+  locationId             String?
+  customerId             String
+  assetId                String?
+  /// Per-shop sequential ticket number shown to humans.
+  number                 Int
+  subject                String
+  problemType            String
+  status                 String    @default("New")
+  priority               Priority  @default(NORMAL)
+  assignedToId           String?
+  dueDate                DateTime?
+  diagnosticNotes        String?
+  customFields           Json?
+  intakeSignatureDataUrl String?
+  intakeSignedAt         DateTime?
+  resolvedAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  location          Location?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  asset             Asset?             @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  assignedTo        User?              @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  comments          TicketComment[]
+  charges           TicketCharge[]
+  timeEntries       TimeEntry[]
+  estimates         Estimate[]
+  invoices          Invoice[]
+  attachments       Attachment[]
+  communicationLogs CommunicationLog[]
+
+  @@unique([shopId, number])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
+  @@index([shopId, assignedToId])
+  @@index([shopId, createdAt])
+}
+
+/// isPublic = true means the comment is customer-visible and (for EMAIL/SMS
+/// channels) would be delivered to them. Private notes stay internal.
+model TicketComment {
+  id         String         @id @default(cuid())
+  shopId     String
+  ticketId   String
+  authorId   String?
+  body       String
+  isPublic   Boolean        @default(false)
+  subject    String?
+  updateType String?
+  channel    CommentChannel @default(NOTE)
+
+  createdAt DateTime @default(now())
+
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([shopId, createdAt])
+}
+
+model CannedResponse {
+  id     String @id @default(cuid())
+  shopId String
+  title  String
+  body   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+}
+
+/// Labour or parts line accrued on a ticket. `invoiceId` is set once the charge
+/// has been pulled onto an invoice, so un-invoiced work is `invoiceId: null`.
+model TicketCharge {
+  id             String  @id @default(cuid())
+  shopId         String
+  ticketId       String
+  productId      String?
+  description    String
+  quantity       Int     @default(1)
+  unitPriceCents Int
+  taxable        Boolean @default(true)
+  invoiceId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket  Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([shopId])
+  @@index([ticketId])
+  @@index([invoiceId])
+}
+
+model TimeEntry {
+  id        String    @id @default(cuid())
+  shopId    String
+  ticketId  String
+  userId    String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  /// Denormalised duration; set when the entry is stopped.
+  seconds   Int?
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([shopId, userId])
+  @@index([shopId, startedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Estimates / Invoices / Payments
+// ---------------------------------------------------------------------------
+
+model Estimate {
+  id                       String         @id @default(cuid())
+  shopId                   String
+  customerId               String
+  ticketId                 String?
+  number                   Int
+  status                   EstimateStatus @default(DRAFT)
+  /// Snapshot of the tax rate at creation time, in basis points.
+  taxRateBps               Int            @default(0)
+  notes                    String?
+  expiresAt                DateTime?
+  approvedAt               DateTime?
+  approvalSignatureDataUrl String?
+  /// Unguessable token for the public customer-portal link.
+  publicToken              String         @unique @default(cuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop     Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket   Ticket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  lines    EstimateLine[]
+  invoices Invoice[]
+
+  @@unique([shopId, number])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
+}
+
+model EstimateLine {
+  id             String  @id @default(cuid())
+  estimateId     String
+  productId      String?
+  description    String
+  quantity       Int     @default(1)
+  unitPriceCents Int
+  taxable        Boolean @default(true)
+  sortOrder      Int     @default(0)
+
+  estimate Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([estimateId])
+}
+
+/// Totals (subtotal / tax / total / balance) are computed in code from the lines
+/// and payments — see lib/money.ts calcTotals(). Nothing is denormalised here so
+/// a line edit can never desync from a stored total.
+model Invoice {
+  id               String        @id @default(cuid())
+  shopId           String
+  customerId       String
+  ticketId         String?
+  estimateId       String?
+  number           Int
+  status           InvoiceStatus @default(DRAFT)
+  taxRateBps       Int           @default(0)
+  notes            String?
+  dueDate          DateTime?
+  publicToken      String        @unique @default(cuid())
+  paidAt           DateTime?
+  signatureDataUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket            Ticket?            @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  estimate          Estimate?          @relation(fields: [estimateId], references: [id], onDelete: SetNull)
+  lines             InvoiceLine[]
+  payments          Payment[]
+  ticketCharges     TicketCharge[]
+  communicationLogs CommunicationLog[]
+
+  @@unique([shopId, number])
+  @@index([shopId, status])
+  @@index([shopId, customerId])
+  @@index([shopId, createdAt])
+}
+
+model InvoiceLine {
+  id             String  @id @default(cuid())
+  invoiceId      String
+  productId      String?
+  description    String
+  quantity       Int     @default(1)
+  unitPriceCents Int
+  taxable        Boolean @default(true)
+  /// Serial number of the physical unit sold, when applicable.
+  serial         String?
+  sortOrder      Int     @default(0)
+
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  shopId      String
+  invoiceId   String
+  amountCents Int
+  method      PaymentMethod @default(CARD)
+  reference   String?
+  takenById   String?
+
+  createdAt DateTime @default(now())
+
+  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  takenBy User?   @relation(fields: [takenById], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([shopId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+model Product {
+  id          String  @id @default(cuid())
+  shopId      String
+  name        String
+  sku         String?
+  upc         String?
+  description String?
+  priceCents  Int     @default(0)
+  costCents   Int?
+  taxable     Boolean @default(true)
+  stockQty    Int     @default(0)
+  /// Reorder threshold; null disables low-stock alerts for this product.
+  lowStockAt  Int?
+  category    String?
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticketCharges TicketCharge[]
+  estimateLines EstimateLine[]
+  invoiceLines  InvoiceLine[]
+
+  @@unique([shopId, sku])
+  @@index([shopId, name])
+  @@index([shopId, category])
+}
+
+// ---------------------------------------------------------------------------
+// Files & communications
+// ---------------------------------------------------------------------------
+
+/// `path` is a public-relative path under /public/uploads for now; swapping to
+/// object storage later only changes how `path` is resolved.
+model Attachment {
+  id           String  @id @default(cuid())
+  shopId       String
+  ticketId     String?
+  customerId   String?
+  uploadedById String?
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  path         String
+
+  createdAt DateTime @default(now())
+
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket     Ticket?   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  uploadedBy User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([shopId])
+  @@index([ticketId])
+  @@index([customerId])
+}
+
+model CommunicationLog {
+  id         String                 @id @default(cuid())
+  shopId     String
+  customerId String
+  ticketId   String?
+  invoiceId  String?
+  type       CommunicationType
+  direction  CommunicationDirection @default(OUT)
+  to         String
+  subject    String?
+  body       String
+  status     String                 @default("logged")
+
+  createdAt DateTime @default(now())
+
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@index([customerId])
+  @@index([ticketId])
+}
+
+/// Magic-link token for the customer portal (Phase 2).
+model PortalToken {
+  id         String    @id @default(cuid())
+  customerId String
+  token      String    @unique @default(cuid())
+  expiresAt  DateTime
+  usedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}

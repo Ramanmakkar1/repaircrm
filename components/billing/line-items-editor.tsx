@@ -1,0 +1,377 @@
+"use client";
+
+import * as React from "react";
+import { Plus, Trash2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/components/ui/cn";
+import { calcTotals, formatBps, formatCents, parseCents } from "@/lib/money";
+import type { ProductOption, SubmittedLine } from "./types";
+
+/**
+ * The shared line-item editor used by every billing document — new invoice,
+ * edit invoice, new estimate, edit estimate.
+ *
+ * It keeps quantity/price as free *text* while the user types (so "12." and a
+ * half-typed "1250" behave), and only parses to integers when serialising. The
+ * parsed rows are posted as one hidden JSON field (`name`), which keeps the
+ * server action free of `lines[3][unitPrice]` form-key archaeology.
+ *
+ * Totals are computed with the very same `calcTotals` the server uses, so the
+ * live footer can never disagree with what gets saved.
+ */
+
+const CUSTOM = "__custom__";
+
+type Draft = {
+  key: string;
+  productId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  taxable: boolean;
+  serial: string;
+};
+
+export type InitialLine = {
+  productId?: string | null;
+  description?: string;
+  quantity?: number;
+  unitPriceCents?: number;
+  taxable?: boolean;
+  serial?: string | null;
+};
+
+/** cents -> the plain "219.00" the price input shows. */
+function centsToInput(cents: number): string {
+  return (Math.round(cents) / 100).toFixed(2);
+}
+
+function blankDraft(key: string): Draft {
+  return {
+    key,
+    productId: CUSTOM,
+    description: "",
+    quantity: "1",
+    unitPrice: "0.00",
+    taxable: true,
+    serial: "",
+  };
+}
+
+function toDraft(line: InitialLine, key: string): Draft {
+  return {
+    key,
+    productId: line.productId ?? CUSTOM,
+    description: line.description ?? "",
+    quantity: String(line.quantity ?? 1),
+    unitPrice: centsToInput(line.unitPriceCents ?? 0),
+    taxable: line.taxable ?? true,
+    serial: line.serial ?? "",
+  };
+}
+
+function draftQty(draft: Draft): number {
+  const n = Number.parseInt(draft.quantity, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function draftUnitCents(draft: Draft): number {
+  return parseCents(draft.unitPrice);
+}
+
+/** A row the user started but left completely empty is dropped, not rejected. */
+function isBlank(draft: Draft): boolean {
+  return (
+    draft.description.trim() === "" &&
+    draftUnitCents(draft) === 0 &&
+    draft.productId === CUSTOM &&
+    draft.serial.trim() === ""
+  );
+}
+
+export function LineItemsEditor({
+  products,
+  taxRateBps,
+  initialLines,
+  showSerial = false,
+  name = "lines",
+}: {
+  products: ProductOption[];
+  taxRateBps: number;
+  initialLines?: InitialLine[];
+  /** Invoices carry a per-unit serial; estimates do not. */
+  showSerial?: boolean;
+  name?: string;
+}) {
+  const seeded = React.useMemo(
+    () =>
+      initialLines && initialLines.length > 0
+        ? initialLines.map((l, i) => toDraft(l, `seed-${i}`))
+        : [blankDraft("seed-0")],
+    [initialLines],
+  );
+
+  const [drafts, setDrafts] = React.useState<Draft[]>(seeded);
+  const nextKey = React.useRef(0);
+
+  const update = React.useCallback((key: string, patch: Partial<Draft>) => {
+    setDrafts((rows) =>
+      rows.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+    );
+  }, []);
+
+  const remove = React.useCallback((key: string) => {
+    setDrafts((rows) => {
+      const next = rows.filter((row) => row.key !== key);
+      return next.length > 0 ? next : [blankDraft("empty-0")];
+    });
+  }, []);
+
+  const addRow = React.useCallback(() => {
+    nextKey.current += 1;
+    setDrafts((rows) => [...rows, blankDraft(`new-${nextKey.current}`)]);
+  }, []);
+
+  /** Picking a product fills the row; picking "Custom" leaves it untouched. */
+  const pickProduct = React.useCallback(
+    (key: string, productId: string) => {
+      if (productId === CUSTOM) {
+        update(key, { productId: CUSTOM });
+        return;
+      }
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+      update(key, {
+        productId,
+        description: product.name,
+        unitPrice: centsToInput(product.priceCents),
+        taxable: product.taxable,
+      });
+    },
+    [products, update],
+  );
+
+  const payload: SubmittedLine[] = React.useMemo(
+    () =>
+      drafts.filter((d) => !isBlank(d)).map((d) => ({
+        productId: d.productId === CUSTOM ? null : d.productId,
+        description: d.description.trim(),
+        quantity: draftQty(d),
+        unitPriceCents: draftUnitCents(d),
+        taxable: d.taxable,
+        serial: showSerial && d.serial.trim() !== "" ? d.serial.trim() : null,
+      })),
+    [drafts, showSerial],
+  );
+
+  const totals = React.useMemo(
+    () => calcTotals(payload, taxRateBps),
+    [payload, taxRateBps],
+  );
+
+  const colCount = showSerial ? 7 : 6;
+
+  return (
+    <div className="flex flex-col">
+      <input type="hidden" name={name} value={JSON.stringify(payload)} />
+
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[720px] caption-bottom text-[13px]">
+          <thead className="border-b border-border">
+            <tr>
+              <Head className="w-[180px]">Product</Head>
+              <Head>Description</Head>
+              <Head className="w-[72px] text-right">Qty</Head>
+              <Head className="w-[110px] text-right">Unit price</Head>
+              <Head className="w-[64px] text-center">Tax</Head>
+              {showSerial ? <Head className="w-[140px]">Serial</Head> : null}
+              <Head className="w-[100px] text-right">Amount</Head>
+              <th className="w-8" />
+            </tr>
+          </thead>
+
+          <tbody>
+            {drafts.map((draft) => {
+              const amount = draftQty(draft) * draftUnitCents(draft);
+              return (
+                <tr key={draft.key} className="border-b border-border align-top">
+                  <Cell>
+                    <Select
+                      value={draft.productId}
+                      onValueChange={(v) => pickProduct(draft.key, v)}
+                    >
+                      <SelectTrigger aria-label="Product">
+                        <SelectValue placeholder="Custom" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64 overflow-y-auto">
+                        <SelectItem value={CUSTOM}>Custom line</SelectItem>
+                        {products.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                            {p.sku ? ` · ${p.sku}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Cell>
+
+                  <Cell>
+                    <Input
+                      value={draft.description}
+                      onChange={(e) =>
+                        update(draft.key, { description: e.target.value })
+                      }
+                      placeholder="What are you billing for?"
+                      aria-label="Description"
+                    />
+                  </Cell>
+
+                  <Cell>
+                    <Input
+                      value={draft.quantity}
+                      onChange={(e) =>
+                        update(draft.key, { quantity: e.target.value })
+                      }
+                      inputMode="numeric"
+                      className="text-right tabular-nums"
+                      aria-label="Quantity"
+                    />
+                  </Cell>
+
+                  <Cell>
+                    <Input
+                      value={draft.unitPrice}
+                      onChange={(e) =>
+                        update(draft.key, { unitPrice: e.target.value })
+                      }
+                      onBlur={(e) =>
+                        update(draft.key, {
+                          unitPrice: centsToInput(parseCents(e.target.value)),
+                        })
+                      }
+                      inputMode="decimal"
+                      className="text-right tabular-nums"
+                      aria-label="Unit price"
+                    />
+                  </Cell>
+
+                  <Cell className="text-center">
+                    <div className="flex h-8 items-center justify-center">
+                      <Checkbox
+                        checked={draft.taxable}
+                        onCheckedChange={(v) =>
+                          update(draft.key, { taxable: v === true })
+                        }
+                        aria-label="Taxable"
+                      />
+                    </div>
+                  </Cell>
+
+                  {showSerial ? (
+                    <Cell>
+                      <Input
+                        value={draft.serial}
+                        onChange={(e) =>
+                          update(draft.key, { serial: e.target.value })
+                        }
+                        placeholder="—"
+                        aria-label="Serial number"
+                      />
+                    </Cell>
+                  ) : null}
+
+                  <Cell className="text-right">
+                    <span className="inline-flex h-8 items-center tabular-nums text-foreground">
+                      {formatCents(amount)}
+                    </span>
+                  </Cell>
+
+                  <Cell className="pr-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 text-faint-foreground hover:text-destructive"
+                      onClick={() => remove(draft.key)}
+                      aria-label="Remove line"
+                    >
+                      <Trash2 />
+                    </Button>
+                  </Cell>
+                </tr>
+              );
+            })}
+          </tbody>
+
+          <tfoot>
+            <tr>
+              <td colSpan={colCount - 1} className="px-2 py-2">
+                <Button type="button" variant="outline" size="sm" onClick={addRow}>
+                  <Plus /> Add line
+                </Button>
+              </td>
+              <td colSpan={2} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="mt-1 flex justify-end border-t border-border pt-3">
+        <dl className="w-full max-w-[280px] text-[13px]">
+          <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
+          <TotalRow
+            label={`Tax (${formatBps(taxRateBps)})`}
+            value={formatCents(totals.taxCents)}
+          />
+          <div className="mt-1.5 flex items-baseline justify-between border-t border-border pt-1.5">
+            <dt className="font-semibold text-foreground">Total</dt>
+            <dd className="font-semibold tabular-nums text-foreground">
+              {formatCents(totals.totalCents)}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
+function Head({
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement>) {
+  return (
+    <th
+      className={cn(
+        "h-8 whitespace-nowrap px-2 text-left align-middle text-xs font-medium text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function Cell({
+  className,
+  ...props
+}: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td className={cn("px-2 py-1.5 align-middle", className)} {...props} />;
+}
+
+function TotalRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between py-0.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="tabular-nums text-foreground">{value}</dd>
+    </div>
+  );
+}

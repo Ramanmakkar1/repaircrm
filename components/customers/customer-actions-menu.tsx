@@ -1,0 +1,133 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { MoreHorizontal, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
+
+import { deleteCustomerAction } from "@/app/(app)/customers/actions";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+/**
+ * Overflow menu on the customer hub.
+ *
+ * `canDelete` mirrors the OWNER check the server action enforces, and
+ * `blockedReason` is precomputed from the ticket/invoice/estimate counts so the
+ * dialog can explain *why* deletion is unavailable instead of just failing.
+ */
+export function CustomerActionsMenu({
+  customerId,
+  customerName,
+  canDelete,
+  blockedReason,
+}: {
+  customerId: string;
+  customerName: string;
+  canDelete: boolean;
+  blockedReason: string | null;
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+
+  async function remove() {
+    setBusy(true);
+    const result = await deleteCustomerAction(customerId);
+    setBusy(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`${customerName} deleted.`);
+    setConfirming(false);
+    router.push("/customers");
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="More actions">
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={`/customers/${customerId}/edit`}>
+              <Pencil className="size-3.5 text-muted-foreground" />
+              Edit customer
+            </Link>
+          </DropdownMenuItem>
+          {canDelete ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive-soft"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setConfirming(true);
+                }}
+              >
+                <Trash2 className="size-3.5" />
+                Delete customer
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog
+        open={confirming}
+        onOpenChange={(next) => {
+          if (!next && !busy) setConfirming(false);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete {customerName}?</DialogTitle>
+            <DialogDescription>
+              {blockedReason
+                ? "This customer still has records attached."
+                : "Their contacts, devices and communication history go with them. This can't be undone."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {blockedReason ? (
+            <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-hover px-3 py-2 text-xs text-muted-foreground">
+              <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-in-progress" />
+              <span>{blockedReason}</span>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>
+              {blockedReason ? "Close" : "Cancel"}
+            </Button>
+            {blockedReason ? null : (
+              <Button variant="destructive" disabled={busy} onClick={remove}>
+                {busy ? "Deleting…" : "Delete customer"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

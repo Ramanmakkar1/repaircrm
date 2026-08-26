@@ -1,26 +1,291 @@
 @import "tailwindcss";
 
+/*
+ * RepairFlow design tokens
+ * ------------------------
+ * Light-first, warm-neutral SaaS palette with a single strong indigo accent
+ * and six semantic status colors used consistently across the app:
+ *   new         → blue     (fresh, untouched)
+ *   in-progress → amber    (actively being worked)
+ *   waiting     → violet   (blocked on parts / customer / approval)
+ *   ready       → teal     (ready for pickup / handoff)
+ *   resolved    → green    (done, closed out)
+ *   overdue     → red      (stale / past due — needs attention)
+ *
+ * Raw values live on :root / dark media query. The @theme inline block below
+ * maps them to Tailwind v4 utility tokens (bg-background, text-foreground,
+ * border-border, bg-status-new-bg, text-status-new-fg, etc).
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* surfaces */
+  --background: #faf9f7; /* near-white warm gray app canvas */
+  --sidebar-bg: #f3f1ee; /* subtle contrast against background */
+  --surface: #ffffff; /* cards, topbar, popovers */
+  --surface-hover: #f5f3f1;
+  --overlay: rgb(23 20 16 / 0.32);
+
+  /* borders */
+  --border: #e6e2dc;
+  --border-strong: #d6d1c8;
+
+  /* text */
+  --foreground: #1c1a17;
+  --muted-foreground: #736c62;
+  --faint-foreground: #a39c90;
+
+  /* accent — deep indigo/blue */
+  --accent: #4338ca;
+  --accent-hover: #372ea8;
+  --accent-foreground: #ffffff;
+  --accent-soft: #eeecfb;
+  --accent-soft-foreground: #382f9e;
+
+  --ring: #4338ca;
+
+  /* destructive (also doubles as the "overdue" status color) */
+  --destructive: #dc2626;
+  --destructive-hover: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fbe9e8;
+
+  /* status: new (blue) */
+  --status-new: #2563eb;
+  --status-new-bg: #e9f0fe;
+  --status-new-fg: #1d4ed8;
+
+  /* status: in-progress (amber) */
+  --status-in-progress: #d97706;
+  --status-in-progress-bg: #fdf1de;
+  --status-in-progress-fg: #b45309;
+
+  /* status: waiting (violet) */
+  --status-waiting: #7c3aed;
+  --status-waiting-bg: #f1eafd;
+  --status-waiting-fg: #6d28d9;
+
+  /* status: ready (teal) */
+  --status-ready: #0d9488;
+  --status-ready-bg: #e2f5f3;
+  --status-ready-fg: #0f766e;
+
+  /* status: resolved (green) */
+  --status-resolved: #16a34a;
+  --status-resolved-bg: #e7f6ec;
+  --status-resolved-fg: #15803d;
+
+  /* status: overdue / stale (red) */
+  --status-overdue: #dc2626;
+  --status-overdue-bg: #fbe9e8;
+  --status-overdue-fg: #b91c1c;
+
+  --shadow-color: 23 20 16;
 }
 
 @theme inline {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, "Helvetica Neue", sans-serif;
+
   --color-background: var(--background);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-overlay: var(--overlay);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint-foreground: var(--faint-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+
+  --color-ring: var(--ring);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+
+  --color-status-new: var(--status-new);
+  --color-status-new-bg: var(--status-new-bg);
+  --color-status-new-fg: var(--status-new-fg);
+
+  --color-status-in-progress: var(--status-in-progress);
+  --color-status-in-progress-bg: var(--status-in-progress-bg);
+  --color-status-in-progress-fg: var(--status-in-progress-fg);
+
+  --color-status-waiting: var(--status-waiting);
+  --color-status-waiting-bg: var(--status-waiting-bg);
+  --color-status-waiting-fg: var(--status-waiting-fg);
+
+  --color-status-ready: var(--status-ready);
+  --color-status-ready-bg: var(--status-ready-bg);
+  --color-status-ready-fg: var(--status-ready-fg);
+
+  --color-status-resolved: var(--status-resolved);
+  --color-status-resolved-bg: var(--status-resolved-bg);
+  --color-status-resolved-fg: var(--status-resolved-fg);
+
+  --color-status-overdue: var(--status-overdue);
+  --color-status-overdue-bg: var(--status-overdue-bg);
+  --color-status-overdue-fg: var(--status-overdue-fg);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #131210;
+    --sidebar-bg: #191815;
+    --surface: #1c1b18;
+    --surface-hover: #232220;
+    --overlay: rgb(0 0 0 / 0.55);
+
+    --border: #2d2b27;
+    --border-strong: #3a3733;
+
+    --foreground: #f2f0ec;
+    --muted-foreground: #a29c90;
+    --faint-foreground: #6f6a60;
+
+    --accent: #8179e8;
+    --accent-hover: #948bef;
+    --accent-foreground: #100e2c;
+    --accent-soft: #26234a;
+    --accent-soft-foreground: #c7c2f5;
+
+    --ring: #8179e8;
+
+    --destructive: #f16b64;
+    --destructive-hover: #f58881;
+    --destructive-foreground: #2a0d0b;
+    --destructive-soft: #3a1917;
+
+    --status-new: #5b93f5;
+    --status-new-bg: #17233c;
+    --status-new-fg: #9cbdfa;
+
+    --status-in-progress: #e5a041;
+    --status-in-progress-bg: #322510;
+    --status-in-progress-fg: #f0bd73;
+
+    --status-waiting: #a683f0;
+    --status-waiting-bg: #271f3d;
+    --status-waiting-fg: #c6adf7;
+
+    --status-ready: #33b7a8;
+    --status-ready-bg: #102a26;
+    --status-ready-fg: #6ed3c5;
+
+    --status-resolved: #4ade80;
+    --status-resolved-bg: #132a1b;
+    --status-resolved-fg: #86e6a6;
+
+    --status-overdue: #f16b64;
+    --status-overdue-bg: #3a1917;
+    --status-overdue-fg: #f58881;
+
+    --shadow-color: 0 0 0;
   }
 }
 
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-soft-foreground);
+}
+
+/* thin, unobtrusive scrollbars that fit the dense-data aesthetic */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Lightweight open/close animations for Radix content (no external plugin) */
+/* ---------------------------------------------------------------------- */
+
+@keyframes rf-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rf-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes rf-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes rf-scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.96); }
+}
+@keyframes rf-dialog-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes rf-dialog-out {
+  from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+}
+
+.rf-overlay[data-state="open"] {
+  animation: rf-fade-in 150ms ease-out;
+}
+.rf-overlay[data-state="closed"] {
+  animation: rf-fade-out 100ms ease-in;
+}
+
+.rf-dialog-content[data-state="open"] {
+  animation: rf-dialog-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rf-dialog-content[data-state="closed"] {
+  animation: rf-dialog-out 100ms ease-in;
+}
+
+.rf-pop-content {
+  transform-origin: var(--radix-popper-transform-origin, center);
+}
+.rf-pop-content[data-state="open"] {
+  animation: rf-scale-in 120ms ease-out;
+}
+.rf-pop-content[data-state="closed"] {
+  animation: rf-scale-out 100ms ease-in;
 }
