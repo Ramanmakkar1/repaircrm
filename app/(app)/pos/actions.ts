@@ -1,0 +1,34 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { requireUser } from "@/lib/auth";
+import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
+import { performCheckout } from "./checkout";
+
+/**
+ * The only way into a POS sale.
+ *
+ * A `"use server"` export is a public POST endpoint, so this function's whole
+ * job is the tenant boundary: the shop and the cashier come from the session
+ * cookie and nowhere else, and are never read from the payload. Everything
+ * after that — validation, pricing, the transaction — lives in ./checkout,
+ * which is a plain server module precisely so it cannot be called directly
+ * from the wire with a `shopId` of the caller's choosing.
+ */
+export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResult> {
+  const { shopId, userId } = await requireUser();
+
+  const result = await performCheckout({ shopId, userId }, input);
+
+  if (result.ok) {
+    // Stock moved and a paid invoice exists, so every screen that counts either
+    // one is now stale.
+    revalidatePath("/pos");
+    revalidatePath("/invoices");
+    revalidatePath("/inventory");
+    revalidatePath("/dashboard");
+  }
+
+  return result;
+}

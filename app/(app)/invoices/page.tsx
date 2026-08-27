@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Receipt } from "lucide-react";
+import { Plus, Receipt, RefreshCcw } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
@@ -78,11 +78,18 @@ export default async function InvoicesPage({
         title="Invoices"
         description="Bill customers and track payment status."
         actions={
-          <Button asChild>
-            <Link href="/invoices/new">
-              <Plus /> New invoice
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/invoices/recurring">
+                <RefreshCcw /> Recurring
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/invoices/new">
+                <Plus /> New invoice
+              </Link>
+            </Button>
+          </div>
         }
       />
 

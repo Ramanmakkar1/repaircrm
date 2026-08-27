@@ -11,6 +11,7 @@ import {
   Pencil,
   Phone,
   Receipt,
+  ScrollText,
   Wrench,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ import {
 } from "@/components/customers/activity-cards";
 import { AssetsCard } from "@/components/customers/assets-card";
 import { ContactsCard } from "@/components/customers/contacts-card";
+import { CreditDialog } from "@/components/credits/credit-dialog";
 import { CustomerActionsMenu } from "@/components/customers/customer-actions-menu";
 import { FlashToast } from "@/components/customers/flash-toast";
 import {
@@ -301,6 +303,19 @@ export default async function CustomerHubPage({
                 New Estimate
               </Link>
             </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/customers/${customer.id}/statement`}>
+                <ScrollText />
+                Statement
+              </Link>
+            </Button>
+            {role === "OWNER" || role === "FRONT_DESK" ? (
+              <CreditDialog
+                customerId={customer.id}
+                customerName={name}
+                balanceCents={customer.creditBalanceCents}
+              />
+            ) : null}
             <Button variant="outline" asChild>
               <Link href={`/customers/${customer.id}/edit`}>
                 <Pencil />

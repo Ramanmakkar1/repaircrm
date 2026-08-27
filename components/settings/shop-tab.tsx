@@ -1,0 +1,159 @@
+"use client";
+
+import * as React from "react";
+import { useActionState } from "react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
+
+import { updateShopAction } from "@/app/(app)/settings/actions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/billing/submit-button";
+import { IDLE_SETTINGS_STATE, type ShopSettingsValues } from "./types";
+
+/** 825 -> "8.25" — what a human types into a percent box. */
+function bpsToPercentInput(bps: number): string {
+  return String(Math.round(bps) / 100);
+}
+
+/**
+ * Shop identity, contact details and the default tax rate.
+ *
+ * The tax rate here is the *default* new documents snapshot at creation — it
+ * never restates an estimate, invoice or recurring schedule that already
+ * captured a rate. That is deliberate and worth saying on screen, because
+ * "I changed the tax rate and nothing changed" is otherwise a support ticket.
+ */
+export function ShopTab({ shop }: { shop: ShopSettingsValues }) {
+  const [state, formAction] = useActionState(updateShopAction, IDLE_SETTINGS_STATE);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-5">
+      {state.error ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{state.error}</span>
+        </div>
+      ) : null}
+
+      {state.message ? (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-md bg-status-resolved-bg px-4 py-3 text-sm font-semibold text-status-resolved-fg"
+        >
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+          <span>{state.message}</span>
+        </div>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Shop identity</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-5 sm:grid-cols-2">
+          <Field label="Shop name" name="name" defaultValue={shop.name} required />
+          <Field
+            label="Timezone"
+            name="timezone"
+            defaultValue={shop.timezone}
+            hint="IANA name, e.g. America/Edmonton."
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Address &amp; contact</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-5 sm:grid-cols-2">
+          <Field
+            label="Address line 1"
+            name="address1"
+            defaultValue={shop.address1}
+            className="sm:col-span-2"
+          />
+          <Field
+            label="Address line 2"
+            name="address2"
+            defaultValue={shop.address2}
+            className="sm:col-span-2"
+          />
+          <Field label="City" name="city" defaultValue={shop.city} />
+          <Field label="State / province" name="state" defaultValue={shop.state} />
+          <Field label="Postal code" name="postalCode" defaultValue={shop.postalCode} />
+          <Field label="Country" name="country" defaultValue={shop.country} />
+          <Field label="Phone" name="phone" defaultValue={shop.phone} type="tel" />
+          <Field label="Email" name="email" defaultValue={shop.email} type="email" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Billing defaults</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <Label htmlFor="taxRate">Sales tax rate</Label>
+          <div className="flex items-center gap-2.5">
+            <Input
+              id="taxRate"
+              name="taxRate"
+              defaultValue={bpsToPercentInput(shop.taxRateBps)}
+              inputMode="decimal"
+              className="w-28 text-right tabular-nums"
+            />
+            <span className="text-sm font-semibold text-muted-foreground">%</span>
+          </div>
+          <p className="max-w-prose text-[13.5px] leading-relaxed text-muted-foreground">
+            Applied to taxable lines on documents created from now on. Estimates,
+            invoices and recurring schedules each snapshot the rate when they are
+            created, so changing it here never restates a document a customer has
+            already been shown.
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <SubmitButton size="lg" pendingLabel="Saving…">
+          Save shop details
+        </SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+function Field({
+  label,
+  name,
+  defaultValue,
+  hint,
+  type = "text",
+  required,
+  className,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  hint?: string;
+  type?: string;
+  required?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col gap-2 ${className ?? ""}`}>
+      <Label htmlFor={name}>{label}</Label>
+      <Input
+        id={name}
+        name={name}
+        type={type}
+        defaultValue={defaultValue}
+        required={required}
+      />
+      {hint ? (
+        <p className="text-[13.5px] text-muted-foreground">{hint}</p>
+      ) : null}
+    </div>
+  );
+}
