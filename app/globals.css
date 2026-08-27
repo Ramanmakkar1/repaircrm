@@ -422,3 +422,138 @@ body {
     transition: box-shadow 160ms ease;
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Marketing landing page ( "/" )                                          */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * The landing page is deliberately LIGHT-ONLY.
+ *
+ * Rationale: the marketing page is a single, art-directed composition whose
+ * whole point is to look like the product — a white canvas, hairline borders
+ * and the six status colors used as accents. Those status tints are the light
+ * ramp (#e0ebfe, #fceed3, …) and the product vignettes place them next to a
+ * deliberately dark "shop wall display" panel. Auto-inverting all of that
+ * would either wash the vignettes out or force a second, parallel set of
+ * art-direction decisions for a page that is one screenful of pure marketing.
+ * The app itself keeps its full dark mode; only "/" opts out.
+ *
+ * Everything below is ADDITIVE — no token declared above is modified. The
+ * light values are simply re-declared, scoped to `.rf-landing`, so they win
+ * over the dark `@media (prefers-color-scheme: dark)` block for this subtree.
+ */
+
+html:has(.rf-landing) {
+  color-scheme: light;
+}
+
+body:has(.rf-landing) {
+  background: #ffffff;
+  color: #101114;
+}
+
+.rf-landing {
+  color-scheme: light;
+
+  --background: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f5f6f8;
+  --overlay: rgb(15 18 26 / 0.4);
+
+  --border: #e7e7ea;
+  --border-strong: #d3d4d9;
+
+  --foreground: #101114;
+  --muted-foreground: #61646c;
+  --faint-foreground: #9095a0;
+
+  --accent: #4338ca;
+  --accent-hover: #372ea8;
+  --accent-foreground: #ffffff;
+  --accent-soft: #ecebfd;
+  --accent-soft-foreground: #3a30a8;
+  --ring: #4338ca;
+
+  --destructive: #dc2626;
+  --destructive-hover: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fde3e2;
+
+  --status-new: #2563eb;
+  --status-new-bg: #e0ebfe;
+  --status-new-fg: #1d4ed8;
+  --status-in-progress: #d97706;
+  --status-in-progress-bg: #fceed3;
+  --status-in-progress-fg: #b45309;
+  --status-waiting: #7c3aed;
+  --status-waiting-bg: #eee4fd;
+  --status-waiting-fg: #6d28d9;
+  --status-ready: #0d9488;
+  --status-ready-bg: #d5f1ed;
+  --status-ready-fg: #0f766e;
+  --status-resolved: #16a34a;
+  --status-resolved-bg: #dbf2e3;
+  --status-resolved-fg: #15803d;
+  --status-overdue: #dc2626;
+  --status-overdue-bg: #fde3e2;
+  --status-overdue-fg: #b91c1c;
+
+  --shadow-color: 16 24 40;
+  --chip-accent-bg: #ecebfd;
+  --chip-accent-fg: #3a30a8;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/*
+ * Hero backdrop: a faint 32px graph-paper grid that fades out downward, plus a
+ * single very soft indigo wash behind the headline. Both are pure CSS, both
+ * sit under `-z-10`, and neither ever touches the text contrast.
+ */
+.rf-hero-grid {
+  background-image:
+    linear-gradient(to right, #eceef2 1px, transparent 1px),
+    linear-gradient(to bottom, #eceef2 1px, transparent 1px);
+  background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
+}
+
+.rf-hero-wash {
+  background: radial-gradient(
+    60% 55% at 50% 0%,
+    rgb(67 56 202 / 0.07) 0%,
+    rgb(67 56 202 / 0.02) 45%,
+    transparent 72%
+  );
+}
+
+/* One restrained entrance for the hero mockup. */
+@keyframes rf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rf-rise {
+  animation: rf-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-rise {
+    animation: none;
+  }
+}
+
+/* Tabular figures for the numbers inside the product vignettes. */
+.rf-nums {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}

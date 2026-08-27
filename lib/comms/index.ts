@@ -22,6 +22,7 @@
  */
 
 import { db } from "@/lib/db";
+import { paymentsLive } from "@/lib/payments/config";
 import { portalUrl } from "./config";
 import { deliverEmail, deliverSms } from "./drivers";
 import { renderEmail, renderSms } from "./templates";
@@ -161,6 +162,13 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     body: input.body,
     portalUrl: link,
     context: input.context ?? null,
+    // An email about an invoice, sent while card payments are live, whose link
+    // lands on that invoice's own page — only then is "pay online" a promise
+    // the destination can keep.
+    payOnline:
+      Boolean(input.invoiceId) &&
+      link.includes(`/portal/invoices/${input.invoiceId}`) &&
+      paymentsLive(),
   });
 
   const status = await deliverEmail({

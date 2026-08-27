@@ -19,6 +19,12 @@ export type EmailTemplateInput = {
   portalUrl: string;
   /** Optional line under the header, e.g. "Ticket #1042". */
   context?: string | null;
+  /**
+   * True when `portalUrl` is an invoice page AND card payments are live, so the
+   * link is worth describing as a way to pay rather than a way to look. Passed
+   * in rather than read from env, because this module stays pure.
+   */
+  payOnline?: boolean;
 };
 
 export type RenderedEmail = { text: string; html: string };
@@ -38,15 +44,26 @@ export function renderEmail({
   body,
   portalUrl,
   context,
+  payOnline = false,
 }: EmailTemplateInput): RenderedEmail {
+  // One link, two labels. The URL is identical either way — a "pay" link that
+  // went somewhere other than the invoice page would be the exact shape of a
+  // phishing email, and customers are right to be suspicious of those.
+  const cta = payOnline ? "Pay this invoice online" : "Open your portal";
+  const footLine = payOnline
+    ? `Pay online, or view and download the invoice: ${portalUrl}`
+    : `View your repairs, estimates and invoices: ${portalUrl}`;
+
   const text = [
     shopName,
     context ? context : null,
     "",
     body,
     "",
+    payOnline ? "Pay online with a card — no account needed." : null,
+    payOnline ? "" : null,
     "—",
-    `View your repairs, estimates and invoices: ${portalUrl}`,
+    footLine,
     `Sent by ${shopName}.`,
   ]
     .filter((line) => line !== null)
@@ -80,8 +97,13 @@ export function renderEmail({
       <td style="padding:24px;">
         <h1 style="margin:0 0 14px;font-size:18px;line-height:1.35;color:#1c1a17;">${esc(subject)}</h1>
         ${paragraphs}
+        ${
+          payOnline
+            ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#1c1a17;">You can pay this invoice online with a card — no account needed.</p>`
+            : ""
+        }
         <p style="margin:22px 0 0;">
-          <a href="${esc(portalUrl)}" style="display:inline-block;background:#4338ca;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 18px;border-radius:12px;">Open your portal</a>
+          <a href="${esc(portalUrl)}" style="display:inline-block;background:#4338ca;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 18px;border-radius:12px;">${esc(cta)}</a>
         </p>
       </td>
     </tr>

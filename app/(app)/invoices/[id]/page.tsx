@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarDays,
   CheckCircle2,
+  CreditCard,
   FileText,
   Hash,
   Pencil,
@@ -19,6 +20,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -49,6 +51,16 @@ const METHOD_LABELS: Record<string, string> = {
   CREDIT: "Store credit",
   OTHER: "Other",
 };
+
+/**
+ * A card payment taken at the counter and one the customer made themselves at
+ * 11pm are both `CARD`, and staff need to tell them apart when a customer
+ * phones about a charge. The Stripe session id in `reference` is the tell.
+ */
+function paymentLabel(method: string, reference: string | null): string {
+  if (isStripeReference(reference)) return "Card (online)";
+  return METHOD_LABELS[method] ?? method;
+}
 
 /** Chips that link somewhere get a gentle accent tint on hover. */
 const LINK_CHIP =
@@ -89,6 +101,9 @@ export default async function InvoiceDetailPage({
   const hasPayments = invoice.payments.length > 0;
   const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
   const settled = !isVoid && totals.balanceCents <= 0;
+  // Shown only when it is true. "Online payments: off" on every invoice of
+  // every shop that never enabled Stripe is an advert, not a status.
+  const onlinePayments = paymentsLive() && canTakePayment;
 
   return (
     <div className="flex flex-col gap-5">
@@ -184,6 +199,15 @@ export default async function InvoiceDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            {onlinePayments ? (
+              <Chip
+                icon={CreditCard}
+                className="bg-chip-accent-bg text-chip-accent-fg"
+              >
+                Online payments live
+              </Chip>
+            ) : null}
+
             <Chip icon={CalendarDays}>Raised {formatDate(invoice.createdAt)}</Chip>
 
             <Chip
@@ -337,7 +361,7 @@ export default async function InvoiceDetailPage({
                     >
                       <div className="flex min-w-0 flex-col gap-2">
                         <span className="text-sm font-semibold text-foreground">
-                          {METHOD_LABELS[payment.method] ?? payment.method}
+                          {paymentLabel(payment.method, payment.reference)}
                         </span>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Chip icon={CalendarDays}>

@@ -110,4 +110,27 @@ export type MessagingConfig = {
   /** Env vars the active driver needs, with whether each one is populated. */
   emailVars: { name: string; set: boolean }[];
   smsVars: { name: string; set: boolean }[];
+  payments: PaymentsConfig;
+};
+
+/**
+ * How online card payments are wired up, as the settings screen sees it.
+ *
+ * Same rule as the messaging drivers: only *whether* each secret is populated
+ * ever reaches the browser, never its value. A Stripe secret key in a client
+ * bundle is a full account compromise.
+ */
+export type PaymentsConfig = {
+  /** What PAYMENTS_DRIVER resolved to: "off" or "stripe". */
+  driver: string;
+  /** Driver is stripe AND the secret key is present. */
+  live: boolean;
+  /** Live AND the webhook secret is present — payments cannot settle without it. */
+  webhookReady: boolean;
+  currency: string;
+  /** False for zero/three-decimal currencies, which cents cannot represent. */
+  currencySupported: boolean;
+  /** The endpoint to register in the Stripe dashboard. */
+  webhookUrl: string;
+  vars: { name: string; set: boolean }[];
 };

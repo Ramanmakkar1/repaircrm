@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeysTab } from "./api-keys-tab";
+import { AutomationTab, type AutomationConfig } from "./automation-tab";
 import { CannedTab } from "./canned-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ShopTab } from "./shop-tab";
@@ -41,6 +42,7 @@ export function SettingsTabs({
   members,
   messaging,
   apiKeys,
+  automation,
 }: {
   role: string;
   currentUserId: string;
@@ -53,6 +55,8 @@ export function SettingsTabs({
   messaging: MessagingConfig;
   /** Owner-only; empty for everyone else because the query never ran. */
   apiKeys: ApiKeyItem[];
+  /** Owner-only; scheduler state and the last automation run. */
+  automation: AutomationConfig;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -68,6 +72,7 @@ export function SettingsTabs({
         { value: "canned", label: "Canned responses" },
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
+        isOwner ? { value: "automation", label: "Automation" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
       ].filter((tab): tab is { value: string; label: string } => tab !== null),
     [isOwner],
@@ -122,6 +127,12 @@ export function SettingsTabs({
       <TabsContent value="messaging">
         <MessagingTab config={messaging} />
       </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="automation">
+          <AutomationTab config={automation} />
+        </TabsContent>
+      ) : null}
 
       {isOwner ? (
         <TabsContent value="api-keys">

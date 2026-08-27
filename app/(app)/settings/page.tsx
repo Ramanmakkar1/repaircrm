@@ -3,8 +3,19 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { emailDriverName, smsDriverName, appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
+import {
+  currencySupported,
+  paymentsCurrency,
+  paymentsDriverName,
+  paymentsLive,
+  stripeSecretKey,
+  stripeWebhookSecret,
+  webhookReady,
+} from "@/lib/payments";
+import { readAutomation, recentRuns } from "@/lib/jobs";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
+import type { AutomationConfig } from "@/components/settings/automation-tab";
 import type { MessagingConfig } from "@/components/settings/types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
 
@@ -107,6 +118,42 @@ export default async function SettingsPage({
       },
       { name: "TWILIO_FROM", set: Boolean(process.env.TWILIO_FROM?.trim()) },
     ],
+    // Card payments follow the same rule as the messaging drivers: env decides,
+    // the screen only reports. Presence of each secret crosses to the browser,
+    // never its value — a leaked Stripe secret key is the whole account.
+    payments: {
+      driver: paymentsDriverName(),
+      live: paymentsLive(),
+      webhookReady: webhookReady(),
+      currency: paymentsCurrency(),
+      currencySupported: currencySupported(paymentsCurrency()),
+      webhookUrl: `${appUrl()}/api/webhooks/stripe`,
+      vars: [
+        { name: "STRIPE_SECRET_KEY", set: Boolean(stripeSecretKey()) },
+        { name: "STRIPE_WEBHOOK_SECRET", set: Boolean(stripeWebhookSecret()) },
+        {
+          name: "PAYMENTS_CURRENCY",
+          set: Boolean(process.env.PAYMENTS_CURRENCY?.trim()),
+        },
+      ],
+    },
+  };
+
+  // Scheduler state. Like the messaging config above, this is read from
+  // `process.env` on the server and only the *shape* of it crosses to the
+  // browser — whether CRON_SECRET is populated, never what it says.
+  const stored = readAutomation(shop.settings);
+  const automation: AutomationConfig = {
+    intervalMin: envNumber(process.env.JOBS_INTERVAL_MIN, 15),
+    firstDelayS: envNumber(process.env.JOBS_FIRST_DELAY_S, 60),
+    cronSecretSet: Boolean(process.env.CRON_SECRET?.trim()),
+    cronUrl: `${appUrl()}/api/cron`,
+    lastRunAt: stored.lastRunAt ?? null,
+    lastSummary: stored.lastSummary ?? null,
+    // In-memory, so this is empty on a freshly restarted server — which is
+    // exactly why the stored `lastSummary` above exists alongside it.
+    recentRuns: isOwner ? recentRuns() : [],
+    canRun: isOwner,
   };
 
   return (
@@ -144,6 +191,7 @@ export default async function SettingsPage({
           createdAt: member.createdAt.toISOString(),
         }))}
         messaging={messaging}
+        automation={automation}
         apiKeys={apiKeys.map((key) => ({
           ...key,
           lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,
@@ -152,4 +200,16 @@ export default async function SettingsPage({
       />
     </div>
   );
+}
+
+/**
+ * Reads a numeric env var, falling back when it is absent or not a number.
+ * Mirrors the parsing in instrumentation.ts so the screen reports what the
+ * timer will actually do, not what the raw string says.
+ */
+function envNumber(raw: string | undefined, fallback: number): number {
+  const trimmed = raw?.trim();
+  if (!trimmed) return fallback;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }

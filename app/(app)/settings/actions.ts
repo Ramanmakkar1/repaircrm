@@ -236,6 +236,12 @@ export async function deleteCannedResponseAction(
   const { session, denied } = await cannedManager();
   if (denied) return { ok: false, error: denied };
 
+  // Prisma treats `id: undefined` as "no filter" — without this guard a
+  // malformed call would delete every canned response in the shop.
+  if (typeof id !== "string" || !id) {
+    return { ok: false, error: "That canned response no longer exists." };
+  }
+
   const deleted = await db.cannedResponse.deleteMany({
     where: { id, shopId: session.shopId },
   });

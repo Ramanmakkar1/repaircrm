@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Download } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
 import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { requirePortalCustomer } from "@/lib/portal-session";
+import { PayOnlineButton } from "../../_components/pay-online";
 import {
   BackLink,
   PortalCard,
@@ -22,12 +24,22 @@ const METHOD_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+/** Statuses a customer is allowed to pay against. */
+const PAYABLE = new Set(["SENT", "PARTIAL"]);
+
+function first(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
 export default async function PortalInvoicePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const query = await searchParams;
   const customer = await requirePortalCustomer(`/portal/invoices/${id}`);
 
   const invoice = await db.invoice.findFirst({
@@ -73,6 +85,15 @@ export default async function PortalInvoicePage({
   );
   const balance = Math.max(totals.balanceCents, 0);
 
+  // The button only exists when a real processor is behind it, the invoice is
+  // one the customer has been shown, and something is actually owed.
+  const canPayOnline =
+    paymentsLive() && balance > 0 && PAYABLE.has(invoice.status);
+
+  const justPaid = first(query.paid) === "1";
+  const canceled = first(query.canceled) === "1";
+  const payError = first(query.payerror);
+
   return (
     <PortalShell
       shopName={customer.shop.name}
@@ -104,23 +125,73 @@ export default async function PortalInvoicePage({
       </div>
 
       <div className="flex flex-col gap-6">
+        {/*
+          `?paid=1` is only a hint from the browser Stripe sent back — the money
+          is not ours until the webhook says so. So the banner reports what the
+          BALANCE says, not what the query string claims: still owing means the
+          confirmation is in flight, not that the payment failed.
+        */}
+        {justPaid ? (
+          balance > 0 ? (
+            <Banner
+              tone="pending"
+              icon={Clock}
+              title="Payment processing"
+              body="Your card has been submitted. This page will show it as received within a minute or two — there is nothing more for you to do."
+            />
+          ) : (
+            <Banner
+              tone="good"
+              icon={CheckCircle2}
+              title="Payment received — thank you!"
+              body={`${customer.shop.name} has your payment in full.`}
+            />
+          )
+        ) : null}
+
+        {canceled ? (
+          <Banner
+            tone="quiet"
+            icon={AlertCircle}
+            title="Payment canceled"
+            body="Nothing was charged. You can pay whenever you're ready."
+          />
+        ) : null}
+
+        {payError ? (
+          <Banner tone="quiet" icon={AlertCircle} title="Couldn't start that payment" body={payError} />
+        ) : null}
+
         {/* The number that actually matters, said once, in large type. */}
-        <PortalCard className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
-          <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-              {balance > 0 ? "Balance due" : "Balance"}
+        <PortalCard className="flex flex-col gap-5 px-5 py-5 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
+                {balance > 0 ? "Balance due" : "Balance"}
+              </div>
+              <div className="mt-1 font-mono text-3xl font-bold tracking-tight">
+                {formatCents(balance)}
+              </div>
             </div>
-            <div className="mt-1 font-mono text-3xl font-bold tracking-tight">
-              {formatCents(balance)}
-            </div>
+            <p className="max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+              {invoice.status === "VOID"
+                ? "This invoice has been voided — nothing is owed."
+                : balance > 0
+                  ? canPayOnline
+                    ? `Payable to ${customer.shop.name}. Pay by card below, or settle up when you collect your device.`
+                    : `Payable to ${customer.shop.name}. Give the shop a call or pay when you collect your device.`
+                  : "Paid in full — thank you!"}
+            </p>
           </div>
-          <p className="max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-            {invoice.status === "VOID"
-              ? "This invoice has been voided — nothing is owed."
-              : balance > 0
-                ? `Payable to ${customer.shop.name}. Give the shop a call or pay when you collect your device.`
-                : "Paid in full — thank you!"}
-          </p>
+
+          {canPayOnline ? (
+            <div className="border-t border-border pt-5">
+              <PayOnlineButton
+                invoiceId={invoice.id}
+                amountLabel={formatCents(balance)}
+              />
+            </div>
+          ) : null}
         </PortalCard>
 
         <PortalCard>
@@ -197,11 +268,16 @@ export default async function PortalInvoicePage({
                 >
                   <div>
                     <div className="font-medium">
-                      {METHOD_LABELS[payment.method] ?? payment.method}
+                      {isStripeReference(payment.reference)
+                        ? "Card (online)"
+                        : (METHOD_LABELS[payment.method] ?? payment.method)}
                     </div>
                     <div className="text-[13px] text-muted-foreground">
                       {formatDate(payment.createdAt)}
-                      {payment.reference ? ` · ${payment.reference}` : ""}
+                      {/* A Stripe session id means nothing to a customer. */}
+                      {payment.reference && !isStripeReference(payment.reference)
+                        ? ` · ${payment.reference}`
+                        : ""}
                     </div>
                   </div>
                   <span className="font-mono font-semibold">
@@ -223,6 +299,42 @@ export default async function PortalInvoicePage({
         ) : null}
       </div>
     </PortalShell>
+  );
+}
+
+/**
+ * A one-line status message above the balance. Three tones, no dismiss button:
+ * these appear because of something the customer just did, and they disappear
+ * on the next navigation.
+ */
+function Banner({
+  tone,
+  icon: Icon,
+  title,
+  body,
+}: {
+  tone: "good" | "pending" | "quiet";
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}) {
+  const tones = {
+    good: "border-status-resolved/30 bg-status-resolved-bg text-status-resolved-fg",
+    pending: "border-status-in-progress/30 bg-status-in-progress-bg text-status-in-progress-fg",
+    quiet: "border-border-strong bg-surface text-muted-foreground",
+  } as const;
+
+  return (
+    <div
+      role="status"
+      className={`flex items-start gap-3 rounded-2xl border px-5 py-4 shadow-sm ${tones[tone]}`}
+    >
+      <Icon className="mt-0.5 size-5 shrink-0" />
+      <div>
+        <div className="text-[14.5px] font-semibold">{title}</div>
+        <p className="mt-0.5 text-[13.5px] leading-relaxed opacity-90">{body}</p>
+      </div>
+    </div>
   );
 }
 
