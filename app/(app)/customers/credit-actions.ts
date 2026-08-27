@@ -15,13 +15,20 @@ import { formatCents, parseCents } from "@/lib/money";
  * app/(app)/invoices/actions.ts takePaymentAction), which decrements it inside
  * the same transaction that writes the payment.
  *
- * FUTURE WORK: there is no ledger model, so an adjustment records the new
- * balance and nothing else — the `reason` collected by the dialog is shown back
- * to the operator for confirmation and then discarded. A `CreditAdjustment`
- * table (delta, reason, userId, createdAt) is the missing piece; the schema is
- * frozen for this phase, so it is called out rather than faked into
- * CommunicationLog (that outbox means "we messaged the customer") or Payment
- * (which would invent a payment against an invoice that does not exist).
+ * AUDIT TRAIL: every adjustment made here also writes a `CreditAdjustment` row
+ * — signed delta, the reason the operator typed, and who they were — inside the
+ * SAME transaction as the balance change. Either both land or neither does; a
+ * balance that moved with no explanation of why is exactly the thing this table
+ * exists to prevent. `Customer.creditBalanceCents` stays the cached current
+ * level, the rows are the history (the same split as Product.stockQty and
+ * StockAdjustment).
+ *
+ * KNOWN GAP: credit *spent* at checkout — the CREDIT payment method in
+ * app/(app)/invoices/actions.ts and app/(app)/pos/checkout.ts — decrements the
+ * balance without writing a row here. Those spends are already evidenced by the
+ * Payment they created, so nothing is unaccounted for, but it does mean the
+ * history below is "adjustments", not a full ledger. Closing that gap means
+ * touching the billing actions and belongs with them.
  */
 
 export type CreditResult =
@@ -40,7 +47,7 @@ export async function adjustCustomerCreditAction(input: {
 }): Promise<CreditResult> {
   // Front desk hands out and redeems credit all day; techs have no business
   // moving money. OWNER included so the shop owner is never locked out.
-  const { shopId, role } = await requireUser();
+  const { shopId, role, userId } = await requireUser();
   if (role !== "OWNER" && role !== "FRONT_DESK") {
     return { ok: false, error: "Only an owner or front desk can adjust store credit." };
   }
@@ -89,6 +96,19 @@ export async function adjustCustomerCreditAction(input: {
       await tx.customer.update({
         where: { id: customer.id },
         data: { creditBalanceCents: next },
+      });
+
+      // The delta is derived from the balances, not from the requested amount:
+      // if the zero-clamp above ever bites, the ledger records what actually
+      // happened rather than what was asked for.
+      await tx.creditAdjustment.create({
+        data: {
+          shopId,
+          customerId: customer.id,
+          deltaCents: next - customer.creditBalanceCents,
+          reason,
+          userId,
+        },
       });
 
       return next;

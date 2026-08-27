@@ -6,6 +6,8 @@ import {
   Receipt,
   ShoppingCart,
   Boxes,
+  Megaphone,
+  BarChart3,
   Monitor,
   Settings,
   type LucideIcon,
@@ -25,6 +27,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "POS", href: "/pos", icon: ShoppingCart },
   { label: "Inventory", href: "/inventory", icon: Boxes },
+  { label: "Marketing", href: "/marketing", icon: Megaphone },
+  { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Shop Display", href: "/display", icon: Monitor },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

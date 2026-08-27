@@ -10,13 +10,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           href="/"
           className="mb-7 flex items-center justify-center gap-3 text-foreground"
         >
-          <span className="flex size-12 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-sm">
+          <span className="flex size-12 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-xs">
             <Wrench className="size-6" strokeWidth={2.5} />
           </span>
           <span className="text-2xl font-bold tracking-tight">RepairFlow</span>
         </Link>
 
-        <div className="rounded-xl border border-border bg-surface p-7 shadow-lg">
+        <div className="rounded-2xl border border-border bg-surface p-7 shadow-lg">
           {children}
         </div>
       </div>

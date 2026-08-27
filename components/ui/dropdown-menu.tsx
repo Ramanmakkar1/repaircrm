@@ -22,7 +22,7 @@ export function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "rf-pop-content z-50 min-w-[12rem] overflow-hidden rounded-md border border-border bg-surface p-1.5 shadow-lg",
+          "rf-pop-content z-50 min-w-[12rem] overflow-hidden rounded-lg border border-border bg-surface p-1.5 shadow-lg",
           className,
         )}
         {...props}
@@ -172,7 +172,7 @@ export function DropdownMenuSubContent({
   return (
     <DropdownMenuPrimitive.SubContent
       className={cn(
-        "rf-pop-content z-50 min-w-[10rem] overflow-hidden rounded-md border border-border bg-surface p-1.5 shadow-lg",
+        "rf-pop-content z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-surface p-1.5 shadow-lg",
         className,
       )}
       {...props}

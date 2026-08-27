@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# user uploads are data, not code
+/public/uploads/*
+!/public/uploads/.gitkeep

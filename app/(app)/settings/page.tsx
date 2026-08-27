@@ -27,7 +27,7 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
 
-  const [shop, cannedResponses, members] = await Promise.all([
+  const [shop, cannedResponses, members, apiKeys] = await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
@@ -62,6 +62,24 @@ export default async function SettingsPage({
             email: true,
             role: true,
             active: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+    // Same reasoning as the roster: API keys are owner-only, so a technician's
+    // request never loads them at all. No plaintext key exists to load — only
+    // the prefix and the hash — but the *existence* of an integration is still
+    // the owner's business.
+    isOwner
+      ? db.apiKey.findMany({
+          where: { shopId: session.shopId },
+          orderBy: [{ active: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            name: true,
+            prefix: true,
+            active: true,
+            lastUsedAt: true,
             createdAt: true,
           },
         })
@@ -126,6 +144,11 @@ export default async function SettingsPage({
           createdAt: member.createdAt.toISOString(),
         }))}
         messaging={messaging}
+        apiKeys={apiKeys.map((key) => ({
+          ...key,
+          lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,
+          createdAt: key.createdAt.toISOString(),
+        }))}
       />
     </div>
   );

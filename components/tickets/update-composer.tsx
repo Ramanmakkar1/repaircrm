@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/components/ui/cn";
+import { DraftReplyControls } from "@/components/ai/draft-reply";
 import { postUpdateAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE, type ActionState } from "./action-state";
 import { CannedManager, type Canned } from "./canned-manager";
@@ -184,6 +185,15 @@ export function UpdateComposer({
               />
             </div>
           ) : null}
+
+          {/* Sits above the textarea, not beside the submit: a draft is raw
+              material for the note, and it has to be obvious it lands in the
+              box rather than going anywhere near the customer on its own. */}
+          <DraftReplyControls
+            ticketId={ticketId}
+            hasExistingText={body.trim().length > 0}
+            onDraft={setBody}
+          />
 
           <Textarea
             name="body"

@@ -145,6 +145,7 @@ export default async function CustomerHubPage({
     paymentTotals,
     owingInvoices,
     communicationCount,
+    creditHistory,
   ] = await Promise.all([
     db.ticket.findMany({
       where: { shopId, customerId: id },
@@ -231,6 +232,22 @@ export default async function CustomerHubPage({
       },
     }),
     db.communicationLog.count({ where: { shopId, customerId: id } }),
+    // The store-credit audit trail, for the credit dialog. Only techs never see
+    // the dialog, so their request never runs this query.
+    role === "OWNER" || role === "FRONT_DESK"
+      ? db.creditAdjustment.findMany({
+          where: { shopId, customerId: id },
+          orderBy: { createdAt: "desc" },
+          take: RECENT,
+          select: {
+            id: true,
+            deltaCents: true,
+            reason: true,
+            createdAt: true,
+            user: { select: { name: true } },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const unpaidBalanceCents = owingInvoices.reduce((sum, invoice) => {
@@ -314,6 +331,13 @@ export default async function CustomerHubPage({
                 customerId={customer.id}
                 customerName={name}
                 balanceCents={customer.creditBalanceCents}
+                history={creditHistory.map((entry) => ({
+                  id: entry.id,
+                  deltaCents: entry.deltaCents,
+                  reason: entry.reason,
+                  userName: entry.user?.name ?? null,
+                  createdAt: entry.createdAt.toISOString(),
+                }))}
               />
             ) : null}
             <Button variant="outline" asChild>

@@ -4,9 +4,10 @@ import { cn } from "./cn";
 /**
  * The box everything in RepairFlow lives in.
  *
- * Generous 20px padding, a 16px corner and a soft shadow instead of a hard
- * outline — the whole app reads as a set of friendly panels a non-technical
- * employee can scan, rather than a spreadsheet with borders.
+ * The card is white on a white canvas, so its edge comes from a crisp hairline
+ * border and its depth from a pair of very soft shadow layers — never from a
+ * tinted fill. 20px padding and a 16px corner keep it a friendly panel a
+ * non-technical employee can scan, rather than a spreadsheet cell.
  */
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
@@ -62,11 +63,16 @@ export function CardDescription({
   );
 }
 
+/**
+ * 20px on every side, which is deliberately the same `p-5` the hand-rolled
+ * cards elsewhere in the app use — so a Card and a plain bordered div sitting
+ * side by side in a grid share one rhythm.
+ */
 export function CardContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-5 py-4", className)} {...props} />;
+  return <div className={cn("px-5 py-5", className)} {...props} />;
 }
 
 export function CardFooter({

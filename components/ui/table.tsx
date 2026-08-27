@@ -9,10 +9,19 @@ export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableEle
   );
 }
 
+/**
+ * A quiet gray band. Inside a white card it is the only fill in the whole
+ * table, which is what lets the hairline row dividers stay as light as they
+ * are without the columns losing their heading.
+ */
 export function THead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
   return (
     <thead
-      className={cn("border-b border-border [&_tr]:hover:bg-transparent", className)}
+      className={cn(
+        // the row's own divider is suppressed so the band edge stays one hairline
+        "border-b border-border bg-surface-hover [&_tr]:border-0 [&_tr]:hover:bg-transparent",
+        className,
+      )}
       {...props}
     />
   );
@@ -47,7 +56,7 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        "h-11 whitespace-nowrap px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "h-10 whitespace-nowrap px-4 text-left align-middle text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

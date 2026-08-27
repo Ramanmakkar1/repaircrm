@@ -21,21 +21,37 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
 
+/** One row of the audit trail, as the customer hub loads it. */
+export type CreditHistoryItem = {
+  id: string;
+  deltaCents: number;
+  reason: string;
+  /** Who made the adjustment; null when that staff account was removed. */
+  userName: string | null;
+  createdAt: string;
+};
+
 /**
  * Add or remove store credit from the customer hub.
  *
  * The current balance is the loudest thing in the dialog on purpose: "add $20"
  * is a meaningless instruction without knowing what is already on file, and a
  * front-desk mistake here is real money.
+ *
+ * Under the form sits the recent history, for the same reason: "why is there
+ * $40 on this account?" is the question the front desk actually gets asked, and
+ * answering it should not require opening a database.
  */
 export function CreditDialog({
   customerId,
   customerName,
   balanceCents,
+  history,
 }: {
   customerId: string;
   customerName: string;
   balanceCents: number;
+  history: CreditHistoryItem[];
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -171,7 +187,73 @@ export function CreditDialog({
             </Button>
           </DialogFooter>
         </form>
+
+        <CreditHistory history={history} />
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * The audit trail, newest first.
+ *
+ * Deliberately no running balance column: credit is also spent at checkout
+ * through the CREDIT payment method, which does not write rows here, so a
+ * running total computed from these deltas alone would disagree with the
+ * balance above and look like a bug. The heading says "adjustments" for the
+ * same reason — it is honest about what it covers.
+ */
+function CreditHistory({ history }: { history: CreditHistoryItem[] }) {
+  if (history.length === 0) {
+    return (
+      <p className="border-t border-border pt-4 text-[13px] text-muted-foreground">
+        No adjustments recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-2.5 border-t border-border pt-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Recent adjustments
+      </h3>
+      <ul className="flex max-h-52 flex-col gap-3 overflow-y-auto pr-1">
+        {history.map((entry) => (
+          <li key={entry.id} className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-[13.5px] font-semibold text-foreground">
+                {entry.reason}
+              </span>
+              <span className="text-[12.5px] text-muted-foreground">
+                {formatStamp(entry.createdAt)}
+                {entry.userName ? ` · ${entry.userName}` : ""}
+              </span>
+            </div>
+            <span
+              className={cn(
+                "shrink-0 text-[14px] font-bold tabular-nums",
+                entry.deltaCents < 0
+                  ? "text-destructive"
+                  : "text-status-resolved-fg",
+              )}
+            >
+              {entry.deltaCents > 0 ? "+" : ""}
+              {formatCents(entry.deltaCents)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const STAMP = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function formatStamp(iso: string): string {
+  return STAMP.format(new Date(iso));
 }

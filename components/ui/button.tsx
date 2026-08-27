@@ -16,14 +16,18 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        /*
+         * A solid indigo block on white needs almost no shadow — an xs
+         * contact shadow seats it on the page, anything heavier reads cheap.
+         */
         default:
-          "bg-accent text-accent-foreground shadow-sm hover:bg-accent-hover hover:shadow-md",
+          "bg-accent text-accent-foreground shadow-xs hover:bg-accent-hover hover:shadow-sm",
         outline:
-          "border border-border-strong bg-surface text-foreground shadow-xs hover:bg-surface-hover hover:border-accent/40",
+          "border border-border-strong bg-surface text-foreground shadow-xs hover:bg-surface-hover",
         ghost: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-        soft: "bg-accent-soft text-accent-soft-foreground hover:brightness-[0.97]",
+        soft: "bg-accent-soft text-accent-soft-foreground hover:brightness-[0.96]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive-hover hover:shadow-md",
+          "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive-hover hover:shadow-sm",
       },
       size: {
         default: "h-10 px-4 text-sm [&_svg]:size-4",

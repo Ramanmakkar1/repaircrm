@@ -8,7 +8,7 @@ import { useFormStatus } from "react-dom";
  */
 
 export const fieldClass =
-  "h-11 w-full rounded-md border border-border-strong bg-surface px-3.5 text-[15px] text-foreground outline-none transition placeholder:text-faint-foreground focus:border-accent focus:ring-2 focus:ring-ring/30 disabled:opacity-60";
+  "h-11 w-full rounded-md border border-border-strong bg-surface px-3.5 text-[15px] text-foreground shadow-xs outline-none transition placeholder:text-faint-foreground focus:border-accent focus:ring-[3px] focus:ring-ring/20 disabled:opacity-60";
 
 export const labelClass = "block text-sm font-semibold text-foreground";
 
@@ -75,7 +75,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="h-12 w-full rounded-md bg-accent px-4 text-[15px] font-semibold text-accent-foreground shadow-sm transition hover:bg-accent-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring/40 focus:ring-offset-2 focus:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60"
+      className="h-12 w-full rounded-md bg-accent px-4 text-[15px] font-semibold text-accent-foreground shadow-xs transition hover:bg-accent-hover hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-2 focus:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? pendingLabel : children}
     </button>

@@ -118,6 +118,10 @@ model Shop {
   communicationLogs CommunicationLog[]
   recurringInvoices RecurringInvoice[]
   stockAdjustments  StockAdjustment[]
+  campaigns         Campaign[]
+  campaignSends     CampaignSend[]
+  creditAdjustments CreditAdjustment[]
+  apiKeys           ApiKey[]
 }
 
 model Location {
@@ -159,9 +163,10 @@ model User {
   assignedTickets Ticket[]
   comments        TicketComment[]
   timeEntries     TimeEntry[]
-  paymentsTaken    Payment[]
-  attachments      Attachment[]
-  stockAdjustments StockAdjustment[]
+  paymentsTaken     Payment[]
+  attachments       Attachment[]
+  stockAdjustments  StockAdjustment[]
+  creditAdjustments CreditAdjustment[]
 
   @@index([shopId])
   @@index([shopId, role])
@@ -206,6 +211,8 @@ model Customer {
   communicationLogs CommunicationLog[]
   portalTokens      PortalToken[]
   recurringInvoices RecurringInvoice[]
+  campaignSends     CampaignSend[]
+  creditAdjustments CreditAdjustment[]
 
   @@index([shopId, lastName])
   @@index([shopId, createdAt])
@@ -296,6 +303,7 @@ model Ticket {
   invoices          Invoice[]
   attachments       Attachment[]
   communicationLogs CommunicationLog[]
+  campaignSends     CampaignSend[]
 
   @@unique([shopId, number])
   @@index([shopId, status])
@@ -471,6 +479,7 @@ model Invoice {
   payments          Payment[]
   ticketCharges     TicketCharge[]
   communicationLogs CommunicationLog[]
+  campaignSends     CampaignSend[]
 
   @@unique([shopId, number])
   @@index([shopId, status])
@@ -693,4 +702,101 @@ model StockAdjustment {
   user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([shopId, productId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — marketing automations, credit audit, public API
+// ---------------------------------------------------------------------------
+
+enum CampaignTrigger {
+  TICKET_RESOLVED
+  INVOICE_PAID
+  CUSTOMER_CREATED
+}
+
+/// A follow-up automation ("Marketr"): when <trigger> happens, message the
+/// customer <delayDays> later over <channel>.
+model Campaign {
+  id        String            @id @default(cuid())
+  shopId    String
+  name      String
+  trigger   CampaignTrigger
+  delayDays Int               @default(14)
+  channel   CommunicationType @default(EMAIL)
+  subject   String?
+  /// Message body; supports {{firstName}} {{shopName}} {{ticketNumber}} {{invoiceNumber}} placeholders.
+  body      String
+  active    Boolean           @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop  Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  sends CampaignSend[]
+
+  @@index([shopId, active])
+}
+
+/// One scheduled/sent message a campaign produced for one qualifying event.
+/// Dedupe rule (enforced in code): one send per (campaign, source event).
+model CampaignSend {
+  id          String    @id @default(cuid())
+  shopId      String
+  campaignId  String
+  customerId  String
+  ticketId    String?
+  invoiceId   String?
+  scheduledAt DateTime
+  sentAt      DateTime?
+  /// scheduled | sent | skipped: <reason> | failed: <reason>
+  status      String    @default("scheduled")
+
+  createdAt DateTime @default(now())
+
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  invoice  Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status, scheduledAt])
+  @@index([campaignId, customerId])
+}
+
+/// Audit trail for store-credit changes; Customer.creditBalanceCents is the
+/// cached level, these rows are the history.
+model CreditAdjustment {
+  id         String  @id @default(cuid())
+  shopId     String
+  customerId String
+  /// Signed change in cents: +5000 granted, -2000 spent/removed.
+  deltaCents Int
+  reason     String
+  userId     String?
+
+  createdAt DateTime @default(now())
+
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, customerId, createdAt])
+}
+
+/// Bearer key for the public REST API. Only a hash is stored; `prefix` is the
+/// first 8 chars kept for display ("rfk_ab12…").
+model ApiKey {
+  id         String    @id @default(cuid())
+  shopId     String
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  active     Boolean   @default(true)
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
 }

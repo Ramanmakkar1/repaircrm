@@ -4,12 +4,14 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApiKeysTab } from "./api-keys-tab";
 import { CannedTab } from "./canned-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
 import type {
+  ApiKeyItem,
   CannedResponseItem,
   MessagingConfig,
   ShopSettingsValues,
@@ -38,6 +40,7 @@ export function SettingsTabs({
   cannedResponses,
   members,
   messaging,
+  apiKeys,
 }: {
   role: string;
   currentUserId: string;
@@ -48,6 +51,8 @@ export function SettingsTabs({
   cannedResponses: CannedResponseItem[];
   members: TeamMember[];
   messaging: MessagingConfig;
+  /** Owner-only; empty for everyone else because the query never ran. */
+  apiKeys: ApiKeyItem[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +68,7 @@ export function SettingsTabs({
         { value: "canned", label: "Canned responses" },
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
+        isOwner ? { value: "api-keys", label: "API keys" } : null,
       ].filter((tab): tab is { value: string; label: string } => tab !== null),
     [isOwner],
   );
@@ -116,6 +122,12 @@ export function SettingsTabs({
       <TabsContent value="messaging">
         <MessagingTab config={messaging} />
       </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="api-keys">
+          <ApiKeysTab keys={apiKeys} appUrl={messaging.appUrl} />
+        </TabsContent>
+      ) : null}
     </Tabs>
   );
 }

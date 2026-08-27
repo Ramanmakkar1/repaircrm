@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft, Paperclip } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
+import { SummarizeTicketButton } from "@/components/ai/summarize-dialog";
+import {
+  AttachmentsCard,
+  type AttachmentRow,
+} from "@/components/tickets/attachments-card";
 import { ChargesCard } from "@/components/tickets/charges-card";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
@@ -129,6 +133,20 @@ export default async function TicketDetailPage({
           user: { select: { name: true } },
         },
       },
+      attachments: {
+        // Newest first: the photo somebody just took is the one being looked for.
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          path: true,
+          createdAt: true,
+          uploadedById: true,
+          uploadedBy: { select: { name: true } },
+        },
+      },
     },
   });
 
@@ -194,6 +212,17 @@ export default async function TicketDetailPage({
     0,
   );
 
+  const attachments: AttachmentRow[] = ticket.attachments.map((attachment) => ({
+    id: attachment.id,
+    fileName: attachment.fileName,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    path: attachment.path,
+    createdAtLabel: format(attachment.createdAt, "MMM d"),
+    uploaderName: attachment.uploadedBy?.name ?? null,
+    uploadedById: attachment.uploadedById,
+  }));
+
   return (
     <div className="flex flex-col gap-5">
       <Link
@@ -231,6 +260,7 @@ export default async function TicketDetailPage({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <SummarizeTicketButton ticketId={ticket.id} />
               <MakeInvoiceButton
                 ticketId={ticket.id}
                 chargeCount={uninvoicedCount}
@@ -398,22 +428,12 @@ export default async function TicketDetailPage({
             }
           />
 
-          <Card className="opacity-60">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Paperclip className="size-4 text-muted-foreground" />
-                Attachments
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-[13.5px] text-muted-foreground">
-                File uploads land in a later phase.
-              </p>
-              <Button variant="outline" size="sm" disabled className="mt-3">
-                Coming soon
-              </Button>
-            </CardContent>
-          </Card>
+          <AttachmentsCard
+            ticketId={ticket.id}
+            attachments={attachments}
+            currentUserId={userId}
+            isOwner={role === "OWNER"}
+          />
         </aside>
       </div>
     </div>

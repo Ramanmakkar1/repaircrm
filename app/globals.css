@@ -3,7 +3,7 @@
 /*
  * RepairFlow design tokens
  * ------------------------
- * Light-first, warm-neutral SaaS palette with a single strong indigo accent
+ * Pure-white, cool-neutral SaaS palette with a single deep indigo accent
  * and six semantic status colors used consistently across the app:
  *   new         → blue     (fresh, untouched)
  *   in-progress → amber    (actively being worked)
@@ -12,34 +12,38 @@
  *   resolved    → green    (done, closed out)
  *   overdue     → red      (stale / past due — needs attention)
  *
+ * The canvas, the sidebar rail and every card are all #ffffff. Definition
+ * comes from crisp hairline borders plus very soft, layered shadows — never
+ * from a tinted background. Nothing in the palette carries a warm cast.
+ *
  * Raw values live on :root / dark media query. The @theme inline block below
  * maps them to Tailwind v4 utility tokens (bg-background, text-foreground,
  * border-border, bg-status-new-bg, text-status-new-fg, etc).
  */
 
 :root {
-  /* surfaces */
-  --background: #faf9f7; /* near-white warm gray app canvas */
-  --sidebar-bg: #f3f1ee; /* subtle contrast against background */
+  /* surfaces — white canvas, white rail, white cards */
+  --background: #ffffff; /* app canvas */
+  --sidebar-bg: #ffffff; /* rail reads via its hairline border, not a tint */
   --surface: #ffffff; /* cards, topbar, popovers */
-  --surface-hover: #f5f3f1;
-  --overlay: rgb(23 20 16 / 0.32);
+  --surface-hover: #f5f6f8; /* cool gray-50/100: hovers, chips, header bands */
+  --overlay: rgb(15 18 26 / 0.4);
 
-  /* borders */
-  --border: #e6e2dc;
-  --border-strong: #d6d1c8;
+  /* borders — crisp neutral hairlines, the main source of card definition */
+  --border: #e7e7ea;
+  --border-strong: #d3d4d9;
 
-  /* text */
-  --foreground: #1c1a17;
-  --muted-foreground: #736c62;
-  --faint-foreground: #a39c90;
+  /* text — cool neutral grays */
+  --foreground: #101114;
+  --muted-foreground: #61646c;
+  --faint-foreground: #9095a0;
 
-  /* accent — deep indigo/blue */
+  /* accent — deep indigo */
   --accent: #4338ca;
   --accent-hover: #372ea8;
   --accent-foreground: #ffffff;
-  --accent-soft: #eeecfb;
-  --accent-soft-foreground: #382f9e;
+  --accent-soft: #ecebfd;
+  --accent-soft-foreground: #3a30a8;
 
   --ring: #4338ca;
 
@@ -47,43 +51,44 @@
   --destructive: #dc2626;
   --destructive-hover: #b91c1c;
   --destructive-foreground: #ffffff;
-  --destructive-soft: #fbe9e8;
+  --destructive-soft: #fde3e2;
 
   /* status: new (blue) */
   --status-new: #2563eb;
-  --status-new-bg: #e9f0fe;
+  --status-new-bg: #e0ebfe;
   --status-new-fg: #1d4ed8;
 
   /* status: in-progress (amber) */
   --status-in-progress: #d97706;
-  --status-in-progress-bg: #fdf1de;
+  --status-in-progress-bg: #fceed3;
   --status-in-progress-fg: #b45309;
 
   /* status: waiting (violet) */
   --status-waiting: #7c3aed;
-  --status-waiting-bg: #f1eafd;
+  --status-waiting-bg: #eee4fd;
   --status-waiting-fg: #6d28d9;
 
   /* status: ready (teal) */
   --status-ready: #0d9488;
-  --status-ready-bg: #e2f5f3;
+  --status-ready-bg: #d5f1ed;
   --status-ready-fg: #0f766e;
 
   /* status: resolved (green) */
   --status-resolved: #16a34a;
-  --status-resolved-bg: #e7f6ec;
+  --status-resolved-bg: #dbf2e3;
   --status-resolved-fg: #15803d;
 
   /* status: overdue / stale (red) */
   --status-overdue: #dc2626;
-  --status-overdue-bg: #fbe9e8;
+  --status-overdue-bg: #fde3e2;
   --status-overdue-fg: #b91c1c;
 
-  --shadow-color: 23 20 16;
+  /* cool blue-black, so shadows never muddy the white */
+  --shadow-color: 16 24 40;
 
-  /* friendly extras — soft tinted "chip" surfaces for icon badges on cards */
-  --chip-accent-bg: #eeecfb;
-  --chip-accent-fg: #382f9e;
+  /* soft tinted "chip" surfaces for icon badges on cards */
+  --chip-accent-bg: #ecebfd;
+  --chip-accent-fg: #3a30a8;
 }
 
 @theme inline {
@@ -106,20 +111,25 @@
   --radius-2xl: 1.5rem; /*  24px */
   --radius-3xl: 2rem; /*    32px */
 
-  /* Soft, diffuse card shadows — lift instead of outline. */
+  /*
+   * Layered, barely-there shadows. On a pure-white canvas the hairline border
+   * draws the card's edge and the shadow only lifts it off the page — so each
+   * step is two very light layers (a tight contact shadow plus a wider,
+   * softer one) rather than a single heavy drop.
+   */
   --shadow-xs: 0 1px 2px 0 rgb(var(--shadow-color) / 0.05);
   --shadow-sm:
-    0 1px 3px 0 rgb(var(--shadow-color) / 0.07),
-    0 1px 2px -1px rgb(var(--shadow-color) / 0.05);
+    0 1px 2px 0 rgb(var(--shadow-color) / 0.04),
+    0 1px 3px 0 rgb(var(--shadow-color) / 0.06);
   --shadow-md:
-    0 4px 14px -3px rgb(var(--shadow-color) / 0.1),
-    0 2px 6px -3px rgb(var(--shadow-color) / 0.06);
+    0 2px 4px -2px rgb(var(--shadow-color) / 0.04),
+    0 4px 10px -2px rgb(var(--shadow-color) / 0.08);
   --shadow-lg:
-    0 14px 32px -8px rgb(var(--shadow-color) / 0.15),
-    0 5px 12px -6px rgb(var(--shadow-color) / 0.08);
+    0 4px 6px -2px rgb(var(--shadow-color) / 0.03),
+    0 12px 20px -4px rgb(var(--shadow-color) / 0.09);
   --shadow-xl:
-    0 24px 50px -12px rgb(var(--shadow-color) / 0.2),
-    0 8px 18px -10px rgb(var(--shadow-color) / 0.1);
+    0 8px 10px -6px rgb(var(--shadow-color) / 0.04),
+    0 22px 36px -8px rgb(var(--shadow-color) / 0.12);
 
   --color-chip-accent-bg: var(--chip-accent-bg);
   --color-chip-accent-fg: var(--chip-accent-fg);
@@ -175,62 +185,68 @@
   --color-status-overdue-fg: var(--status-overdue-fg);
 }
 
+/*
+ * Dark mode is the same design inverted, not a different one: a clean
+ * near-black neutral canvas with slightly-raised surfaces, the same hairline
+ * discipline, and no warm cast anywhere. Every token in :root is redefined
+ * here so neither block ever falls through to the other.
+ */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #131210;
-    --sidebar-bg: #191815;
-    --surface: #1c1b18;
-    --surface-hover: #232220;
-    --overlay: rgb(0 0 0 / 0.55);
+    --background: #0b0c0e;
+    --sidebar-bg: #0b0c0e;
+    --surface: #131417;
+    --surface-hover: #1c1e22;
+    --overlay: rgb(0 0 0 / 0.6);
 
-    --border: #2d2b27;
-    --border-strong: #3a3733;
+    --border: #25272c;
+    --border-strong: #35383f;
 
-    --foreground: #f2f0ec;
-    --muted-foreground: #a29c90;
-    --faint-foreground: #6f6a60;
+    --foreground: #f1f2f4;
+    --muted-foreground: #9ba0aa;
+    --faint-foreground: #6c7079;
 
-    --accent: #8179e8;
-    --accent-hover: #948bef;
-    --accent-foreground: #100e2c;
-    --accent-soft: #26234a;
-    --accent-soft-foreground: #c7c2f5;
+    --accent: #8b85f2;
+    --accent-hover: #a09af6;
+    --accent-foreground: #0f0d24;
+    --accent-soft: #211f42;
+    --accent-soft-foreground: #c6c2f7;
 
-    --ring: #8179e8;
+    --ring: #8b85f2;
 
-    --destructive: #f16b64;
-    --destructive-hover: #f58881;
-    --destructive-foreground: #2a0d0b;
-    --destructive-soft: #3a1917;
+    --destructive: #f4736c;
+    --destructive-hover: #f78e88;
+    --destructive-foreground: #260b0a;
+    --destructive-soft: #351716;
 
     --status-new: #5b93f5;
-    --status-new-bg: #17233c;
+    --status-new-bg: #15213a;
     --status-new-fg: #9cbdfa;
 
     --status-in-progress: #e5a041;
-    --status-in-progress-bg: #322510;
+    --status-in-progress-bg: #2e230f;
     --status-in-progress-fg: #f0bd73;
 
     --status-waiting: #a683f0;
-    --status-waiting-bg: #271f3d;
+    --status-waiting-bg: #241d3a;
     --status-waiting-fg: #c6adf7;
 
     --status-ready: #33b7a8;
-    --status-ready-bg: #102a26;
+    --status-ready-bg: #0e2724;
     --status-ready-fg: #6ed3c5;
 
     --status-resolved: #4ade80;
-    --status-resolved-bg: #132a1b;
+    --status-resolved-bg: #112719;
     --status-resolved-fg: #86e6a6;
 
-    --status-overdue: #f16b64;
-    --status-overdue-bg: #3a1917;
-    --status-overdue-fg: #f58881;
+    --status-overdue: #f4736c;
+    --status-overdue-bg: #351716;
+    --status-overdue-fg: #f78e88;
 
     --shadow-color: 0 0 0;
 
-    --chip-accent-bg: #26234a;
-    --chip-accent-fg: #c7c2f5;
+    --chip-accent-bg: #211f42;
+    --chip-accent-fg: #c6c2f7;
   }
 }
 
@@ -328,6 +344,50 @@ body {
 }
 .rf-pop-content[data-state="closed"] {
   animation: rf-scale-out 100ms ease-in;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Loading skeletons                                                        */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * A cool-gray highlight travelling left to right across the placeholder. The
+ * base fill is the element's own `bg-surface-hover`, so the sweep only has to
+ * paint the lighter band on top of it.
+ */
+@keyframes rf-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.rf-skeleton {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.85) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: rf-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rf-skeleton {
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(255 255 255 / 0.06) 50%,
+      transparent 100%
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-skeleton {
+    background-image: none;
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------------- */

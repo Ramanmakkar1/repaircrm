@@ -18,7 +18,8 @@ export function TooltipContent({
       <TooltipPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "rf-pop-content z-50 rounded-sm border border-border bg-foreground px-2.5 py-1.5 text-[12.5px] font-medium text-background shadow-lg",
+          // no border: a hairline around a near-black chip only muddies its edge
+          "rf-pop-content z-50 rounded-md bg-foreground px-2.5 py-1.5 text-[12.5px] font-medium text-background shadow-md",
           className,
         )}
         {...props}

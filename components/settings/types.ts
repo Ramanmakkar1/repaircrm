@@ -81,6 +81,28 @@ export type ShopSettingsValues = {
   taxRateBps: number;
 };
 
+/**
+ * A public-API key as the settings screen sees it.
+ *
+ * There is no `key` field, and there never will be: the secret exists in
+ * memory exactly once, in the response to the create action, and only its
+ * sha256 reaches the database. `prefix` is the first 8 characters kept in the
+ * clear purely so a row is identifiable.
+ */
+export type ApiKeyItem = {
+  id: string;
+  name: string;
+  prefix: string;
+  active: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+};
+
+/** The one place the full key is ever handed back. */
+export type CreateApiKeyResult =
+  | { ok: true; key: string; item: ApiKeyItem }
+  | { ok: false; error: string };
+
 export type MessagingConfig = {
   emailDriver: string;
   smsDriver: string;
