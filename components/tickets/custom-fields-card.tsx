@@ -78,7 +78,7 @@ export function CustomFieldsCard({
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm">
-              <Pencil className="size-3.5" />
+              <Pencil className="size-4" />
               Edit fields
             </Button>
           </DialogTrigger>
@@ -136,7 +136,7 @@ export function CustomFieldsCard({
                         setRows((current) => current.filter((_, i) => i !== index))
                       }
                     >
-                      <X className="size-3.5" />
+                      <X className="size-4" />
                     </Button>
                   </div>
                 ))}
@@ -151,7 +151,7 @@ export function CustomFieldsCard({
                   setRows((current) => [...current, { key: "", value: "" }])
                 }
               >
-                <Plus className="size-3.5" />
+                <Plus className="size-4" />
                 Add field
               </Button>
 
@@ -181,7 +181,7 @@ export function CustomFieldsCard({
             {entries.map(([key, value]) => (
               <div
                 key={key}
-                className="flex items-start justify-between gap-3 py-1.5 text-[13px] first:pt-0 last:pb-0"
+                className="flex items-start justify-between gap-3 py-1.5 text-sm first:pt-0 last:pb-0"
               >
                 <dt className="text-muted-foreground">{key}</dt>
                 <dd className="text-right font-medium text-foreground">

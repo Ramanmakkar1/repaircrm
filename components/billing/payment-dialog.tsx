@@ -102,15 +102,15 @@ export function PaymentDialog({
           {state.error ? (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive-soft px-3 py-2 text-[13px] text-destructive"
+              className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               <span>{state.error}</span>
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="amount">Amount</Label>
               <Input
                 id="amount"
@@ -118,12 +118,12 @@ export function PaymentDialog({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 inputMode="decimal"
-                className="text-right tabular-nums"
+                className="h-12 text-right text-lg font-bold tabular-nums"
                 autoFocus
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="method">Method</Label>
               <Select name="method" value={method} onValueChange={setMethod}>
                 <SelectTrigger id="method">
@@ -140,7 +140,7 @@ export function PaymentDialog({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="reference">Reference</Label>
             <Input
               id="reference"
@@ -153,8 +153,8 @@ export function PaymentDialog({
             <p
               className={
                 creditShort
-                  ? "text-xs text-destructive"
-                  : "text-xs text-muted-foreground"
+                  ? "rounded-md bg-destructive-soft px-3 py-2 text-[13.5px] font-medium text-destructive"
+                  : "rounded-md bg-surface-hover px-3 py-2 text-[13.5px] text-muted-foreground"
               }
             >
               Store credit available: {formatCents(customerCreditCents)}

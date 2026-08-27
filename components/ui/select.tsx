@@ -17,7 +17,7 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-2.5 text-[13px] text-foreground outline-none transition-colors",
+        "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-3.5 text-sm font-medium text-foreground outline-none transition-colors",
         "focus:border-accent focus:ring-2 focus:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-faint-foreground",
         className,
       )}
@@ -25,7 +25,7 @@ export function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -42,7 +42,7 @@ export function SelectContent({
       <SelectPrimitive.Content
         position={position}
         className={cn(
-          "rf-pop-content z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-surface shadow-md",
+          "rf-pop-content z-50 min-w-[9rem] overflow-hidden rounded-md border border-border bg-surface p-1 shadow-lg",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",
           className,
@@ -75,7 +75,7 @@ export function SelectLabel({
 }: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>) {
   return (
     <SelectPrimitive.Label
-      className={cn("px-2 py-1.5 text-xs font-medium text-muted-foreground", className)}
+      className={cn("px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground", className)}
       {...props}
     />
   );
@@ -89,15 +89,15 @@ export function SelectItem({
   return (
     <SelectPrimitive.Item
       className={cn(
-        "relative flex w-full cursor-pointer select-none items-center rounded-md py-1.5 pl-8 pr-2 text-[13px] text-foreground outline-none transition-colors",
+        "relative flex w-full cursor-pointer select-none items-center rounded-sm py-2 pl-9 pr-3 text-sm text-foreground outline-none transition-colors",
         "focus:bg-surface-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
     >
-      <span className="absolute left-2 flex size-3.5 items-center justify-center">
+      <span className="absolute left-2.5 flex size-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <Check className="size-3.5" />
+          <Check className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

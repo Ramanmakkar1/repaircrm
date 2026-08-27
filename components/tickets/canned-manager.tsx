@@ -54,7 +54,7 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="ghost" size="sm">
-          <Settings2 className="size-3.5" />
+          <Settings2 className="size-4" />
           Manage
         </Button>
       </DialogTrigger>
@@ -78,7 +78,7 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
                 className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-foreground">
+                  <p className="text-sm font-medium text-foreground">
                     {response.title}
                   </p>
                   <p className="line-clamp-2 text-xs text-muted-foreground">
@@ -93,7 +93,7 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
                     aria-label={`Delete ${response.title}`}
                     className="text-faint-foreground hover:text-destructive"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-4" />
                   </Button>
                 </form>
               </div>

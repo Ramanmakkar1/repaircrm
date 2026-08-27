@@ -11,7 +11,7 @@ export function Avatar({
   return (
     <AvatarPrimitive.Root
       className={cn(
-        "relative flex size-7 shrink-0 overflow-hidden rounded-full",
+        "relative flex size-9 shrink-0 overflow-hidden rounded-full",
         className,
       )}
       {...props}
@@ -35,7 +35,7 @@ export function AvatarFallback({
   return (
     <AvatarPrimitive.Fallback
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-accent-soft text-[11px] font-semibold text-accent-soft-foreground",
+        "flex size-full items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-soft-foreground",
         className,
       )}
       {...props}

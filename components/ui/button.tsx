@@ -3,23 +3,33 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./cn";
 
+/**
+ * Chunky, friendly buttons: a 40px default target, generous horizontal padding
+ * and a 12px corner so they read as tappable objects rather than dense toolbar
+ * affordances. `sm` is still a real button (36px), not a link in disguise.
+ *
+ * Variants and sizes are additive — `soft` and `lg` were added for the card UI,
+ * the original four variants and three sizes keep their names and meaning.
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold transition-[color,background-color,border-color,box-shadow,transform] duration-150 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-accent text-accent-foreground hover:bg-accent-hover shadow-sm",
+          "bg-accent text-accent-foreground shadow-sm hover:bg-accent-hover hover:shadow-md",
         outline:
-          "border border-border-strong bg-surface text-foreground hover:bg-surface-hover",
-        ghost: "text-foreground hover:bg-surface-hover",
+          "border border-border-strong bg-surface text-foreground shadow-xs hover:bg-surface-hover hover:border-accent/40",
+        ghost: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+        soft: "bg-accent-soft text-accent-soft-foreground hover:brightness-[0.97]",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm",
+          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive-hover hover:shadow-md",
       },
       size: {
-        default: "h-8 px-3 [&_svg]:size-4",
-        sm: "h-7 px-2.5 text-xs [&_svg]:size-3.5",
-        icon: "h-8 w-8 shrink-0 [&_svg]:size-4",
+        default: "h-10 px-4 text-sm [&_svg]:size-4",
+        sm: "h-9 px-3.5 text-[13.5px] [&_svg]:size-4",
+        lg: "h-12 px-6 text-base [&_svg]:size-5",
+        icon: "h-10 w-10 shrink-0 [&_svg]:size-[18px]",
       },
     },
     defaultVariants: {

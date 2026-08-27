@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconChip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -88,25 +89,25 @@ export function AssetsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-1.5">
-          <Laptop className="size-3.5 text-muted-foreground" />
-          Devices
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <IconChip icon={Laptop} size="sm" />
+          <CardTitle className="truncate">Devices</CardTitle>
           {assets.length > 0 ? (
-            <span className="text-xs font-normal text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none tabular-nums text-muted-foreground">
               {assets.length}
             </span>
           ) : null}
-        </CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" />
+        </div>
+        <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+          <Plus />
           Add
         </Button>
       </CardHeader>
 
       <CardContent className="p-0">
         {assets.length === 0 ? (
-          <p className="px-4 py-5 text-center text-xs text-muted-foreground">
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
             No devices on file yet.
           </p>
         ) : (
@@ -114,42 +115,45 @@ export function AssetsCard({
             {assets.map((asset) => (
               <li
                 key={asset.id}
-                className="group flex items-start justify-between gap-3 px-4 py-2.5"
+                className="group flex items-start justify-between gap-3 px-5 py-4"
               >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[13px] font-medium text-foreground">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">
                       {assetLabel(asset)}
                     </span>
                     <Badge variant="secondary">{asset.type}</Badge>
                   </div>
                   {asset.serial ? (
-                    <span className="font-mono text-xs text-muted-foreground">
+                    <span className="font-mono text-[13px] text-muted-foreground">
                       {asset.serial}
                     </span>
                   ) : null}
                   {asset.notes ? (
-                    <span className="text-xs text-muted-foreground">{asset.notes}</span>
+                    <span className="text-[13.5px] text-muted-foreground">
+                      {asset.notes}
+                    </span>
                   ) : null}
                 </div>
 
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-1 opacity-70 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                   <Button
                     size="icon"
                     variant="ghost"
+                    className="size-9"
                     aria-label={`Edit ${assetLabel(asset)}`}
                     onClick={() => setEditing(asset)}
                   >
-                    <Pencil className="size-3.5" />
+                    <Pencil />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
                     aria-label={`Remove ${assetLabel(asset)}`}
                     onClick={() => setRemoving(asset)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="size-9 text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 />
                   </Button>
                 </div>
               </li>
@@ -179,10 +183,10 @@ export function AssetsCard({
           <form
             key={editing?.id ?? "new-asset"}
             onSubmit={submit}
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
           >
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="flex flex-col gap-1.5">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="asset-type">
                   Type<span className="ml-0.5 text-destructive">*</span>
                 </Label>
@@ -195,7 +199,7 @@ export function AssetsCard({
                   autoFocus
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="asset-make">Make</Label>
                 <Input
                   id="asset-make"
@@ -204,7 +208,7 @@ export function AssetsCard({
                   placeholder="Apple"
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="asset-model">Model</Label>
                 <Input
                   id="asset-model"
@@ -215,8 +219,8 @@ export function AssetsCard({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="asset-serial">Serial</Label>
                 <Input
                   id="asset-serial"
@@ -225,7 +229,7 @@ export function AssetsCard({
                   className="font-mono"
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="asset-password">Passcode</Label>
                 <Input
                   id="asset-password"
@@ -236,7 +240,7 @@ export function AssetsCard({
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="asset-notes">Notes</Label>
               <Textarea
                 id="asset-notes"

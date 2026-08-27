@@ -20,8 +20,8 @@ export function NewMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" className="gap-1">
-          <Plus className="size-3.5" />
+        <Button className="gap-1.5">
+          <Plus className="size-[18px]" />
           New
         </Button>
       </DropdownMenuTrigger>
@@ -29,7 +29,7 @@ export function NewMenu() {
         {NEW_ITEMS.map((item) => (
           <DropdownMenuItem key={item.href} asChild>
             <Link href={item.href}>
-              <item.icon className="size-3.5 text-muted-foreground" />
+              <item.icon className="size-4 text-muted-foreground" />
               {item.label}
             </Link>
           </DropdownMenuItem>

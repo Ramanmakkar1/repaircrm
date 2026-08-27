@@ -86,7 +86,7 @@ export function SignatureDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="flex flex-col gap-3">
+        <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="id" value={documentId} />
           <input type="hidden" name="signature" value={dataUrl} />
           {Object.entries(extraFields ?? {}).map(([key, value]) => (
@@ -96,25 +96,25 @@ export function SignatureDialog({
           {state.error ? (
             <div
               role="alert"
-              className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive-soft px-3 py-2 text-[13px] text-destructive"
+              className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               <span>{state.error}</span>
             </div>
           ) : null}
 
-          <div className="rounded-md border border-border-strong bg-white p-1">
+          <div className="rounded-lg border border-border-strong bg-white p-2 shadow-sm">
             <SignatureCanvas
               ref={padRef}
               penColor="#1c1a17"
               onEnd={capture}
               canvasProps={{
-                className: "block h-[180px] w-full touch-none rounded-sm",
+                className: "block h-[200px] w-full touch-none rounded-sm",
                 "aria-label": "Signature pad",
               }}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[13.5px] text-muted-foreground">
             Sign above with a finger, stylus or mouse.
           </p>
 

@@ -116,6 +116,8 @@ model Shop {
   products          Product[]
   attachments       Attachment[]
   communicationLogs CommunicationLog[]
+  recurringInvoices RecurringInvoice[]
+  stockAdjustments  StockAdjustment[]
 }
 
 model Location {
@@ -157,8 +159,9 @@ model User {
   assignedTickets Ticket[]
   comments        TicketComment[]
   timeEntries     TimeEntry[]
-  paymentsTaken   Payment[]
-  attachments     Attachment[]
+  paymentsTaken    Payment[]
+  attachments      Attachment[]
+  stockAdjustments StockAdjustment[]
 
   @@index([shopId])
   @@index([shopId, role])
@@ -202,6 +205,7 @@ model Customer {
   attachments       Attachment[]
   communicationLogs CommunicationLog[]
   portalTokens      PortalToken[]
+  recurringInvoices RecurringInvoice[]
 
   @@index([shopId, lastName])
   @@index([shopId, createdAt])
@@ -444,6 +448,8 @@ model Invoice {
   customerId       String
   ticketId         String?
   estimateId       String?
+  /// Set when this invoice was generated from a recurring schedule.
+  recurringInvoiceId String?
   number           Int
   status           InvoiceStatus @default(DRAFT)
   taxRateBps       Int           @default(0)
@@ -460,6 +466,7 @@ model Invoice {
   customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   ticket            Ticket?            @relation(fields: [ticketId], references: [id], onDelete: SetNull)
   estimate          Estimate?          @relation(fields: [estimateId], references: [id], onDelete: SetNull)
+  recurringInvoice  RecurringInvoice?  @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
   lines             InvoiceLine[]
   payments          Payment[]
   ticketCharges     TicketCharge[]
@@ -532,9 +539,11 @@ model Product {
   updatedAt DateTime @updatedAt
 
   shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  ticketCharges TicketCharge[]
-  estimateLines EstimateLine[]
-  invoiceLines  InvoiceLine[]
+  ticketCharges  TicketCharge[]
+  estimateLines  EstimateLine[]
+  invoiceLines   InvoiceLine[]
+  recurringLines RecurringInvoiceLine[]
+  adjustments    StockAdjustment[]
 
   @@unique([shopId, sku])
   @@index([shopId, name])
@@ -609,4 +618,79 @@ model PortalToken {
 
   @@index([customerId])
   @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — recurring billing + stock audit trail
+// ---------------------------------------------------------------------------
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+/// A billing schedule that stamps out DRAFT invoices on a cadence
+/// (business contracts, managed-service retainers).
+model RecurringInvoice {
+  id         String             @id @default(cuid())
+  shopId     String
+  customerId String
+  name       String
+  frequency  RecurringFrequency @default(MONTHLY)
+  /// Next date an invoice should be generated for this schedule.
+  nextRunAt  DateTime
+  lastRunAt  DateTime?
+  active     Boolean            @default(true)
+  taxRateBps Int                @default(0)
+  /// Generated invoices get dueDate = created + dueInDays.
+  dueInDays  Int                @default(14)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop     Shop                   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lines    RecurringInvoiceLine[]
+  invoices Invoice[]
+
+  @@index([shopId, active])
+  @@index([nextRunAt])
+}
+
+model RecurringInvoiceLine {
+  id                 String  @id @default(cuid())
+  recurringInvoiceId String
+  productId          String?
+  description        String
+  quantity           Int     @default(1)
+  unitPriceCents     Int
+  taxable            Boolean @default(true)
+  sortOrder          Int     @default(0)
+
+  recurringInvoice RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recurringInvoiceId])
+}
+
+/// Audit trail for every stock change (received, sold, counted, damaged).
+/// Product.stockQty is the cached current level; adjustments are the history.
+model StockAdjustment {
+  id        String  @id @default(cuid())
+  shopId    String
+  productId String
+  /// Signed change: +5 received, -1 sold.
+  delta     Int
+  reason    String
+  userId    String?
+
+  createdAt DateTime @default(now())
+
+  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, productId, createdAt])
 }

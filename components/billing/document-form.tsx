@@ -61,7 +61,7 @@ export function DocumentForm({
   const [customerId, setCustomerId] = React.useState(initial?.customerId ?? "");
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} className="flex flex-col gap-5">
       {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
       {initial?.ticketId ? (
         <input type="hidden" name="ticketId" value={initial.ticketId} />
@@ -70,7 +70,7 @@ export function DocumentForm({
       {state.error ? (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive-soft px-3 py-2 text-[13px] text-destructive"
+          className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{state.error}</span>
@@ -81,8 +81,8 @@ export function DocumentForm({
         <CardHeader>
           <CardTitle>{isInvoice ? "Invoice details" : "Estimate details"}</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="flex flex-col gap-1.5">
+        <CardContent className="grid gap-5 sm:grid-cols-3">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="customerId">Customer</Label>
             <Select
               name="customerId"
@@ -103,7 +103,7 @@ export function DocumentForm({
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="date">{isInvoice ? "Due date" : "Expires on"}</Label>
             <Input
               id="date"
@@ -111,14 +111,14 @@ export function DocumentForm({
               type="date"
               defaultValue={initial?.date ?? ""}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[13.5px] text-muted-foreground">
               {isInvoice
                 ? "Optional — leave blank for due on receipt."
                 : "Optional — after this date the quote is no longer honoured."}
             </p>
           </div>
 
-          <div className="flex flex-col gap-1.5 sm:col-span-1">
+          <div className="flex flex-col gap-2 sm:col-span-1">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
@@ -135,7 +135,7 @@ export function DocumentForm({
         <CardHeader>
           <CardTitle>Line items</CardTitle>
         </CardHeader>
-        <CardContent className="px-2 py-2">
+        <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}
             taxRateBps={taxRateBps}
@@ -145,11 +145,13 @@ export function DocumentForm({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" asChild>
+      <div className="flex items-center justify-end gap-3">
+        <Button variant="outline" size="lg" asChild>
           <Link href={cancelHref}>Cancel</Link>
         </Button>
-        <SubmitButton pendingLabel="Saving…">{submitLabel}</SubmitButton>
+        <SubmitButton size="lg" pendingLabel="Saving…">
+          {submitLabel}
+        </SubmitButton>
       </div>
     </form>
   );

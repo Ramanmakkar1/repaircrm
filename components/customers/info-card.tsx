@@ -2,6 +2,7 @@ import * as React from "react";
 import { Check, IdCard, Mail, MapPin, Phone, Smartphone, X } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
 import { EM_DASH, addressLines, formatDate } from "./format";
@@ -27,14 +28,14 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          <IdCard className="size-3.5 text-muted-foreground" />
-          Details
-        </CardTitle>
+      <CardHeader className="flex-row items-center gap-3">
+        <IconChip icon={IdCard} size="sm" />
+        <CardTitle>Details</CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2">
+
+      <CardContent className="flex flex-col gap-5">
+        <section className="flex flex-col gap-3">
+          <GroupLabel>How to reach them</GroupLabel>
           <ContactLine
             icon={Mail}
             value={customer.email}
@@ -52,38 +53,52 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
             href={customer.mobile ? `tel:${customer.mobile}` : undefined}
             suffix="mobile"
           />
-        </div>
+        </section>
 
         <Separator />
 
-        <div className="flex items-start gap-2">
-          <MapPin className="mt-0.5 size-3.5 shrink-0 text-faint-foreground" />
-          {address.length > 0 ? (
-            <div className="flex flex-col text-[13px] text-foreground">
-              {address.map((line) => (
-                <span key={line}>{line}</span>
-              ))}
-            </div>
-          ) : (
-            <span className="text-[13px] text-faint-foreground">No address on file</span>
-          )}
-        </div>
+        <section className="flex flex-col gap-3">
+          <GroupLabel>Address</GroupLabel>
+          <div className="flex items-start gap-2.5">
+            <MapPin className="mt-0.5 size-4 shrink-0 text-faint-foreground" />
+            {address.length > 0 ? (
+              <div className="flex flex-col gap-0.5 text-sm text-foreground">
+                {address.map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-faint-foreground">No address on file</span>
+            )}
+          </div>
+        </section>
 
         <Separator />
 
-        <div className="flex flex-wrap gap-2">
-          <OptInChip label="Email" enabled={customer.emailOptIn} />
-          <OptInChip label="SMS" enabled={customer.smsOptIn} />
-        </div>
+        <section className="flex flex-col gap-3">
+          <GroupLabel>Contact preferences</GroupLabel>
+          <div className="flex flex-wrap gap-2">
+            <OptInChip label="Email" enabled={customer.emailOptIn} />
+            <OptInChip label="SMS" enabled={customer.smsOptIn} />
+          </div>
+        </section>
 
         <Separator />
 
-        <dl className="flex flex-col gap-1.5 text-[13px]">
+        <dl className="flex flex-col gap-2.5 text-sm">
           <Row label="Referred by" value={customer.referredBy ?? EM_DASH} />
           <Row label="Customer since" value={formatDate(customer.createdAt)} />
         </dl>
       </CardContent>
     </Card>
+  );
+}
+
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </span>
   );
 }
 
@@ -99,22 +114,24 @@ function ContactLine({
   suffix?: string;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <Icon className="size-3.5 shrink-0 text-faint-foreground" />
+    <div className="flex items-center gap-2.5">
+      <Icon className="size-4 shrink-0 text-faint-foreground" />
       {value ? (
-        <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="flex min-w-0 items-baseline gap-2">
           <a
             href={href}
-            className="truncate text-[13px] text-foreground hover:text-accent hover:underline"
+            className="truncate text-sm font-medium text-foreground hover:text-accent hover:underline"
           >
             {value}
           </a>
           {suffix ? (
-            <span className="shrink-0 text-xs text-faint-foreground">{suffix}</span>
+            <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-faint-foreground">
+              {suffix}
+            </span>
           ) : null}
         </span>
       ) : (
-        <span className="text-[13px] text-faint-foreground">{EM_DASH}</span>
+        <span className="text-sm text-faint-foreground">{EM_DASH}</span>
       )}
     </div>
   );
@@ -124,13 +141,13 @@ function OptInChip({ label, enabled }: { label: string; enabled: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
         enabled
           ? "bg-status-resolved-bg text-status-resolved-fg"
           : "bg-surface-hover text-muted-foreground",
       )}
     >
-      {enabled ? <Check className="size-3" /> : <X className="size-3" />}
+      {enabled ? <Check className="size-3.5" /> : <X className="size-3.5" />}
       {label} {enabled ? "opted in" : "opted out"}
     </span>
   );
@@ -140,7 +157,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="truncate text-right text-foreground">{value}</dd>
+      <dd className="truncate text-right font-medium text-foreground">{value}</dd>
     </div>
   );
 }

@@ -1,11 +1,18 @@
 import * as React from "react";
 import { cn } from "./cn";
 
+/**
+ * The box everything in RepairFlow lives in.
+ *
+ * Generous 20px padding, a 16px corner and a soft shadow instead of a hard
+ * outline — the whole app reads as a set of friendly panels a non-technical
+ * employee can scan, rather than a spreadsheet with borders.
+ */
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-surface shadow-xs",
+        "rounded-lg border border-border bg-surface shadow-sm",
         className,
       )}
       {...props}
@@ -20,7 +27,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 border-b border-border px-4 py-3",
+        "flex flex-col gap-1 border-b border-border px-5 py-4",
         className,
       )}
       {...props}
@@ -35,7 +42,7 @@ export function CardTitle({
   return (
     <h3
       className={cn(
-        "text-[13px] font-semibold tracking-tight text-foreground",
+        "text-base font-bold tracking-tight text-foreground",
         className,
       )}
       {...props}
@@ -48,7 +55,10 @@ export function CardDescription({
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-xs text-muted-foreground", className)} {...props} />
+    <p
+      className={cn("text-[13.5px] text-muted-foreground", className)}
+      {...props}
+    />
   );
 }
 
@@ -56,7 +66,7 @@ export function CardContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-4 py-3", className)} {...props} />;
+  return <div className={cn("px-5 py-4", className)} {...props} />;
 }
 
 export function CardFooter({
@@ -66,7 +76,7 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 border-t border-border px-4 py-3",
+        "flex items-center gap-3 border-t border-border px-5 py-4",
         className,
       )}
       {...props}

@@ -8,10 +8,9 @@ import { useFormStatus } from "react-dom";
  */
 
 export const fieldClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 disabled:opacity-60";
+  "h-11 w-full rounded-md border border-border-strong bg-surface px-3.5 text-[15px] text-foreground outline-none transition placeholder:text-faint-foreground focus:border-accent focus:ring-2 focus:ring-ring/30 disabled:opacity-60";
 
-export const labelClass =
-  "block text-sm font-medium text-slate-700";
+export const labelClass = "block text-sm font-semibold text-foreground";
 
 export function Field({
   label,
@@ -33,7 +32,7 @@ export function Field({
   minLength?: number;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <label className={labelClass} htmlFor={name}>
         {label}
       </label>
@@ -57,7 +56,7 @@ export function ErrorBanner({ message }: { message?: string }) {
   return (
     <p
       role="alert"
-      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+      className="rounded-md border border-destructive/30 bg-destructive-soft px-4 py-3 text-[14.5px] font-medium text-destructive"
     >
       {message}
     </p>
@@ -76,7 +75,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+      className="h-12 w-full rounded-md bg-accent px-4 text-[15px] font-semibold text-accent-foreground shadow-sm transition hover:bg-accent-hover hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring/40 focus:ring-offset-2 focus:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? pendingLabel : children}
     </button>

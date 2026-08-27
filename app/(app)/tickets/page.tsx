@@ -1,27 +1,17 @@
 import Link from "next/link";
-import { format } from "date-fns";
-import { Plus, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Wrench } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusBadge } from "@/components/ui/badge";
-import { Table, TBody, THead, Th, Td } from "@/components/ui/table";
-import { cn } from "@/components/ui/cn";
 import { TicketFilters } from "@/components/tickets/ticket-filters";
-import { TicketRow } from "@/components/tickets/ticket-row";
-import { PriorityCell } from "@/components/tickets/priority-badge";
+import { TicketCard } from "@/components/tickets/ticket-card";
 import {
-  customerLabel,
-  relativeShort,
   RESOLVED_STATUS,
-  STALENESS_CLASS,
-  STALENESS_LABEL,
-  stalenessLevel,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";
 
@@ -119,6 +109,7 @@ export default async function TicketsPage({
         subject: true,
         status: true,
         priority: true,
+        problemType: true,
         dueDate: true,
         createdAt: true,
         updatedAt: true,
@@ -126,6 +117,7 @@ export default async function TicketsPage({
           select: { firstName: true, lastName: true, businessName: true },
         },
         assignedTo: { select: { name: true } },
+        asset: { select: { type: true, make: true, model: true } },
       },
     }),
   ]);
@@ -158,14 +150,14 @@ export default async function TicketsPage({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Tickets"
         description="Track repair jobs from intake to pickup."
         actions={
-          <Button asChild size="sm">
+          <Button asChild>
             <Link href="/tickets/new">
-              <Plus className="size-3.5" />
+              <Plus />
               New Ticket
             </Link>
           </Button>
@@ -179,152 +171,84 @@ export default async function TicketsPage({
         techs={techs}
       />
 
-      <Card>
-        <CardContent className="px-0 py-0">
-          {tickets.length === 0 ? (
-            <EmptyState
-              icon={Wrench}
-              title={isFiltered ? "No tickets match those filters" : "No tickets yet"}
-              hint={
-                isFiltered
-                  ? "Try widening the status or tech filter."
-                  : "Create the first ticket to start tracking a repair."
-              }
-              action={
-                isFiltered ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link href="/tickets">Clear filters</Link>
-                  </Button>
-                ) : (
-                  <Button asChild size="sm">
-                    <Link href="/tickets/new">
-                      <Plus className="size-3.5" />
-                      New Ticket
-                    </Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <Table>
-              <THead>
-                <tr>
-                  <Th className="w-16">#</Th>
-                  <Th>Customer</Th>
-                  <Th className="min-w-[16rem]">Subject</Th>
-                  <Th>Created</Th>
-                  <Th>Due</Th>
-                  <Th>Status</Th>
-                  <Th>Priority</Th>
-                  <Th>Tech</Th>
-                  <Th className="text-right">Last Updated</Th>
-                </tr>
-              </THead>
-              <TBody>
-                {tickets.map((ticket) => {
-                  const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
-                  const overdue =
-                    ticket.dueDate !== null &&
-                    ticket.dueDate.getTime() < now &&
-                    ticket.status !== RESOLVED_STATUS;
+      {tickets.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Wrench}
+            title={isFiltered ? "No tickets match those filters" : "No tickets yet"}
+            hint={
+              isFiltered
+                ? "Try another status pill, or clear the filters to see everything."
+                : "Create the first ticket to start tracking a repair."
+            }
+            action={
+              isFiltered ? (
+                <Button asChild variant="outline">
+                  <Link href="/tickets">Clear filters</Link>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/tickets/new">
+                    <Plus />
+                    New Ticket
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {tickets.map((ticket) => (
+              <TicketCard key={ticket.id} ticket={ticket} now={now} />
+            ))}
+          </div>
 
-                  return (
-                    <TicketRow key={ticket.id} href={`/tickets/${ticket.id}`}>
-                      <Td className="font-medium tabular-nums">
-                        <Link
-                          href={`/tickets/${ticket.id}`}
-                          className="text-accent hover:underline"
-                        >
-                          {ticket.number}
-                        </Link>
-                      </Td>
-                      <Td className="max-w-[12rem] truncate">
-                        {customerLabel(ticket.customer)}
-                      </Td>
-                      <Td className="max-w-[22rem] truncate text-foreground">
-                        {ticket.subject}
-                      </Td>
-                      <Td
-                        className="text-muted-foreground"
-                        title={ticket.createdAt.toLocaleString()}
-                      >
-                        {format(ticket.createdAt, "MMM d")}
-                      </Td>
-                      <Td
-                        className={cn(
-                          overdue
-                            ? "font-medium text-status-overdue"
-                            : "text-muted-foreground",
-                        )}
-                        title={ticket.dueDate?.toLocaleString()}
-                      >
-                        {ticket.dueDate ? format(ticket.dueDate, "MMM d") : "—"}
-                      </Td>
-                      <Td>
-                        <StatusBadge status={ticket.status} />
-                      </Td>
-                      <Td>
-                        <PriorityCell priority={ticket.priority} />
-                      </Td>
-                      <Td className="max-w-[9rem] truncate text-muted-foreground">
-                        {ticket.assignedTo?.name ?? (
-                          <span className="text-faint-foreground">Unassigned</span>
-                        )}
-                      </Td>
-                      {/*
-                        The staleness heat: how long this ticket has sat
-                        untouched. Resolved tickets are exempt, so colour on this
-                        column always means "someone needs to do something".
-                      */}
-                      <Td className="text-right">
-                        <span
-                          title={STALENESS_LABEL[level]}
-                          className={cn(
-                            "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums",
-                            STALENESS_CLASS[level],
-                          )}
-                        >
-                          {relativeShort(ticket.updatedAt, now)}
-                        </span>
-                      </Td>
-                    </TicketRow>
-                  );
-                })}
-              </TBody>
-            </Table>
-          )}
-        </CardContent>
-
-        {total > 0 ? (
-          <CardFooter className="justify-between">
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {(page - 1) * PAGE_SIZE + 1}–
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
+              Showing {(page - 1) * PAGE_SIZE + 1}–
               {Math.min(page * PAGE_SIZE, total)} of {total}
             </p>
             <div className="flex items-center gap-2">
-              <Button
-                asChild={page > 1}
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-              >
-                {page > 1 ? <Link href={pageHref(page - 1)}>Previous</Link> : <span>Previous</span>}
+              <Button asChild={page > 1} variant="outline" disabled={page <= 1}>
+                {page > 1 ? (
+                  <Link href={pageHref(page - 1)}>
+                    <ChevronLeft />
+                    Previous
+                  </Link>
+                ) : (
+                  <span>
+                    <ChevronLeft />
+                    Previous
+                  </span>
+                )}
               </Button>
-              <span className="text-xs text-muted-foreground tabular-nums">
+              <span className="px-1 text-[13.5px] font-semibold text-muted-foreground tabular-nums">
                 {page} / {pageCount}
               </span>
               <Button
                 asChild={page < pageCount}
                 variant="outline"
-                size="sm"
                 disabled={page >= pageCount}
               >
-                {page < pageCount ? <Link href={pageHref(page + 1)}>Next</Link> : <span>Next</span>}
+                {page < pageCount ? (
+                  <Link href={pageHref(page + 1)}>
+                    Next
+                    <ChevronRight />
+                  </Link>
+                ) : (
+                  <span>
+                    Next
+                    <ChevronRight />
+                  </span>
+                )}
               </Button>
             </div>
-          </CardFooter>
-        ) : null}
-      </Card>
+          </div>
+        </>
+      )}
+
     </div>
   );
 }

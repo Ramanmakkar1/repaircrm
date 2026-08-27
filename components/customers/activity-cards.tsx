@@ -11,6 +11,7 @@ import {
   Wrench,
 } from "lucide-react";
 
+import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
 import { calcTotals, formatCents, invoiceTotals } from "@/lib/money";
@@ -63,11 +64,13 @@ export function TicketsCard({
           <TBody>
             {tickets.map((ticket) => (
               <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
-                <Td className="tabular-nums text-muted-foreground">{ticket.number}</Td>
+                <Td className="font-semibold tabular-nums text-muted-foreground">
+                  {ticket.number}
+                </Td>
                 <Td className="max-w-[18rem]">
                   <Link
                     href={`/tickets/${ticket.id}`}
-                    className="block truncate font-medium text-foreground hover:text-accent hover:underline"
+                    className="block truncate font-semibold text-foreground hover:text-accent hover:underline"
                   >
                     {ticket.subject}
                   </Link>
@@ -75,7 +78,7 @@ export function TicketsCard({
                 <Td>
                   <TicketStatus status={ticket.status} />
                 </Td>
-                <Td className="hidden sm:table-cell text-right text-muted-foreground">
+                <Td className="hidden text-right text-muted-foreground sm:table-cell">
                   {formatDate(ticket.createdAt)}
                 </Td>
               </RowLink>
@@ -143,7 +146,7 @@ export function InvoicesCard({
                   <Td>
                     <Link
                       href={`/invoices/${invoice.id}`}
-                      className="font-medium tabular-nums text-foreground hover:text-accent hover:underline"
+                      className="font-semibold tabular-nums text-foreground hover:text-accent hover:underline"
                     >
                       {invoice.number}
                     </Link>
@@ -157,12 +160,12 @@ export function InvoicesCard({
                   <Td
                     className={cn(
                       "text-right tabular-nums",
-                      owing ? "font-medium text-destructive" : "text-faint-foreground",
+                      owing ? "font-bold text-destructive" : "text-faint-foreground",
                     )}
                   >
                     {owing ? formatCents(balanceCents) : EM_DASH}
                   </Td>
-                  <Td className="hidden sm:table-cell text-right text-muted-foreground">
+                  <Td className="hidden text-right text-muted-foreground sm:table-cell">
                     {formatDate(invoice.createdAt)}
                   </Td>
                 </RowLink>
@@ -223,7 +226,7 @@ export function EstimatesCard({
                   <Td>
                     <Link
                       href={`/estimates/${estimate.id}`}
-                      className="font-medium tabular-nums text-foreground hover:text-accent hover:underline"
+                      className="font-semibold tabular-nums text-foreground hover:text-accent hover:underline"
                     >
                       {estimate.number}
                     </Link>
@@ -234,7 +237,7 @@ export function EstimatesCard({
                   <Td className="text-right tabular-nums text-muted-foreground">
                     {formatCents(totalCents)}
                   </Td>
-                  <Td className="hidden sm:table-cell text-right text-muted-foreground">
+                  <Td className="hidden text-right text-muted-foreground sm:table-cell">
                     {formatDate(estimate.createdAt)}
                   </Td>
                 </RowLink>
@@ -288,10 +291,10 @@ export function PaymentsCard({
             {payments.map((payment) => (
               <RowLink key={payment.id} href={`/invoices/${payment.invoice.id}`}>
                 <Td className="text-muted-foreground">{formatDate(payment.createdAt)}</Td>
-                <Td className="text-foreground">
+                <Td className="font-medium text-foreground">
                   {humanizeEnum(payment.method)}
                   {payment.reference ? (
-                    <span className="ml-1.5 text-xs text-faint-foreground">
+                    <span className="ml-2 font-normal text-[13px] text-faint-foreground">
                       {payment.reference}
                     </span>
                   ) : null}
@@ -304,7 +307,7 @@ export function PaymentsCard({
                     #{payment.invoice.number}
                   </Link>
                 </Td>
-                <Td className="text-right font-medium tabular-nums text-status-resolved-fg">
+                <Td className="text-right font-bold tabular-nums text-status-resolved-fg">
                   {formatCents(payment.amountCents)}
                 </Td>
               </RowLink>
@@ -352,34 +355,33 @@ export function CommunicationsCard({
             const DirectionIcon = outbound ? ArrowUpRight : ArrowDownLeft;
 
             return (
-              <li key={entry.id} className="flex items-start gap-3 px-4 py-2.5">
-                <div
+              <li key={entry.id} className="flex items-start gap-3.5 px-5 py-4">
+                <IconChip
+                  icon={TypeIcon}
+                  size="sm"
                   className={cn(
-                    "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md",
                     entry.type === "SMS"
                       ? "bg-status-ready-bg text-status-ready-fg"
                       : "bg-status-new-bg text-status-new-fg",
                   )}
-                >
-                  <TypeIcon className="size-3" />
-                </div>
+                />
 
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center gap-2">
                     <DirectionIcon
                       className={cn(
-                        "size-3 shrink-0",
+                        "size-3.5 shrink-0",
                         outbound ? "text-faint-foreground" : "text-status-ready",
                       )}
                     />
-                    <span className="truncate text-[13px] font-medium text-foreground">
+                    <span className="truncate text-sm font-semibold text-foreground">
                       {entry.subject || `${entry.type === "SMS" ? "SMS" : "Email"} to ${entry.to}`}
                     </span>
                   </div>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">
+                  <p className="line-clamp-2 text-[13.5px] leading-relaxed text-muted-foreground">
                     {preview(entry.body, 160)}
                   </p>
-                  <span className="text-xs text-faint-foreground">
+                  <span className="text-[13px] text-faint-foreground">
                     {formatDateTime(entry.createdAt)}
                   </span>
                 </div>

@@ -6,10 +6,10 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
 import { formatDate } from "@/components/billing/format";
@@ -72,7 +72,7 @@ export default async function EstimatesPage({
   const now = Date.now();
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Estimates"
         description="Draft and send repair estimates for approval."
@@ -93,114 +93,108 @@ export default async function EstimatesPage({
         placeholder="Search by estimate # or customer…"
       />
 
-      <Card>
-        <CardContent className="px-0 py-0">
-          {estimates.length === 0 ? (
-            <EmptyState
-              icon={FileText}
-              title={filtered ? "No estimates match those filters" : "No estimates yet"}
-              hint={
-                filtered
-                  ? "Try a different search term or clear the status filter."
-                  : "Quote a job before the work starts — approved estimates convert to an invoice in one click."
-              }
-              action={
-                filtered ? (
-                  <Button variant="outline" asChild>
-                    <Link href="/estimates">Clear filters</Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link href="/estimates/new">
-                      <Plus /> New estimate
-                    </Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <>
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th className="w-[80px]">#</Th>
-                    <Th>Customer</Th>
-                    <Th className="w-[110px]">Date</Th>
-                    <Th className="w-[110px]">Expires</Th>
-                    <Th className="w-[120px]">Status</Th>
-                    <Th className="w-[110px] text-right">Total</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {estimates.map((estimate) => {
-                    const totals = calcTotals(estimate.lines, estimate.taxRateBps);
-                    const name =
-                      estimate.customer.businessName ||
-                      `${estimate.customer.firstName} ${estimate.customer.lastName}`;
-                    // An open quote past its expiry needs chasing; once it is
-                    // approved, declined or converted the date is just history.
-                    const expired =
-                      estimate.expiresAt !== null &&
-                      estimate.expiresAt.getTime() < now &&
-                      (estimate.status === "DRAFT" || estimate.status === "SENT");
+      {estimates.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={FileText}
+            title={filtered ? "No estimates match those filters" : "No estimates yet"}
+            hint={
+              filtered
+                ? "Try a different search term or pick another status."
+                : "Quote a job before the work starts — approved estimates convert to an invoice in one click."
+            }
+            action={
+              filtered ? (
+                <Button variant="outline" asChild>
+                  <Link href="/estimates">Clear filters</Link>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/estimates/new">
+                    <Plus /> New estimate
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {estimates.map((estimate) => {
+              const totals = calcTotals(estimate.lines, estimate.taxRateBps);
+              const name =
+                estimate.customer.businessName ||
+                `${estimate.customer.firstName} ${estimate.customer.lastName}`;
+              // An open quote past its expiry needs chasing; once it is
+              // approved, declined or converted the date is just history.
+              const expired =
+                estimate.expiresAt !== null &&
+                estimate.expiresAt.getTime() < now &&
+                (estimate.status === "DRAFT" || estimate.status === "SENT");
 
-                    return (
-                      <Tr key={estimate.id}>
-                        <Td>
-                          <Link
-                            href={`/estimates/${estimate.id}`}
-                            className="font-medium tabular-nums text-accent hover:underline"
-                          >
-                            #{estimate.number}
-                          </Link>
-                        </Td>
-                        <Td className="max-w-[280px] truncate">
-                          <Link
-                            href={`/customers/${estimate.customer.id}`}
-                            className="hover:underline"
-                          >
-                            {name}
-                          </Link>
-                        </Td>
-                        <Td className="text-muted-foreground tabular-nums">
-                          {formatDate(estimate.createdAt)}
-                        </Td>
-                        <Td
-                          className={cn(
-                            "tabular-nums",
-                            expired
-                              ? "font-medium text-status-overdue"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {formatDate(estimate.expiresAt)}
-                        </Td>
-                        <Td>
-                          <EstimateStatusBadge status={estimate.status} />
-                        </Td>
-                        <Td className="text-right tabular-nums">
-                          {formatCents(totals.totalCents)}
-                        </Td>
-                      </Tr>
-                    );
-                  })}
-                </TBody>
-              </Table>
+              return (
+                <Link
+                  key={estimate.id}
+                  href={`/estimates/${estimate.id}`}
+                  className={cn(
+                    "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    expired && "border-status-overdue/55",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
+                      #{estimate.number}
+                    </span>
+                    <EstimateStatusBadge status={estimate.status} />
+                  </div>
 
-              <Pagination
-                basePath="/estimates"
-                page={page}
-                total={total}
-                params={{
-                  q: q || undefined,
-                  status: status || undefined,
-                  customerId: customerId || undefined,
-                }}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  <span className="truncate text-[15px] font-bold text-foreground">
+                    {name}
+                  </span>
+
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Quoted
+                    </span>
+                    <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+                      {formatCents(totals.totalCents)}
+                    </span>
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                    <Chip>Written {formatDate(estimate.createdAt)}</Chip>
+                    {estimate.expiresAt ? (
+                      <Chip
+                        className={cn(
+                          expired &&
+                            "bg-status-overdue-bg font-bold text-status-overdue-fg",
+                        )}
+                      >
+                        {expired ? "Expired " : "Expires "}
+                        {formatDate(estimate.expiresAt)}
+                      </Chip>
+                    ) : null}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <Pagination
+            basePath="/estimates"
+            page={page}
+            total={total}
+            params={{
+              q: q || undefined,
+              status: status || undefined,
+              customerId: customerId || undefined,
+            }}
+          />
+        </>
+      )}
+
     </div>
   );
 }

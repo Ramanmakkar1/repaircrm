@@ -13,12 +13,12 @@ export function PriorityBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
+        "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
         meta.chip,
         className,
       )}
     >
-      <span className={cn("size-1.5 shrink-0 rounded-full", meta.dot)} />
+      <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
       {meta.label}
     </span>
   );
@@ -35,15 +35,15 @@ export function PriorityCell({ priority }: { priority: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs",
+        "inline-flex items-center gap-2 text-[13.5px]",
         key === "URGENT"
-          ? "font-semibold text-status-overdue"
+          ? "font-bold text-status-overdue"
           : key === "HIGH"
-            ? "font-medium text-status-in-progress-fg"
+            ? "font-semibold text-status-in-progress-fg"
             : "text-muted-foreground",
       )}
     >
-      <span className={cn("size-1.5 shrink-0 rounded-full", meta.dot)} />
+      <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
       {meta.label}
     </span>
   );

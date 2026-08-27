@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ChevronLeft, ChevronRight, Plus, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Phone, Plus, Users } from "lucide-react";
 
 import { CustomerSearch } from "@/components/customers/customer-search";
-import { EM_DASH, formatDate, plural } from "@/components/customers/format";
-import { RowLink } from "@/components/customers/row-link";
+import { formatDate, initials, plural } from "@/components/customers/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -127,14 +126,14 @@ export default async function CustomersPage({
   const lastRow = Math.min(page * PAGE_SIZE, total);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Customers"
         description="Every account the shop has on file, with what they owe and what's open."
         actions={
           <Button asChild>
             <Link href="/customers/new">
-              <Plus className="size-3.5" />
+              <Plus />
               New Customer
             </Link>
           </Button>
@@ -143,116 +142,111 @@ export default async function CustomersPage({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <CustomerSearch query={query} />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13.5px] font-medium text-muted-foreground">
           {total === 0
             ? "No customers"
             : `Showing ${firstRow}–${lastRow} of ${plural(total, "customer")}`}
         </p>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          {customers.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title={query ? "No matching customers" : "No customers yet"}
-              hint={
-                query
-                  ? `Nothing matches “${query}”. Try a shorter search.`
-                  : "Add your first customer to start writing tickets."
-              }
-              action={
-                query ? (
-                  <Button variant="outline" asChild>
-                    <Link href="/customers">Clear search</Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link href="/customers/new">
-                      <Plus className="size-3.5" />
-                      New Customer
-                    </Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <Table>
-              <THead>
-                <tr>
-                  <Th>Name</Th>
-                  <Th className="hidden md:table-cell">Email</Th>
-                  <Th className="hidden sm:table-cell">Phone</Th>
-                  <Th className="text-right">Open</Th>
-                  <Th className="text-right">Balance</Th>
-                  <Th className="hidden lg:table-cell text-right">Created</Th>
-                </tr>
-              </THead>
-              <TBody>
-                {customers.map((customer) => {
-                  const open = openTickets.get(customer.id) ?? 0;
-                  const balance = balances.get(customer.id) ?? 0;
-                  const phone = customer.phone ?? customer.mobile;
+      {customers.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Users}
+            title={query ? "No matching customers" : "No customers yet"}
+            hint={
+              query
+                ? `Nothing matches \u201c${query}\u201d. Try a shorter search.`
+                : "Add your first customer to start writing tickets."
+            }
+            action={
+              query ? (
+                <Button variant="outline" asChild>
+                  <Link href="/customers">Clear search</Link>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/customers/new">
+                    <Plus />
+                    New Customer
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {customers.map((customer) => {
+            const open = openTickets.get(customer.id) ?? 0;
+            const balance = balances.get(customer.id) ?? 0;
+            const phone = customer.phone ?? customer.mobile;
+            const name = `${customer.firstName} ${customer.lastName}`.trim();
 
-                  return (
-                    <RowLink key={customer.id} href={`/customers/${customer.id}`}>
-                      <Td className="max-w-[16rem]">
-                        <Link
-                          href={`/customers/${customer.id}`}
-                          className="block truncate font-medium text-foreground hover:text-accent hover:underline"
-                        >
-                          {customer.firstName} {customer.lastName}
-                        </Link>
-                        {customer.businessName ? (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {customer.businessName}
-                          </span>
-                        ) : null}
-                      </Td>
-                      <Td className="hidden max-w-[18rem] md:table-cell">
-                        {customer.email ? (
-                          <span className="block truncate text-muted-foreground">
-                            {customer.email}
-                          </span>
-                        ) : (
-                          <span className="text-faint-foreground">{EM_DASH}</span>
-                        )}
-                      </Td>
-                      <Td className="hidden sm:table-cell text-muted-foreground">
-                        {phone ?? <span className="text-faint-foreground">{EM_DASH}</span>}
-                      </Td>
-                      <Td className="text-right tabular-nums">
-                        {open > 0 ? (
-                          <span className="font-medium text-foreground">{open}</span>
-                        ) : (
-                          <span className="text-faint-foreground">{EM_DASH}</span>
-                        )}
-                      </Td>
-                      <Td
-                        className={cn(
-                          "text-right tabular-nums",
-                          balance > 0
-                            ? "font-medium text-destructive"
-                            : "text-faint-foreground",
-                        )}
-                      >
-                        {balance > 0 ? formatCents(balance) : EM_DASH}
-                      </Td>
-                      <Td className="hidden lg:table-cell text-right text-muted-foreground">
-                        {formatDate(customer.createdAt)}
-                      </Td>
-                    </RowLink>
-                  );
-                })}
-              </TBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            return (
+              <Link
+                key={customer.id}
+                href={`/customers/${customer.id}`}
+                className="rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <div className="flex items-center gap-3.5">
+                  <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg font-bold text-accent-soft-foreground">
+                    {initials(name)}
+                  </span>
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-[17px] font-bold leading-tight text-foreground">
+                      {name}
+                    </span>
+                    {customer.businessName ? (
+                      <span className="truncate text-[13.5px] font-medium text-muted-foreground">
+                        {customer.businessName}
+                      </span>
+                    ) : (
+                      <span className="text-[13.5px] text-faint-foreground">
+                        Since {formatDate(customer.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 text-[13.5px] text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <Phone className="size-4 shrink-0 text-faint-foreground" />
+                    <span className="truncate">{phone ?? "No phone on file"}</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Mail className="size-4 shrink-0 text-faint-foreground" />
+                    <span className="truncate">{customer.email ?? "No email on file"}</span>
+                  </span>
+                </div>
+
+                <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                  <Chip
+                    className={cn(
+                      open > 0 && "bg-status-in-progress-bg font-bold text-status-in-progress-fg",
+                    )}
+                  >
+                    {open > 0 ? `${plural(open, "open ticket")}` : "No open tickets"}
+                  </Chip>
+                  <Chip
+                    className={cn(
+                      balance > 0
+                        ? "bg-status-overdue-bg font-bold text-status-overdue-fg"
+                        : "bg-status-resolved-bg text-status-resolved-fg",
+                    )}
+                  >
+                    {balance > 0 ? `${formatCents(balance)} owing` : "Paid up"}
+                  </Chip>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {pageCount > 1 ? (
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-[13.5px] font-medium text-muted-foreground">
             Page {page} of {pageCount}
           </p>
           <div className="flex items-center gap-2">
@@ -261,7 +255,7 @@ export default async function CustomersPage({
               disabled={page <= 1}
               label="Previous"
             >
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft />
               Previous
             </PageLink>
             <PageLink
@@ -270,7 +264,7 @@ export default async function CustomersPage({
               label="Next"
             >
               Next
-              <ChevronRight className="size-3.5" />
+              <ChevronRight />
             </PageLink>
           </div>
         </div>
@@ -326,13 +320,13 @@ function PageLink({
 }) {
   if (disabled) {
     return (
-      <Button variant="outline" size="sm" disabled aria-label={label}>
+      <Button variant="outline" disabled aria-label={label}>
         {children}
       </Button>
     );
   }
   return (
-    <Button variant="outline" size="sm" asChild>
+    <Button variant="outline" asChild>
       <Link href={href} aria-label={label} scroll={false}>
         {children}
       </Link>

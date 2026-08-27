@@ -15,9 +15,9 @@ export default async function NewCustomerPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
       <Link
         href="/customers"
-        className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="size-3.5" />
+        <ChevronLeft className="size-4" />
         Customers
       </Link>
 

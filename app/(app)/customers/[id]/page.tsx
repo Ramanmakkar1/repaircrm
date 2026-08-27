@@ -2,7 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import { Building2, ChevronLeft, FileText, Pencil, Receipt, Wrench } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  ChevronLeft,
+  FileText,
+  Mail,
+  Pencil,
+  Phone,
+  Receipt,
+  Wrench,
+} from "lucide-react";
 
 import {
   CommunicationsCard,
@@ -17,6 +27,7 @@ import { CustomerActionsMenu } from "@/components/customers/customer-actions-men
 import { FlashToast } from "@/components/customers/flash-toast";
 import {
   deleteBlockedReason,
+  formatDate,
   fullName,
   initials,
 } from "@/components/customers/format";
@@ -25,6 +36,7 @@ import { NotesCard } from "@/components/customers/notes-card";
 import { StatsRow } from "@/components/customers/stats-row";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
@@ -232,60 +244,66 @@ export default async function CustomerHubPage({
   const blockedReason = deleteBlockedReason(customer._count);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <FlashToast flash={flash} />
 
       <div className="flex flex-col gap-4">
         <Link
           href="/customers"
-          className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ChevronLeft className="size-3.5" />
+          <ChevronLeft className="size-4" />
           Customers
         </Link>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="size-10">
-              <AvatarFallback className="text-[13px]">
+        <div className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar className="size-16">
+              <AvatarFallback className="text-xl font-bold">
                 {initials(name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <h1 className="truncate text-lg font-semibold tracking-tight text-foreground">
+            <div className="flex min-w-0 flex-col gap-2">
+              <h1 className="truncate text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {name}
               </h1>
-              {customer.businessName ? (
-                <span className="flex items-center gap-1.5 truncate text-[13px] text-muted-foreground">
-                  <Building2 className="size-3.5 shrink-0" />
-                  {customer.businessName}
-                </span>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {customer.businessName ? (
+                  <Chip icon={Building2}>{customer.businessName}</Chip>
+                ) : null}
+                {(customer.phone ?? customer.mobile) ? (
+                  <Chip icon={Phone}>{customer.phone ?? customer.mobile}</Chip>
+                ) : null}
+                {customer.email ? <Chip icon={Mail}>{customer.email}</Chip> : null}
+                <Chip icon={CalendarDays}>
+                  Since {formatDate(customer.createdAt)}
+                </Chip>
+              </div>
             </div>
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Button asChild>
               <Link href={`/tickets/new?customerId=${customer.id}`}>
-                <Wrench className="size-3.5" />
+                <Wrench />
                 New Ticket
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/invoices/new?customerId=${customer.id}`}>
-                <Receipt className="size-3.5" />
+                <Receipt />
                 New Invoice
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/estimates/new?customerId=${customer.id}`}>
-                <FileText className="size-3.5" />
+                <FileText />
                 New Estimate
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/customers/${customer.id}/edit`}>
-                <Pencil className="size-3.5" />
+                <Pencil />
                 Edit
               </Link>
             </Button>
@@ -308,15 +326,15 @@ export default async function CustomerHubPage({
         creditBalanceCents={customer.creditBalanceCents}
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-5">
           <InfoCard customer={customer} />
           <NotesCard customerId={customer.id} notes={customer.notes} />
           <ContactsCard customerId={customer.id} contacts={customer.contacts} />
           <AssetsCard customerId={customer.id} assets={customer.assets} />
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           <TicketsCard
             customerId={customer.id}
             tickets={tickets}

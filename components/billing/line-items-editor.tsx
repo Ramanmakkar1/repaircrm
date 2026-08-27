@@ -186,17 +186,17 @@ export function LineItemsEditor({
       <input type="hidden" name={name} value={JSON.stringify(payload)} />
 
       <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[720px] caption-bottom text-[13px]">
+        <table className="w-full min-w-[780px] caption-bottom text-sm">
           <thead className="border-b border-border">
             <tr>
-              <Head className="w-[180px]">Product</Head>
+              <Head className="w-[190px]">Product</Head>
               <Head>Description</Head>
-              <Head className="w-[72px] text-right">Qty</Head>
-              <Head className="w-[110px] text-right">Unit price</Head>
-              <Head className="w-[64px] text-center">Tax</Head>
-              {showSerial ? <Head className="w-[140px]">Serial</Head> : null}
-              <Head className="w-[100px] text-right">Amount</Head>
-              <th className="w-8" />
+              <Head className="w-[80px] text-right">Qty</Head>
+              <Head className="w-[120px] text-right">Unit price</Head>
+              <Head className="w-[70px] text-center">Tax</Head>
+              {showSerial ? <Head className="w-[150px]">Serial</Head> : null}
+              <Head className="w-[110px] text-right">Amount</Head>
+              <th className="w-12" />
             </tr>
           </thead>
 
@@ -266,7 +266,7 @@ export function LineItemsEditor({
                   </Cell>
 
                   <Cell className="text-center">
-                    <div className="flex h-8 items-center justify-center">
+                    <div className="flex h-10 items-center justify-center">
                       <Checkbox
                         checked={draft.taxable}
                         onCheckedChange={(v) =>
@@ -291,7 +291,7 @@ export function LineItemsEditor({
                   ) : null}
 
                   <Cell className="text-right">
-                    <span className="inline-flex h-8 items-center tabular-nums text-foreground">
+                    <span className="inline-flex h-10 items-center font-semibold tabular-nums text-foreground">
                       {formatCents(amount)}
                     </span>
                   </Cell>
@@ -301,7 +301,7 @@ export function LineItemsEditor({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 text-faint-foreground hover:text-destructive"
+                      className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
                       onClick={() => remove(draft.key)}
                       aria-label="Remove line"
                     >
@@ -315,8 +315,8 @@ export function LineItemsEditor({
 
           <tfoot>
             <tr>
-              <td colSpan={colCount - 1} className="px-2 py-2">
-                <Button type="button" variant="outline" size="sm" onClick={addRow}>
+              <td colSpan={colCount - 1} className="px-3 py-3">
+                <Button type="button" variant="soft" size="sm" onClick={addRow}>
                   <Plus /> Add line
                 </Button>
               </td>
@@ -326,16 +326,18 @@ export function LineItemsEditor({
         </table>
       </div>
 
-      <div className="mt-1 flex justify-end border-t border-border pt-3">
-        <dl className="w-full max-w-[280px] text-[13px]">
+      <div className="mt-2 flex justify-end rounded-md bg-surface-hover px-4 py-4">
+        <dl className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">
           <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
           <TotalRow
             label={`Tax (${formatBps(taxRateBps)})`}
             value={formatCents(totals.taxCents)}
           />
-          <div className="mt-1.5 flex items-baseline justify-between border-t border-border pt-1.5">
-            <dt className="font-semibold text-foreground">Total</dt>
-            <dd className="font-semibold tabular-nums text-foreground">
+          <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Total
+            </dt>
+            <dd className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
               {formatCents(totals.totalCents)}
             </dd>
           </div>
@@ -352,7 +354,7 @@ function Head({
   return (
     <th
       className={cn(
-        "h-8 whitespace-nowrap px-2 text-left align-middle text-xs font-medium text-muted-foreground",
+        "h-11 whitespace-nowrap px-3 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground",
         className,
       )}
       {...props}
@@ -364,14 +366,14 @@ function Cell({
   className,
   ...props
 }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn("px-2 py-1.5 align-middle", className)} {...props} />;
+  return <td className={cn("px-3 py-2.5 align-middle", className)} {...props} />;
 }
 
 function TotalRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between py-0.5">
+    <div className="flex items-baseline justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="tabular-nums text-foreground">{value}</dd>
+      <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
     </div>
   );
 }

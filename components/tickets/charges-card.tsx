@@ -49,7 +49,7 @@ export function ChargesCard({
           products={products}
           trigger={
             <Button variant="outline" size="sm">
-              <Plus className="size-3.5" />
+              <Plus className="size-4" />
               Add Charge
             </Button>
           }
@@ -58,7 +58,7 @@ export function ChargesCard({
 
       <CardContent className="px-0 py-0">
         {charges.length === 0 ? (
-          <p className="px-4 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
             No parts or labour on this ticket yet.
           </p>
         ) : (
@@ -110,7 +110,7 @@ export function ChargesCard({
                               size="icon"
                               aria-label={`Edit ${charge.description}`}
                             >
-                              <Pencil className="size-3.5" />
+                              <Pencil className="size-4" />
                             </Button>
                           }
                         />
@@ -122,7 +122,7 @@ export function ChargesCard({
                             aria-label={`Remove ${charge.description}`}
                             className="text-faint-foreground hover:text-destructive"
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className="size-4" />
                           </Button>
                         </form>
                       </div>
@@ -138,7 +138,7 @@ export function ChargesCard({
       </CardContent>
 
       {charges.length > 0 ? (
-        <div className="flex flex-col gap-1 border-t border-border px-4 py-3 text-[13px]">
+        <div className="flex flex-col gap-1 border-t border-border px-4 py-3 text-sm">
           <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
           <TotalRow
             label={`Tax (${formatBps(taxRateBps)})`}

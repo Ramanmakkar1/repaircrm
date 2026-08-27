@@ -71,7 +71,7 @@ export function CustomerActionsMenu({
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
             <Link href={`/customers/${customerId}/edit`}>
-              <Pencil className="size-3.5 text-muted-foreground" />
+              <Pencil className="size-4 text-muted-foreground" />
               Edit customer
             </Link>
           </DropdownMenuItem>
@@ -85,7 +85,7 @@ export function CustomerActionsMenu({
                   setConfirming(true);
                 }}
               >
-                <Trash2 className="size-3.5" />
+                <Trash2 className="size-4" />
                 Delete customer
               </DropdownMenuItem>
             </>
@@ -110,8 +110,8 @@ export function CustomerActionsMenu({
           </DialogHeader>
 
           {blockedReason ? (
-            <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-hover px-3 py-2 text-xs text-muted-foreground">
-              <TriangleAlert className="mt-px size-3.5 shrink-0 text-status-in-progress" />
+            <div className="flex items-start gap-2.5 rounded-md border border-border bg-surface-hover px-4 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-in-progress" />
               <span>{blockedReason}</span>
             </div>
           ) : null}

@@ -6,10 +6,10 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
 import { formatDate, isOverdue } from "@/components/billing/format";
@@ -73,7 +73,7 @@ export default async function InvoicesPage({
   const filtered = Boolean(q || status || customerId);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Invoices"
         description="Bill customers and track payment status."
@@ -94,141 +94,142 @@ export default async function InvoicesPage({
         placeholder="Search by invoice # or customer…"
       />
 
-      <Card>
-        <CardContent className="px-0 py-0">
-          {invoices.length === 0 ? (
-            <EmptyState
-              icon={Receipt}
-              title={filtered ? "No invoices match those filters" : "No invoices yet"}
-              hint={
-                filtered
-                  ? "Try a different search term or clear the status filter."
-                  : "Raise one from a ticket, or start from scratch."
-              }
-              action={
-                filtered ? (
-                  <Button variant="outline" asChild>
-                    <Link href="/invoices">Clear filters</Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link href="/invoices/new">
-                      <Plus /> New invoice
-                    </Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <>
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th className="w-[80px]">#</Th>
-                    <Th>Customer</Th>
-                    <Th className="w-[110px]">Date</Th>
-                    <Th className="w-[110px]">Due</Th>
-                    <Th className="w-[110px]">Status</Th>
-                    <Th className="w-[110px] text-right">Total</Th>
-                    <Th className="w-[110px] text-right">Balance</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {invoices.map((invoice) => {
-                    const totals = invoiceTotals(
-                      invoice.lines,
-                      invoice.taxRateBps,
-                      invoice.payments,
-                    );
-                    const voided = invoice.status === "VOID";
-                    const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
-                    const name =
-                      invoice.customer.businessName ||
-                      `${invoice.customer.firstName} ${invoice.customer.lastName}`;
+      {invoices.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Receipt}
+            title={filtered ? "No invoices match those filters" : "No invoices yet"}
+            hint={
+              filtered
+                ? "Try a different search term or pick another status."
+                : "Raise one from a ticket, or start from scratch."
+            }
+            action={
+              filtered ? (
+                <Button variant="outline" asChild>
+                  <Link href="/invoices">Clear filters</Link>
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/invoices/new">
+                    <Plus /> New invoice
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {invoices.map((invoice) => {
+              const totals = invoiceTotals(
+                invoice.lines,
+                invoice.taxRateBps,
+                invoice.payments,
+              );
+              const voided = invoice.status === "VOID";
+              const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
+              const name =
+                invoice.customer.businessName ||
+                `${invoice.customer.firstName} ${invoice.customer.lastName}`;
+              const settled = !voided && totals.balanceCents <= 0;
 
-                    return (
-                      <Tr key={invoice.id}>
-                        <Td>
-                          <Link
-                            href={`/invoices/${invoice.id}`}
-                            className={cn(
-                              "font-medium tabular-nums text-accent hover:underline",
-                              voided && "text-faint-foreground line-through",
-                            )}
-                          >
-                            #{invoice.number}
-                          </Link>
-                        </Td>
-                        <Td
-                          className={cn(
-                            "max-w-[280px] truncate",
-                            voided && "text-faint-foreground",
-                          )}
-                        >
-                          <Link
-                            href={`/customers/${invoice.customer.id}`}
-                            className="hover:underline"
-                          >
-                            {name}
-                          </Link>
-                        </Td>
-                        <Td className="text-muted-foreground tabular-nums">
-                          {formatDate(invoice.createdAt)}
-                        </Td>
-                        <Td
-                          className={cn(
-                            "tabular-nums",
-                            overdue
-                              ? "font-medium text-status-overdue"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {formatDate(invoice.dueDate)}
-                        </Td>
-                        <Td>
-                          <InvoiceStatusBadge status={invoice.status} />
-                        </Td>
-                        <Td
-                          className={cn(
-                            "text-right tabular-nums",
-                            voided && "text-faint-foreground line-through",
-                          )}
-                        >
-                          {formatCents(totals.totalCents)}
-                        </Td>
-                        <Td className="text-right tabular-nums">
-                          {voided ? (
-                            <span className="text-faint-foreground">—</span>
-                          ) : totals.balanceCents <= 0 ? (
-                            <span className="text-muted-foreground">
-                              {formatCents(0)}
-                            </span>
-                          ) : (
-                            <span className="font-medium text-foreground">
-                              {formatCents(totals.balanceCents)}
-                            </span>
-                          )}
-                        </Td>
-                      </Tr>
-                    );
-                  })}
-                </TBody>
-              </Table>
+              return (
+                <Link
+                  key={invoice.id}
+                  href={`/invoices/${invoice.id}`}
+                  className={cn(
+                    "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    overdue && "border-status-overdue/55",
+                    voided && "opacity-70",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={cn(
+                        "text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground",
+                        voided && "text-faint-foreground line-through",
+                      )}
+                    >
+                      #{invoice.number}
+                    </span>
+                    <InvoiceStatusBadge status={invoice.status} />
+                  </div>
 
-              <Pagination
-                basePath="/invoices"
-                page={page}
-                total={total}
-                params={{
-                  q: q || undefined,
-                  status: status || undefined,
-                  customerId: customerId || undefined,
-                }}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  <span
+                    className={cn(
+                      "truncate text-[15px] font-bold text-foreground",
+                      voided && "text-faint-foreground",
+                    )}
+                  >
+                    {name}
+                  </span>
+
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Total
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground",
+                          voided && "text-faint-foreground line-through",
+                        )}
+                      >
+                        {formatCents(totals.totalCents)}
+                      </span>
+                    </div>
+                    {!voided ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Balance
+                        </span>
+                        <span
+                          className={cn(
+                            "text-lg font-bold leading-none tabular-nums",
+                            settled ? "text-status-resolved-fg" : "text-foreground",
+                          )}
+                        >
+                          {settled ? "Paid" : formatCents(totals.balanceCents)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                    <Chip>Raised {formatDate(invoice.createdAt)}</Chip>
+                    {invoice.dueDate ? (
+                      <Chip
+                        className={cn(
+                          overdue &&
+                            "bg-status-overdue-bg font-bold text-status-overdue-fg",
+                        )}
+                      >
+                        {overdue ? "Overdue " : "Due "}
+                        {formatDate(invoice.dueDate)}
+                      </Chip>
+                    ) : null}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          <Pagination
+            basePath="/invoices"
+            page={page}
+            total={total}
+            params={{
+              q: q || undefined,
+              status: status || undefined,
+              customerId: customerId || undefined,
+            }}
+          />
+        </>
+      )}
+
     </div>
   );
 }

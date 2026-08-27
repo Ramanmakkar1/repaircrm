@@ -43,7 +43,7 @@ export function TimerCard({
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2">
         <CardTitle className="flex items-center gap-1.5">
-          <Timer className="size-3.5 text-muted-foreground" />
+          <Timer className="size-4 text-muted-foreground" />
           Time
         </CardTitle>
         <span className="text-xs font-medium tabular-nums text-muted-foreground">
@@ -57,25 +57,25 @@ export function TimerCard({
             action={stopTimerAction.bind(null, ticketId)}
             className="flex flex-wrap items-center gap-2 rounded-md bg-status-in-progress-bg px-3 py-2"
           >
-            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-status-in-progress-fg">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-status-in-progress-fg">
               <span className="size-1.5 animate-pulse rounded-full bg-status-in-progress" />
               <LiveDuration startedAtISO={myRunningEntry.startedAtISO} />
             </span>
             <Input
               name="note"
               placeholder="What are you working on?"
-              className="h-7 min-w-[10rem] flex-1 bg-surface"
+              className="h-9 min-w-[10rem] flex-1 bg-surface"
               aria-label="Note for this time entry"
             />
             <Button type="submit" size="sm" variant="outline">
-              <Square className="size-3" />
+              <Square className="size-3.5" />
               Stop
             </Button>
           </form>
         ) : (
           <form action={startTimerAction.bind(null, ticketId)}>
             <Button type="submit" size="sm" variant="outline" className="w-full">
-              <Play className="size-3.5" />
+              <Play className="size-4" />
               Start timer
             </Button>
           </form>
@@ -88,7 +88,7 @@ export function TimerCard({
             {entries.map((entry) => (
               <li
                 key={entry.id}
-                className="flex items-start justify-between gap-2 py-1.5 text-[13px] first:pt-0 last:pb-0"
+                className="flex items-start justify-between gap-2 py-1.5 text-sm first:pt-0 last:pb-0"
               >
                 <div className="min-w-0">
                   <p className="truncate text-foreground">
@@ -126,7 +126,7 @@ export function TimerCard({
                       aria-label="Delete time entry"
                       className="size-6 text-faint-foreground hover:text-destructive"
                     >
-                      <Trash2 className="size-3" />
+                      <Trash2 className="size-3.5" />
                     </Button>
                   </form>
                 </div>

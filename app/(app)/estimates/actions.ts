@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
+import { sendEmail } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
-import { fromDateInputValue } from "@/components/billing/format";
+import { formatDate, fromDateInputValue } from "@/components/billing/format";
 import {
   formError,
   formSuccess,
@@ -175,24 +176,38 @@ export async function markEstimateSentAction(formData: FormData): Promise<void> 
 
   const totals = calcTotals(estimate.lines, estimate.taxRateBps);
 
-  await db.$transaction([
-    db.estimate.update({ where: { id: estimate.id }, data: { status: "SENT" } }),
-    db.communicationLog.create({
-      data: {
-        shopId,
-        customerId: estimate.customerId,
-        ticketId: estimate.ticketId,
-        type: "EMAIL",
-        direction: "OUT",
-        to: estimate.customer.email ?? "—",
-        subject: `Estimate #${estimate.number}`,
-        body:
-          `Estimate #${estimate.number} for ${formatCents(totals.totalCents)} ` +
-          `was marked as sent to ${estimate.customer.firstName} ${estimate.customer.lastName}.`,
-        status: "logged",
-      },
-    }),
-  ]);
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { name: true },
+  });
+  const shopName = shop?.name ?? "your repair shop";
+
+  await db.estimate.update({
+    where: { id: estimate.id },
+    data: { status: "SENT" },
+  });
+
+  // Status first, delivery second — lib/comms owns the single outbox row and
+  // never throws, so a provider outage cannot un-send an estimate.
+  await sendEmail({
+    shopId,
+    customerId: estimate.customerId,
+    ticketId: estimate.ticketId,
+    subject: `Estimate #${estimate.number} from ${shopName}`,
+    body: [
+      `Hi ${estimate.customer.firstName},`,
+      `Here is your estimate for the work we discussed.`,
+      `Estimate total: ${formatCents(totals.totalCents)}`,
+      estimate.expiresAt
+        ? `This estimate is valid until ${formatDate(estimate.expiresAt)}.`
+        : null,
+      "Open your portal to review the line items and approve or decline the work — nothing starts until you do.",
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n\n"),
+    context: `Estimate #${estimate.number}`,
+    portalPath: `/portal/estimates/${estimate.id}`,
+  });
 
   revalidatePath("/estimates");
   revalidatePath(`/estimates/${estimate.id}`);

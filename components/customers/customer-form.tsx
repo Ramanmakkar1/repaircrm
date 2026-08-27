@@ -116,15 +116,15 @@ export function CustomerForm({
   });
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction} className="flex flex-col gap-5">
       {customer ? <input type="hidden" name="id" value={customer.id} /> : null}
 
       {state?.error ? (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive-soft px-3 py-2 text-[13px] text-destructive"
+          className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
         >
-          <AlertCircle className="mt-px size-4 shrink-0" />
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{state.error}</span>
         </div>
       ) : null}
@@ -133,7 +133,7 @@ export function CustomerForm({
         <CardHeader>
           <CardTitle>Customer</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field label="First name" htmlFor="firstName" required error={errors.firstName}>
             <Input
               {...field("firstName")}
@@ -169,7 +169,7 @@ export function CustomerForm({
         <CardHeader>
           <CardTitle>Contact</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field
             label="Email"
             htmlFor="email"
@@ -202,7 +202,7 @@ export function CustomerForm({
         <CardHeader>
           <CardTitle>Address</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-6">
+        <CardContent className="grid gap-5 sm:grid-cols-6">
           <Field
             label="Street address"
             htmlFor="address1"
@@ -250,7 +250,7 @@ export function CustomerForm({
         <CardHeader>
           <CardTitle>Details</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-5">
           <Field
             label="Referred by"
             htmlFor="referredBy"
@@ -271,7 +271,7 @@ export function CustomerForm({
             />
           </Field>
 
-          <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface-hover/60 p-3">
+          <div className="flex flex-col gap-4 rounded-md border border-border bg-surface-hover/60 p-4">
             <OptIn
               name="emailOptIn"
               label="Email updates"
@@ -290,7 +290,7 @@ export function CustomerForm({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-3">
         <Button variant="ghost" asChild>
           <Link href={cancelHref}>Cancel</Link>
         </Button>
@@ -320,16 +320,16 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div className={cn("flex flex-col gap-2", className)}>
       <Label htmlFor={htmlFor}>
         {label}
         {required ? <span className="ml-0.5 text-destructive">*</span> : null}
       </Label>
       {children}
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-[13px] font-medium text-destructive">{error}</p>
       ) : hint ? (
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p className="text-[13px] text-muted-foreground">{hint}</p>
       ) : null}
     </div>
   );
@@ -350,9 +350,9 @@ function OptIn({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <Label htmlFor={name}>{label}</Label>
-        <p className="text-xs text-muted-foreground">{hint}</p>
+        <p className="text-[13px] text-muted-foreground">{hint}</p>
       </div>
       <Switch id={name} name={name} checked={checked} onCheckedChange={onChange} />
     </div>

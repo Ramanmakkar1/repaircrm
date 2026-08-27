@@ -6,18 +6,16 @@ import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { cn } from "@/components/ui/cn";
 
 export const ALL_STATUSES = "ALL";
 
 /**
  * Search + status filter for the estimate and invoice lists.
+ *
+ * The status dropdown is gone: five statuses fit on one row of pills, and a
+ * pill row shows the whole vocabulary at a glance instead of hiding four
+ * options behind a click.
  *
  * Current values arrive as props from the server page rather than through
  * `useSearchParams`, which keeps this component out of the Suspense-boundary
@@ -42,8 +40,14 @@ export function BillingFilterBar({
   placeholder: string;
 }) {
   const router = useRouter();
-  const [query, setQuery] = React.useState(q);
-  const [selected, setSelected] = React.useState(status || ALL_STATUSES);
+  const selected = status || ALL_STATUSES;
+
+  // The box is uncontrolled and keyed on the committed query, so the URL stays
+  // the single source of truth: navigating (back button, "Clear", a link into a
+  // filtered view) remounts it with the right value, and no effect is needed to
+  // push server state back into React state.
+  const queryRef = React.useRef<HTMLInputElement>(null);
+  const readQuery = () => queryRef.current?.value ?? q;
 
   const navigate = React.useCallback(
     (nextQuery: string, nextStatus: string) => {
@@ -57,64 +61,68 @@ export function BillingFilterBar({
     [basePath, router],
   );
 
-  const dirty = query !== "" || selected !== ALL_STATUSES;
+  const dirty = q !== "" || selected !== ALL_STATUSES;
+
+  const pills = [{ value: ALL_STATUSES, label: "All" }, ...statusOptions];
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        navigate(query, selected);
-      }}
-      className="flex flex-wrap items-center gap-2"
-    >
-      <div className="relative min-w-[220px] flex-1">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={placeholder}
-          className="pl-8"
-          aria-label="Search"
-        />
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {pills.map((pill) => {
+          const active = selected === pill.value;
+          return (
+            <button
+              key={pill.value}
+              type="button"
+              onClick={() => navigate(readQuery(), pill.value)}
+              aria-pressed={active}
+              className={cn(
+                "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                active
+                  ? "border-transparent bg-accent text-accent-foreground shadow-sm"
+                  : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+              )}
+            >
+              {pill.label}
+            </button>
+          );
+        })}
       </div>
 
-      <Select
-        value={selected}
-        onValueChange={(v) => {
-          setSelected(v);
-          navigate(query, v);
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          navigate(readQuery(), selected);
         }}
+        className="flex flex-wrap items-center gap-2"
       >
-        <SelectTrigger className="w-[150px]" aria-label="Filter by status">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_STATUSES}>All statuses</SelectItem>
-          {statusOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        <div className="relative min-w-[240px] flex-1 sm:max-w-sm">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+          <Input
+            key={q}
+            ref={queryRef}
+            defaultValue={q}
+            placeholder={placeholder}
+            className="pl-11"
+            aria-label="Search"
+          />
+        </div>
 
-      <Button type="submit" variant="outline">
-        Search
-      </Button>
-
-      {dirty ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setQuery("");
-            setSelected(ALL_STATUSES);
-            navigate("", ALL_STATUSES);
-          }}
-        >
-          <X /> Clear
+        <Button type="submit" variant="outline">
+          Search
         </Button>
-      ) : null}
-    </form>
+
+        {dirty ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => navigate("", ALL_STATUSES)}
+          >
+            <X /> Clear
+          </Button>
+        ) : null}
+      </form>
+    </div>
   );
 }

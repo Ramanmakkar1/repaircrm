@@ -194,7 +194,7 @@ export function ChargeDialog({
               checked={taxable}
               onCheckedChange={(value) => setTaxable(value === true)}
             />
-            <span className="text-[13px] text-foreground">Taxable</span>
+            <span className="text-sm text-foreground">Taxable</span>
           </label>
 
           <DialogFooter>

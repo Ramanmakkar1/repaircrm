@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
+import { sendEmail } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
-import { fromDateInputValue } from "@/components/billing/format";
+import { formatDate, fromDateInputValue } from "@/components/billing/format";
 import {
   formError,
   formSuccess,
@@ -280,33 +281,47 @@ export async function markInvoiceSentAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId, status: "DRAFT" },
-    include: { customer: true, lines: true },
+    include: { customer: true, lines: true, payments: true },
   });
   if (!invoice) return;
 
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps);
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { name: true },
+  });
+  const shopName = shop?.name ?? "your repair shop";
 
-  await db.$transaction([
-    db.invoice.update({ where: { id: invoice.id }, data: { status: "SENT" } }),
-    // Phase 2 wires this to a real mail provider. Logging it now means the
-    // customer's communication history is already complete when it lands.
-    db.communicationLog.create({
-      data: {
-        shopId,
-        customerId: invoice.customerId,
-        invoiceId: invoice.id,
-        ticketId: invoice.ticketId,
-        type: "EMAIL",
-        direction: "OUT",
-        to: invoice.customer.email ?? "—",
-        subject: `Invoice #${invoice.number}`,
-        body:
-          `Invoice #${invoice.number} for ${formatCents(totals.totalCents)} ` +
-          `was marked as sent to ${invoice.customer.firstName} ${invoice.customer.lastName}.`,
-        status: "logged",
-      },
-    }),
-  ]);
+  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+
+  await db.invoice.update({
+    where: { id: invoice.id },
+    data: { status: "SENT" },
+  });
+
+  // The status change is committed first; delivery is best-effort on top of it.
+  // lib/comms writes the one outbox row (and records a skip or a failure there
+  // rather than throwing), so the customer's history is complete either way.
+  const due = invoice.dueDate
+    ? `Due ${formatDate(invoice.dueDate)}.`
+    : "Payable on receipt.";
+
+  await sendEmail({
+    shopId,
+    customerId: invoice.customerId,
+    invoiceId: invoice.id,
+    ticketId: invoice.ticketId,
+    subject: `Invoice #${invoice.number} from ${shopName}`,
+    body: [
+      `Hi ${invoice.customer.firstName},`,
+      `Invoice #${invoice.number} is ready.`,
+      `Total: ${formatCents(totals.totalCents)}\nBalance due: ${formatCents(
+        Math.max(totals.balanceCents, 0),
+      )}\n${due}`,
+      "You can view and download it from your portal using the button below.",
+    ].join("\n\n"),
+    context: `Invoice #${invoice.number}`,
+    portalPath: `/portal/invoices/${invoice.id}`,
+  });
 
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoice.id}`);

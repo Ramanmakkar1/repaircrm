@@ -6,6 +6,7 @@ import {
   Receipt,
   ShoppingCart,
   Boxes,
+  Monitor,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -24,5 +25,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Invoices", href: "/invoices", icon: Receipt },
   { label: "POS", href: "/pos", icon: ShoppingCart },
   { label: "Inventory", href: "/inventory", icon: Boxes },
+  { label: "Shop Display", href: "/display", icon: Monitor },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

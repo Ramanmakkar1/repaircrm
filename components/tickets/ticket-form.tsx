@@ -60,7 +60,7 @@ export function TicketForm({
           {state?.error ? (
             <p
               role="alert"
-              className="rounded-md bg-destructive-soft px-3 py-2 text-[13px] text-destructive"
+              className="rounded-md bg-destructive-soft px-3 py-2 text-sm text-destructive"
             >
               {state.error}
             </p>

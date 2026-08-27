@@ -12,7 +12,7 @@ export function SignupForm() {
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       <ErrorBanner message={state?.error} />
 
       <Field

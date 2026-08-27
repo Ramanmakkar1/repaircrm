@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconChip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -85,25 +86,25 @@ export function ContactsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-1.5">
-          <UserRound className="size-3.5 text-muted-foreground" />
-          Contacts
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <IconChip icon={UserRound} size="sm" />
+          <CardTitle className="truncate">Contacts</CardTitle>
           {contacts.length > 0 ? (
-            <span className="text-xs font-normal text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none tabular-nums text-muted-foreground">
               {contacts.length}
             </span>
           ) : null}
-        </CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-          <Plus className="size-3.5" />
+        </div>
+        <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+          <Plus />
           Add
         </Button>
       </CardHeader>
 
       <CardContent className="p-0">
         {contacts.length === 0 ? (
-          <p className="px-4 py-5 text-center text-xs text-muted-foreground">
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
             No additional contacts yet.
           </p>
         ) : (
@@ -111,33 +112,33 @@ export function ContactsCard({
             {contacts.map((contact) => (
               <li
                 key={contact.id}
-                className="group flex items-start justify-between gap-3 px-4 py-2.5"
+                className="group flex items-start justify-between gap-3 px-5 py-4"
               >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[13px] font-medium text-foreground">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-foreground">
                       {contact.name}
                     </span>
                     {contact.label ? (
                       <Badge variant="secondary">{contact.label}</Badge>
                     ) : null}
                   </div>
-                  <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+                  <div className="flex flex-col gap-1 text-[13.5px] text-muted-foreground">
                     {contact.email ? (
                       <a
                         href={`mailto:${contact.email}`}
-                        className="flex items-center gap-1.5 truncate hover:text-accent hover:underline"
+                        className="flex items-center gap-2 truncate hover:text-accent hover:underline"
                       >
-                        <Mail className="size-3 shrink-0" />
+                        <Mail className="size-4 shrink-0 text-faint-foreground" />
                         {contact.email}
                       </a>
                     ) : null}
                     {contact.phone ? (
                       <a
                         href={`tel:${contact.phone}`}
-                        className="flex items-center gap-1.5 hover:text-accent hover:underline"
+                        className="flex items-center gap-2 hover:text-accent hover:underline"
                       >
-                        <Phone className="size-3 shrink-0" />
+                        <Phone className="size-4 shrink-0 text-faint-foreground" />
                         {contact.phone}
                       </a>
                     ) : null}
@@ -145,23 +146,24 @@ export function ContactsCard({
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-1 opacity-70 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                   <Button
                     size="icon"
                     variant="ghost"
+                    className="size-9"
                     aria-label={`Edit ${contact.name}`}
                     onClick={() => setEditing(contact)}
                   >
-                    <Pencil className="size-3.5" />
+                    <Pencil />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
                     aria-label={`Remove ${contact.name}`}
                     onClick={() => setRemoving(contact)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="size-9 text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 />
                   </Button>
                 </div>
               </li>
@@ -191,9 +193,9 @@ export function ContactsCard({
           <form
             key={editing?.id ?? "new-contact"}
             onSubmit={submit}
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-4"
           >
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="contact-name">
                 Name<span className="ml-0.5 text-destructive">*</span>
               </Label>
@@ -205,7 +207,7 @@ export function ContactsCard({
                 autoFocus
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="contact-label">Role</Label>
               <Input
                 id="contact-label"
@@ -214,8 +216,8 @@ export function ContactsCard({
                 placeholder="Office Manager"
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="contact-email">Email</Label>
                 <Input
                   id="contact-email"
@@ -224,7 +226,7 @@ export function ContactsCard({
                   defaultValue={editing?.email ?? ""}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="contact-phone">Phone</Label>
                 <Input
                   id="contact-phone"

@@ -38,17 +38,17 @@ export function Pagination({
     return qs ? `${basePath}?${qs}` : basePath;
   };
 
-  const linkClass = cn(buttonVariants({ variant: "outline", size: "sm" }));
+  const linkClass = cn(buttonVariants({ variant: "outline" }));
   const disabledClass = cn(linkClass, "pointer-events-none opacity-50");
 
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5">
-      <p className="text-xs text-muted-foreground tabular-nums">
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+      <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
         {total === 0
           ? "No results"
           : `${from}–${to} of ${total}`}
       </p>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <Link
           href={href(page - 1)}
           className={page <= 1 ? disabledClass : linkClass}
@@ -57,7 +57,7 @@ export function Pagination({
         >
           <ChevronLeft /> Prev
         </Link>
-        <span className="px-1 text-xs text-muted-foreground tabular-nums">
+        <span className="px-1 text-[13.5px] font-semibold text-muted-foreground tabular-nums">
           {page} / {pageCount}
         </span>
         <Link

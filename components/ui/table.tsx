@@ -4,7 +4,7 @@ import { cn } from "./cn";
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
   return (
     <div className="w-full overflow-x-auto">
-      <table className={cn("w-full caption-bottom text-[13px]", className)} {...props} />
+      <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );
 }
@@ -47,7 +47,7 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        "h-8 whitespace-nowrap px-3 text-left align-middle text-xs font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+        "h-11 whitespace-nowrap px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
@@ -59,7 +59,7 @@ export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCell
   return (
     <td
       className={cn(
-        "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "px-4 py-3 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

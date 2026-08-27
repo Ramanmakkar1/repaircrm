@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./cn";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none w-fit",
+  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none w-fit",
   {
     variants: {
       variant: {
@@ -135,13 +135,13 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
+        "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
         meta.bg,
         meta.fg,
         className,
       )}
     >
-      <span className={cn("size-1.5 shrink-0 rounded-full", meta.dot)} />
+      <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
       {meta.label}
     </span>
   );
@@ -152,7 +152,7 @@ export function StatusDot({ status, className }: { status: string; className?: s
   const key = normalizeStatus(status);
   return (
     <span
-      className={cn("inline-block size-1.5 shrink-0 rounded-full", STATUS_META[key].dot, className)}
+      className={cn("inline-block size-2.5 shrink-0 rounded-full", STATUS_META[key].dot, className)}
     />
   );
 }

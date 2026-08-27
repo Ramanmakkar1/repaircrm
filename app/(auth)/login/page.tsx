@@ -23,22 +23,22 @@ export default async function LoginPage({
 
   return (
     <>
-      <div className="mb-6 space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">
+      <div className="mb-7 space-y-1.5">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Sign in
         </h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-[15px] text-muted-foreground">
           Welcome back. Enter your details to continue.
         </p>
       </div>
 
       <LoginForm redirectTo={redirectTo} />
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
         New here?{" "}
         <Link
           href="/signup"
-          className="font-medium text-slate-900 underline underline-offset-4 hover:text-slate-700"
+          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
         >
           Create a shop
         </Link>

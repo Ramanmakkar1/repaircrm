@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { sendEmail, sendSms } from "@/lib/comms";
 import { withNextNumber } from "@/lib/sequence";
 import { parseCents } from "@/lib/money";
 import { asPriority, isResolved } from "@/components/tickets/ticket-meta";
@@ -76,7 +77,7 @@ async function findTicket(shopId: string, ticketId: string) {
       subject: true,
       status: true,
       customerId: true,
-      customer: { select: { email: true } },
+      customer: { select: { email: true, mobile: true, smsOptIn: true } },
     },
   });
 }
@@ -309,26 +310,37 @@ export async function postUpdateAction(
         channel: "NOTE",
       },
     });
+  });
 
-    if (isPublic) {
-      // Phase 2 does the actual sending. For now the outbox row is the record
-      // that the customer was told — status says whether it is deliverable.
-      const to = ticket.customer.email;
-      await tx.communicationLog.create({
-        data: {
-          shopId,
-          customerId: ticket.customerId,
-          ticketId: ticket.id,
-          type: "EMAIL",
-          direction: "OUT",
-          to: to ?? "",
-          subject,
-          body: commentBody,
-          status: to ? "logged" : "no-address",
-        },
+  // Sending happens AFTER the transaction commits, never inside it: a mail
+  // provider timing out must not roll back the status change and the note that
+  // are already true. lib/comms writes the single outbox row itself — including
+  // when it skips (opted out / no address), so the history stays complete.
+  if (isPublic) {
+    const emailSubject = subject ?? `Update on ticket #${ticket.number}`;
+
+    await sendEmail({
+      shopId,
+      customerId: ticket.customerId,
+      ticketId: ticket.id,
+      subject: emailSubject,
+      body: commentBody,
+      context: `Ticket #${ticket.number} · ${ticket.subject}`,
+      portalPath: `/portal/tickets/${ticket.id}`,
+    });
+
+    // A text is a nudge, not a second copy of the email — it only goes to a
+    // customer who asked for texts and gave us a mobile to use.
+    if (ticket.customer.smsOptIn && ticket.customer.mobile) {
+      await sendSms({
+        shopId,
+        customerId: ticket.customerId,
+        ticketId: ticket.id,
+        body: `Ticket #${ticket.number} — ${commentBody}`,
+        portalPath: `/portal/tickets/${ticket.id}`,
       });
     }
-  });
+  }
 
   revalidateTicket(ticket.id);
   return { ok: true };

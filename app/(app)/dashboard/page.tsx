@@ -1,11 +1,20 @@
 import Link from "next/link";
-import { startOfDay, endOfDay, startOfMonth, formatDistanceToNow } from "date-fns";
-import { Wrench } from "lucide-react";
+import { startOfDay, endOfDay, startOfMonth } from "date-fns";
+import {
+  ArrowRight,
+  CalendarClock,
+  CircleDollarSign,
+  Receipt,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusBadge, StatusDot } from "@/components/ui/badge";
-import { Table, THead, TBody, Tr, Th, Td } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { STATUS_META, normalizeStatus } from "@/components/ui/badge";
+import { cn } from "@/components/ui/cn";
+import { TicketCard } from "@/components/tickets/ticket-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -50,8 +59,12 @@ export default async function DashboardPage() {
       db.ticket.findMany({
         where: { shopId },
         orderBy: { updatedAt: "desc" },
-        take: 8,
-        include: { customer: true, assignedTo: true },
+        take: 6,
+        include: {
+          customer: true,
+          assignedTo: true,
+          asset: { select: { type: true, make: true, model: true } },
+        },
       }),
     ]);
 
@@ -65,111 +78,181 @@ export default async function DashboardPage() {
     0,
   );
 
-  const stats = [
-    { label: "Open Tickets", value: String(openTickets) },
-    { label: "Due Today", value: String(dueToday) },
+  // One request-time clock so every card measures staleness against the same
+  // instant. eslint-disable: react-hooks/purity targets Client Components.
+  // eslint-disable-next-line react-hooks/purity
+  const clock = Date.now();
+
+  const stats: {
+    label: string;
+    value: string;
+    hint: string;
+    href: string;
+    icon: LucideIcon;
+    tint: string;
+  }[] = [
     {
-      label: "Unpaid Invoices",
-      value: `${unpaidCandidates.length} · ${formatCents(unpaidBalanceCents)}`,
+      label: "Open Tickets",
+      value: String(openTickets),
+      hint: "on the bench right now",
+      href: "/tickets",
+      icon: Wrench,
+      tint: "bg-status-new-bg text-status-new-fg",
     },
     {
-      label: "This Month Revenue",
+      label: "Due Today",
+      value: String(dueToday),
+      hint: "promised back today",
+      href: "/tickets?sort=due",
+      icon: CalendarClock,
+      tint: "bg-status-in-progress-bg text-status-in-progress-fg",
+    },
+    {
+      label: "Unpaid Invoices",
+      value: String(unpaidCandidates.length),
+      hint: `${formatCents(unpaidBalanceCents)} outstanding`,
+      href: "/invoices?status=SENT",
+      icon: Receipt,
+      tint: "bg-status-overdue-bg text-status-overdue-fg",
+    },
+    {
+      label: "This Month",
       value: formatCents(monthPayments._sum.amountCents ?? 0),
+      hint: "collected so far",
+      href: "/invoices",
+      icon: CircleDollarSign,
+      tint: "bg-status-resolved-bg text-status-resolved-fg",
     },
   ];
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <PageHeader
         title="Dashboard"
         description="A quick look at what's happening in your shop."
+        actions={
+          <Button asChild>
+            <Link href="/tickets/new">
+              <Wrench />
+              New Ticket
+            </Link>
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* The four numbers that answer "how is today going?" */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="flex flex-col gap-1 py-4">
-              <span className="text-xs font-medium text-muted-foreground">
-                {stat.label}
-              </span>
-              <span className="text-2xl font-semibold tracking-tight text-foreground">
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className="rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <span
+              className={cn(
+                "flex size-12 items-center justify-center rounded-md",
+                stat.tint,
+              )}
+            >
+              <stat.icon className="size-6" strokeWidth={2.25} />
+            </span>
+            <div className="flex flex-col gap-1">
+              <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight text-foreground">
                 {stat.value}
               </span>
-            </CardContent>
-          </Card>
+              <span className="text-[15px] font-bold text-foreground">
+                {stat.label}
+              </span>
+              <span className="text-[13px] text-muted-foreground">{stat.hint}</span>
+            </div>
+          </Link>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Recent Tickets</CardTitle>
-          </CardHeader>
-          <CardContent className="px-0 py-0">
-            {recentTickets.length === 0 ? (
-              <EmptyState
-                icon={Wrench}
-                title="No tickets yet"
-                hint="New repair tickets will show up here as they come in."
-              />
-            ) : (
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th>#</Th>
-                    <Th>Customer</Th>
-                    <Th>Subject</Th>
-                    <Th>Status</Th>
-                    <Th>Updated</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {recentTickets.map((t) => (
-                    <Tr key={t.id}>
-                      <Td className="tabular-nums">
-                        <Link
-                          href={`/tickets/${t.id}`}
-                          className="font-medium text-accent hover:underline"
-                        >
-                          {t.number}
-                        </Link>
-                      </Td>
-                      <Td>
-                        {t.customer.firstName} {t.customer.lastName}
-                      </Td>
-                      <Td className="max-w-[220px] truncate">{t.subject}</Td>
-                      <Td>
-                        <StatusBadge status={t.status} />
-                      </Td>
-                      <Td className="whitespace-nowrap text-muted-foreground">
-                        {formatDistanceToNow(t.updatedAt, { addSuffix: true })}
-                      </Td>
-                    </Tr>
-                  ))}
-                </TBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+      {/* Where the work stands, as six colour-coded boxes. */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <CardTitle>Where the work stands</CardTitle>
+          <Link
+            href="/tickets?status=all"
+            className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-accent hover:underline"
+          >
+            All tickets
+            <ArrowRight className="size-4" />
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {TICKET_STATUSES.map((status) => {
+              const meta = STATUS_META[normalizeStatus(status)];
+              const count = statusCounts.get(status) ?? 0;
+              return (
+                <Link
+                  key={status}
+                  href={`/tickets?status=${encodeURIComponent(status)}`}
+                  className={cn(
+                    "rf-lift flex flex-col gap-1.5 rounded-md p-4 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    meta.bg,
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-3xl font-bold leading-none tabular-nums",
+                      meta.fg,
+                    )}
+                  >
+                    {count}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[13px] font-bold leading-snug",
+                      meta.fg,
+                    )}
+                  >
+                    {status}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Ticket Status</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2.5">
-            {TICKET_STATUSES.map((status) => (
-              <div key={status} className="flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2 text-[13px] text-foreground">
-                  <StatusDot status={status} />
-                  {status}
-                </span>
-                <span className="text-[13px] font-medium tabular-nums text-foreground">
-                  {statusCounts.get(status) ?? 0}
-                </span>
-              </div>
+      {/* Recent activity, as the same cards used on the tickets board. */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
+            Recently touched
+          </h2>
+          <Link
+            href="/tickets"
+            className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-accent hover:underline"
+          >
+            View all
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+
+        {recentTickets.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon={Wrench}
+              title="No tickets yet"
+              hint="New repair tickets will show up here as they come in."
+              action={
+                <Button asChild>
+                  <Link href="/tickets/new">Create the first ticket</Link>
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {recentTickets.map((ticket) => (
+              <TicketCard key={ticket.id} ticket={ticket} now={clock} />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
     </div>
   );

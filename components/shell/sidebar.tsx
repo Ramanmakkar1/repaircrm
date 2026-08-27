@@ -15,8 +15,8 @@ export function Sidebar({
   return (
     <>
       {/* desktop sidebar */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-sidebar-bg md:flex">
-        <div className="flex h-12 items-center border-b border-border px-2">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-sidebar-bg md:flex">
+        <div className="flex h-16 items-center border-b border-border px-3">
           <Brand />
         </div>
         <NavLinks />
@@ -33,19 +33,19 @@ export function Sidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-sidebar-bg transition-transform duration-200 md:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-sidebar-bg shadow-xl transition-transform duration-200 md:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
         aria-hidden={!mobileOpen}
       >
-        <div className="flex h-12 items-center justify-between border-b border-border px-2">
+        <div className="flex h-16 items-center justify-between border-b border-border px-3">
           <Brand />
           <button
             type="button"
             onClick={onClose}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+            className="flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
           >
-            <X className="size-4" />
+            <X className="size-5" />
             <span className="sr-only">Close menu</span>
           </button>
         </div>

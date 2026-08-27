@@ -57,7 +57,7 @@ export function Timeline({
       </CardHeader>
       <CardContent className="flex flex-col gap-2.5">
         {entries.length === 0 ? (
-          <p className="py-2 text-[13px] text-muted-foreground">
+          <p className="py-2 text-sm text-muted-foreground">
             Nothing logged on this ticket yet.
           </p>
         ) : (
@@ -77,7 +77,7 @@ export function Timeline({
                     {initials(entry.authorName ?? "System")}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-[13px] font-medium text-foreground">
+                <span className="text-sm font-medium text-foreground">
                   {entry.authorName ?? "System"}
                 </span>
 
@@ -95,12 +95,12 @@ export function Timeline({
                 <span className="ml-auto flex items-center gap-2 text-xs text-faint-foreground">
                   {entry.isPublic ? (
                     <span className="flex items-center gap-1 text-accent-soft-foreground">
-                      <Send className="size-3" />
+                      <Send className="size-3.5" />
                       Sent to customer
                     </span>
                   ) : (
                     <span className="flex items-center gap-1">
-                      <Lock className="size-3" />
+                      <Lock className="size-3.5" />
                       Private
                     </span>
                   )}
@@ -114,12 +114,12 @@ export function Timeline({
               </header>
 
               {entry.subject ? (
-                <p className="mt-1.5 text-[13px] font-semibold text-foreground">
+                <p className="mt-1.5 text-sm font-semibold text-foreground">
                   {entry.subject}
                 </p>
               ) : null}
 
-              <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-foreground">
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                 {entry.body}
               </p>
             </article>

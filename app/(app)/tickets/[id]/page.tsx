@@ -195,22 +195,22 @@ export default async function TicketDetailPage({
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <Link
         href="/tickets"
-        className="flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="size-3.5" />
+        <ArrowLeft className="size-4" />
         All tickets
       </Link>
 
       {/* ------------------------------------------------------------ header */}
       <Card>
-        <CardContent className="flex flex-col gap-3 py-4">
+        <CardContent className="flex flex-col gap-4 py-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold tabular-nums text-muted-foreground">
+                <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
                   #{ticket.number}
                 </span>
                 <StatusBadge status={ticket.status} />
@@ -218,14 +218,14 @@ export default async function TicketDetailPage({
                 <span
                   title={STALENESS_LABEL[level]}
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-xs font-medium",
+                    "rounded-full px-2.5 py-1 text-[12.5px] font-semibold",
                     STALENESS_CLASS[level],
                   )}
                 >
                   {STALENESS_LABEL[level]}
                 </span>
               </div>
-              <h1 className="text-lg font-semibold leading-tight tracking-tight text-foreground">
+              <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
                 {ticket.subject}
               </h1>
             </div>
@@ -264,7 +264,7 @@ export default async function TicketDetailPage({
             </div>
           </div>
 
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 border-t border-border pt-3 text-[13px] sm:grid-cols-3 lg:grid-cols-6">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
             <Fact label="Customer">
               <Link
                 href={`/customers/${ticket.customer.id}`}
@@ -301,14 +301,14 @@ export default async function TicketDetailPage({
 
       {/* ---------------------------------------------------------- progress */}
       <Card>
-        <CardContent className="py-4">
+        <CardContent className="px-5 py-6">
           <StatusProgress statuses={statuses} current={ticket.status} />
         </CardContent>
       </Card>
 
       {/* ------------------------------------------------------------- body */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="flex flex-col gap-5 lg:col-span-2">
           <UpdateComposer
             ticketId={ticket.id}
             currentStatus={ticket.status}
@@ -340,12 +340,12 @@ export default async function TicketDetailPage({
           />
         </div>
 
-        <aside className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-5">
           <Card>
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-[13px]">
+            <CardContent className="flex flex-col gap-4 text-sm">
               <Fact label="Email">
                 {ticket.customer.email ? (
                   <a
@@ -370,8 +370,8 @@ export default async function TicketDetailPage({
                 </Fact>
               ) : null}
               {ticket.diagnosticNotes ? (
-                <div className="mt-1 border-t border-border pt-2">
-                  <p className="mb-1 text-xs text-muted-foreground">
+                <div className="border-t border-border pt-4">
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Diagnostic notes
                   </p>
                   <p className="whitespace-pre-wrap leading-relaxed text-foreground">
@@ -400,16 +400,16 @@ export default async function TicketDetailPage({
 
           <Card className="opacity-60">
             <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                <Paperclip className="size-3.5 text-muted-foreground" />
+              <CardTitle className="flex items-center gap-2">
+                <Paperclip className="size-4 text-muted-foreground" />
                 Attachments
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13.5px] text-muted-foreground">
                 File uploads land in a later phase.
               </p>
-              <Button variant="outline" size="sm" disabled className="mt-2">
+              <Button variant="outline" size="sm" disabled className="mt-3">
                 Coming soon
               </Button>
             </CardContent>
@@ -429,8 +429,10 @@ function Fact({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="truncate font-medium text-foreground">{children}</dd>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="truncate text-[14.5px] font-semibold text-foreground">{children}</dd>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { saveCustomerNotesAction } from "@/app/(app)/customers/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { IconChip } from "@/components/ui/chip";
 import { Textarea } from "@/components/ui/textarea";
 
 /**
@@ -46,13 +47,13 @@ export function NotesCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-1.5">
-          <StickyNote className="size-3.5 text-muted-foreground" />
-          Notes
-        </CardTitle>
+      <CardHeader className="flex-row items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <IconChip icon={StickyNote} size="sm" />
+          <CardTitle className="truncate">Notes</CardTitle>
+        </div>
         {dirty ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               size="sm"
               variant="ghost"
@@ -75,7 +76,7 @@ export function NotesCard({
           disabled={saving}
           aria-label="Customer notes"
           placeholder="Add a note — preferences, access codes, anything the front desk should see."
-          className="resize-y border-transparent bg-transparent px-0 py-0 focus-visible:border-transparent focus-visible:ring-0"
+          className="min-h-28 resize-y rounded-md border-transparent bg-surface-hover px-3.5 py-3 leading-relaxed"
           onKeyDown={(event) => {
             if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && dirty) {
               event.preventDefault();

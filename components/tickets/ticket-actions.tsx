@@ -85,7 +85,7 @@ export function EditTicketDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Pencil className="size-3.5" />
+          <Pencil className="size-4" />
           Edit
         </Button>
       </DialogTrigger>
@@ -239,7 +239,7 @@ export function DeleteTicketDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Delete ticket">
-          <Trash2 className="size-3.5 text-faint-foreground" />
+          <Trash2 className="size-4 text-faint-foreground" />
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -290,7 +290,7 @@ export function MakeInvoiceButton({
   return (
     <form action={formAction}>
       <Button type="submit" size="sm" disabled={pending || chargeCount === 0}>
-        <Receipt className="size-3.5" />
+        <Receipt className="size-4" />
         {pending
           ? "Creating…"
           : chargeCount === 0

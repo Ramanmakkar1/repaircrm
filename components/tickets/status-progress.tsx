@@ -5,8 +5,9 @@ import { isResolved } from "./ticket-meta";
 /**
  * Horizontal pipeline tracker across the shop's workflow states.
  *
- * Steps before the current one read as done (green + check), the current one is
- * highlighted, later ones are muted. A Resolved ticket lights the whole bar.
+ * Numbered circles joined by a track, the way a delivery tracker looks: steps
+ * before the current one are green with a tick, the current one is a filled
+ * accent circle, later ones are hollow. A Resolved ticket lights every step.
  *
  * Purely presentational — status is changed through the update composer, not by
  * clicking a step, so a status change always carries a note with it.
@@ -28,39 +29,69 @@ export function StatusProgress({
   const allDone = isResolved(current);
 
   return (
-    <ol className={cn("flex w-full items-start gap-1", className)}>
+    <ol className={cn("flex w-full items-start", className)}>
       {statuses.map((status, i) => {
         const done = allDone || (index >= 0 && i < index);
         const active = !allDone && i === index;
+        const reached = done || active;
+
         return (
-          <li key={status} className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div
-              className={cn(
-                "h-1.5 rounded-full transition-colors",
-                done
-                  ? "bg-status-resolved"
-                  : active
-                    ? "bg-accent"
-                    : "bg-border-strong/60",
-              )}
-            />
+          <li
+            key={status}
+            className="flex min-w-0 flex-1 flex-col items-center gap-2"
+          >
+            <div className="flex w-full items-center">
+              <Track filled={done || (active && i > 0)} hidden={i === 0} />
+              <span
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-full border-2 text-[13px] font-bold transition-colors",
+                  done
+                    ? "border-status-resolved bg-status-resolved text-white"
+                    : active
+                      ? "border-accent bg-accent text-accent-foreground shadow-sm"
+                      : "border-border-strong bg-surface text-faint-foreground",
+                )}
+              >
+                {done ? (
+                  <Check className="size-4" strokeWidth={3} />
+                ) : (
+                  i + 1
+                )}
+              </span>
+              <Track filled={done} hidden={i === statuses.length - 1} />
+            </div>
             <span
               className={cn(
-                "flex items-center gap-1 truncate text-[11px] leading-tight",
-                done
-                  ? "text-status-resolved-fg"
-                  : active
-                    ? "font-semibold text-foreground"
+                "line-clamp-2 px-1 text-center text-[12.5px] leading-tight",
+                active
+                  ? "font-bold text-foreground"
+                  : reached
+                    ? "font-semibold text-status-resolved-fg"
                     : "text-faint-foreground",
               )}
               title={status}
             >
-              {done ? <Check className="size-3 shrink-0" strokeWidth={3} /> : null}
-              <span className="truncate">{status}</span>
+              {status}
             </span>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+function Track({ filled, hidden }: { filled: boolean; hidden: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "h-1.5 flex-1 rounded-full transition-colors",
+        hidden
+          ? "bg-transparent"
+          : filled
+            ? "bg-status-resolved"
+            : "bg-border-strong/50",
+      )}
+    />
   );
 }
