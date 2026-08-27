@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
+import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import type { PosTicket } from "@/components/pos/types";
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -16,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function PosPage() {
   const { shopId } = await requireUser();
 
-  const [products, customerRows, shop] = await Promise.all([
+  const [products, customerRows, ticketRows, shop] = await Promise.all([
     db.product.findMany({
       where: { shopId, active: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
@@ -49,11 +51,59 @@ export default async function PosPage() {
         creditBalanceCents: true,
       },
     }),
+    // Tickets the counter can bill: still open, and carrying work nobody has
+    // invoiced yet. `charges: { some: { invoiceId: null } }` is the whole
+    // filter — an already-invoiced repair has nothing left to sell, and
+    // offering it would invite charging the customer twice.
+    db.ticket.findMany({
+      where: {
+        shopId,
+        status: { not: RESOLVED_STATUS },
+        charges: { some: { invoiceId: null } },
+      },
+      orderBy: { updatedAt: "desc" },
+      // A counter list, not a report: the recently-touched jobs are the ones
+      // whose owners are standing at the desk.
+      take: 50,
+      select: {
+        id: true,
+        number: true,
+        subject: true,
+        customerId: true,
+        customer: {
+          select: { firstName: true, lastName: true, businessName: true },
+        },
+        charges: {
+          where: { invoiceId: null },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            unitPriceCents: true,
+            taxable: true,
+          },
+        },
+      },
+    }),
     db.shop.findUnique({
       where: { id: shopId },
       select: { taxRateBps: true },
     }),
   ]);
+
+  const tickets: PosTicket[] = ticketRows.map((ticket) => ({
+    id: ticket.id,
+    number: ticket.number,
+    customerId: ticket.customerId,
+    customerLabel: customerLabel(ticket.customer),
+    subject: ticket.subject,
+    charges: ticket.charges,
+    subtotalCents: ticket.charges.reduce(
+      (sum, charge) => sum + charge.quantity * charge.unitPriceCents,
+      0,
+    ),
+  }));
 
   return (
     <Register
@@ -63,6 +113,7 @@ export default async function PosPage() {
         label: customerLabel(c),
         creditBalanceCents: c.creditBalanceCents,
       }))}
+      tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}
     />
   );

@@ -1,5 +1,7 @@
 import {
   LayoutDashboard,
+  UserPlus,
+  CalendarDays,
   Users,
   Wrench,
   FileText,
@@ -21,6 +23,11 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  // Leads and Appointments sit ahead of Customers on purpose: the rail now
+  // reads front-to-back in the order work actually arrives at a shop —
+  // enquiry, booking, customer, ticket.
+  { label: "Leads", href: "/leads", icon: UserPlus },
+  { label: "Appointments", href: "/appointments", icon: CalendarDays },
   { label: "Customers", href: "/customers", icon: Users },
   { label: "Tickets", href: "/tickets", icon: Wrench },
   { label: "Estimates", href: "/estimates", icon: FileText },

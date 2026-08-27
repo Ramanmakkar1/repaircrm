@@ -1,14 +1,18 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
 import { formatDateLong, formatDate } from "@/components/billing/format";
-import { loadShopHeader } from "@/components/billing/queries";
+import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
+import { termsLabel } from "@/components/billing/print-chrome";
 import {
   PrintSheet,
   type PrintTotalRow,
 } from "@/components/billing/print-sheet";
+
+export const metadata: Metadata = { title: "Invoice · RepairFlow" };
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Cash",
@@ -17,27 +21,6 @@ const METHOD_LABELS: Record<string, string> = {
   CREDIT: "Store credit",
   OTHER: "Other",
 };
-
-/** Drops empty parts and joins the rest — no stray commas on a printed address. */
-function addressLines(parts: {
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
-  phone?: string | null;
-  email?: string | null;
-}): string[] {
-  const cityLine = [parts.city, parts.state].filter(Boolean).join(", ");
-  const locality = [cityLine, parts.postalCode].filter(Boolean).join(" ");
-  return [
-    parts.address1,
-    parts.address2,
-    locality,
-    parts.phone,
-    parts.email,
-  ].filter((line): line is string => Boolean(line && line.trim()));
-}
 
 export default async function InvoicePrintPage({
   params,
@@ -56,7 +39,7 @@ export default async function InvoicePrintPage({
         payments: { orderBy: { createdAt: "asc" } },
       },
     }),
-    loadShopHeader(shopId),
+    loadPrintShop(shopId),
   ]);
   if (!invoice || !shop) notFound();
 
@@ -65,6 +48,19 @@ export default async function InvoicePrintPage({
     invoice.customer.businessName ||
     `${invoice.customer.firstName} ${invoice.customer.lastName}`;
 
+  const paid = invoice.status === "PAID";
+  const voided = invoice.status === "VOID";
+
+  // The balance panel is the loudest thing on the page, so it has to say what
+  // is actually true: a void invoice is not a debt, whatever its lines total.
+  const balanceRow: PrintTotalRow = voided
+    ? { label: "Amount payable", value: formatCents(0), emphasis: true }
+    : {
+        label: "Balance due",
+        value: formatCents(Math.max(totals.balanceCents, 0)),
+        emphasis: true,
+      };
+
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
     {
@@ -72,33 +68,30 @@ export default async function InvoicePrintPage({
       value: formatCents(totals.taxCents),
     },
     { label: "Total", value: formatCents(totals.totalCents), strong: true },
-    {
-      label: "Payments & credits",
-      value: `-${formatCents(totals.paidCents)}`,
-    },
-    {
-      label: "Balance due",
-      value: formatCents(Math.max(totals.balanceCents, 0)),
-      emphasis: true,
-    },
+    { label: "Payments & credits", value: `-${formatCents(totals.paidCents)}` },
+    balanceRow,
   ];
+
+  const contact = [shop.phone, shop.email].filter(Boolean).join("  ·  ");
 
   return (
     <PrintSheet
-      docLabel="INVOICE"
-      docNote={invoice.status === "VOID" ? "Void — not payable" : undefined}
+      docLabel="Invoice"
+      docNote={voided ? "Void — not payable" : undefined}
       number={invoice.number}
       shop={{ name: shop.name, lines: addressLines(shop) }}
-      billTo={{
-        name: customerName,
-        lines: addressLines(invoice.customer),
-      }}
+      logoUrl={shop.logoUrl}
+      billTo={{ name: customerName, lines: addressLines(invoice.customer) }}
       meta={[
-        { label: "Invoice date", value: formatDate(invoice.createdAt) },
         { label: "Invoice #", value: String(invoice.number) },
+        { label: "Issue date", value: formatDate(invoice.createdAt) },
         {
           label: "Due date",
           value: invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt",
+        },
+        {
+          label: "Terms",
+          value: termsLabel(invoice.createdAt, invoice.dueDate),
         },
       ]}
       lines={invoice.lines.map((line) => ({
@@ -107,6 +100,7 @@ export default async function InvoicePrintPage({
         serial: line.serial,
         quantity: line.quantity,
         unitPriceCents: line.unitPriceCents,
+        taxable: line.taxable,
       }))}
       showSerial={invoice.lines.some((line) => Boolean(line.serial))}
       totals={totalRows}
@@ -120,19 +114,17 @@ export default async function InvoicePrintPage({
       notes={invoice.notes}
       signature={invoice.signatureDataUrl}
       signatureCaption={`Received by ${customerName}`}
-      watermark={
-        invoice.status === "PAID"
-          ? "Paid"
-          : invoice.status === "VOID"
-            ? "Void"
-            : null
-      }
+      watermark={paid ? "Paid" : voided ? "Void" : null}
+      watermarkTone={voided ? "alarm" : "accent"}
       backHref={`/invoices/${invoice.id}`}
       backLabel={`Back to invoice #${invoice.number}`}
       footer={
         invoice.paidAt
-          ? `Paid in full on ${formatDateLong(invoice.paidAt)}. Thank you for your business!`
+          ? `Paid in full on ${formatDateLong(invoice.paidAt)} — thank you!`
           : "Thank you for your business!"
+      }
+      footerContact={
+        contact ? `${shop.name}  ·  ${contact}` : shop.name
       }
     />
   );

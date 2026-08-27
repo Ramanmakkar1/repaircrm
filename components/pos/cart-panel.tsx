@@ -1,7 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Banknote, CreditCard, Minus, Plus, ScrollText, Trash2, Wallet } from "lucide-react";
+import {
+  Banknote,
+  CreditCard,
+  Lock,
+  Minus,
+  Plus,
+  ScrollText,
+  Trash2,
+  Wallet,
+  Wrench,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,7 +25,15 @@ import {
 } from "@/components/ui/select";
 import { formatBps, formatCents, type Totals } from "@/lib/money";
 import { CustomItemDialog } from "./custom-item-dialog";
-import { METHOD_LABELS, type CartLine, type PosCustomer, type TenderMethod } from "./types";
+import { TicketPickerDialog } from "./ticket-picker-dialog";
+import {
+  isTicketLine,
+  METHOD_LABELS,
+  type CartLine,
+  type PosCustomer,
+  type PosTicket,
+  type TenderMethod,
+} from "./types";
 
 /** The sentinel Radix uses for "no customer" — Select cannot hold an empty value. */
 export const WALK_IN_VALUE = "__walk_in__";
@@ -47,6 +65,10 @@ export function CartPanel({
   onAddCustom,
   onTender,
   disabled,
+  tickets,
+  attachedTicketId,
+  onPickTicket,
+  onRemoveTicket,
 }: {
   lines: CartLine[];
   totals: Totals;
@@ -60,11 +82,30 @@ export function CartPanel({
   onAddCustom: (item: { name: string; unitPriceCents: number; taxable: boolean }) => void;
   onTender: (method: TenderMethod) => void;
   disabled: boolean;
+  tickets: PosTicket[];
+  attachedTicketId: string | null;
+  onPickTicket: (ticket: PosTicket) => void;
+  /** Ticket lines come and go as a set — you cannot half-bill a repair. */
+  onRemoveTicket: () => void;
 }) {
   const customer = customers.find((c) => c.id === customerId) ?? null;
   const credit = customer?.creditBalanceCents ?? 0;
   const empty = lines.length === 0;
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+
+  // Ticket lines are shown as one locked block above the loose items, so the
+  // cashier sees "this repair" as a single thing rather than a run of rows they
+  // might try to edit individually.
+  const ticketLines = lines.filter(isTicketLine);
+  const looseLines = lines.filter((line) => !isTicketLine(line));
+  const ticketNumber = ticketLines[0]?.ticketNumber ?? null;
+  const ticketTotalCents = ticketLines.reduce(
+    (sum, line) => sum + line.quantity * line.unitPriceCents,
+    0,
+  );
+  // Attaching a ticket fixes who is buying: the invoice links back to that
+  // ticket, and a mismatched customer would make the link a lie.
+  const customerLocked = attachedTicketId !== null;
 
   // Store credit is only ever offered when there is credit to spend — an
   // enabled button that always errors is worse than no button at all.
@@ -102,17 +143,52 @@ export function CartPanel({
             to start a sale.
           </p>
         ) : (
-          <ul className="divide-y divide-border">
-            {lines.map((line) => (
-              <CartRow
-                key={line.key}
-                line={line}
-                disabled={disabled}
-                onQuantityChange={onQuantityChange}
-                onRemove={onRemove}
-              />
-            ))}
-          </ul>
+          <>
+            {ticketLines.length > 0 ? (
+              <section className="border-b border-border bg-accent-soft/25">
+                <div className="flex items-center justify-between gap-3 px-5 py-2.5">
+                  <span className="flex items-center gap-1.5 text-[13px] font-bold text-accent-soft-foreground">
+                    <Wrench className="size-3.5" />
+                    Ticket #{ticketNumber}
+                    <Lock className="size-3 opacity-60" />
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onRemoveTicket}
+                    disabled={disabled}
+                    className="text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <ul className="divide-y divide-border">
+                  {ticketLines.map((line) => (
+                    <TicketCartRow key={line.key} line={line} />
+                  ))}
+                </ul>
+                <div className="flex items-baseline justify-between gap-4 border-t border-border px-5 py-2.5">
+                  <span className="text-[13px] font-semibold text-muted-foreground">
+                    Repair subtotal
+                  </span>
+                  <span className="text-[14px] font-bold tabular-nums text-foreground">
+                    {formatCents(ticketTotalCents)}
+                  </span>
+                </div>
+              </section>
+            ) : null}
+
+            <ul className="divide-y divide-border">
+              {looseLines.map((line) => (
+                <CartRow
+                  key={line.key}
+                  line={line}
+                  disabled={disabled}
+                  onQuantityChange={onQuantityChange}
+                  onRemove={onRemove}
+                />
+              ))}
+            </ul>
+          </>
         )}
       </div>
 
@@ -120,11 +196,19 @@ export function CartPanel({
       <div className="flex flex-col gap-2.5 border-t border-border px-5 py-4">
         <CustomItemDialog onAdd={onAddCustom} />
 
+        <TicketPickerDialog
+          tickets={tickets}
+          attachedTicketId={attachedTicketId}
+          onPick={onPickTicket}
+          disabled={disabled}
+        />
+
         <Select
           value={customerId ?? WALK_IN_VALUE}
           onValueChange={(value) =>
             onCustomerChange(value === WALK_IN_VALUE ? null : value)
           }
+          disabled={customerLocked}
         >
           <SelectTrigger className="h-12" aria-label="Attach a customer">
             <SelectValue />
@@ -141,6 +225,13 @@ export function CartPanel({
             ))}
           </SelectContent>
         </Select>
+
+        {customerLocked ? (
+          <p className="text-[12.5px] leading-snug text-muted-foreground">
+            The customer is set by ticket #{ticketNumber}. Remove the ticket to
+            change it.
+          </p>
+        ) : null}
       </div>
 
       {/* ----------------------------------------------------------- totals */}
@@ -193,6 +284,33 @@ export function CartPanel({
         </Button>
       </div>
     </Card>
+  );
+}
+
+/**
+ * A locked ticket line: no steppers, no bin.
+ *
+ * The quantity and price were agreed with the customer on the bench and are
+ * already recorded against the ticket — letting the counter silently change
+ * them here would make the invoice and the ticket disagree about the same
+ * piece of work. Corrections belong on the ticket; the whole block can be
+ * dropped from the sale with one click if it was pulled in by mistake.
+ */
+function TicketCartRow({ line }: { line: CartLine }) {
+  return (
+    <li className="flex items-start justify-between gap-3 px-5 py-3">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-[14px] font-bold leading-snug text-foreground">
+          {line.name}
+        </span>
+        <span className="text-[12.5px] tabular-nums text-faint-foreground">
+          {line.quantity} × {formatCents(line.unitPriceCents)}
+        </span>
+      </div>
+      <span className="shrink-0 text-[15px] font-bold tabular-nums text-foreground">
+        {formatCents(line.quantity * line.unitPriceCents)}
+      </span>
+    </li>
   );
 }
 

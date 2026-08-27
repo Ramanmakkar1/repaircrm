@@ -557,3 +557,37 @@ body:has(.rf-landing) {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
+
+/*
+ * Screenshot shadows.
+ *
+ * Each of these is one shadow expressed as three stops rather than one, which
+ * is the whole difference between "image with a drop shadow" and "screen
+ * resting on paper": a tight contact edge, a mid lift, and a wide low-opacity
+ * pool. A single large blur at the same darkness just reads as fog.
+ *
+ * All three use the app's own --shadow-color, so they stay in the same neutral
+ * family as every other elevated surface in the product.
+ */
+.rf-shot {
+  box-shadow:
+    0 1px 2px -1px rgb(var(--shadow-color) / 0.06),
+    0 10px 20px -8px rgb(var(--shadow-color) / 0.1),
+    0 28px 48px -20px rgb(var(--shadow-color) / 0.14);
+}
+
+/* The hero carries the top of the page, so it sits a little higher off it. */
+.rf-shot-hero {
+  box-shadow:
+    0 1px 2px -1px rgb(var(--shadow-color) / 0.07),
+    0 16px 32px -12px rgb(var(--shadow-color) / 0.13),
+    0 44px 80px -28px rgb(var(--shadow-color) / 0.2);
+}
+
+/* The wall display is a dark object on white — it needs more weight to sit. */
+.rf-shot-screen {
+  box-shadow:
+    0 2px 5px -1px rgb(var(--shadow-color) / 0.16),
+    0 20px 38px -12px rgb(var(--shadow-color) / 0.26),
+    0 44px 76px -28px rgb(var(--shadow-color) / 0.28);
+}

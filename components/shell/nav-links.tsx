@@ -12,7 +12,10 @@ import { NAV_ITEMS, type NavItem } from "./nav-items";
  * adding a nav entry can never make it silently disappear from the rail.
  */
 const NAV_GROUPS: { label: string; hrefs: string[] }[] = [
-  { label: "Work", hrefs: ["/dashboard", "/customers", "/tickets"] },
+  {
+    label: "Work",
+    hrefs: ["/dashboard", "/leads", "/appointments", "/customers", "/tickets"],
+  },
   { label: "Money", hrefs: ["/estimates", "/invoices", "/pos", "/inventory"] },
   { label: "Grow", hrefs: ["/marketing", "/reports"] },
   { label: "Shop", hrefs: ["/display", "/settings"] },

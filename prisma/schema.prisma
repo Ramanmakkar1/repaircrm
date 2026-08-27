@@ -122,6 +122,10 @@ model Shop {
   campaignSends     CampaignSend[]
   creditAdjustments CreditAdjustment[]
   apiKeys           ApiKey[]
+  leads             Lead[]
+  appointments      Appointment[]
+  partOrders        PartOrder[]
+  refunds           Refund[]
 }
 
 model Location {
@@ -139,8 +143,9 @@ model Location {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  tickets Ticket[]
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  appointments Appointment[]
 
   @@index([shopId])
 }
@@ -167,6 +172,8 @@ model User {
   attachments       Attachment[]
   stockAdjustments  StockAdjustment[]
   creditAdjustments CreditAdjustment[]
+  appointments      Appointment[]
+  refunds           Refund[]
 
   @@index([shopId])
   @@index([shopId, role])
@@ -213,6 +220,8 @@ model Customer {
   recurringInvoices RecurringInvoice[]
   campaignSends     CampaignSend[]
   creditAdjustments CreditAdjustment[]
+  leads             Lead[]
+  appointments      Appointment[]
 
   @@index([shopId, lastName])
   @@index([shopId, createdAt])
@@ -304,6 +313,9 @@ model Ticket {
   attachments       Attachment[]
   communicationLogs CommunicationLog[]
   campaignSends     CampaignSend[]
+  leads             Lead[]
+  appointments      Appointment[]
+  partOrders        PartOrder[]
 
   @@unique([shopId, number])
   @@index([shopId, status])
@@ -480,6 +492,7 @@ model Invoice {
   ticketCharges     TicketCharge[]
   communicationLogs CommunicationLog[]
   campaignSends     CampaignSend[]
+  refunds           Refund[]
 
   @@unique([shopId, number])
   @@index([shopId, status])
@@ -519,6 +532,7 @@ model Payment {
   shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   takenBy User?   @relation(fields: [takenById], references: [id], onDelete: SetNull)
+  refunds Refund[]
 
   @@index([invoiceId])
   @@index([shopId, createdAt])
@@ -553,6 +567,7 @@ model Product {
   invoiceLines   InvoiceLine[]
   recurringLines RecurringInvoiceLine[]
   adjustments    StockAdjustment[]
+  partOrders     PartOrder[]
 
   @@unique([shopId, sku])
   @@index([shopId, name])
@@ -799,4 +814,131 @@ model ApiKey {
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@index([shopId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — parity: leads, appointments, parts ordering, refunds
+// ---------------------------------------------------------------------------
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  CLOSED
+}
+
+/// An inquiry that isn't a customer yet (walk-in quote request, web form,
+/// phone call). Converting creates/links a Customer and optionally a Ticket.
+model Lead {
+  id         String     @id @default(cuid())
+  shopId     String
+  name       String
+  email      String?
+  phone      String?
+  source     String?
+  message    String?
+  status     LeadStatus @default(NEW)
+  customerId String?
+  ticketId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket   Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status])
+  @@index([shopId, createdAt])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  DONE
+  CANCELED
+}
+
+/// A scheduled visit: drop-off, pickup, on-site/field job, callback.
+model Appointment {
+  id           String            @id @default(cuid())
+  shopId       String
+  customerId   String?
+  ticketId     String?
+  assignedToId String?
+  locationId   String?
+  title        String
+  notes        String?
+  startsAt     DateTime
+  endsAt       DateTime
+  status       AppointmentStatus @default(SCHEDULED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ticket     Ticket?   @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  assignedTo User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, startsAt])
+  @@index([shopId, assignedToId, startsAt])
+}
+
+enum PartOrderStatus {
+  NEEDED
+  ORDERED
+  RECEIVED
+  CANCELED
+}
+
+/// A part that must be sourced for a ticket ("Part Order / Parts Status").
+/// Receiving one can increment Product stock via a StockAdjustment.
+model PartOrder {
+  id          String          @id @default(cuid())
+  shopId      String
+  ticketId    String
+  productId   String?
+  description String
+  supplier    String?
+  quantity    Int             @default(1)
+  costCents   Int?
+  status      PartOrderStatus @default(NEEDED)
+  expectedAt  DateTime?
+  orderedAt   DateTime?
+  receivedAt  DateTime?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket  Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status])
+  @@index([ticketId])
+}
+
+/// Money returned against an invoice. Kept separate from Payment so payment
+/// history stays append-only and reports can distinguish flows.
+model Refund {
+  id           String        @id @default(cuid())
+  shopId       String
+  invoiceId    String
+  paymentId    String?
+  amountCents  Int
+  method       PaymentMethod @default(CARD)
+  reason       String?
+  refundedById String?
+
+  createdAt DateTime @default(now())
+
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  payment    Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refundedBy User?    @relation(fields: [refundedById], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@index([invoiceId])
 }

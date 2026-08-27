@@ -5,7 +5,6 @@ import type { Prisma } from "@prisma/client";
 import {
   Building2,
   CalendarDays,
-  ChevronLeft,
   FileText,
   Mail,
   Pencil,
@@ -37,6 +36,7 @@ import { InfoCard } from "@/components/customers/info-card";
 import { NotesCard } from "@/components/customers/notes-card";
 import { StatsRow } from "@/components/customers/stats-row";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
 import { requireUser } from "@/lib/auth";
@@ -267,13 +267,9 @@ export default async function CustomerHubPage({
       <FlashToast flash={flash} />
 
       <div className="flex flex-col gap-4">
-        <Link
-          href="/customers"
-          className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          Customers
-        </Link>
+        <Breadcrumbs
+          items={[{ label: "Customers", href: "/customers" }, { label: name }]}
+        />
 
         <div className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="flex min-w-0 items-center gap-4">

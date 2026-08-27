@@ -11,10 +11,12 @@ import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
 import { TenderDialog } from "./tender-dialog";
 import {
+  isTicketLine,
   tracksStock,
   type CartLine,
   type PosCustomer,
   type PosProduct,
+  type PosTicket,
   type TenderMethod,
 } from "./types";
 
@@ -37,14 +39,18 @@ import {
 export function Register({
   products,
   customers,
+  tickets,
   taxRateBps,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
+  /** Open tickets with un-invoiced work — the "Add from ticket" list. */
+  tickets: PosTicket[];
   taxRateBps: number;
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
+  const [ticketId, setTicketId] = React.useState<string | null>(null);
   const [tender, setTender] = React.useState<TenderMethod | null>(null);
   const [sale, setSale] = React.useState<CompletedSale | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -105,6 +111,45 @@ export function Register({
     scanRef.current?.focus();
   };
 
+  /**
+   * Pull a repair ticket's un-invoiced charges onto the sale.
+   *
+   * The lines land LOCKED (see `TicketCartRow`) and the ticket's customer is
+   * attached automatically — an invoice that links back to ticket #N had better
+   * be addressed to the person the ticket is for. The single-ticket rule is
+   * enforced by the picker's own disabled state; this replaces any previous
+   * ticket block defensively so the cart can never hold two.
+   */
+  const addTicket = (ticket: PosTicket) => {
+    setError(null);
+    setTicketId(ticket.id);
+    setCustomerId(ticket.customerId);
+    setLines((current) => [
+      ...ticket.charges.map((charge) => ({
+        key: nextKey(),
+        productId: null,
+        name: `Ticket #${ticket.number} — ${charge.description}`,
+        unitPriceCents: charge.unitPriceCents,
+        taxable: charge.taxable,
+        quantity: charge.quantity,
+        stockQty: null,
+        ticketChargeId: charge.id,
+        ticketId: ticket.id,
+        ticketNumber: ticket.number,
+      })),
+      ...current.filter((line) => !isTicketLine(line)),
+    ]);
+    scanRef.current?.focus();
+  };
+
+  /** Ticket lines go as a set: a half-billed repair is not a thing. */
+  const removeTicket = () => {
+    setLines((current) => current.filter((line) => !isTicketLine(line)));
+    setTicketId(null);
+    setCustomerId(null);
+    scanRef.current?.focus();
+  };
+
   /** Stepping a quantity to zero removes the row — one less button to hunt for. */
   const setQuantity = (key: string, quantity: number) => {
     setLines((current) =>
@@ -123,6 +168,7 @@ export function Register({
 
   const clearCart = () => {
     setLines([]);
+    setTicketId(null);
     setError(null);
     scanRef.current?.focus();
   };
@@ -147,6 +193,7 @@ export function Register({
           unitPriceCents: line.unitPriceCents,
           taxable: line.taxable,
           quantity: line.quantity,
+          ticketChargeId: line.ticketChargeId ?? null,
         })),
         customerId,
         method: tender,
@@ -164,12 +211,15 @@ export function Register({
       setTender(null);
       setLines([]);
       setCustomerId(null);
+      setTicketId(null);
       setSale({
         invoiceId: result.invoiceId,
         number: result.number,
         totalCents: result.totalCents,
         changeDueCents: result.changeDueCents,
         method: result.method,
+        ticketId: result.ticketId,
+        ticketNumber: result.ticketNumber,
       });
     });
   };
@@ -222,6 +272,10 @@ export function Register({
           onRemove={removeLine}
           onClear={clearCart}
           onAddCustom={addCustom}
+          tickets={tickets}
+          attachedTicketId={ticketId}
+          onPickTicket={addTicket}
+          onRemoveTicket={removeTicket}
           onTender={(method) => {
             setError(null);
             setTender(method);

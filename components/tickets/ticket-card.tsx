@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { CalendarDays, Wrench } from "lucide-react";
+import { CalendarDays, Package, Wrench } from "lucide-react";
 
 import { STATUS_META, StatusBadge, normalizeStatus } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
@@ -17,6 +17,7 @@ import {
   STALENESS_LABEL,
   stalenessLevel,
 } from "./ticket-meta";
+import { partsChipLabel } from "./part-meta";
 
 /**
  * One repair job as a single tappable box.
@@ -45,6 +46,12 @@ export type TicketCardData = {
   customer: { firstName: string; lastName: string; businessName?: string | null };
   assignedTo?: { name: string } | null;
   asset?: { type: string; make?: string | null; model?: string | null } | null;
+  /**
+   * Only the NON-TERMINAL part orders — the ones the ticket is still waiting
+   * on. Optional so callers that do not care about parts (the dashboard's
+   * recent-tickets strip, the landing-page mockup) need not query for them.
+   */
+  partOrders?: { status: string }[];
 };
 
 export function TicketCard({
@@ -72,6 +79,7 @@ export function TicketCard({
       : (ticket.asset?.type ?? null);
 
   const tech = ticket.assignedTo?.name ?? null;
+  const partsLabel = partsChipLabel(ticket.partOrders);
 
   return (
     <Link
@@ -108,6 +116,17 @@ export function TicketCard({
       <div className="mt-auto flex flex-wrap items-center gap-2">
         {device ? <Chip icon={Wrench}>{device}</Chip> : null}
         {ticket.problemType ? <Chip>{ticket.problemType}</Chip> : null}
+
+        {/* Waiting on a part is the single most common reason a job stalls, so
+            it earns a tinted chip rather than another grey one. */}
+        {partsLabel ? (
+          <Chip
+            icon={Package}
+            className="bg-status-waiting-bg font-semibold text-status-waiting-fg"
+          >
+            {partsLabel}
+          </Chip>
+        ) : null}
 
         {loud ? (
           <Chip className={cn("font-bold", PRIORITY_META[priority].chip)}>

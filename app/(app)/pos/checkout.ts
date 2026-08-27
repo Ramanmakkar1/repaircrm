@@ -31,6 +31,33 @@ import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/p
  *   · custom lines    — a typed-at-the-counter item has no catalogue row, so
  *     its price genuinely comes from the client. It is clamped to >= 0 and its
  *     description trimmed and length-capped.
+ *   · ticket lines    — the client sends `ticketChargeId` and nothing else is
+ *     believed. Description, quantity, price and taxability all come from the
+ *     TicketCharge row, which must belong to this shop and must not already be
+ *     invoiced.
+ *
+ * ---------------------------------------------------------------------------
+ * TICKET LINES (POS ↔ TICKETS)
+ * ---------------------------------------------------------------------------
+ * A repair finishes at the bench and the customer pays at the counter, so the
+ * register can pull a ticket's un-invoiced charges straight into the sale.
+ * Three rules hold that together:
+ *
+ *   1. ONE TICKET PER SALE. `Invoice.ticketId` is a single column; billing two
+ *      repairs on one receipt would leave one of them unlinked. Enforced in the
+ *      UI (the picker disables itself) AND here, as an error.
+ *
+ *   2. THE TICKET OWNS THE CUSTOMER. When ticket lines are present the invoice
+ *      is addressed to the TICKET's customer, whatever the client sent. An
+ *      invoice that links back to ticket #N and bills someone else is a lie.
+ *
+ *   3. TICKET LINES DO NOT MOVE STOCK. A catalogue line at the register is a
+ *      part leaving the shelf right now, so it decrements. A ticket charge is
+ *      work ALREADY DONE — the part went into the customer's device on the
+ *      bench days ago, and its stock left through parts-receiving or an
+ *      inventory adjustment at that time. Decrementing again here would count
+ *      the same physical part out of stock twice. Services and labour have no
+ *      stock to move at all. See the loop at the bottom of the transaction.
  *
  * ---------------------------------------------------------------------------
  * ATOMICITY
@@ -58,6 +85,7 @@ const lineSchema = z.object({
   unitPriceCents: z.number().int().min(0).max(100_000_000),
   taxable: z.boolean(),
   quantity: z.number().int().min(1).max(10_000),
+  ticketChargeId: z.string().min(1).nullable().optional().default(null),
 });
 
 const checkoutSchema = z.object({
@@ -80,6 +108,12 @@ type ResolvedLine = {
   quantity: number;
   unitPriceCents: number;
   taxable: boolean;
+  /**
+   * Set on lines that came off a repair ticket. Two things key off it: the
+   * charge row gets stamped with the new invoiceId, and the stock loop skips
+   * the line (rule 3 in the header — the part already left stock at the bench).
+   */
+  ticketChargeId: string | null;
 };
 
 /** The tenant + operator identity, always resolved from the session by the caller. */
@@ -126,7 +160,65 @@ export async function performCheckout(
           );
         }
 
+        // ------------------------------------------------- ticket charges
+        // Re-read from the database, scoped to this shop AND to invoiceId:
+        // null. A charge someone else already billed while this cart sat open
+        // simply does not come back, and the count check below turns that into
+        // a refusal rather than a silent double-charge.
+        const ticketChargeIds = [
+          ...new Set(
+            sale.lines
+              .map((line) => line.ticketChargeId)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+
+        const ticketCharges = ticketChargeIds.length
+          ? await tx.ticketCharge.findMany({
+              where: { id: { in: ticketChargeIds }, shopId, invoiceId: null },
+              select: {
+                id: true,
+                ticketId: true,
+                productId: true,
+                description: true,
+                quantity: true,
+                unitPriceCents: true,
+                taxable: true,
+                ticket: { select: { id: true, number: true, customerId: true } },
+              },
+            })
+          : [];
+
+        const chargeById = new Map(ticketCharges.map((c) => [c.id, c]));
+        if (chargeById.size !== ticketChargeIds.length) {
+          throw new SaleError(
+            "Some of that ticket's charges have already been invoiced. Refresh the register.",
+          );
+        }
+
+        // Rule 1: one ticket per sale.
+        const ticketIds = [...new Set(ticketCharges.map((c) => c.ticketId))];
+        if (ticketIds.length > 1) {
+          throw new SaleError(
+            "One sale can only bill one ticket. Ring the second repair up separately.",
+          );
+        }
+        const billedTicket = ticketCharges[0]?.ticket ?? null;
+
         const lines: ResolvedLine[] = sale.lines.map((line) => {
+          if (line.ticketChargeId) {
+            // The bench already agreed these numbers with the customer, so the
+            // charge row — not the cart — is the price of record.
+            const charge = chargeById.get(line.ticketChargeId)!;
+            return {
+              productId: charge.productId,
+              description: `Ticket #${charge.ticket.number} — ${charge.description}`,
+              quantity: charge.quantity,
+              unitPriceCents: charge.unitPriceCents,
+              taxable: charge.taxable,
+              ticketChargeId: charge.id,
+            };
+          }
           if (line.productId) {
             const product = byId.get(line.productId)!;
             return {
@@ -135,6 +227,7 @@ export async function performCheckout(
               quantity: line.quantity,
               unitPriceCents: product.priceCents,
               taxable: product.taxable,
+              ticketChargeId: null,
             };
           }
           const description = line.description.trim();
@@ -147,6 +240,7 @@ export async function performCheckout(
             quantity: line.quantity,
             unitPriceCents: Math.max(0, line.unitPriceCents),
             taxable: line.taxable,
+            ticketChargeId: null,
           };
         });
 
@@ -163,13 +257,18 @@ export async function performCheckout(
         }
 
         // ---------------------------------------------------------- customer
-        const customerId = await resolveCustomerId(tx, shopId, sale.customerId);
+        // Rule 2: a ticket owns the customer on its own invoice. The register
+        // already attaches them, but re-deriving it here means a tampered or
+        // stale client cannot bill Ticket #12's repair to someone else.
+        const customerId = billedTicket
+          ? billedTicket.customerId
+          : await resolveCustomerId(tx, shopId, sale.customerId);
 
         // ------------------------------------------------------ store credit
         // Drawing credit down and writing the payment must succeed or fail
         // together, so it happens inside the transaction, not before it.
         if (sale.method === "CREDIT") {
-          if (!sale.customerId) {
+          if (!sale.customerId && !billedTicket) {
             throw new SaleError("Attach a customer before paying with store credit.");
           }
           const customer = await tx.customer.findFirst({
@@ -196,6 +295,9 @@ export async function performCheckout(
           data: {
             shopId,
             customerId,
+            // The invoice↔ticket link, so the repair is reachable from the
+            // receipt and the ticket page shows the money it brought in.
+            ticketId: billedTicket?.id ?? null,
             number,
             status: "PAID",
             paidAt: new Date(),
@@ -228,12 +330,49 @@ export async function performCheckout(
           },
         });
 
+        // ---------------------------------------------- close out the ticket
+        if (billedTicket) {
+          // Stamping `invoiceId` is what makes these charges read-only on the
+          // ticket and invisible to the next POS sale — the same mechanism
+          // makeInvoiceAction uses. Scoped by shopId so a forged id from
+          // another tenant matches nothing.
+          await tx.ticketCharge.updateMany({
+            where: { id: { in: ticketChargeIds }, shopId, invoiceId: null },
+            data: { invoiceId: invoice.id },
+          });
+
+          // A private note, not a customer-facing update: this is bookkeeping
+          // for the shop, and the customer is standing at the counter holding
+          // the receipt already.
+          await tx.ticketComment.create({
+            data: {
+              shopId,
+              ticketId: billedTicket.id,
+              authorId: userId,
+              body: `Invoice #${invoice.number} created at POS.`,
+              isPublic: false,
+              updateType: "Invoiced",
+              channel: "NOTE",
+            },
+          });
+        }
+
         // ----------------------------------------------- stock + audit trail
         // Products were verified as belonging to this shop above, so updating
         // by id is already tenant-safe. Stock is allowed to go negative: the
         // counter must never be blocked by a stale count, and the adjustment
         // history is what makes the discrepancy findable afterwards.
+        //
+        // TICKET LINES ARE SKIPPED (rule 3 in the header). A ticket charge is
+        // work already performed: any part in it physically left the shelf on
+        // the bench, and its stock movement was recorded then — by receiving a
+        // part order, or by an inventory adjustment. Decrementing again at the
+        // till would count one physical part out of stock twice and quietly
+        // corrupt the on-hand number. Labour and diagnostic fees have no stock
+        // at all. The `productId` on a ticket charge is kept for traceability
+        // only; it is deliberately NOT a signal to move stock here.
         for (const line of lines) {
+          if (line.ticketChargeId) continue;
           if (!line.productId) continue;
           await tx.product.update({
             where: { id: line.productId },
@@ -260,6 +399,8 @@ export async function performCheckout(
           number: invoice.number,
           totalCents: totals.totalCents,
           changeDueCents,
+          ticketId: billedTicket?.id ?? null,
+          ticketNumber: billedTicket?.number ?? null,
         };
       }),
     );

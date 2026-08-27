@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeftRight,
   Barcode,
-  ChevronLeft,
   EyeOff,
   History,
   Pencil,
@@ -25,6 +24,7 @@ import {
 } from "@/components/inventory/format";
 import { ReorderPointEditor } from "@/components/inventory/reorder-point-editor";
 import { StockBadge } from "@/components/inventory/stock-badge";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -134,13 +134,13 @@ export default async function ProductPage({
       <FlashToast flash={flash} />
 
       <div className="flex flex-col gap-1">
-        <Link
-          href="/inventory"
-          className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          Inventory
-        </Link>
+        <Breadcrumbs
+          className="pb-1.5"
+          items={[
+            { label: "Inventory", href: "/inventory" },
+            { label: product.name },
+          ]}
+        />
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-2.5">

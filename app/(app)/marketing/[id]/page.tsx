@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   CalendarPlus,
   Clock,
   Eye,
@@ -17,6 +16,7 @@ import {
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -105,13 +105,12 @@ export default async function CampaignDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        href="/marketing"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        All campaigns
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Marketing", href: "/marketing" },
+          { label: campaign.name },
+        ]}
+      />
 
       {/* ------------------------------------------------------------ header */}
       <Card>

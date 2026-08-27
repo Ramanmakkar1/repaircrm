@@ -16,7 +16,12 @@ import { METHOD_LABELS, type TenderMethod } from "@/components/pos/types";
  * column of monospace that has to survive being torn off a spool. Sharing one
  * component between the two would only make both worse.
  *
- * The layout's `@page { size: letter }` is overridden below; because this style
+ * What it does share is the family's ink: the same near-black, the same tabular
+ * figures, the same "big number for the thing that matters" hierarchy — sized
+ * for a 203dpi thermal head rather than a laser printer, which is why the type
+ * is a shade heavier and the rules are dashed rather than hairline.
+ *
+ * The layout's `@page { margin: 0.5in }` is overridden below; because this style
  * block renders inside the layout's children it wins on document order.
  */
 
@@ -85,10 +90,18 @@ export default async function ReceiptPage({
     shop.phone,
   ].filter((line): line is string => Boolean(line && String(line).trim()));
 
+  // What the customer physically handed over: what was applied to the invoice
+  // plus whatever came back out of the drawer.
+  const tenderedCents = totals.paidCents + (changeDueCents ?? 0);
+
   return (
     <>
       <style>{RECEIPT_CSS}</style>
-      <PrintToolbar backHref="/pos" backLabel="Back to POS" />
+      <PrintToolbar
+        backHref="/pos"
+        backLabel="Back to POS"
+        title={`Receipt #${invoice.number}`}
+      />
 
       <div className="receipt-sheet">
         {/* ------------------------------------------------------------ shop */}
@@ -117,7 +130,7 @@ export default async function ReceiptPage({
         <Rule />
 
         {/* ---------------------------------------------------------- lines */}
-        <div>
+        <div className="rc-lines">
           {invoice.lines.map((line) => (
             <div key={line.id} className="rc-line">
               <div className="rc-line-name">{line.description}</div>
@@ -165,14 +178,17 @@ export default async function ReceiptPage({
           ))}
 
           {changeDueCents !== null ? (
-            <div className="rc-change">
-              <span>CHANGE</span>
-              <span>{formatCents(changeDueCents)}</span>
-            </div>
+            <>
+              <TotalRow label="Tendered" value={formatCents(tenderedCents)} />
+              <div className="rc-change">
+                <span>CHANGE</span>
+                <span>{formatCents(changeDueCents)}</span>
+              </div>
+            </>
           ) : null}
 
           {totals.balanceCents > 0 ? (
-            <div className="rc-grand">
+            <div className="rc-grand rc-owing">
               <span>BALANCE DUE</span>
               <span>{formatCents(totals.balanceCents)}</span>
             </div>
@@ -184,7 +200,10 @@ export default async function ReceiptPage({
         {/* --------------------------------------------------------- footer */}
         <div className="rc-center rc-footer">
           <div className="rc-thanks">Thank you!</div>
-          <Barcode value={String(invoice.number)} height={38} width={1.4} />
+          <div className="rc-policy">
+            Keep this receipt — it is your proof of purchase and warranty record.
+          </div>
+          <Barcode value={String(invoice.number)} height={36} width={1.4} />
         </div>
       </div>
     </>
@@ -254,66 +273,86 @@ function formatStamp(value: Date, timeZone: string): string {
 const RECEIPT_CSS = `
 .receipt-sheet {
   --rc-ink: #000;
+  --rc-dim: #3f3f3f;
   width: 80mm;
-  margin: 1.5rem auto 3rem;
-  padding: 6mm 5mm 8mm;
+  margin: 28px auto 56px;
+  padding: 7mm 6mm 9mm;
   background: #fff;
   color: var(--rc-ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11.5px;
-  line-height: 1.45;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 8px 24px rgb(0 0 0 / 0.08);
+  font-family: var(--rf-mono, ui-monospace), SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 0 0 1px rgb(16 20 24 / 0.07),
+    0 1px 2px rgb(16 20 24 / 0.1),
+    0 20px 44px -14px rgb(16 20 24 / 0.28);
 }
 .rc-center { text-align: center; }
 .rc-shop {
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: 2px;
+  line-height: 1.25;
+  margin-bottom: 3px;
 }
-.rc-dim { color: #444; }
+.rc-dim { color: var(--rc-dim); }
 .rc-rule {
-  border-top: 1px dashed #999;
-  margin: 8px 0;
+  border-top: 1px dashed #8a8a8a;
+  margin: 9px 0;
 }
-.rc-meta-row, .rc-total-row, .rc-meta { display: block; }
 .rc-meta-row, .rc-total-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
 }
-.rc-meta-row > span:last-child { font-weight: 600; text-align: right; }
-.rc-line { margin-bottom: 6px; }
-.rc-line-name { font-weight: 700; word-break: break-word; }
+.rc-meta > * + * { margin-top: 1px; }
+.rc-meta-row > span:last-child { font-weight: 700; text-align: right; }
+.rc-lines > * + * { margin-top: 7px; }
+.rc-line-name {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
 .rc-line-figures {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding-left: 8px;
+  padding-left: 10px;
 }
-.rc-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-amount { white-space: nowrap; }
 .rc-totals > * + * { margin-top: 3px; }
-.rc-ref { padding-left: 8px; font-size: 10.5px; }
+.rc-ref { padding-left: 10px; font-size: 10px; }
 .rc-grand, .rc-change {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 6px;
-  padding-top: 5px;
+  margin-top: 7px;
+  padding-top: 6px;
   border-top: 1px solid var(--rc-ink);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
-.rc-footer { margin-top: 12px; }
+.rc-change { font-size: 14px; }
+.rc-owing { border-top-width: 2px; }
+.rc-footer { margin-top: 14px; }
 .rc-thanks {
   font-size: 13px;
   font-weight: 700;
-  margin-bottom: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.rc-footer svg { max-width: 100%; height: auto; }
+.rc-policy {
+  margin: 4px 0 9px;
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: var(--rc-dim);
+}
+.rc-footer svg { max-width: 100%; height: auto; margin: 0 auto; }
 
+/* A receipt is roll stock, not a page: fixed width, unlimited length. */
 @page { size: 80mm auto; margin: 3mm; }
 
 @media print {

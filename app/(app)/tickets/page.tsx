@@ -14,6 +14,7 @@ import {
   RESOLVED_STATUS,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";
+import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -118,6 +119,14 @@ export default async function TicketsPage({
         },
         assignedTo: { select: { name: true } },
         asset: { select: { type: true, make: true, model: true } },
+        // Only the OUTSTANDING part orders — a received or canceled one is not
+        // something the card should still be shouting about. Filtered here
+        // rather than in the component so the page never ships rows it will
+        // throw away.
+        partOrders: {
+          where: { status: { in: [...OPEN_PART_STATUSES] } },
+          select: { status: true },
+        },
       },
     }),
   ]);

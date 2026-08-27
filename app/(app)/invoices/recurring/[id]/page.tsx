@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   CalendarClock,
   CalendarSync,
   Hash,
@@ -15,6 +14,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -74,13 +74,13 @@ export default async function ScheduleDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        href="/invoices/recurring"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        All schedules
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Invoices", href: "/invoices" },
+          { label: "Recurring", href: "/invoices/recurring" },
+          { label: schedule.name },
+        ]}
+      />
 
       {/* ------------------------------------------------------------ header */}
       <Card>

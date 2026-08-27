@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { formatDate, formatDateLong } from "@/components/billing/format";
+import { termsLabel } from "@/components/billing/print-chrome";
+import { loadPrintShop } from "@/components/billing/print-queries";
 import { PrintSheet, type PrintTotalRow } from "@/components/billing/print-sheet";
-import { loadShopHeader } from "@/components/billing/queries";
 import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
 import { requirePortalCustomer } from "@/lib/portal-session";
@@ -43,7 +44,7 @@ export default async function PortalInvoicePrintPage({
         payments: { orderBy: { createdAt: "asc" } },
       },
     }),
-    loadShopHeader(customer.shopId),
+    loadPrintShop(customer.shopId),
   ]);
   if (!invoice || !shop) notFound();
 
@@ -51,6 +52,9 @@ export default async function PortalInvoicePrintPage({
   const customerName =
     invoice.customer.businessName ||
     `${invoice.customer.firstName} ${invoice.customer.lastName}`;
+
+  const voided = invoice.status === "VOID";
+  const contact = [shop.phone, shop.email].filter(Boolean).join("  ·  ");
 
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
@@ -60,27 +64,34 @@ export default async function PortalInvoicePrintPage({
     },
     { label: "Total", value: formatCents(totals.totalCents), strong: true },
     { label: "Payments & credits", value: `-${formatCents(totals.paidCents)}` },
-    {
-      label: "Balance due",
-      value: formatCents(Math.max(totals.balanceCents, 0)),
-      emphasis: true,
-    },
+    voided
+      ? { label: "Amount payable", value: formatCents(0), emphasis: true }
+      : {
+          label: "Balance due",
+          value: formatCents(Math.max(totals.balanceCents, 0)),
+          emphasis: true,
+        },
   ];
 
   return (
     <PortalPrintRoot>
       <PrintSheet
-        docLabel="INVOICE"
-        docNote={invoice.status === "VOID" ? "Void — not payable" : undefined}
+        docLabel="Invoice"
+        docNote={voided ? "Void — not payable" : undefined}
         number={invoice.number}
         shop={{ name: shop.name, lines: addressLines(shop) }}
+        logoUrl={shop.logoUrl}
         billTo={{ name: customerName, lines: addressLines(invoice.customer) }}
         meta={[
-          { label: "Invoice date", value: formatDate(invoice.createdAt) },
           { label: "Invoice #", value: String(invoice.number) },
+          { label: "Issue date", value: formatDate(invoice.createdAt) },
           {
             label: "Due date",
             value: invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt",
+          },
+          {
+            label: "Terms",
+            value: termsLabel(invoice.createdAt, invoice.dueDate),
           },
         ]}
         lines={invoice.lines.map((line) => ({
@@ -89,6 +100,7 @@ export default async function PortalInvoicePrintPage({
           serial: line.serial,
           quantity: line.quantity,
           unitPriceCents: line.unitPriceCents,
+          taxable: line.taxable,
         }))}
         showSerial={invoice.lines.some((line) => Boolean(line.serial))}
         totals={totalRows}
@@ -103,19 +115,17 @@ export default async function PortalInvoicePrintPage({
         signature={invoice.signatureDataUrl}
         signatureCaption={`Received by ${customerName}`}
         watermark={
-          invoice.status === "PAID"
-            ? "Paid"
-            : invoice.status === "VOID"
-              ? "Void"
-              : null
+          invoice.status === "PAID" ? "Paid" : voided ? "Void" : null
         }
+        watermarkTone={voided ? "alarm" : "accent"}
         backHref={`/portal/invoices/${invoice.id}`}
         backLabel={`Back to invoice #${invoice.number}`}
         footer={
           invoice.paidAt
-            ? `Paid in full on ${formatDateLong(invoice.paidAt)}. Thank you for your business!`
+            ? `Paid in full on ${formatDateLong(invoice.paidAt)} — thank you!`
             : "Thank you for your business!"
         }
+        footerContact={contact ? `${shop.name}  ·  ${contact}` : shop.name}
       />
     </PortalPrintRoot>
   );

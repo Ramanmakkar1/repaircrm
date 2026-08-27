@@ -28,6 +28,13 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     revalidatePath("/invoices");
     revalidatePath("/inventory");
     revalidatePath("/dashboard");
+
+    // A sale that billed a ticket also changed that ticket: its charges are now
+    // locked to an invoice and it has a new comment on the timeline.
+    if (result.ticketId) {
+      revalidatePath("/tickets");
+      revalidatePath(`/tickets/${result.ticketId}`);
+    }
   }
 
   return result;

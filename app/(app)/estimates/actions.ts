@@ -4,11 +4,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
-import { sendEmail } from "@/lib/comms";
+import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
+import { estimateMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { calcTotals, formatCents } from "@/lib/money";
+import { calcTotals } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
-import { formatDate, fromDateInputValue } from "@/components/billing/format";
+import { fromDateInputValue } from "@/components/billing/format";
+import {
+  describeOutcome,
+  type SendChannelOutcome,
+  type SendPreviewState,
+  type SendRequest,
+  type SendResultState,
+} from "@/components/billing/send-types";
 import {
   formError,
   formSuccess,
@@ -164,53 +172,266 @@ export async function updateEstimateAction(
 // Status transitions
 // ---------------------------------------------------------------------------
 
+/**
+ * One-click "mark sent + email the default message".
+ *
+ * SUPERSEDED by `sendEstimateAction` (below), which is what the Send dialog
+ * calls. Kept as the no-JavaScript fallback, delegating to the same delivery
+ * core so the two paths cannot drift apart.
+ */
 export async function markEstimateSentAction(formData: FormData): Promise<void> {
   const { shopId } = await requireUser();
 
   const id = String(formData.get("id") ?? "");
-  const estimate = await db.estimate.findFirst({
-    where: { id, shopId, status: "DRAFT" },
-    include: { customer: true, lines: true },
-  });
-  if (!estimate) return;
+  const estimate = await loadEstimateForSend(shopId, id);
+  if (!estimate || estimate.status !== "DRAFT") return;
 
-  const totals = calcTotals(estimate.lines, estimate.taxRateBps);
+  const request = { id, subject: "", message: "", email: true, sms: false };
+  if (unreachableReason(estimate.customer, request)) return;
 
-  const shop = await db.shop.findUnique({
-    where: { id: shopId },
-    select: { name: true },
-  });
-  const shopName = shop?.name ?? "your repair shop";
-
-  await db.estimate.update({
-    where: { id: estimate.id },
-    data: { status: "SENT" },
-  });
-
-  // Status first, delivery second — lib/comms owns the single outbox row and
-  // never throws, so a provider outage cannot un-send an estimate.
-  await sendEmail({
-    shopId,
-    customerId: estimate.customerId,
-    ticketId: estimate.ticketId,
-    subject: `Estimate #${estimate.number} from ${shopName}`,
-    body: [
-      `Hi ${estimate.customer.firstName},`,
-      `Here is your estimate for the work we discussed.`,
-      `Estimate total: ${formatCents(totals.totalCents)}`,
-      estimate.expiresAt
-        ? `This estimate is valid until ${formatDate(estimate.expiresAt)}.`
-        : null,
-      "Open your portal to review the line items and approve or decline the work — nothing starts until you do.",
-    ]
-      .filter((line): line is string => line !== null)
-      .join("\n\n"),
-    context: `Estimate #${estimate.number}`,
-    portalPath: `/portal/estimates/${estimate.id}`,
-  });
+  await deliverEstimate(shopId, estimate, request);
 
   revalidatePath("/estimates");
   revalidatePath(`/estimates/${estimate.id}`);
+}
+
+// ---------------------------------------------------------------------------
+// SENDING — email, SMS, or both, with a preview built from the real templates
+// ---------------------------------------------------------------------------
+
+/**
+ * Same system as invoices (see app/(app)/invoices/actions.ts for the full
+ * reasoning), minus the money: an estimate has nothing owed, so it never
+ * carries a pay-online link and never mentions a balance. The call to action is
+ * "approve or decline", which is what the customer actually has to do.
+ *
+ * The approve/decline flow itself is untouched — this only delivers the
+ * document and moves DRAFT → SENT.
+ */
+async function loadEstimateForSend(shopId: string, id: string) {
+  return db.estimate.findFirst({
+    where: { id, shopId },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      createdAt: true,
+      expiresAt: true,
+      taxRateBps: true,
+      publicToken: true,
+      customerId: true,
+      ticketId: true,
+      customer: {
+        select: {
+          firstName: true,
+          email: true,
+          mobile: true,
+          emailOptIn: true,
+          smsOptIn: true,
+        },
+      },
+      lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
+      shop: { select: { name: true } },
+    },
+  });
+}
+
+type EstimateForSend = NonNullable<
+  Awaited<ReturnType<typeof loadEstimateForSend>>
+>;
+
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Can any requested channel actually reach this customer? Checked before the
+ * status moves, for the same reason as invoices: an estimate parked at SENT
+ * that nobody received is an approval the shop will wait on forever.
+ */
+function unreachableReason(
+  customer: {
+    email: string | null;
+    mobile: string | null;
+    emailOptIn: boolean;
+    smsOptIn: boolean;
+  },
+  input: SendRequest
+): string | null {
+  const reasons: string[] = [];
+
+  if (input.email) {
+    const address = (input.emailTo ?? "").trim() || customer.email;
+    if (!customer.emailOptIn) reasons.push("this customer has opted out of email");
+    else if (!address) reasons.push("there is no email address on file");
+    else return null;
+  }
+
+  if (input.sms) {
+    if (!customer.smsOptIn) reasons.push("this customer has opted out of SMS");
+    else if (!customer.mobile?.trim()) reasons.push("there is no mobile number on file");
+    else return null;
+  }
+
+  return `Nothing was sent — ${reasons.join(", and ")}.`;
+}
+
+function composeEstimateMessage(
+  estimate: EstimateForSend,
+  input: SendRequest
+) {
+  const totals = calcTotals(estimate.lines, estimate.taxRateBps);
+  return estimateMessage({
+    shopName: estimate.shop.name,
+    customerFirstName: estimate.customer.firstName,
+    number: estimate.number,
+    publicToken: estimate.publicToken,
+    createdAt: estimate.createdAt,
+    expiresAt: estimate.expiresAt,
+    lineCount: estimate.lines.length,
+    totalCents: totals.totalCents,
+    message: input.message,
+    subject: input.subject,
+  });
+}
+
+async function deliverEstimate(
+  shopId: string,
+  estimate: EstimateForSend,
+  input: SendRequest
+): Promise<{
+  outcomes: SendChannelOutcome[];
+  statusChanged: boolean;
+  status: string;
+}> {
+  const message = composeEstimateMessage(estimate, input);
+
+  const outcomes: SendChannelOutcome[] = [];
+  const emailTo = (input.emailTo ?? "").trim();
+
+  if (input.email) {
+    const result = await sendEmail({
+      shopId,
+      customerId: estimate.customerId,
+      ticketId: estimate.ticketId,
+      to: emailTo || undefined,
+      subject: message.subject,
+      body: message.emailBody,
+      summary: message.summary,
+      context: message.context,
+      portalPath: message.portalPath,
+    });
+    const to = emailTo || estimate.customer.email || "";
+    outcomes.push({
+      channel: "EMAIL",
+      to,
+      status: result.status,
+      ...describeOutcome("EMAIL", to, result.status),
+    });
+  }
+
+  if (input.sms) {
+    const result = await sendSms({
+      shopId,
+      customerId: estimate.customerId,
+      ticketId: estimate.ticketId,
+      body: message.smsBody,
+      portalPath: message.portalPath,
+    });
+    const to = estimate.customer.mobile ?? "";
+    outcomes.push({
+      channel: "SMS",
+      to,
+      status: result.status,
+      ...describeOutcome("SMS", to, result.status),
+    });
+  }
+
+  // Only a delivery that actually went out earns SENT — a send where every
+  // channel was skipped or failed leaves a DRAFT honestly a DRAFT. Re-sending
+  // an APPROVED estimate must not drag it back to SENT either.
+  const anyDelivered = outcomes.some(
+    (o) => o.status === "sent" || o.status === "logged",
+  );
+  let status = estimate.status;
+  let statusChanged = false;
+  if (estimate.status === "DRAFT" && anyDelivered) {
+    await db.estimate.update({
+      where: { id: estimate.id },
+      data: { status: "SENT" },
+    });
+    status = "SENT";
+    statusChanged = true;
+  }
+
+  return { outcomes, statusChanged, status };
+}
+
+export async function previewEstimateSendAction(
+  input: SendRequest
+): Promise<SendPreviewState> {
+  const { shopId } = await requireUser();
+
+  const estimate = await loadEstimateForSend(shopId, String(input.id ?? ""));
+  if (!estimate) return { ok: false, error: "That estimate no longer exists." };
+
+  const message = composeEstimateMessage(estimate, input);
+
+  const email = renderEmail({
+    shopName: estimate.shop.name,
+    subject: message.subject,
+    body: message.emailBody,
+    portalUrl: message.linkUrl,
+    context: message.context,
+    summary: message.summary,
+  });
+
+  return {
+    ok: true,
+    preview: {
+      subject: message.subject,
+      emailHtml: email.html,
+      emailText: email.text,
+      smsText: renderSms({
+        shopName: estimate.shop.name,
+        body: message.smsBody,
+        portalUrl: message.linkUrl,
+      }),
+      linkUrl: message.linkUrl,
+      // An estimate never advertises payment — there is nothing owed yet.
+      payOnline: false,
+    },
+  };
+}
+
+export async function sendEstimateAction(
+  input: SendRequest
+): Promise<SendResultState> {
+  const { shopId } = await requireUser();
+
+  if (!input.email && !input.sms) {
+    return { ok: false, error: "Pick at least one way to send this." };
+  }
+
+  const emailTo = (input.emailTo ?? "").trim();
+  if (input.email && emailTo && !EMAIL_SHAPE.test(emailTo)) {
+    return { ok: false, error: `"${emailTo}" is not a valid email address.` };
+  }
+
+  const estimate = await loadEstimateForSend(shopId, String(input.id ?? ""));
+  if (!estimate) return { ok: false, error: "That estimate no longer exists." };
+  if (estimate.lines.length === 0) {
+    return { ok: false, error: "Add line items before sending this estimate." };
+  }
+
+  const unreachable = unreachableReason(estimate.customer, input);
+  if (unreachable) return { ok: false, error: unreachable };
+
+  const result = await deliverEstimate(shopId, estimate, input);
+
+  revalidatePath("/estimates");
+  revalidatePath(`/estimates/${estimate.id}`);
+  revalidatePath(`/customers/${estimate.customerId}`);
+
+  return { ok: true, ...result };
 }
 
 export async function approveEstimateAction(formData: FormData): Promise<void> {

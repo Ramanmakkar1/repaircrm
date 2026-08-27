@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatCents } from "@/lib/money";
+import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
 import { SubmitButton } from "./submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
@@ -49,12 +50,19 @@ export function PaymentDialog({
   balanceCents,
   customerCreditCents,
   customerName,
+  receiptAction,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
   balanceCents: number;
   customerCreditCents: number;
   customerName: string;
+  /**
+   * Optional. When the payment just recorded clears the balance, the success
+   * toast carries an "Email receipt" button — the one moment the customer is
+   * still standing at the counter to be asked.
+   */
+  receiptAction?: ReceiptAction;
 }) {
   const [open, setOpen] = React.useState(false);
   const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
@@ -63,10 +71,28 @@ export function PaymentDialog({
     (Math.max(balanceCents, 0) / 100).toFixed(2),
   );
 
-  const done = state.done;
+  // Held in a ref so a re-created Server Action reference cannot re-fire the
+  // effect below and offer the same receipt twice. Assigned in its own effect
+  // rather than during render — a ref written mid-render is a stale read
+  // waiting to happen.
+  const receiptRef = React.useRef(receiptAction);
   React.useEffect(() => {
-    if (done) setOpen(false);
-  }, [done]);
+    receiptRef.current = receiptAction;
+  }, [receiptAction]);
+
+  const done = state.done;
+  const settled = state.settled;
+  React.useEffect(() => {
+    if (!done) return;
+    setOpen(false);
+    if (settled && receiptRef.current) {
+      offerReceiptToast(
+        invoiceId,
+        receiptRef.current,
+        "Paid in full — nothing left owing.",
+      );
+    }
+  }, [done, settled, invoiceId]);
 
   // Reset to a fresh default every time the dialog is opened.
   const onOpenChange = (next: boolean) => {

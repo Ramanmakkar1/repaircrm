@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   ArrowRightLeft,
   CalendarClock,
   CalendarDays,
@@ -10,14 +9,19 @@ import {
   Pencil,
   Printer,
   Receipt,
-  Send,
   ThumbsDown,
   Wrench,
 } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
+import { estimateTokenPath, portalUrl } from "@/lib/comms";
+import {
+  defaultEstimateMessage,
+  defaultEstimateSubject,
+} from "@/lib/comms/documents";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,6 +35,9 @@ import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ActionForm } from "@/components/billing/action-form";
 import { formatDate } from "@/components/billing/format";
+import { SendDocumentDialog } from "@/components/billing/send-dialog";
+import { ShareRow } from "@/components/billing/send-links";
+import { relativeTime, type SendDocument } from "@/components/billing/send-types";
 import { SignatureDialog } from "@/components/billing/signature-dialog";
 import { EstimateStatusBadge } from "@/components/billing/status-badge";
 import {
@@ -38,7 +45,8 @@ import {
   approveWithSignatureAction,
   convertEstimateAction,
   declineEstimateAction,
-  markEstimateSentAction,
+  previewEstimateSendAction,
+  sendEstimateAction,
 } from "../actions";
 
 /** Chips that link somewhere get a gentle accent tint on hover. */
@@ -57,6 +65,7 @@ export default async function EstimateDetailPage({
     where: { id, shopId },
     include: {
       customer: true,
+      shop: { select: { name: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       lines: { orderBy: { sortOrder: "asc" } },
       invoices: {
@@ -74,7 +83,6 @@ export default async function EstimateDetailPage({
 
   const converted = estimate.status === "CONVERTED";
   const canEdit = !converted;
-  const canMarkSent = estimate.status === "DRAFT";
   const canApprove = ["DRAFT", "SENT", "DECLINED"].includes(estimate.status);
   const canDecline = ["DRAFT", "SENT", "APPROVED"].includes(estimate.status);
   const canConvert =
@@ -86,15 +94,63 @@ export default async function EstimateDetailPage({
     estimate.expiresAt.getTime() < Date.now() &&
     (estimate.status === "DRAFT" || estimate.status === "SENT");
 
+  // ---------------------------------------------------------------- sending
+  // CommunicationLog can link to a ticket or an invoice, but the schema has no
+  // estimateId column — so "when did we last send this estimate?" is answered
+  // by scanning the customer's recent outbound rows for this estimate's number.
+  // Matched in JS with a word boundary rather than a SQL `contains`, which
+  // would happily count "Estimate #70" as a send of estimate #7.
+  const recentSends = await db.communicationLog.findMany({
+    where: { shopId, customerId: estimate.customerId, direction: "OUT" },
+    orderBy: { createdAt: "desc" },
+    take: 25,
+    select: { createdAt: true, type: true, status: true, subject: true, body: true },
+  });
+
+  const numberPattern = new RegExp(`Estimate #${estimate.number}\\b`);
+  const lastSent = recentSends.find(
+    (row) =>
+      numberPattern.test(row.subject ?? "") || numberPattern.test(row.body),
+  );
+
+  const lastSentChannel = lastSent?.type === "SMS" ? "SMS" : "email";
+  const lastSentHint = lastSent
+    ? lastSent.status === "sent" || lastSent.status === "logged"
+      ? `Last sent ${relativeTime(
+          lastSent.createdAt.toISOString(),
+        )} by ${lastSentChannel}`
+      : `Last ${lastSentChannel} attempt ${relativeTime(
+          lastSent.createdAt.toISOString(),
+        )} — ${lastSent.status}`
+    : null;
+
+  const sendDoc: SendDocument = {
+    id: estimate.id,
+    kind: "estimate",
+    label: `Estimate #${estimate.number}`,
+    customerName,
+    defaultSubject: defaultEstimateSubject(estimate.number, estimate.shop.name),
+    defaultMessage: defaultEstimateMessage(estimate.number, totals.totalCents),
+    email: estimate.customer.email,
+    emailOptIn: estimate.customer.emailOptIn,
+    mobile: estimate.customer.mobile,
+    smsOptIn: estimate.customer.smsOptIn,
+    alreadySent: estimate.status !== "DRAFT",
+    lastSentHint,
+  };
+
+  // Same frictionless link the email and the SMS carry — it lands the customer
+  // on the approve/decline buttons without a sign-in in the way.
+  const viewUrl = portalUrl(estimateTokenPath(estimate.publicToken));
+
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        href="/estimates"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        All estimates
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Estimates", href: "/estimates" },
+          { label: `#${estimate.number} · ${customerName}` },
+        ]}
+      />
 
       {/* ------------------------------------------------------------ header */}
       <Card>
@@ -128,17 +184,6 @@ export default async function EstimateDetailPage({
                     <Pencil /> Edit
                   </Link>
                 </Button>
-              ) : null}
-
-              {canMarkSent ? (
-                <ActionForm
-                  action={markEstimateSentAction}
-                  fields={{ id: estimate.id }}
-                  variant="outline"
-                  pendingLabel="Sending…"
-                >
-                  <Send /> Mark sent
-                </ActionForm>
               ) : null}
 
               {canApprove ? (
@@ -176,10 +221,22 @@ export default async function EstimateDetailPage({
                 <ActionForm
                   action={convertEstimateAction}
                   fields={{ id: estimate.id }}
+                  variant="outline"
                   pendingLabel="Converting…"
                 >
                   <ArrowRightLeft /> Convert to invoice
                 </ActionForm>
+              ) : null}
+
+              {/* A converted estimate is frozen — the invoice is the record of
+                  what was agreed, so re-sending the quote would confuse the
+                  customer about which document is live. */}
+              {!converted ? (
+                <SendDocumentDialog
+                  doc={sendDoc}
+                  previewAction={previewEstimateSendAction}
+                  sendAction={sendEstimateAction}
+                />
               ) : null}
             </div>
           </div>
@@ -222,6 +279,12 @@ export default async function EstimateDetailPage({
                 </Chip>
               </Link>
             ))}
+          </div>
+
+          {/* No payment link on an estimate — nothing is owed until the work is
+              approved and invoiced. */}
+          <div className="border-t border-border pt-4">
+            <ShareRow viewUrl={viewUrl} viewLabel="Copy approval link" />
           </div>
         </CardContent>
       </Card>

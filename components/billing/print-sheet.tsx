@@ -1,25 +1,37 @@
 import * as React from "react";
 
 import { formatCents } from "@/lib/money";
-import { Barcode } from "./barcode";
+import {
+  Masthead,
+  MetaTable,
+  PartyBlock,
+  SectionHead,
+  SheetFooter,
+  SignatureBlock,
+  Stamp,
+  type PrintMetaRow,
+  type PrintParty,
+} from "./print-chrome";
 import { PrintToolbar } from "./print-toolbar";
 
 /**
- * The printable sheet behind /print/invoices/[id] and /print/estimates/[id].
+ * The flagship sheet: /print/invoices/[id], /print/estimates/[id] and the
+ * customer's own copy at /portal/invoices/[id]/print all render this one
+ * component, so a customer can never receive a document that disagrees with the
+ * one the shop filed.
  *
- * Deliberately styled with fixed neutral/black colours rather than the app's
- * theme tokens: this markup ends up on paper (or in a browser "Save as PDF"),
- * where a dark-mode palette would come out as a black rectangle. Everything
- * outside `.no-print` is designed to survive the print stylesheet.
+ * Deliberately styled with the fixed `--rf-*` palette from print-styles.ts
+ * rather than the app's theme tokens: this markup ends up on paper (or in a
+ * browser "Save as PDF"), where a dark-mode palette would come out as a black
+ * rectangle. Everything outside `.no-print` is designed to survive the print
+ * stylesheet.
+ *
+ * The prop surface is additive — every prop the previous version accepted still
+ * means what it meant — because one of the three callers lives behind a
+ * different auth boundary and is not part of this change.
  */
 
-export type PrintParty = {
-  name: string;
-  /** Address/contact lines, already filtered of empties. */
-  lines: string[];
-};
-
-export type PrintMetaRow = { label: string; value: string };
+export type { PrintParty, PrintMetaRow };
 
 export type PrintLine = {
   id: string;
@@ -27,12 +39,16 @@ export type PrintLine = {
   serial?: string | null;
   quantity: number;
   unitPriceCents: number;
+  /** Drives the taxable marker; omit to leave every line unmarked. */
+  taxable?: boolean | null;
 };
 
 export type PrintTotalRow = {
   label: string;
   value: string;
+  /** Rule above and heavier ink — the "Total" line. */
   strong?: boolean;
+  /** Promoted out of the table into the accent balance panel. */
   emphasis?: boolean;
 };
 
@@ -49,230 +65,208 @@ export function PrintSheet({
   docNote,
   number,
   shop,
+  logoUrl,
   billTo,
+  billToLabel = "Bill to",
   meta,
+  callout,
   lines,
   showSerial = false,
+  itemsLabel = "Description",
   totals,
   payments,
+  paymentsLabel = "Payments received",
   notes,
   signature,
   signatureCaption,
+  signaturePlaceholder = false,
+  signatureNote,
   watermark,
+  watermarkTone = "accent",
   backHref,
   backLabel,
   footer,
+  footerContact,
+  barcodeValue,
 }: {
   docLabel: string;
   docNote?: string;
   number: number;
   shop: PrintParty;
+  /** Shop logo; a monogram tile stands in when it is absent. */
+  logoUrl?: string | null;
   billTo: PrintParty;
+  billToLabel?: string;
   meta: PrintMetaRow[];
+  /** The tinted band under the meta row — "not a bill", validity, etc. */
+  callout?: { title: string; body: string } | null;
   lines: PrintLine[];
   showSerial?: boolean;
+  itemsLabel?: string;
   totals: PrintTotalRow[];
   payments?: PrintPayment[];
+  paymentsLabel?: string;
   notes?: string | null;
   signature?: string | null;
   signatureCaption?: string;
+  /** Draw an empty ruled signature line when `signature` is absent. */
+  signaturePlaceholder?: boolean;
+  signatureNote?: string;
   /** e.g. "PAID" — drawn diagonally across the sheet. */
   watermark?: string | null;
+  watermarkTone?: "accent" | "alarm";
   backHref: string;
   backLabel: string;
   footer: string;
+  footerContact?: string | null;
+  barcodeValue?: string;
 }) {
-  const barcodeValue = `${docLabel[0]}${number}`;
+  const code = barcodeValue ?? `${docLabel[0] ?? "D"}${number}`;
+
+  // A taxable marker is only information when the document actually splits into
+  // taxed and untaxed lines; on a uniformly taxable invoice it is just noise.
+  const marked = lines.filter((line) => line.taxable === true);
+  const showTaxMarks = marked.length > 0 && marked.length < lines.length;
+
+  // The emphasis row is a panel, not a table row — pulling it out here keeps the
+  // caller's `totals` array a flat, obvious list.
+  const tableRows = totals.filter((row) => !row.emphasis);
+  const panelRows = totals.filter((row) => row.emphasis);
 
   return (
     <>
-      <PrintToolbar backHref={backHref} backLabel={backLabel} />
+      <PrintToolbar
+        backHref={backHref}
+        backLabel={backLabel}
+        title={`${docLabel} #${number}`}
+      />
 
-      <div className="print-sheet relative mx-auto w-full max-w-[8.5in] bg-white px-8 pb-10 text-[12px] leading-relaxed text-neutral-900 print:px-0">
-        {watermark ? (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
-          >
-            <span className="watermark -rotate-[24deg] select-none text-[110px] font-black uppercase tracking-[0.15em] text-neutral-900/[0.07]">
-              {watermark}
-            </span>
-          </div>
-        ) : null}
+      <article className="rf-sheet">
+        {watermark ? <Stamp label={watermark} tone={watermarkTone} /> : null}
 
-        <div className="relative z-[1]">
-          {/* ---------------------------------------------------- masthead --- */}
-          <header className="flex items-start justify-between gap-8 border-b-2 border-neutral-900 pb-5">
-            <div>
-              <h1 className="text-[19px] font-bold tracking-tight text-neutral-900">
-                {shop.name}
-              </h1>
-              <div className="mt-1.5 space-y-0.5 text-[11px] text-neutral-600">
-                {shop.lines.map((line) => (
-                  <div key={line}>{line}</div>
-                ))}
-              </div>
-            </div>
+        <div className="rf-body">
+          <Masthead
+            shop={shop}
+            logoUrl={logoUrl}
+            docLabel={docLabel}
+            docNumber={`No. ${number}`}
+            note={docNote}
+          />
 
-            <div className="shrink-0 text-right">
-              <div className="text-[26px] font-bold uppercase tracking-[0.18em] text-neutral-900">
-                {docLabel}
-              </div>
-              <div className="mt-0.5 font-mono text-[15px] text-neutral-700">
-                #{number}
-              </div>
-              {docNote ? (
-                <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                  {docNote}
-                </div>
-              ) : null}
-              <div className="mt-2.5 flex justify-end">
-                <Barcode value={barcodeValue} height={38} width={1.5} />
-              </div>
-            </div>
-          </header>
-
-          {/* ------------------------------------------- bill-to and meta --- */}
-          <section className="mt-6 flex items-start justify-between gap-10">
-            <div className="min-w-0">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                Bill To
-              </h2>
-              <div className="mt-1.5">
-                <div className="text-[13px] font-semibold text-neutral-900">
-                  {billTo.name}
-                </div>
-                <div className="mt-0.5 space-y-0.5 text-[11px] text-neutral-600">
-                  {billTo.lines.map((line) => (
-                    <div key={line}>{line}</div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <table className="shrink-0 border-collapse text-[11px]">
-              <tbody>
-                {meta.map((row) => (
-                  <tr key={row.label}>
-                    <th className="border border-neutral-300 bg-neutral-100 px-3 py-1 text-left font-semibold uppercase tracking-wider text-neutral-600">
-                      {row.label}
-                    </th>
-                    <td className="border border-neutral-300 px-3 py-1 text-right font-mono text-neutral-900">
-                      {row.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="rf-cols">
+            <PartyBlock label={billToLabel} party={billTo} />
+            <MetaTable rows={meta} />
           </section>
 
-          {/* --------------------------------------------------- line items -- */}
-          <section className="mt-7">
-            <table className="w-full border-collapse">
+          {callout ? (
+            <aside className="rf-callout">
+              <strong className="rf-callout-title">{callout.title}</strong>
+              {callout.body}
+            </aside>
+          ) : null}
+
+          {/* ------------------------------------------------- line items --- */}
+          <section className="rf-section">
+            <table className="rf-items">
               <thead>
-                <tr className="bg-neutral-900 text-white">
-                  <Th className="text-left">Activity</Th>
-                  {showSerial ? <Th className="w-[110px] text-left">Serial</Th> : null}
-                  <Th className="w-[56px] text-right">Qty</Th>
-                  <Th className="w-[90px] text-right">Rate</Th>
-                  <Th className="w-[100px] text-right">Amount</Th>
+                <tr>
+                  <th scope="col">{itemsLabel}</th>
+                  <th scope="col" style={{ width: "0.7in", textAlign: "right" }}>
+                    Qty
+                  </th>
+                  <th scope="col" style={{ width: "1.15in", textAlign: "right" }}>
+                    Rate
+                  </th>
+                  <th scope="col" style={{ width: "1.25in", textAlign: "right" }}>
+                    Amount
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line, index) => (
-                  <tr
-                    key={line.id}
-                    className={index % 2 === 1 ? "bg-neutral-50" : undefined}
-                  >
-                    <Td className="text-left">{line.description}</Td>
-                    {showSerial ? (
-                      <Td className="text-left font-mono text-[10px] text-neutral-600">
-                        {line.serial || "—"}
-                      </Td>
-                    ) : null}
-                    <Td className="text-right font-mono">{line.quantity}</Td>
-                    <Td className="text-right font-mono">
-                      {formatCents(line.unitPriceCents)}
-                    </Td>
-                    <Td className="text-right font-mono">
+                {lines.map((line) => (
+                  <tr key={line.id}>
+                    <td>
+                      <div className="rf-item-desc">
+                        {line.description}
+                        {showTaxMarks && line.taxable ? (
+                          <span className="rf-mark-tax">†</span>
+                        ) : null}
+                      </div>
+                      {showSerial && line.serial ? (
+                        <div className="rf-item-sub">S/N {line.serial}</div>
+                      ) : null}
+                    </td>
+                    <td className="rf-num">{line.quantity}</td>
+                    <td className="rf-num">{formatCents(line.unitPriceCents)}</td>
+                    <td className="rf-num">
                       {formatCents(line.quantity * line.unitPriceCents)}
-                    </Td>
+                    </td>
                   </tr>
                 ))}
                 {lines.length === 0 ? (
                   <tr>
-                    <Td
-                      className="text-center text-neutral-500"
-                      colSpan={showSerial ? 5 : 4}
-                    >
+                    <td className="rf-empty" colSpan={4}>
                       No line items.
-                    </Td>
+                    </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
+
+            {showTaxMarks ? (
+              <div className="rf-footnote">† Sales tax applies to this item.</div>
+            ) : null}
           </section>
 
-          {/* ------------------------------------------------------ totals --- */}
-          <section className="mt-5 flex justify-end break-inside-avoid">
-            <table className="w-[300px] border-collapse text-[12px]">
-              <tbody>
-                {totals.map((row) => (
-                  <tr key={row.label}>
-                    <td
-                      className={[
-                        "py-1 pr-4 text-right",
-                        row.strong ? "font-semibold text-neutral-900" : "text-neutral-600",
-                        row.emphasis
-                          ? "border-t-2 border-neutral-900 pt-2 text-[14px] font-bold uppercase tracking-wide"
-                          : "",
-                      ].join(" ")}
-                    >
-                      {row.label}
-                    </td>
-                    <td
-                      className={[
-                        "py-1 text-right font-mono",
-                        row.strong ? "font-semibold text-neutral-900" : "text-neutral-800",
-                        row.emphasis
-                          ? "border-t-2 border-neutral-900 pt-2 text-[16px] font-bold"
-                          : "",
-                      ].join(" ")}
-                    >
-                      {row.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* ----------------------------------------------------- totals --- */}
+          <section className="rf-totals-wrap">
+            <div className="rf-totals-panel">
+              {tableRows.length > 0 ? (
+                <table className="rf-totals">
+                  <tbody>
+                    {tableRows.map((row) => (
+                      <tr key={row.label} className={row.strong ? "is-strong" : undefined}>
+                        <td className="rf-t-label">{row.label}</td>
+                        <td className="rf-t-value">{row.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+
+              {panelRows.map((row) => (
+                <div key={row.label} className="rf-balance">
+                  <span className="rf-balance-label">{row.label}</span>
+                  <span className="rf-balance-value">{row.value}</span>
+                </div>
+              ))}
+            </div>
           </section>
 
-          {/* ---------------------------------------------------- payments --- */}
+          {/* --------------------------------------------------- payments --- */}
           {payments && payments.length > 0 ? (
-            <section className="mt-7 break-inside-avoid">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                Payments received
-              </h2>
-              <table className="mt-1.5 w-full border-collapse text-[11px]">
+            <section className="rf-section rf-avoid">
+              <SectionHead title={paymentsLabel} />
+              <table className="rf-mini">
                 <thead>
-                  <tr className="border-b border-neutral-300 text-neutral-600">
-                    <th className="py-1 text-left font-semibold">Date</th>
-                    <th className="py-1 text-left font-semibold">Method</th>
-                    <th className="py-1 text-left font-semibold">Reference</th>
-                    <th className="py-1 text-right font-semibold">Amount</th>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Method</th>
+                    <th scope="col">Reference</th>
+                    <th scope="col" style={{ textAlign: "right" }}>
+                      Amount
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {payments.map((payment) => (
-                    <tr key={payment.id} className="border-b border-neutral-200">
-                      <td className="py-1 font-mono">{payment.date}</td>
-                      <td className="py-1">{payment.method}</td>
-                      <td className="py-1 text-neutral-600">
-                        {payment.reference || "—"}
+                    <tr key={payment.id}>
+                      <td className="rf-num" style={{ textAlign: "left" }}>
+                        {payment.date}
                       </td>
-                      <td className="py-1 text-right font-mono">
-                        {formatCents(payment.amountCents)}
-                      </td>
+                      <td>{payment.method}</td>
+                      <td className="rf-muted">{payment.reference || "—"}</td>
+                      <td className="rf-num">{formatCents(payment.amountCents)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -280,64 +274,35 @@ export function PrintSheet({
             </section>
           ) : null}
 
-          {/* ------------------------------------------------------- notes --- */}
+          {/* ------------------------------------------------------ notes --- */}
           {notes ? (
-            <section className="mt-7 break-inside-avoid">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                Notes
-              </h2>
-              <p className="mt-1.5 whitespace-pre-wrap text-[11px] text-neutral-700">
+            <section className="rf-section rf-avoid">
+              <SectionHead title="Notes" />
+              <p className="rf-note" style={{ marginTop: 0 }}>
                 {notes}
               </p>
             </section>
           ) : null}
 
-          {/* --------------------------------------------------- signature --- */}
-          {signature ? (
-            <section className="mt-8 break-inside-avoid">
-              <div className="w-[280px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={signature}
-                  alt="Customer signature"
-                  className="h-[70px] w-full object-contain object-left"
+          {/* -------------------------------------------------- signature --- */}
+          {signature || signaturePlaceholder ? (
+            <section className="rf-avoid">
+              <div className="rf-signs">
+                <SignatureBlock
+                  caption={signatureCaption ?? "Customer signature"}
+                  dataUrl={signature}
                 />
-                <div className="mt-1 border-t border-neutral-400 pt-1 text-[10px] uppercase tracking-wider text-neutral-500">
-                  {signatureCaption ?? "Customer signature"}
-                </div>
+                {signaturePlaceholder && !signature ? (
+                  <SignatureBlock caption="Date" width="1.6in" />
+                ) : null}
               </div>
+              {signatureNote ? <p className="rf-note">{signatureNote}</p> : null}
             </section>
           ) : null}
 
-          <footer className="mt-10 border-t border-neutral-300 pt-3 text-center text-[11px] text-neutral-600">
-            {footer}
-          </footer>
+          <SheetFooter barcode={code} message={footer} contact={footerContact} />
         </div>
-      </div>
+      </article>
     </>
-  );
-}
-
-function Th({
-  className = "",
-  ...props
-}: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  return (
-    <th
-      className={`px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${className}`}
-      {...props}
-    />
-  );
-}
-
-function Td({
-  className = "",
-  ...props
-}: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return (
-    <td
-      className={`border-b border-neutral-200 px-2.5 py-1.5 align-top ${className}`}
-      {...props}
-    />
   );
 }

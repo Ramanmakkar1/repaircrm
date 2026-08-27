@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { ArrowRightIcon } from "./icons";
-import { ProductMockup } from "./product-mockup";
+import { BrowserFrame, Shot } from "./shot";
 
 /**
  * One h1 for the whole document lives here.
@@ -57,8 +57,23 @@ export function Hero() {
           </p>
         </div>
 
-        <div className="rf-rise mt-14 sm:mt-20">
-          <ProductMockup />
+        {/*
+         * The money shot. Capped at max-w-5xl rather than the 6xl container so
+         * the 1512px capture lands at ~1024px — sharp on a retina panel, and
+         * with white margin either side that keeps the frame feeling placed
+         * rather than stretched to fit.
+         */}
+        <div className="rf-rise mx-auto mt-14 max-w-5xl sm:mt-20">
+          <BrowserFrame hero url="app.repairflow.com/dashboard">
+            <Shot
+              eager
+              src="/marketing/dashboard.jpg"
+              width={1512}
+              height={805}
+              sizes="(max-width: 1024px) 100vw, 1024px"
+              alt="The RepairFlow dashboard: counts of open tickets, jobs due today and unpaid invoices, revenue collected this month, a breakdown of where every repair stands, and the tickets touched most recently."
+            />
+          </BrowserFrame>
         </div>
       </div>
     </section>

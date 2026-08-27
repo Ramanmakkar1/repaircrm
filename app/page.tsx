@@ -9,6 +9,7 @@ import { LandingFooter } from "@/components/landing/footer";
 import { Hero } from "@/components/landing/hero";
 import { LandingNav } from "@/components/landing/nav";
 import { Pricing } from "@/components/landing/pricing";
+import { Showcase } from "@/components/landing/showcase";
 
 const TITLE = "RepairFlow — repair shop software";
 const DESCRIPTION =
@@ -55,6 +56,7 @@ export default async function RootPage() {
         <Hero />
         <Features />
         <DeepDives />
+        <Showcase />
         <Pricing />
         <Faq />
       </main>

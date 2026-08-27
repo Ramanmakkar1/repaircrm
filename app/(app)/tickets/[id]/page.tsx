@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
@@ -15,6 +16,8 @@ import {
 } from "@/components/tickets/attachments-card";
 import { ChargesCard } from "@/components/tickets/charges-card";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
+import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
+import { isTerminalPartStatus } from "@/components/tickets/part-meta";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
 import { StatusProgress } from "@/components/tickets/status-progress";
 import {
@@ -121,6 +124,23 @@ export default async function TicketDetailPage({
           invoice: { select: { number: true } },
         },
       },
+      partOrders: {
+        // Newest first: the part somebody just ordered is the one being chased.
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          description: true,
+          supplier: true,
+          quantity: true,
+          costCents: true,
+          status: true,
+          expectedAt: true,
+          orderedAt: true,
+          receivedAt: true,
+          notes: true,
+          product: { select: { name: true } },
+        },
+      },
       timeEntries: {
         orderBy: { startedAt: "desc" },
         select: {
@@ -166,7 +186,13 @@ export default async function TicketDetailPage({
       db.product.findMany({
         where: { shopId, active: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, priceCents: true, taxable: true },
+        select: {
+          id: true,
+          name: true,
+          priceCents: true,
+          taxable: true,
+          costCents: true,
+        },
       }),
       db.cannedResponse.findMany({
         where: { shopId },
@@ -211,6 +237,34 @@ export default async function TicketDetailPage({
     (sum, entry) => sum + (entry.seconds ?? 0),
     0,
   );
+
+  // Part orders are flattened here — formatted dates and the overdue verdict
+  // are computed against the SAME request-time `now` as everything else on the
+  // page, so the client card never has to reach for its own clock.
+  const partOrders: PartOrderRow[] = ticket.partOrders.map((part) => ({
+    id: part.id,
+    description: part.description,
+    supplier: part.supplier,
+    quantity: part.quantity,
+    // Cost is what the shop pays a supplier. Techs see the parts list; only the
+    // owner sees the margin behind it, matching how inventory handles cost.
+    costCents: role === "OWNER" ? part.costCents : null,
+    status: part.status,
+    expectedLabel: part.expectedAt ? format(part.expectedAt, "MMM d") : null,
+    // Only an unfulfilled part can be late: a received one arrived, whenever
+    // that was, and a canceled one is never coming.
+    expectedOverdue:
+      part.expectedAt !== null &&
+      part.expectedAt.getTime() < now &&
+      !isTerminalPartStatus(part.status),
+    stampLabel: part.receivedAt
+      ? `Received ${format(part.receivedAt, "MMM d")}`
+      : part.orderedAt
+        ? `Ordered ${format(part.orderedAt, "MMM d")}`
+        : null,
+    notes: part.notes,
+    productName: part.product?.name ?? null,
+  }));
 
   const attachments: AttachmentRow[] = ticket.attachments.map((attachment) => ({
     id: attachment.id,
@@ -260,6 +314,11 @@ export default async function TicketDetailPage({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <Button asChild variant="outline">
+                <Link href={`/print/tickets/${ticket.id}`}>
+                  <Printer /> Work Order
+                </Link>
+              </Button>
               <SummarizeTicketButton ticketId={ticket.id} />
               <MakeInvoiceButton
                 ticketId={ticket.id}
@@ -352,6 +411,17 @@ export default async function TicketDetailPage({
             charges={ticket.charges}
             products={products}
             taxRateBps={shop?.taxRateBps ?? 0}
+          />
+
+          <PartsCard
+            ticketId={ticket.id}
+            ticketStatus={ticket.status}
+            parts={partOrders}
+            products={products.map((product) => ({
+              id: product.id,
+              name: product.name,
+              costCents: role === "OWNER" ? product.costCents : null,
+            }))}
           />
 
           <Timeline

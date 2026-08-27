@@ -10,6 +10,16 @@
  * import from anywhere on the server.
  */
 
+/**
+ * One row of the document summary block — "Total", "$412.90".
+ *
+ * Kept as structured pairs rather than pre-formatted text so the HTML half can
+ * render a real table (aligned, tabular) while the plain-text half renders
+ * "Label: value" lines. Both halves are generated from the same rows, which is
+ * what stops the two versions of an email drifting apart.
+ */
+export type SummaryRow = { label: string; value: string };
+
 export type EmailTemplateInput = {
   shopName: string;
   subject: string;
@@ -25,6 +35,12 @@ export type EmailTemplateInput = {
    * in rather than read from env, because this module stays pure.
    */
   payOnline?: boolean;
+  /**
+   * Facts about the document being sent (number, date, total, balance…),
+   * rendered under the message as a small table. Optional: a plain ticket
+   * update has nothing to summarise.
+   */
+  summary?: readonly SummaryRow[] | null;
 };
 
 export type RenderedEmail = { text: string; html: string };
@@ -38,6 +54,19 @@ function esc(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * The plain-text rendering of a summary block.
+ *
+ * Exported because the outbox row records what the customer was told, and the
+ * numbers are half of that. `sendEmail()` appends this to the logged body so a
+ * staff member reading the history a month later sees the same figures the
+ * customer read, without having to re-derive them from the invoice.
+ */
+export function summaryText(rows: readonly SummaryRow[] | null | undefined): string {
+  if (!rows || rows.length === 0) return "";
+  return rows.map((row) => `${row.label}: ${row.value}`).join("\n");
+}
+
 export function renderEmail({
   shopName,
   subject,
@@ -45,6 +74,7 @@ export function renderEmail({
   portalUrl,
   context,
   payOnline = false,
+  summary,
 }: EmailTemplateInput): RenderedEmail {
   // One link, two labels. The URL is identical either way — a "pay" link that
   // went somewhere other than the invoice page would be the exact shape of a
@@ -54,12 +84,16 @@ export function renderEmail({
     ? `Pay online, or view and download the invoice: ${portalUrl}`
     : `View your repairs, estimates and invoices: ${portalUrl}`;
 
+  const rows = summary && summary.length > 0 ? summary : null;
+
   const text = [
     shopName,
     context ? context : null,
     "",
     body,
     "",
+    rows ? summaryText(rows) : null,
+    rows ? "" : null,
     payOnline ? "Pay online with a card — no account needed." : null,
     payOnline ? "" : null,
     "—",
@@ -79,6 +113,27 @@ export function renderEmail({
     )
     .join("");
 
+  // A table rather than more paragraphs: the numbers are what the customer
+  // scans for, and a two-column block survives every mail client that ever
+  // mangled a flexbox.
+  const summaryHtml = rows
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:18px 0 4px;border:1px solid #e6e2dc;border-radius:12px;border-collapse:separate;overflow:hidden;">
+          ${rows
+            .map(
+              (row, index) =>
+                `<tr>
+            <td style="padding:9px 14px;font-size:13px;color:#736c62;${
+              index > 0 ? "border-top:1px solid #efece7;" : ""
+            }">${esc(row.label)}</td>
+            <td align="right" style="padding:9px 14px;font-size:13.5px;font-weight:700;color:#1c1a17;${
+              index > 0 ? "border-top:1px solid #efece7;" : ""
+            }">${esc(row.value)}</td>
+          </tr>`,
+            )
+            .join("")}
+        </table>`
+    : "";
+
   const html = `<!doctype html>
 <html lang="en">
 <body style="margin:0;padding:24px;background:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
@@ -97,6 +152,7 @@ export function renderEmail({
       <td style="padding:24px;">
         <h1 style="margin:0 0 14px;font-size:18px;line-height:1.35;color:#1c1a17;">${esc(subject)}</h1>
         ${paragraphs}
+        ${summaryHtml}
         ${
           payOnline
             ? `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#1c1a17;">You can pay this invoice online with a card — no account needed.</p>`

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Printer, Receipt, RotateCcw } from "lucide-react";
+import { CheckCircle2, Printer, Receipt, RotateCcw, Wrench } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,9 @@ export type CompletedSale = {
   totalCents: number;
   changeDueCents: number;
   method: TenderMethod;
+  /** Set when the sale billed a repair — the cashier usually has to go back. */
+  ticketId?: string | null;
+  ticketNumber?: number | null;
 };
 
 /**
@@ -93,6 +96,17 @@ export function SaleComplete({
               </Link>
             </Button>
           </div>
+
+          {/* When the sale billed a repair, the ticket is where the cashier is
+              headed next — to hand the device over and close the job out. */}
+          {sale.ticketId ? (
+            <Button asChild variant="ghost" size="lg" className="h-12">
+              <Link href={`/tickets/${sale.ticketId}`}>
+                <Wrench />
+                Back to ticket #{sale.ticketNumber}
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </Card>
     </div>

@@ -1,34 +1,17 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
-import { formatDate } from "@/components/billing/format";
-import { loadShopHeader } from "@/components/billing/queries";
+import { formatDate, formatDateLong } from "@/components/billing/format";
+import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
 import {
   PrintSheet,
   type PrintTotalRow,
 } from "@/components/billing/print-sheet";
 
-function addressLines(parts: {
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  state?: string | null;
-  postalCode?: string | null;
-  phone?: string | null;
-  email?: string | null;
-}): string[] {
-  const cityLine = [parts.city, parts.state].filter(Boolean).join(", ");
-  const locality = [cityLine, parts.postalCode].filter(Boolean).join(" ");
-  return [
-    parts.address1,
-    parts.address2,
-    locality,
-    parts.phone,
-    parts.email,
-  ].filter((line): line is string => Boolean(line && line.trim()));
-}
+export const metadata: Metadata = { title: "Estimate · RepairFlow" };
 
 export default async function EstimatePrintPage({
   params,
@@ -46,7 +29,7 @@ export default async function EstimatePrintPage({
         lines: { orderBy: { sortOrder: "asc" } },
       },
     }),
-    loadShopHeader(shopId),
+    loadPrintShop(shopId),
   ]);
   if (!estimate || !shop) notFound();
 
@@ -54,6 +37,13 @@ export default async function EstimatePrintPage({
   const customerName =
     estimate.customer.businessName ||
     `${estimate.customer.firstName} ${estimate.customer.lastName}`;
+
+  const approved = Boolean(estimate.approvedAt);
+  const declined = estimate.status === "DECLINED";
+  const expired =
+    !approved &&
+    !declined &&
+    Boolean(estimate.expiresAt && estimate.expiresAt.getTime() < Date.now());
 
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
@@ -68,48 +58,88 @@ export default async function EstimatePrintPage({
     },
   ];
 
+  const validity = estimate.expiresAt
+    ? `Prices and parts availability are held until ${formatDateLong(estimate.expiresAt)}.`
+    : "Prices and parts availability are subject to change until this estimate is approved.";
+
+  const contact = [shop.phone, shop.email].filter(Boolean).join("  ·  ");
+
   return (
     <PrintSheet
-      docLabel="ESTIMATE"
-      // Stated plainly so nobody in accounts payable pays against a quote.
-      docNote="Not a bill — no payment due"
+      docLabel="Estimate"
+      // Stated plainly, twice, so nobody in accounts payable pays against a quote.
+      docNote={
+        declined ? "Declined" : expired ? "Expired — please request a new quote" : "Not a bill"
+      }
       number={estimate.number}
       shop={{ name: shop.name, lines: addressLines(shop) }}
+      logoUrl={shop.logoUrl}
       billTo={{ name: customerName, lines: addressLines(estimate.customer) }}
+      billToLabel="Prepared for"
       meta={[
-        { label: "Estimate date", value: formatDate(estimate.createdAt) },
         { label: "Estimate #", value: String(estimate.number) },
+        { label: "Issue date", value: formatDate(estimate.createdAt) },
         {
           label: "Valid until",
           value: estimate.expiresAt ? formatDate(estimate.expiresAt) : "—",
         },
+        {
+          label: "Status",
+          value: approved
+            ? "Approved"
+            : declined
+              ? "Declined"
+              : expired
+                ? "Expired"
+                : "Awaiting approval",
+        },
       ]}
+      callout={{
+        title: "Estimate — not a bill · no payment due",
+        body: `${validity} Nothing is charged and no work begins until you approve this estimate.`,
+      }}
       lines={estimate.lines.map((line) => ({
         id: line.id,
         description: line.description,
         quantity: line.quantity,
         unitPriceCents: line.unitPriceCents,
+        taxable: line.taxable,
       }))}
       totals={totalRows}
       notes={estimate.notes}
       signature={estimate.approvalSignatureDataUrl}
       signatureCaption={
         estimate.approvedAt
-          ? `Approved by ${customerName} on ${formatDate(estimate.approvedAt)}`
-          : `Approved by ${customerName}`
+          ? `Approved by ${customerName} · ${formatDate(estimate.approvedAt)}`
+          : "Customer approval signature"
+      }
+      // An unsigned estimate prints the box it wants signed, not a blank gap.
+      signaturePlaceholder={!approved && !declined}
+      signatureNote={
+        approved || declined
+          ? undefined
+          : "Approve online from the secure link in your estimate email, or sign and date above and return this page to the shop."
       }
       watermark={
-        estimate.status === "DECLINED"
+        declined
           ? "Declined"
-          : estimate.status === "APPROVED"
-            ? "Approved"
-            : estimate.status === "CONVERTED"
-              ? "Invoiced"
-              : null
+          : estimate.status === "CONVERTED"
+            ? "Invoiced"
+            : approved
+              ? "Approved"
+              : expired
+                ? "Expired"
+                : null
       }
+      watermarkTone={declined || expired ? "alarm" : "accent"}
       backHref={`/estimates/${estimate.id}`}
       backLabel={`Back to estimate #${estimate.number}`}
-      footer="This estimate is not a bill. Approve it and we'll get started — prices hold until the date above."
+      footer="Approve it and we'll get started."
+      footerContact={
+        contact
+          ? `Questions? ${shop.name}  ·  ${contact}`
+          : `Questions? Contact ${shop.name}.`
+      }
     />
   );
 }

@@ -25,10 +25,22 @@ import { db } from "@/lib/db";
 import { paymentsLive } from "@/lib/payments/config";
 import { portalUrl } from "./config";
 import { deliverEmail, deliverSms } from "./drivers";
-import { renderEmail, renderSms } from "./templates";
+import {
+  renderEmail,
+  renderSms,
+  summaryText,
+  type SummaryRow,
+} from "./templates";
 
-export { appUrl, portalUrl, emailDriverName, smsDriverName } from "./config";
-export { renderEmail, renderSms } from "./templates";
+export {
+  appUrl,
+  portalUrl,
+  invoiceTokenPath,
+  estimateTokenPath,
+  emailDriverName,
+  smsDriverName,
+} from "./config";
+export { renderEmail, renderSms, summaryText, type SummaryRow } from "./templates";
 
 export type SendInput = {
   shopId: string;
@@ -45,9 +57,27 @@ export type SendInput = {
   portalPath?: string;
   /** Small line under the shop name, e.g. "Ticket #1042". */
   context?: string | null;
+  /**
+   * Declares that `portalPath` resolves to THIS invoice's own page even though
+   * the URL does not spell the id out — which is exactly the case for the
+   * frictionless `/portal/i/<publicToken>` links (see ./config).
+   *
+   * It can only ever turn "pay online" ON for a link that already carries an
+   * `invoiceId`, and `paymentsLive()` still has the final say, so a caller
+   * cannot use it to promise a payment page that does not exist.
+   */
+  linkTargetsInvoice?: boolean;
 };
 
-export type SendEmailInput = SendInput & { subject: string };
+export type SendEmailInput = SendInput & {
+  subject: string;
+  /**
+   * Document facts (number, date, total, balance…) rendered as a table under
+   * the message. Also appended to the outbox row's body in plain text, so the
+   * history shows the same numbers the customer was shown.
+   */
+  summary?: readonly SummaryRow[] | null;
+};
 
 export type SendResult = {
   /** True only when the message was handed to a provider (or the log driver). */
@@ -136,6 +166,14 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
   const { customer, shopName } = context;
   const to = (input.to ?? customer.email ?? "").trim();
 
+  // The outbox stores the message AND the figures quoted alongside it — the
+  // summary block is part of what the customer was told, so a history without
+  // it would be an incomplete record of the conversation.
+  const summary = input.summary && input.summary.length > 0 ? input.summary : null;
+  const loggedBody = summary
+    ? `${input.body}\n\n${summaryText(summary)}`
+    : input.body;
+
   const base = {
     shopId: input.shopId,
     customerId: customer.id,
@@ -143,7 +181,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     invoiceId: input.invoiceId,
     type: "EMAIL" as const,
     subject: input.subject,
-    body: input.body,
+    body: loggedBody,
   };
 
   if (!customer.emailOptIn) {
@@ -162,12 +200,16 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     body: input.body,
     portalUrl: link,
     context: input.context ?? null,
+    summary,
     // An email about an invoice, sent while card payments are live, whose link
     // lands on that invoice's own page — only then is "pay online" a promise
-    // the destination can keep.
+    // the destination can keep. A `/portal/i/<token>` link spells no id out, so
+    // the caller that built it says so with `linkTargetsInvoice`; every other
+    // condition still has to hold.
     payOnline:
       Boolean(input.invoiceId) &&
-      link.includes(`/portal/invoices/${input.invoiceId}`) &&
+      (input.linkTargetsInvoice === true ||
+        link.includes(`/portal/invoices/${input.invoiceId}`)) &&
       paymentsLive(),
   });
 

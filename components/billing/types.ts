@@ -83,7 +83,17 @@ export function parseLines(
  * revalidates (rather than redirecting) is otherwise indistinguishable from the
  * idle state.
  */
-export type FormState = { error: string | null; done?: number };
+export type FormState = {
+  error: string | null;
+  done?: number;
+  /**
+   * Set by `takePaymentAction` when the payment it just recorded cleared the
+   * balance. The take-payment dialog reads it to offer "Email receipt" as a
+   * toast action — the one moment the customer is certain to want one, and the
+   * one moment staff are certain to be looking at the screen.
+   */
+  settled?: boolean;
+};
 
 export const IDLE_FORM_STATE: FormState = { error: null };
 

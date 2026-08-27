@@ -11,6 +11,12 @@ import { sendEmail, sendSms } from "@/lib/comms";
 import { withNextNumber } from "@/lib/sequence";
 import { parseCents } from "@/lib/money";
 import { asPriority, isResolved } from "@/components/tickets/ticket-meta";
+import {
+  IN_PROGRESS_STATUS,
+  isTerminalPartStatus,
+  WAITING_FOR_PARTS_STATUS,
+  type PartActionState,
+} from "@/components/tickets/part-meta";
 import type { ActionState } from "@/components/tickets/action-state";
 
 /**
@@ -440,6 +446,282 @@ export async function deleteChargeAction(chargeId: string): Promise<void> {
 
   await db.ticketCharge.delete({ where: { id: charge.id } });
   revalidateTicket(charge.ticketId);
+}
+
+// ---------------------------------------------------------------------------
+// Part orders
+// ---------------------------------------------------------------------------
+
+/**
+ * PART SOURCING ("Part Order / Parts Status").
+ *
+ * A PartOrder is the *procurement* record for a ticket: what has to be sourced,
+ * from whom, for how much, and where it has got to. It is deliberately NOT a
+ * TicketCharge — a part can be ordered and arrive without ever being billed
+ * (warranty, goodwill, a spare that turned out not to be needed), and a charge
+ * can exist for a part that was already on the shelf. Charges are what the
+ * customer pays; part orders are what the shop is waiting on.
+ *
+ * LIFECYCLE
+ *   NEEDED ──▶ ORDERED ──▶ RECEIVED   (terminal)
+ *      └──────────┴──────▶ CANCELED   (terminal)
+ *
+ * Each hop stamps its own clock (orderedAt / receivedAt) so "how long has this
+ * been on order?" is answerable afterwards. RECEIVED and CANCELED are terminal
+ * because receiving already moved stock — see below — and un-receiving would
+ * leave that movement stranded.
+ *
+ * RECEIVING MOVES STOCK. When the part is linked to a catalogue Product,
+ * marking it received increments `Product.stockQty` and writes the matching
+ * `StockAdjustment` row inside the SAME transaction as the status change — the
+ * audited path every other stock movement in the app uses (inventory receiving,
+ * POS selling). A free-form part has no product row and therefore no stock to
+ * move; it just changes status.
+ */
+
+const RECEIVABLE_FROM: readonly string[] = ["NEEDED", "ORDERED"];
+
+/** Returns the part order only if it belongs to this shop; null otherwise. */
+async function findPartOrder(shopId: string, partOrderId: string) {
+  if (!partOrderId) return null;
+  return db.partOrder.findFirst({
+    where: { id: partOrderId, shopId },
+    select: {
+      id: true,
+      ticketId: true,
+      productId: true,
+      description: true,
+      quantity: true,
+      status: true,
+      ticket: { select: { number: true, status: true } },
+    },
+  });
+}
+
+export async function addPartOrderAction(
+  ticketId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { shopId } = await requireUser();
+  const ticket = await findTicket(shopId, ticketId);
+  if (!ticket) return { error: "Ticket not found." };
+
+  const productId = optionalId(formData, "productId");
+  let description = str(formData, "description");
+  const typedCost = str(formData, "costCents");
+  let costCents = typedCost ? parseCents(typedCost) : null;
+
+  if (productId) {
+    const product = await db.product.findFirst({
+      where: { id: productId, shopId },
+      select: { name: true, costCents: true },
+    });
+    if (!product) return { error: "That product no longer exists." };
+    // The catalogue fills in anything the form left blank. `costCents` (what
+    // the shop pays) is the right default here, not `priceCents` (what the
+    // customer pays) — a part order is a purchase, not a sale.
+    description = description || product.name;
+    if (!typedCost) costCents = product.costCents;
+  }
+
+  if (!description) return { error: "Describe the part you need." };
+
+  const quantity = Math.max(
+    1,
+    Math.round(Number(str(formData, "quantity")) || 1),
+  );
+
+  await db.partOrder.create({
+    data: {
+      shopId,
+      ticketId: ticket.id,
+      productId,
+      description,
+      supplier: str(formData, "supplier") || null,
+      quantity,
+      costCents: costCents !== null && costCents > 0 ? costCents : null,
+      status: "NEEDED",
+      expectedAt: optionalDate(formData, "expectedAt"),
+      notes: str(formData, "notes") || null,
+    },
+  });
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
+}
+
+/** NEEDED → ORDERED. Stamps the clock the "how long has this been out?" reads. */
+export async function markPartOrderedAction(
+  partOrderId: string,
+): Promise<PartActionState> {
+  const { shopId, userId } = await requireUser();
+  const part = await findPartOrder(shopId, partOrderId);
+  if (!part) return { error: "Part order not found." };
+  if (part.status !== "NEEDED") {
+    return { error: `A ${part.status.toLowerCase()} part cannot be re-ordered.` };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.partOrder.update({
+      where: { id: part.id },
+      data: { status: "ORDERED", orderedAt: new Date() },
+    });
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: part.ticketId,
+        authorId: userId,
+        body: `Part ordered: ${part.quantity} × ${part.description}.`,
+        isPublic: false,
+        updateType: "Part ordered",
+        channel: "NOTE",
+      },
+    });
+  });
+
+  revalidateTicket(part.ticketId);
+  return { ok: true };
+}
+
+/**
+ * NEEDED/ORDERED → RECEIVED.
+ *
+ * When the part came from the catalogue this is a real stock movement, so the
+ * increment and its StockAdjustment audit row are written in the same
+ * transaction as the status change: either the part is on the shelf and the
+ * history says so, or nothing happened at all.
+ *
+ * Returns `offerResume` when the ticket is parked in "Waiting for Parts" — the
+ * card turns that into a one-click prompt rather than moving the ticket itself.
+ */
+export async function markPartReceivedAction(
+  partOrderId: string,
+): Promise<PartActionState> {
+  const { shopId, userId } = await requireUser();
+  const part = await findPartOrder(shopId, partOrderId);
+  if (!part) return { error: "Part order not found." };
+  if (!RECEIVABLE_FROM.includes(part.status)) {
+    return { error: `A ${part.status.toLowerCase()} part cannot be received.` };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.partOrder.update({
+      where: { id: part.id },
+      data: { status: "RECEIVED", receivedAt: new Date() },
+    });
+
+    if (part.productId) {
+      // Scoped update: an id that does not belong to this shop matches nothing,
+      // and the adjustment below would then describe a movement that never
+      // happened — so the write is guarded by the same where clause.
+      const moved = await tx.product.updateMany({
+        where: { id: part.productId, shopId },
+        data: { stockQty: { increment: part.quantity } },
+      });
+      if (moved.count > 0) {
+        await tx.stockAdjustment.create({
+          data: {
+            shopId,
+            productId: part.productId,
+            delta: part.quantity,
+            reason: `Part received — ticket #${part.ticket.number}`,
+            userId,
+          },
+        });
+      }
+    }
+
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: part.ticketId,
+        authorId: userId,
+        body: `Part received: ${part.quantity} × ${part.description}.`,
+        isPublic: false,
+        updateType: "Part received",
+        channel: "NOTE",
+      },
+    });
+  });
+
+  revalidateTicket(part.ticketId);
+  revalidatePath("/inventory");
+
+  return {
+    ok: true,
+    offerResume: part.ticket.status === WAITING_FOR_PARTS_STATUS,
+  };
+}
+
+/** NEEDED/ORDERED → CANCELED. Never touches stock: nothing ever arrived. */
+export async function cancelPartOrderAction(
+  partOrderId: string,
+): Promise<PartActionState> {
+  const { shopId, userId } = await requireUser();
+  const part = await findPartOrder(shopId, partOrderId);
+  if (!part) return { error: "Part order not found." };
+  if (isTerminalPartStatus(part.status)) {
+    return { error: `A ${part.status.toLowerCase()} part cannot be canceled.` };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.partOrder.update({
+      where: { id: part.id },
+      data: { status: "CANCELED" },
+    });
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: part.ticketId,
+        authorId: userId,
+        body: `Part order canceled: ${part.quantity} × ${part.description}.`,
+        isPublic: false,
+        updateType: "Part canceled",
+        channel: "NOTE",
+      },
+    });
+  });
+
+  revalidateTicket(part.ticketId);
+  return { ok: true };
+}
+
+/**
+ * The "yes please" half of the prompt `markPartReceivedAction` offers: move a
+ * ticket that was parked waiting on parts back onto the bench.
+ *
+ * A no-op unless the ticket is genuinely still in "Waiting for Parts" — by the
+ * time the tech clicks, someone else may have moved it already.
+ */
+export async function resumeTicketFromPartsAction(
+  ticketId: string,
+): Promise<PartActionState> {
+  const { shopId, userId } = await requireUser();
+  const ticket = await findTicket(shopId, ticketId);
+  if (!ticket) return { error: "Ticket not found." };
+  if (ticket.status !== WAITING_FOR_PARTS_STATUS) return { ok: true };
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { id: ticket.id },
+      data: { status: IN_PROGRESS_STATUS, resolvedAt: null },
+    });
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: ticket.id,
+        authorId: userId,
+        body: `Parts are in — status changed to ${IN_PROGRESS_STATUS}.`,
+        isPublic: false,
+        updateType: IN_PROGRESS_STATUS,
+        channel: "NOTE",
+      },
+    });
+  });
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

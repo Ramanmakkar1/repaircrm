@@ -11,16 +11,34 @@ import {
   Hash,
   Pencil,
   Printer,
-  Send,
+  Undo2,
   User,
   Wallet,
   Wrench,
 } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
+import { invoiceTokenPath, portalUrl } from "@/lib/comms";
+import {
+  defaultInvoiceMessage,
+  defaultInvoiceSubject,
+} from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { formatBps, formatCents } from "@/lib/money";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
+import { refundAwareTotals } from "@/components/billing/refund-math";
+import {
+  RefundDialog,
+  type RefundablePayment,
+} from "@/components/billing/refund-dialog";
+import { SendDocumentDialog } from "@/components/billing/send-dialog";
+import { ShareRow } from "@/components/billing/send-links";
+import { EmailReceiptButton } from "@/components/billing/send-receipt";
+import {
+  channelBlockedReason,
+  relativeTime,
+  type SendDocument,
+} from "@/components/billing/send-types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,14 +50,18 @@ import {
 import { Chip } from "@/components/ui/chip";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
-import { ActionForm, ConfirmActionDialog } from "@/components/billing/action-form";
+import { ConfirmActionDialog } from "@/components/billing/action-form";
 import { formatDate, formatDateTime, isOverdue } from "@/components/billing/format";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
 import { SignatureDialog } from "@/components/billing/signature-dialog";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
 import {
-  markInvoiceSentAction,
+  emailInvoiceReceiptAction,
+  invoicePaymentLinkAction,
+  previewInvoiceSendAction,
+  refundInvoiceAction,
   saveInvoiceSignatureAction,
+  sendInvoiceAction,
   takePaymentAction,
   voidInvoiceAction,
 } from "../actions";
@@ -78,6 +100,7 @@ export default async function InvoiceDetailPage({
     where: { id, shopId },
     include: {
       customer: true,
+      shop: { select: { name: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       estimate: { select: { id: true, number: true } },
       lines: { orderBy: { sortOrder: "asc" } },
@@ -85,25 +108,117 @@ export default async function InvoiceDetailPage({
         orderBy: { createdAt: "asc" },
         include: { takenBy: { select: { name: true } } },
       },
+      refunds: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          refundedBy: { select: { name: true } },
+          payment: { select: { method: true, reference: true } },
+        },
+      },
     },
   });
   if (!invoice) notFound();
 
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+  // REFUND-AWARE TOTALS. `invoiceTotals()` in lib/money knows nothing about
+  // refunds and is shared with estimates/portal/print/API, so the billing
+  // module wraps it — see components/billing/refund-math.ts for the math and
+  // why it lives there. Everything below (balance due, "can we still take a
+  // payment", the settled badge) reads the refund-aware numbers.
+  const totals = refundAwareTotals(
+    invoice.lines,
+    invoice.taxRateBps,
+    invoice.payments,
+    invoice.refunds
+  );
   const customerName =
     invoice.customer.businessName ||
     `${invoice.customer.firstName} ${invoice.customer.lastName}`;
 
   const isVoid = invoice.status === "VOID";
   const canEdit = invoice.status === "DRAFT" || invoice.status === "SENT";
-  const canMarkSent = invoice.status === "DRAFT";
   const canTakePayment = !isVoid && totals.balanceCents > 0;
   const hasPayments = invoice.payments.length > 0;
+  const hasRefunds = invoice.refunds.length > 0;
   const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
   const settled = !isVoid && totals.balanceCents <= 0;
+
+  // Refunding is a till operation, not a bench one — same guard as store-credit
+  // adjustments. There is nothing to refund until money has actually come in,
+  // and nothing left once it has all gone back out.
+  const canRefund =
+    (role === "OWNER" || role === "FRONT_DESK") &&
+    hasPayments &&
+    totals.refundableCents > 0;
+
+  const refundablePayments: RefundablePayment[] = invoice.payments.map(
+    (payment) => ({
+      id: payment.id,
+      label: `${paymentLabel(payment.method, payment.reference)} · ${formatCents(
+        payment.amountCents
+      )} · ${formatDate(payment.createdAt)}`,
+      amountCents: payment.amountCents,
+      isStripe: isStripeReference(payment.reference),
+    })
+  );
+
+  // A customer who paid with store credit almost always wants it back the same
+  // way, so the dialog opens on CREDIT for them rather than on CARD.
+  const paidWithCredit = invoice.payments.some((p) => p.method === "CREDIT");
   // Shown only when it is true. "Online payments: off" on every invoice of
   // every shop that never enabled Stripe is an advert, not a status.
   const onlinePayments = paymentsLive() && canTakePayment;
+
+  // ---------------------------------------------------------------- sending
+  // The most recent thing that left the building for THIS invoice, whichever
+  // channel it went out on. Rendered under the Send button so a second click
+  // is an informed one: "we already emailed this an hour ago" is the fact that
+  // stops a customer being messaged three times about the same bill.
+  const lastSent = await db.communicationLog.findFirst({
+    where: { shopId, invoiceId: invoice.id, direction: "OUT" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true, type: true, status: true },
+  });
+
+  const lastSentChannel = lastSent?.type === "SMS" ? "SMS" : "email";
+  const lastSentHint = lastSent
+    ? lastSent.status === "sent" || lastSent.status === "logged"
+      ? `Last sent ${relativeTime(
+          lastSent.createdAt.toISOString(),
+        )} by ${lastSentChannel}`
+      : // A skip or a failure is reported as what it was. "Last sent" over an
+        // opted-out row would be a quiet lie staff act on.
+        `Last ${lastSentChannel} attempt ${relativeTime(
+          lastSent.createdAt.toISOString(),
+        )} — ${lastSent.status}`
+    : null;
+
+  const sendDoc: SendDocument = {
+    id: invoice.id,
+    kind: "invoice",
+    label: `Invoice #${invoice.number}`,
+    customerName,
+    defaultSubject: defaultInvoiceSubject(invoice.number, invoice.shop.name),
+    defaultMessage: defaultInvoiceMessage(invoice.number, totals.totalCents),
+    email: invoice.customer.email,
+    emailOptIn: invoice.customer.emailOptIn,
+    mobile: invoice.customer.mobile,
+    smsOptIn: invoice.customer.smsOptIn,
+    alreadySent: invoice.status !== "DRAFT",
+    lastSentHint,
+  };
+
+  // The frictionless link — the same URL the emails and texts carry.
+  const viewUrl = portalUrl(invoiceTokenPath(invoice.publicToken));
+
+  // A checkout session can only be opened against an issued invoice with money
+  // still on it. Anywhere else the button is absent rather than dead.
+  const canCopyPaymentLink =
+    paymentsLive() &&
+    totals.balanceCents > 0 &&
+    (invoice.status === "SENT" || invoice.status === "PARTIAL");
+
+  const emailBlockedReason = channelBlockedReason("EMAIL", sendDoc);
+  const receiptable = settled && hasPayments;
 
   return (
     <div className="flex flex-col gap-5">
@@ -149,15 +264,12 @@ export default async function InvoiceDetailPage({
                 </Button>
               ) : null}
 
-              {canMarkSent ? (
-                <ActionForm
-                  action={markInvoiceSentAction}
-                  fields={{ id: invoice.id }}
-                  variant="outline"
-                  pendingLabel="Sending…"
-                >
-                  <Send /> Mark sent
-                </ActionForm>
+              {receiptable ? (
+                <EmailReceiptButton
+                  invoiceId={invoice.id}
+                  action={emailInvoiceReceiptAction}
+                  blockedReason={emailBlockedReason}
+                />
               ) : null}
 
               {!isVoid ? (
@@ -186,6 +298,17 @@ export default async function InvoiceDetailPage({
                 />
               ) : null}
 
+              {canRefund ? (
+                <RefundDialog
+                  action={refundInvoiceAction}
+                  invoiceId={invoice.id}
+                  refundableCents={totals.refundableCents}
+                  payments={refundablePayments}
+                  customerName={customerName}
+                  defaultMethod={paidWithCredit ? "CREDIT" : "CARD"}
+                />
+              ) : null}
+
               {canTakePayment ? (
                 <PaymentDialog
                   action={takePaymentAction}
@@ -193,6 +316,18 @@ export default async function InvoiceDetailPage({
                   balanceCents={totals.balanceCents}
                   customerCreditCents={invoice.customer.creditBalanceCents}
                   customerName={customerName}
+                  receiptAction={emailInvoiceReceiptAction}
+                />
+              ) : null}
+
+              {/* The primary action, last so it sits at the end of the row —
+                  and the only one that both delivers the document and moves it
+                  out of DRAFT. */}
+              {!isVoid ? (
+                <SendDocumentDialog
+                  doc={sendDoc}
+                  previewAction={previewInvoiceSendAction}
+                  sendAction={sendInvoiceAction}
                 />
               ) : null}
             </div>
@@ -248,6 +383,25 @@ export default async function InvoiceDetailPage({
               </Link>
             ) : null}
           </div>
+
+          {/* Links staff hand over by hand — read down the phone, pasted into
+              a chat, or sent from their own address. A void invoice has
+              nothing worth sharing. */}
+          {!isVoid ? (
+            <div className="border-t border-border pt-4">
+              <ShareRow
+                viewUrl={viewUrl}
+                payment={
+                  canCopyPaymentLink
+                    ? {
+                        invoiceId: invoice.id,
+                        action: invoicePaymentLinkAction,
+                      }
+                    : null
+                }
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -385,6 +539,65 @@ export default async function InvoiceDetailPage({
             </CardContent>
           </Card>
 
+          {/* --------------------------------------------------------- refunds */}
+          {/* Rendered only once something has been refunded: a permanently
+              empty "Refunds" card on every invoice would be noise, and the
+              Refund button in the header is already the affordance. */}
+          {hasRefunds ? (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between gap-3">
+                <CardTitle>Refunds</CardTitle>
+                <Chip
+                  icon={Undo2}
+                  className="bg-destructive-soft text-destructive"
+                >
+                  {formatCents(totals.refundedCents)} returned
+                </Chip>
+              </CardHeader>
+
+              <CardContent className="px-0 py-0">
+                <ul className="divide-y divide-border">
+                  {invoice.refunds.map((refund) => (
+                    <li
+                      key={refund.id}
+                      className="flex flex-wrap items-start justify-between gap-4 px-5 py-4"
+                    >
+                      <div className="flex min-w-0 flex-col gap-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          {METHOD_LABELS[refund.method] ?? refund.method}
+                          {refund.payment
+                            ? ` · against ${paymentLabel(
+                                refund.payment.method,
+                                refund.payment.reference
+                              )}`
+                            : ""}
+                        </span>
+                        {refund.reason ? (
+                          <span className="text-[13.5px] leading-snug text-muted-foreground">
+                            {refund.reason}
+                          </span>
+                        ) : null}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Chip icon={CalendarDays}>
+                            {formatDateTime(refund.createdAt)}
+                          </Chip>
+                          {refund.refundedBy?.name ? (
+                            <Chip icon={User}>{refund.refundedBy.name}</Chip>
+                          ) : null}
+                        </div>
+                      </div>
+                      {/* Negative-styled: money leaving reads red and signed,
+                          so a refund can never be mistaken for a collection. */}
+                      <span className="shrink-0 text-lg font-bold tabular-nums text-destructive">
+                        −{formatCents(refund.amountCents)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {invoice.notes ? (
             <Card>
               <CardHeader>
@@ -412,6 +625,24 @@ export default async function InvoiceDetailPage({
                 label="Paid to date"
                 value={`−${formatCents(totals.paidCents)}`}
               />
+              {/* Refunds add BACK to what is owed, so the sign is the opposite
+                  of the payment line above. Net kept is spelled out rather than
+                  left as mental arithmetic between two signed rows. */}
+              {hasRefunds ? (
+                <>
+                  <TotalsRow
+                    label="Refunded"
+                    value={`+${formatCents(totals.refundedCents)}`}
+                    tone="destructive"
+                  />
+                  <div className="border-t border-border pt-3">
+                    <TotalsRow
+                      label="Net paid"
+                      value={formatCents(totals.netPaidCents)}
+                    />
+                  </div>
+                </>
+              ) : null}
             </CardContent>
 
             <CardFooter className="flex-col items-stretch gap-1.5 bg-surface-hover py-5">
@@ -518,11 +749,26 @@ export default async function InvoiceDetailPage({
   );
 }
 
-function TotalsRow({ label, value }: { label: string; value: string }) {
+function TotalsRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "destructive";
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold tabular-nums text-foreground">{value}</span>
+      <span
+        className={cn(
+          "font-semibold tabular-nums",
+          tone === "destructive" ? "text-destructive" : "text-foreground",
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }
