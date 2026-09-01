@@ -81,22 +81,40 @@ enum CommunicationDirection {
 // ---------------------------------------------------------------------------
 
 model Shop {
-  id         String  @id @default(cuid())
-  name       String
-  slug       String  @unique
-  address1   String?
-  address2   String?
-  city       String?
-  state      String?
-  postalCode String?
-  country    String  @default("US")
-  phone      String?
-  email      String?
-  logoUrl    String?
-  timezone   String  @default("America/Edmonton")
+  /// ISO 4217 lower-case; two-decimal currencies only.
+  currency               String                  @default("usd")
+  /// Stripe Connect: the shop's own Stripe account (one-click onboarding).
+  stripeAccountId        String?
+  stripeOnboardedAt      DateTime?
+  auditLogs              AuditLog[]
+  taxRates               TaxRate[]
+  vendors                Vendor[]
+  purchaseOrders         PurchaseOrder[]
+  productSerials         ProductSerial[]
+  webhooks               Webhook[]
+  webhookDeliveries      WebhookDelivery[]
+  checklistTemplates     ChecklistTemplate[]
+  integrationConnections IntegrationConnection[]
+  integrationLinks       IntegrationLink[]
+  deposits               Deposit[]
+  timeClockEntries       TimeClockEntry[]
+  cashDrawerSessions     CashDrawerSession[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String                  @unique
+  address1               String?
+  address2               String?
+  city                   String?
+  state                  String?
+  postalCode             String?
+  country                String                  @default("US")
+  phone                  String?
+  email                  String?
+  logoUrl                String?
+  timezone               String                  @default("America/Edmonton")
   /// Default sales tax in basis points (825 = 8.25%)
-  taxRateBps Int     @default(0)
-  settings   Json?
+  taxRateBps             Int                     @default(0)
+  settings               Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -129,16 +147,20 @@ model Shop {
 }
 
 model Location {
-  id         String  @id @default(cuid())
-  shopId     String
-  name       String
-  address1   String?
-  address2   String?
-  city       String?
-  state      String?
-  postalCode String?
-  phone      String?
-  isDefault  Boolean @default(false)
+  active             Boolean             @default(true)
+  invoices           Invoice[]
+  users              User[]
+  cashDrawerSessions CashDrawerSession[]
+  id                 String              @id @default(cuid())
+  shopId             String
+  name               String
+  address1           String?
+  address2           String?
+  city               String?
+  state              String?
+  postalCode         String?
+  phone              String?
+  isDefault          Boolean             @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -153,21 +175,36 @@ model Location {
 // Email is globally unique (a person belongs to exactly one shop) — keeps the
 // login lookup a single indexed read with no tenant hint required.
 model User {
-  id           String  @id @default(cuid())
-  shopId       String
-  email        String  @unique
-  passwordHash String
-  name         String
-  role         Role    @default(TECH)
-  active       Boolean @default(true)
+  /// Set on invite; the (app) layout forces a password change before anything else.
+  mustChangePassword Boolean              @default(false)
+  /// Base32 TOTP secret; 2FA is enforced only once totpEnabledAt is set.
+  totpSecret         String?
+  totpEnabledAt      DateTime?
+  lastLoginAt        DateTime?
+  defaultLocationId  String?
+  defaultLocation    Location?            @relation(fields: [defaultLocationId], references: [id], onDelete: SetNull)
+  passwordResets     PasswordResetToken[]
+  auditLogs          AuditLog[]
+  purchaseOrders     PurchaseOrder[]
+  depositsTaken      Deposit[]
+  timeClockEntries   TimeClockEntry[]
+  drawersOpened      CashDrawerSession[]  @relation("DrawerOpenedBy")
+  drawersClosed      CashDrawerSession[]  @relation("DrawerClosedBy")
+  id                 String               @id @default(cuid())
+  shopId             String
+  email              String               @unique
+  passwordHash       String
+  name               String
+  role               Role                 @default(TECH)
+  active             Boolean              @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shop            Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  assignedTickets Ticket[]
-  comments        TicketComment[]
-  timeEntries     TimeEntry[]
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  assignedTickets   Ticket[]
+  comments          TicketComment[]
+  timeEntries       TimeEntry[]
   paymentsTaken     Payment[]
   attachments       Attachment[]
   stockAdjustments  StockAdjustment[]
@@ -184,26 +221,37 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id                 String  @id @default(cuid())
-  shopId             String
-  firstName          String
-  lastName           String
-  businessName       String?
-  email              String?
-  phone              String?
-  mobile             String?
-  address1           String?
-  address2           String?
-  city               String?
-  state              String?
-  postalCode         String?
-  country            String  @default("US")
-  notes              String?
-  smsOptIn           Boolean @default(false)
-  emailOptIn         Boolean @default(true)
+  taxExempt             Boolean   @default(false)
+  taxRateId             String?
+  taxRate               TaxRate?  @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+  /// Card on file (Stripe). Only display fields live here; the card lives at Stripe.
+  stripeCustomerId      String?
+  stripePaymentMethodId String?
+  cardBrand             String?
+  cardLast4             String?
+  cardExpMonth          Int?
+  cardExpYear           Int?
+  deposits              Deposit[]
+  id                    String    @id @default(cuid())
+  shopId                String
+  firstName             String
+  lastName              String
+  businessName          String?
+  email                 String?
+  phone                 String?
+  mobile                String?
+  address1              String?
+  address2              String?
+  city                  String?
+  state                 String?
+  postalCode            String?
+  country               String    @default("US")
+  notes                 String?
+  smsOptIn              Boolean   @default(false)
+  emailOptIn            Boolean   @default(true)
   /// Store credit held for this customer, in cents.
-  creditBalanceCents Int     @default(0)
-  referredBy         String?
+  creditBalanceCents    Int       @default(0)
+  referredBy            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -278,7 +326,25 @@ model Asset {
 /// Built-ins: New | In Progress | Waiting for Parts | Waiting on Customer |
 ///            Ready for Pickup | Resolved
 model Ticket {
-  id                     String    @id @default(cuid())
+  /// "staff" | "checkin" | "portal" | "email" | "sms" | "api"
+  source                 String             @default("staff")
+  isWarranty             Boolean            @default(false)
+  warrantyInvoiceLineId  String?
+  warrantyInvoiceLine    InvoiceLine?       @relation(fields: [warrantyInvoiceLineId], references: [id], onDelete: SetNull)
+  /// [{ label: string, done: boolean, doneAt?: string }]
+  checklist              Json?
+  checklistTemplateId    String?
+  checklistTemplate      ChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: SetNull)
+  /// SLA: stamped once when dueDate passes; slaNotifiedAt gates the single alert.
+  slaBreachedAt          DateTime?
+  slaNotifiedAt          DateTime?
+  /// Last customer-originated message (portal / inbound email / SMS).
+  lastInboundAt          DateTime?
+  /// Sum of deposits taken against this ticket (cents); each is a Deposit row.
+  depositCents           Int                @default(0)
+  deposits               Deposit[]
+  pickedUpAt             DateTime?
+  id                     String             @id @default(cuid())
   shopId                 String
   locationId             String?
   customerId             String
@@ -287,8 +353,8 @@ model Ticket {
   number                 Int
   subject                String
   problemType            String
-  status                 String    @default("New")
-  priority               Priority  @default(NORMAL)
+  status                 String             @default("New")
+  priority               Priority           @default(NORMAL)
   assignedToId           String?
   dueDate                DateTime?
   diagnosticNotes        String?
@@ -388,6 +454,10 @@ model TicketCharge {
 }
 
 model TimeEntry {
+  billable  Boolean   @default(true)
+  /// Set once billed as a labour line on this invoice.
+  invoiceId String?
+  invoice   Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   id        String    @id @default(cuid())
   shopId    String
   ticketId  String
@@ -414,6 +484,8 @@ model TimeEntry {
 // ---------------------------------------------------------------------------
 
 model Estimate {
+  taxRateId                String?
+  taxRate                  TaxRate?       @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
   id                       String         @id @default(cuid())
   shopId                   String
   customerId               String
@@ -463,21 +535,27 @@ model EstimateLine {
 /// and payments — see lib/money.ts calcTotals(). Nothing is denormalised here so
 /// a line edit can never desync from a stored total.
 model Invoice {
-  id               String        @id @default(cuid())
-  shopId           String
-  customerId       String
-  ticketId         String?
-  estimateId       String?
+  locationId         String?
+  location           Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  taxRateId          String?
+  taxRate            TaxRate?      @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+  timeEntries        TimeEntry[]
+  depositsApplied    Deposit[]
+  id                 String        @id @default(cuid())
+  shopId             String
+  customerId         String
+  ticketId           String?
+  estimateId         String?
   /// Set when this invoice was generated from a recurring schedule.
   recurringInvoiceId String?
-  number           Int
-  status           InvoiceStatus @default(DRAFT)
-  taxRateBps       Int           @default(0)
-  notes            String?
-  dueDate          DateTime?
-  publicToken      String        @unique @default(cuid())
-  paidAt           DateTime?
-  signatureDataUrl String?
+  number             Int
+  status             InvoiceStatus @default(DRAFT)
+  taxRateBps         Int           @default(0)
+  notes              String?
+  dueDate            DateTime?
+  publicToken        String        @unique @default(cuid())
+  paidAt             DateTime?
+  signatureDataUrl   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -501,16 +579,20 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id             String  @id @default(cuid())
-  invoiceId      String
-  productId      String?
-  description    String
-  quantity       Int     @default(1)
-  unitPriceCents Int
-  taxable        Boolean @default(true)
+  /// Snapshot of Product.warrantyDays at sale time; null = no warranty.
+  warrantyDays    Int?
+  warrantyTickets Ticket[]
+  productSerials  ProductSerial[]
+  id              String          @id @default(cuid())
+  invoiceId       String
+  productId       String?
+  description     String
+  quantity        Int             @default(1)
+  unitPriceCents  Int
+  taxable         Boolean         @default(true)
   /// Serial number of the physical unit sold, when applicable.
-  serial         String?
-  sortOrder      Int     @default(0)
+  serial          String?
+  sortOrder       Int             @default(0)
 
   invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -519,19 +601,23 @@ model InvoiceLine {
 }
 
 model Payment {
-  id          String        @id @default(cuid())
-  shopId      String
-  invoiceId   String
-  amountCents Int
-  method      PaymentMethod @default(CARD)
-  reference   String?
-  takenById   String?
+  stripePaymentIntentId String?
+  stripeChargeId        String?
+  /// "checkout" | "terminal" | "card_on_file" | null (manual)
+  stripeSource          String?
+  id                    String        @id @default(cuid())
+  shopId                String
+  invoiceId             String
+  amountCents           Int
+  method                PaymentMethod @default(CARD)
+  reference             String?
+  takenById             String?
 
   createdAt DateTime @default(now())
 
-  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  takenBy User?   @relation(fields: [takenById], references: [id], onDelete: SetNull)
+  shop    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  takenBy User?    @relation(fields: [takenById], references: [id], onDelete: SetNull)
   refunds Refund[]
 
   @@index([invoiceId])
@@ -543,25 +629,34 @@ model Payment {
 // ---------------------------------------------------------------------------
 
 model Product {
-  id          String  @id @default(cuid())
-  shopId      String
-  name        String
-  sku         String?
-  upc         String?
-  description String?
-  priceCents  Int     @default(0)
-  costCents   Int?
-  taxable     Boolean @default(true)
-  stockQty    Int     @default(0)
+  reorderQty    Int?
+  warrantyDays  Int?
+  vendorId      String?
+  vendor        Vendor?             @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendorSku     String?
+  /// When true each unit is a ProductSerial row; stockQty mirrors IN_STOCK units.
+  serialized    Boolean             @default(false)
+  serials       ProductSerial[]
+  purchaseLines PurchaseOrderLine[]
+  id            String              @id @default(cuid())
+  shopId        String
+  name          String
+  sku           String?
+  upc           String?
+  description   String?
+  priceCents    Int                 @default(0)
+  costCents     Int?
+  taxable       Boolean             @default(true)
+  stockQty      Int                 @default(0)
   /// Reorder threshold; null disables low-stock alerts for this product.
-  lowStockAt  Int?
-  category    String?
-  active      Boolean @default(true)
+  lowStockAt    Int?
+  category      String?
+  active        Boolean             @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop           Shop                   @relation(fields: [shopId], references: [id], onDelete: Cascade)
   ticketCharges  TicketCharge[]
   estimateLines  EstimateLine[]
   invoiceLines   InvoiceLine[]
@@ -581,6 +676,8 @@ model Product {
 /// `path` is a public-relative path under /public/uploads for now; swapping to
 /// object storage later only changes how `path` is resolved.
 model Attachment {
+  /// "local" | "s3"
+  storage      String  @default("local")
   id           String  @id @default(cuid())
   shopId       String
   ticketId     String?
@@ -604,17 +701,18 @@ model Attachment {
 }
 
 model CommunicationLog {
-  id         String                 @id @default(cuid())
-  shopId     String
-  customerId String
-  ticketId   String?
-  invoiceId  String?
-  type       CommunicationType
-  direction  CommunicationDirection @default(OUT)
-  to         String
-  subject    String?
-  body       String
-  status     String                 @default("logged")
+  providerMessageId String?
+  id                String                 @id @default(cuid())
+  shopId            String
+  customerId        String
+  ticketId          String?
+  invoiceId         String?
+  type              CommunicationType
+  direction         CommunicationDirection @default(OUT)
+  to                String
+  subject           String?
+  body              String
+  status            String                 @default("logged")
 
   createdAt DateTime @default(now())
 
@@ -658,18 +756,25 @@ enum RecurringFrequency {
 /// A billing schedule that stamps out DRAFT invoices on a cadence
 /// (business contracts, managed-service retainers).
 model RecurringInvoice {
-  id         String             @id @default(cuid())
-  shopId     String
-  customerId String
-  name       String
-  frequency  RecurringFrequency @default(MONTHLY)
+  taxRateId       String?
+  taxRate         TaxRate?           @relation(fields: [taxRateId], references: [id], onDelete: SetNull)
+  /// Charge the card on file when the invoice is generated.
+  autoCharge      Boolean            @default(false)
+  /// Email the invoice automatically when generated.
+  autoSend        Boolean            @default(false)
+  lastChargeError String?
+  id              String             @id @default(cuid())
+  shopId          String
+  customerId      String
+  name            String
+  frequency       RecurringFrequency @default(MONTHLY)
   /// Next date an invoice should be generated for this schedule.
-  nextRunAt  DateTime
-  lastRunAt  DateTime?
-  active     Boolean            @default(true)
-  taxRateBps Int                @default(0)
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  active          Boolean            @default(true)
+  taxRateBps      Int                @default(0)
   /// Generated invoices get dueDate = created + dueInDays.
-  dueInDays  Int                @default(14)
+  dueInDays       Int                @default(14)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -860,17 +965,18 @@ enum AppointmentStatus {
 
 /// A scheduled visit: drop-off, pickup, on-site/field job, callback.
 model Appointment {
-  id           String            @id @default(cuid())
-  shopId       String
-  customerId   String?
-  ticketId     String?
-  assignedToId String?
-  locationId   String?
-  title        String
-  notes        String?
-  startsAt     DateTime
-  endsAt       DateTime
-  status       AppointmentStatus @default(SCHEDULED)
+  reminderSentAt DateTime?
+  id             String            @id @default(cuid())
+  shopId         String
+  customerId     String?
+  ticketId       String?
+  assignedToId   String?
+  locationId     String?
+  title          String
+  notes          String?
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(SCHEDULED)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -895,19 +1001,23 @@ enum PartOrderStatus {
 /// A part that must be sourced for a ticket ("Part Order / Parts Status").
 /// Receiving one can increment Product stock via a StockAdjustment.
 model PartOrder {
-  id          String          @id @default(cuid())
-  shopId      String
-  ticketId    String
-  productId   String?
-  description String
-  supplier    String?
-  quantity    Int             @default(1)
-  costCents   Int?
-  status      PartOrderStatus @default(NEEDED)
-  expectedAt  DateTime?
-  orderedAt   DateTime?
-  receivedAt  DateTime?
-  notes       String?
+  vendorId        String?
+  vendor          Vendor?         @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  id              String          @id @default(cuid())
+  shopId          String
+  ticketId        String
+  productId       String?
+  description     String
+  supplier        String?
+  quantity        Int             @default(1)
+  costCents       Int?
+  status          PartOrderStatus @default(NEEDED)
+  expectedAt      DateTime?
+  orderedAt       DateTime?
+  receivedAt      DateTime?
+  notes           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -923,14 +1033,17 @@ model PartOrder {
 /// Money returned against an invoice. Kept separate from Payment so payment
 /// history stays append-only and reports can distinguish flows.
 model Refund {
-  id           String        @id @default(cuid())
-  shopId       String
-  invoiceId    String
-  paymentId    String?
-  amountCents  Int
-  method       PaymentMethod @default(CARD)
-  reason       String?
-  refundedById String?
+  stripeRefundId String?
+  /// "completed" | "pending" | "failed"
+  status         String        @default("completed")
+  id             String        @id @default(cuid())
+  shopId         String
+  invoiceId      String
+  paymentId      String?
+  amountCents    Int
+  method         PaymentMethod @default(CARD)
+  reason         String?
+  refundedById   String?
 
   createdAt DateTime @default(now())
 
@@ -941,4 +1054,316 @@ model Refund {
 
   @@index([shopId, createdAt])
   @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Wave 8 — security, locations, tax, vendors/POs, serials, webhooks,
+//          checklists, deposits, time clock, cash drawer, accounting sync
+// ---------------------------------------------------------------------------
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  /// sha256 of the token in the emailed link; the plaintext is never stored.
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Who did what. Written by lib/audit.ts; never edited or deleted from the app.
+model AuditLog {
+  id        String   @id @default(cuid())
+  shopId    String
+  userId    String?
+  /// dotted verb: "user.login", "user.role_changed", "ticket.deleted", "settings.updated"
+  action    String
+  /// "user" | "ticket" | "invoice" | "customer" | "settings" | "api_key" | ...
+  entity    String
+  entityId  String?
+  summary   String
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@index([shopId, entity, entityId])
+}
+
+model TaxRate {
+  id                String             @id @default(cuid())
+  shopId            String
+  name              String
+  rateBps           Int
+  isDefault         Boolean            @default(false)
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  shop              Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customers         Customer[]
+  estimates         Estimate[]
+  invoices          Invoice[]
+  recurringInvoices RecurringInvoice[]
+
+  @@index([shopId, active])
+}
+
+model Vendor {
+  id             String          @id @default(cuid())
+  shopId         String
+  name           String
+  email          String?
+  phone          String?
+  website        String?
+  accountNumber  String?
+  address        String?
+  notes          String?
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  shop           Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  products       Product[]
+  purchaseOrders PurchaseOrder[]
+  partOrders     PartOrder[]
+
+  @@index([shopId, name])
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELED
+}
+
+model PurchaseOrder {
+  id            String              @id @default(cuid())
+  shopId        String
+  vendorId      String
+  /// Per-shop sequential PO number (lib/sequence.ts).
+  number        Int
+  status        PurchaseOrderStatus @default(DRAFT)
+  shippingCents Int                 @default(0)
+  notes         String?
+  orderedAt     DateTime?
+  expectedAt    DateTime?
+  receivedAt    DateTime?
+  createdById   String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  shop          Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  vendor        Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdBy     User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines         PurchaseOrderLine[]
+  partOrders    PartOrder[]
+
+  @@unique([shopId, number])
+  @@index([shopId, status])
+  @@index([vendorId])
+}
+
+model PurchaseOrderLine {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  productId       String?
+  description     String
+  quantity        Int           @default(1)
+  receivedQty     Int           @default(0)
+  unitCostCents   Int           @default(0)
+  sortOrder       Int           @default(0)
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product         Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseOrderId])
+}
+
+enum SerialStatus {
+  IN_STOCK
+  SOLD
+  RETURNED
+  DEFECTIVE
+}
+
+/// One physical unit of a serialized product.
+model ProductSerial {
+  id            String       @id @default(cuid())
+  shopId        String
+  productId     String
+  serial        String
+  status        SerialStatus @default(IN_STOCK)
+  invoiceLineId String?
+  receivedAt    DateTime     @default(now())
+  soldAt        DateTime?
+  notes         String?
+  shop          Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  invoiceLine   InvoiceLine? @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, productId, serial])
+  @@index([shopId, status])
+  @@index([shopId, serial])
+}
+
+/// Outbound webhook subscription. `secret` signs every delivery (HMAC-SHA256).
+model Webhook {
+  id         String            @id @default(cuid())
+  shopId     String
+  url        String
+  secret     String
+  /// e.g. ["ticket.created", "invoice.paid"]; "*" subscribes to everything.
+  events     String[]
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  shop       Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([shopId, active])
+}
+
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  shopId        String
+  webhookId     String
+  event         String
+  payload       Json
+  /// "pending" | "delivered" | "failed"
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  responseCode  Int?
+  lastError     String?
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  shop          Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  webhook       Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+}
+
+/// A reusable ticket checklist ("Phone intake: check screen, test buttons...").
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  shopId      String
+  name        String
+  /// Optional: auto-attach when a ticket with this problem type is created.
+  problemType String?
+  /// string[]
+  items       Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  tickets     Ticket[]
+
+  @@index([shopId, active])
+}
+
+/// OAuth connection to an accounting provider ("quickbooks" | "xero").
+model IntegrationConnection {
+  id               String    @id @default(cuid())
+  shopId           String
+  provider         String
+  accessToken      String
+  refreshToken     String
+  expiresAt        DateTime
+  /// QuickBooks realmId / Xero tenantId
+  remoteTenantId   String?
+  remoteTenantName String?
+  /// "connected" | "error" | "disconnected"
+  status           String    @default("connected")
+  lastSyncAt       DateTime?
+  lastError        String?
+  settings         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  shop             Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, provider])
+}
+
+/// Maps a local row to its remote id in an accounting provider.
+model IntegrationLink {
+  id       String   @id @default(cuid())
+  shopId   String
+  provider String
+  /// "customer" | "invoice" | "payment" | "product"
+  entity   String
+  entityId String
+  remoteId String
+  syncedAt DateTime @default(now())
+  shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, provider, entity, entityId])
+  @@index([shopId, provider, entity])
+}
+
+/// Money taken up front against a ticket. Credited to the customer's store
+/// credit (with a CreditAdjustment) so the final invoice can absorb it via the
+/// CREDIT tender; `appliedInvoiceId` records where it ended up.
+model Deposit {
+  id               String        @id @default(cuid())
+  shopId           String
+  ticketId         String
+  customerId       String
+  amountCents      Int
+  method           PaymentMethod @default(CARD)
+  reference        String?
+  takenById        String?
+  appliedInvoiceId String?
+  refundedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  shop             Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  ticket           Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  customer         Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  takenBy          User?         @relation(fields: [takenById], references: [id], onDelete: SetNull)
+  appliedInvoice   Invoice?      @relation(fields: [appliedInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@index([ticketId])
+}
+
+/// Staff clock in / clock out.
+model TimeClockEntry {
+  id         String    @id @default(cuid())
+  shopId     String
+  userId     String
+  clockInAt  DateTime  @default(now())
+  clockOutAt DateTime?
+  note       String?
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, userId, clockInAt])
+  @@index([shopId, clockInAt])
+}
+
+/// A cash drawer shift: opened with a float, closed with a count.
+model CashDrawerSession {
+  id            String    @id @default(cuid())
+  shopId        String
+  locationId    String?
+  openedById    String
+  openedAt      DateTime  @default(now())
+  openingCents  Int       @default(0)
+  closedById    String?
+  closedAt      DateTime?
+  /// Computed at close: opening + cash payments + cash deposits - cash refunds.
+  expectedCents Int?
+  countedCents  Int?
+  note          String?
+  shop          Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  location      Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  openedBy      User      @relation("DrawerOpenedBy", fields: [openedById], references: [id], onDelete: Cascade)
+  closedBy      User?     @relation("DrawerClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([shopId, openedAt])
 }
