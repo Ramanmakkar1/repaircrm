@@ -14,6 +14,7 @@ import {
   type LocationStaffMember,
 } from "./locations-tab";
 import { CheckinTab, type CheckinTabConfig } from "./checkin-tab";
+import { ConnectTab, type ConnectConfig } from "./connect-tab";
 import { IntegrationsTab, type IntegrationsConfig } from "./integrations-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ProfileTab } from "./profile-tab";
@@ -104,6 +105,17 @@ const OWNER_PANELS: SettingsPanel[] = [
     group: "Money",
   },
   {
+    // The front door: one screen an owner can work top to bottom. It leads the
+    // group because "how do I connect this to my website?" is the first
+    // question a new shop asks, and every row below it links to the tab that
+    // actually owns that setting.
+    value: "connect",
+    label: "Connect",
+    blurb:
+      "Your one shop link, card payments, messages — everything, one button each.",
+    group: "Connections",
+  },
+  {
     value: "messaging",
     label: "Messaging",
     blurb: "How email and text messages leave RepairFlow, and replies come back.",
@@ -190,6 +202,7 @@ export function SettingsTabs({
   auditPage,
   checkin,
   integrations,
+  connect,
 }: {
   role: string;
   currentUserId: string;
@@ -224,6 +237,8 @@ export function SettingsTabs({
   checkin: CheckinTabConfig;
   /** Owner-only; accounting connections and where everything else is set up. */
   integrations: IntegrationsConfig;
+  /** Owner-only; the shop's public link and the state of every connection. */
+  connect: ConnectConfig;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -361,6 +376,12 @@ export function SettingsTabs({
         {isOwner ? (
           <TabsContent value="checkin">
             <CheckinTab config={checkin} />
+          </TabsContent>
+        ) : null}
+
+        {isOwner ? (
+          <TabsContent value="connect">
+            <ConnectTab config={connect} />
           </TabsContent>
         ) : null}
 

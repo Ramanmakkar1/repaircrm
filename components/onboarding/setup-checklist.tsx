@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { DismissSetup } from "./dismiss-setup";
+import { readPublicHub } from "@/components/settings/hub-meta";
 import { readOnboarding } from "./steps";
 
 /**
@@ -48,6 +49,15 @@ export async function SetupChecklist() {
   if (readOnboarding(shop.settings).dismissed) return null;
 
   const rows = [
+    {
+      // First, because it is the one row that brings work IN rather than
+      // tidying work that has already arrived.
+      label: "Share your shop link",
+      hint: "Put this on your website and your Google listing — customers book, check a repair and pay from it.",
+      done: readPublicHub(shop.settings).enabled,
+      href: "/settings?tab=connect",
+      cta: "Get my link",
+    },
     {
       label: "Set your sales tax rate",
       hint: "So invoices total correctly from the first one.",

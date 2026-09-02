@@ -22,6 +22,7 @@ import {
   DEFAULT_REVIEW_DELAY_HOURS,
   safeExternalUrl,
 } from "@/components/settings/checkin-meta";
+import { HUB_CARDS } from "@/components/settings/hub-meta";
 import {
   settingsError,
   settingsSuccess,
@@ -738,5 +739,59 @@ export async function updateReviewsAction(input: {
   });
 
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Connect — the public shop hub
+// ---------------------------------------------------------------------------
+
+/**
+ * The one-link page at /s/<slug>.
+ *
+ * OWNER only, for the same reason check-in is: switching this on publishes a
+ * page anybody on the internet can reach, and two of its cards will email a
+ * customer a link into their own portal. That is the owner's call.
+ *
+ * Written through `mergeSettings` like every other block in the JSON column, so
+ * saving the hub cannot clobber the check-in terms or the problem types sitting
+ * beside it. Only the known card keys are stored — an unexpected key would read
+ * back as an option no screen knows how to render.
+ */
+export async function updatePublicHubAction(input: {
+  enabled: boolean;
+  indexable: boolean;
+  cards: Record<string, boolean>;
+  hours: string;
+}): Promise<SettingsResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const cards: Record<string, boolean> = {};
+  for (const key of HUB_CARDS) cards[key] = input.cards[key] === true;
+
+  const shop = await db.shop.findUnique({
+    where: { id: session.shopId },
+    select: { settings: true },
+  });
+  if (!shop) return { ok: false, error: "Shop not found." };
+
+  await db.shop.update({
+    where: { id: session.shopId },
+    data: {
+      settings: mergeSettings(shop.settings, {
+        publicHub: {
+          enabled: input.enabled,
+          indexable: input.indexable,
+          cards,
+          hours: input.hours.trim().slice(0, 600),
+        },
+      }),
+    },
+  });
+
+  revalidatePath("/settings");
+  // The public page is `force-dynamic` and re-reads settings on every request,
+  // so there is nothing of its own to revalidate.
   return { ok: true };
 }
