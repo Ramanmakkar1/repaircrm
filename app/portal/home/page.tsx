@@ -63,7 +63,18 @@ export default async function PortalHomePage() {
       },
     }),
     db.estimate.findMany({
-      where: scope,
+      // DRAFT IS NOT THE CUSTOMER'S BUSINESS.
+      //
+      // A draft is a price the shop is still working out. It has not been
+      // sent, it is not an offer, and until Send is pressed the customer must
+      // not see that it exists — the detail page even greets them with "the
+      // shop is still putting this quote together", on a page they should
+      // never have been able to open.
+      //
+      // The consequence is deliberate and worth knowing: a shop that leaves
+      // documents in DRAFT and tells a customer "check the portal" will find
+      // they are not there until it presses Send.
+      where: { ...scope, status: { not: "DRAFT" } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -77,7 +88,8 @@ export default async function PortalHomePage() {
       },
     }),
     db.invoice.findMany({
-      where: scope,
+      // Same rule as the estimates above: an unsent bill is not a bill yet.
+      where: { ...scope, status: { not: "DRAFT" } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

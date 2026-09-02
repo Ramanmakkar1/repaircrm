@@ -26,7 +26,13 @@ export async function generateMetadata({
   if (!session) return { title: "Estimate · RepairFlow" };
 
   const estimate = await db.estimate.findFirst({
-    where: { id, customerId: session.customerId, shopId: session.shopId },
+    where: {
+      id,
+      customerId: session.customerId,
+      shopId: session.shopId,
+      // A draft has not been sent; the customer must not learn it exists.
+      status: { not: "DRAFT" },
+    },
     select: { number: true },
   });
   return {
@@ -45,7 +51,13 @@ export default async function PortalEstimatePage({
   const customer = await requirePortalCustomer(`/portal/estimates/${id}`);
 
   const estimate = await db.estimate.findFirst({
-    where: { id, customerId: customer.id, shopId: customer.shopId },
+    where: {
+      id,
+      customerId: customer.id,
+      shopId: customer.shopId,
+      // Unsent means invisible — a draft 404s rather than rendering.
+      status: { not: "DRAFT" },
+    },
     select: {
       id: true,
       number: true,

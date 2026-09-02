@@ -47,7 +47,13 @@ export async function generateMetadata({
   if (!session) return { title: "Invoice · RepairFlow" };
 
   const invoice = await db.invoice.findFirst({
-    where: { id, customerId: session.customerId, shopId: session.shopId },
+    where: {
+      id,
+      customerId: session.customerId,
+      shopId: session.shopId,
+      // A draft has not been sent; the customer must not learn it exists.
+      status: { not: "DRAFT" },
+    },
     select: { number: true },
   });
   return {
@@ -69,7 +75,13 @@ export default async function PortalInvoicePage({
   const customer = await requirePortalCustomer(`/portal/invoices/${id}`);
 
   const invoice = await db.invoice.findFirst({
-    where: { id, customerId: customer.id, shopId: customer.shopId },
+    where: {
+      id,
+      customerId: customer.id,
+      shopId: customer.shopId,
+      // Unsent means invisible — a draft 404s rather than rendering.
+      status: { not: "DRAFT" },
+    },
     select: {
       id: true,
       number: true,

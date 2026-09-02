@@ -307,12 +307,18 @@ async function handlePay(
     },
   } as const;
 
+  // Both lookups skip DRAFT. This route emails a customer a link to pay, and a
+  // draft is a bill the shop has not decided to send — "we could not find it"
+  // is the honest answer until it does.
   const invoice =
-    (await db.invoice.findFirst({ where: { shopId, number }, select })) ??
+    (await db.invoice.findFirst({
+      where: { shopId, number, status: { not: "DRAFT" } },
+      select,
+    })) ??
     // The number on the paper the customer kept is often the TICKET number, so
     // fall back to the newest invoice raised against that ticket.
     (await db.invoice.findFirst({
-      where: { shopId, ticket: { shopId, number } },
+      where: { shopId, ticket: { shopId, number }, status: { not: "DRAFT" } },
       orderBy: { createdAt: "desc" },
       select,
     }));

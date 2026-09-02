@@ -58,8 +58,11 @@ export async function GET(
 ) {
   const { token } = await params;
 
-  const invoice = await db.invoice.findUnique({
-    where: { publicToken: token },
+  // `findFirst`, not `findUnique`, so the DRAFT guard can ride along in the
+  // same query: a link that was copied while the document was still a draft
+  // lands on the same "invalid" page as a bad token, and mints no session.
+  const invoice = await db.invoice.findFirst({
+    where: { publicToken: token, status: { not: "DRAFT" } },
     select: { id: true, customerId: true, shopId: true },
   });
 

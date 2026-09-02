@@ -43,7 +43,13 @@ export async function generateMetadata({
   if (!session) return { title: "Invoice · RepairFlow" };
 
   const invoice = await db.invoice.findFirst({
-    where: { id, customerId: session.customerId, shopId: session.shopId },
+    where: {
+      id,
+      customerId: session.customerId,
+      shopId: session.shopId,
+      // A draft has not been sent; the customer must not learn it exists.
+      status: { not: "DRAFT" },
+    },
     select: { number: true },
   });
   return {
@@ -63,7 +69,13 @@ export default async function PortalInvoicePrintPage({
 
   const [invoice, shop] = await Promise.all([
     db.invoice.findFirst({
-      where: { id, customerId: customer.id, shopId: customer.shopId },
+      // Printing is reading: the same rule as the invoice page it prints.
+      where: {
+        id,
+        customerId: customer.id,
+        shopId: customer.shopId,
+        status: { not: "DRAFT" },
+      },
       include: {
         customer: true,
         taxRate: { select: { name: true } },
