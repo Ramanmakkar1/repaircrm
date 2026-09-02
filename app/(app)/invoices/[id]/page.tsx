@@ -24,7 +24,7 @@ import {
   defaultInvoiceSubject,
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { formatBps, formatCents } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { taxLabel } from "@/lib/tax";
 import {

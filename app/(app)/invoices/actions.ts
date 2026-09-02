@@ -9,10 +9,9 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { recordCreditSpend } from "@/lib/deposits";
 import { emitInvoiceEvent } from "@/lib/events";
 import { newRecordLocationId } from "@/lib/location";
-import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
+import { formatCents, parseCents } from "@/lib/money";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import {
   chargeCardOnFile,
