@@ -71,6 +71,10 @@ export type WizardData = {
   stripeConnected: boolean;
   /** Absolute origin of the customer portal, for the Ready card. */
   portalUrl: string;
+  /** The shop's one public link, `/s/<slug>`, for the Ready card. */
+  shopUrl: string;
+  /** Whether that link is switched on yet. */
+  shopLinkLive: boolean;
   /** Something to print, when the shop already has a ticket. */
   sampleTicket: { id: string; number: number } | null;
 };
@@ -765,6 +769,31 @@ function ReadyStep({
   return (
     <>
       <CardContent className="flex flex-col gap-4">
+        {/* The shop link leads: it is the only thing on this card that brings
+            customers in, and it is the one an owner should be copying before
+            they close the wizard. */}
+        <div className="flex flex-col gap-2 rounded-md border border-border p-4">
+          <span className="text-[15px] font-bold text-foreground">
+            Share your shop link
+          </span>
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            One link for everything: customers book a device in, check on a
+            repair, ask for a price and pay a bill from it. Put it on your
+            website and your Google listing.
+            {data.shopLinkLive
+              ? ""
+              : " Switch it on under Settings \u2192 Connect and it goes live."}
+          </p>
+          <code className="w-fit break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[12.5px] text-foreground">
+            {data.shopUrl}
+          </code>
+          <Button variant="outline" size="sm" className="w-fit" asChild>
+            <Link href="/settings?tab=connect">
+              {data.shopLinkLive ? "Shop link settings" : "Switch my link on"}
+            </Link>
+          </Button>
+        </div>
+
         <div className="flex flex-col gap-2 rounded-md border border-border p-4">
           <span className="text-[15px] font-bold text-foreground">
             Your customer portal

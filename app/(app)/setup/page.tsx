@@ -9,6 +9,7 @@ import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { OnboardingWizard, type WizardData } from "@/components/onboarding/wizard";
 import { readOnboarding, resumeStep } from "@/components/onboarding/steps";
+import { readPublicHub } from "@/components/settings/hub-meta";
 
 export const metadata = { title: "Set up your shop · RepairFlow" };
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export default async function SetupPage() {
       where: { id: session.shopId },
       select: {
         name: true,
+        slug: true,
         phone: true,
         address1: true,
         city: true,
@@ -80,6 +82,8 @@ export default async function SetupPage() {
     paymentsLive: paymentsLive(),
     stripeConnected: Boolean(shop.stripeAccountId),
     portalUrl: `${appUrl()}/portal`,
+    shopUrl: `${appUrl()}/s/${shop.slug}`,
+    shopLinkLive: readPublicHub(shop.settings).enabled,
     sampleTicket,
   };
 

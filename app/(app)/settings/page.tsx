@@ -38,6 +38,8 @@ import {
   readCheckinSettings,
   readReviewSettings,
 } from "@/components/settings/checkin-meta";
+import { readPublicHub } from "@/components/settings/hub-meta";
+import type { ConnectConfig } from "@/components/settings/connect-tab";
 import type { IntegrationsConfig } from "@/components/settings/integrations-tab";
 import type {
   MessagingConfig,
@@ -450,6 +452,50 @@ export default async function SettingsPage({
     notice: integrationNotice(params),
   };
 
+  // ------------------------------------------------------------- connect
+  // The front door. Every status on it is DERIVED from the same live data the
+  // owning tab reads — never from a stored "we think this is connected" flag —
+  // so a Stripe account that was disconnected in another tab, or an email
+  // driver that was switched off in the environment, shows up here on the next
+  // refresh without anything having to remember to update it.
+  const hub = readPublicHub(shop.settings);
+  const shopUrl = `${appUrl()}/s/${shop.slug}`;
+  const connect: ConnectConfig = {
+    hub,
+    slug: shop.slug,
+    shopUrl,
+    qrDataUrl: isOwner
+      ? await QRCode.toDataURL(shopUrl, { margin: 1, width: 320 })
+      : "",
+    appUrl: appUrl(),
+    checkinEnabled: checkin.checkin.enabled,
+    payments: {
+      connected: payments.connected,
+      live: payments.env.live,
+      // Connected is not the same as able to take money: Stripe holds charges
+      // until identity checks clear, and "Connected" alone would leave an owner
+      // wondering why their customers see declines.
+      incomplete: payments.connected && payments.account?.chargesEnabled === false,
+    },
+    readers: {
+      count: payments.readers.length,
+      online: payments.readers.filter((reader) => reader.status === "online").length,
+    },
+    messaging: {
+      emailLive: messaging.emailDriver !== "log",
+      smsLive: messaging.smsDriver !== "log",
+    },
+    accounting: {
+      connected: integrationCards.filter((card) => card.status === "connected").length,
+      error: integrationCards.filter((card) => card.status === "error").length,
+      configured: integrationCards.some((card) => card.configured),
+    },
+    developer: {
+      keyCount: apiKeys.filter((key) => key.active).length,
+      webhookCount: webhooks.filter((hook) => hook.active).length,
+    },
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -533,6 +579,7 @@ export default async function SettingsPage({
             : null,
         }))}
         integrations={integrations}
+        connect={connect}
       />
     </div>
   );
