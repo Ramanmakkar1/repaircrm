@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { InboundCard } from "./inbound-card";
 import type { MessagingConfig, PaymentsConfig } from "./types";
 
 /**
@@ -52,6 +53,8 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
       />
 
       <PaymentsCard config={config.payments} />
+
+      <InboundCard config={config.inbound} />
 
       <Card>
         <CardHeader>

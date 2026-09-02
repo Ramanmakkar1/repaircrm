@@ -8,13 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { TicketFilters } from "@/components/tickets/ticket-filters";
+import {
+  NEEDS_REPLY_FILTER,
+  TicketFilters,
+} from "@/components/tickets/ticket-filters";
 import { TicketCard } from "@/components/tickets/ticket-card";
 import {
   RESOLVED_STATUS,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
+import { needsReplyTicketIds } from "@/lib/needs-reply";
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -47,7 +51,15 @@ export default async function TicketsPage({
   // overridable from the query string.
   const where: Prisma.TicketWhereInput = { shopId };
 
-  if (status === "open") {
+  // Computed for every render, not just the filtered one: the same set draws
+  // the blue dot on each card, so one query serves both.
+  const needsReply = new Set(await needsReplyTicketIds(shopId));
+
+  if (status === NEEDS_REPLY_FILTER) {
+    // An empty `in` is a legitimate "nothing matches" rather than a no-op, so
+    // the empty state is honest when the inbox is clear.
+    where.id = { in: [...needsReply] };
+  } else if (status === "open") {
     where.status = { not: RESOLVED_STATUS };
   } else if (status !== "all") {
     where.status = status;
@@ -184,11 +196,19 @@ export default async function TicketsPage({
         <Card>
           <EmptyState
             icon={Wrench}
-            title={isFiltered ? "No tickets match those filters" : "No tickets yet"}
+            title={
+              status === NEEDS_REPLY_FILTER
+                ? "Nobody is waiting on you"
+                : isFiltered
+                  ? "No tickets match those filters"
+                  : "No tickets yet"
+            }
             hint={
-              isFiltered
-                ? "Try another status pill, or clear the filters to see everything."
-                : "Create the first ticket to start tracking a repair."
+              status === NEEDS_REPLY_FILTER
+                ? "Every customer email and text has been answered."
+                : isFiltered
+                  ? "Try another status pill, or clear the filters to see everything."
+                  : "Create the first ticket to start tracking a repair."
             }
             action={
               isFiltered ? (
@@ -210,7 +230,11 @@ export default async function TicketsPage({
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {tickets.map((ticket) => (
-              <TicketCard key={ticket.id} ticket={ticket} now={now} />
+              <TicketCard
+                key={ticket.id}
+                ticket={{ ...ticket, needsReply: needsReply.has(ticket.id) }}
+                now={now}
+              />
             ))}
           </div>
 

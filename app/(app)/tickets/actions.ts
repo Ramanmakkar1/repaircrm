@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { sendEmail, sendSms } from "@/lib/comms";
+import { emitTicketEvent } from "@/lib/events";
 import { withNextNumber } from "@/lib/sequence";
 import { parseCents } from "@/lib/money";
 import { asPriority, isResolved } from "@/components/tickets/ticket-meta";
@@ -194,6 +195,8 @@ export async function createTicketAction(
     }),
   );
 
+  await emitTicketEvent(shopId, "ticket.created", ticket.id);
+
   revalidatePath("/tickets");
   // redirect() throws to unwind — never put it inside a try/catch.
   redirect(`/tickets/${ticket.id}`);
@@ -317,6 +320,13 @@ export async function postUpdateAction(
       },
     });
   });
+
+  if (statusChanged) {
+    await emitTicketEvent(shopId, "ticket.status_changed", ticket.id);
+    if (isResolved(nextStatus)) {
+      await emitTicketEvent(shopId, "ticket.resolved", ticket.id);
+    }
+  }
 
   // Sending happens AFTER the transaction commits, never inside it: a mail
   // provider timing out must not roll back the status change and the note that

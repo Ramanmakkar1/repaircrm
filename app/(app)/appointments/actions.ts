@@ -14,6 +14,7 @@ import {
 import { requireRole, requireUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/comms";
 import { db } from "@/lib/db";
+import { emitAppointmentEvent } from "@/lib/events";
 
 /**
  * Server actions for the Appointments calendar.
@@ -317,6 +318,10 @@ export async function saveAppointmentAction(
         data: { ...data, shopId, status: "SCHEDULED" },
         select: { id: true },
       });
+
+  if (!appointmentId) {
+    await emitAppointmentEvent(shopId, "appointment.created", saved.id);
+  }
 
   // DB work first, then the message — never the other way round.
   await sendConfirmation({

@@ -24,6 +24,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { db } from "@/lib/db";
+import { emitInvoiceEvent, emitPaymentEvent } from "@/lib/events";
 import { invoiceTotals } from "@/lib/money";
 
 /** How old a signed timestamp may be. Stripe's own default. */
@@ -188,7 +189,7 @@ export async function applyCheckoutSession(
   }
 
   try {
-    return await db.$transaction(
+    const outcome = await db.$transaction(
       async (tx) => {
         // Scoped by BOTH ids. Metadata rides on an event we authenticated, but
         // it is still an id that arrived over the wire: a mismatched pair finds
@@ -271,6 +272,18 @@ export async function applyCheckoutSession(
       // of them aborts, and the caller asks Stripe to redeliver.
       { isolationLevel: "Serializable" },
     );
+
+    // Outbound webhooks fire only for the delivery that actually wrote the
+    // payment. A duplicate Stripe delivery lands on "already recorded" above
+    // and announces nothing, which is what makes this safe to run twice.
+    if (outcome.status === "recorded") {
+      await emitPaymentEvent(shopId, outcome.paymentId);
+      if (outcome.invoiceStatus === "PAID") {
+        await emitInvoiceEvent(shopId, "invoice.paid", invoiceId);
+      }
+    }
+
+    return outcome;
   } catch (error) {
     console.error("[payments] failed to apply checkout session:", error);
     return {

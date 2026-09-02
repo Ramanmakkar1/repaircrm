@@ -13,6 +13,7 @@ import {
   webhookReady,
 } from "@/lib/payments";
 import { readAutomation, recentRuns } from "@/lib/jobs";
+import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
@@ -38,7 +39,8 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
 
-  const [shop, cannedResponses, members, apiKeys] = await Promise.all([
+  const [shop, cannedResponses, members, apiKeys, webhooks, deliveries, shopCount] =
+    await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
@@ -95,7 +97,45 @@ export default async function SettingsPage({
           },
         })
       : Promise.resolve([]),
-  ]);
+      // Same reasoning again: a webhook is a standing instruction to send this
+      // shop's data somewhere, so only an owner ever loads them.
+      isOwner
+        ? db.webhook.findMany({
+            where: { shopId: session.shopId },
+            orderBy: [{ active: "desc" }, { createdAt: "desc" }],
+            select: {
+              id: true,
+              url: true,
+              events: true,
+              active: true,
+              createdAt: true,
+            },
+          })
+        : Promise.resolve([]),
+      // The last 20 attempts across every endpoint — enough to answer "did that
+      // go through?" without turning the settings page into a log viewer.
+      isOwner
+        ? db.webhookDelivery.findMany({
+            where: { shopId: session.shopId },
+            orderBy: { createdAt: "desc" },
+            take: 20,
+            select: {
+              id: true,
+              webhookId: true,
+              event: true,
+              status: true,
+              attempts: true,
+              responseCode: true,
+              lastError: true,
+              createdAt: true,
+              lastAttemptAt: true,
+            },
+          })
+        : Promise.resolve([]),
+      // Whether the single-shop inbound fallback applies — see
+      // app/api/inbound/_lib/shop.ts.
+      db.shop.count(),
+    ]);
 
   if (!shop) notFound();
 
@@ -136,6 +176,19 @@ export default async function SettingsPage({
           set: Boolean(process.env.PAYMENTS_CURRENCY?.trim()),
         },
       ],
+    },
+    // How replies come back in. Only whether each secret is populated crosses
+    // to the browser, never a value — same rule as the drivers above.
+    inbound: {
+      inboundEmail: readInboundEmail(shop.settings),
+      emailUrl: `${appUrl()}/api/inbound/email`,
+      smsUrl: `${appUrl()}/api/inbound/sms`,
+      resendSecretSet: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()),
+      inboundTokenSet: Boolean(process.env.INBOUND_SECRET?.trim()),
+      twilioTokenSet: Boolean(process.env.TWILIO_AUTH_TOKEN?.trim()),
+      twilioFrom: process.env.TWILIO_FROM?.trim() || null,
+      singleShop: shopCount <= 1,
+      canEdit: isOwner,
     },
   };
 
@@ -196,6 +249,17 @@ export default async function SettingsPage({
           ...key,
           lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,
           createdAt: key.createdAt.toISOString(),
+        }))}
+        webhooks={webhooks.map((hook) => ({
+          ...hook,
+          createdAt: hook.createdAt.toISOString(),
+        }))}
+        webhookDeliveries={deliveries.map((delivery) => ({
+          ...delivery,
+          createdAt: delivery.createdAt.toISOString(),
+          lastAttemptAt: delivery.lastAttemptAt
+            ? delivery.lastAttemptAt.toISOString()
+            : null,
         }))}
       />
     </div>

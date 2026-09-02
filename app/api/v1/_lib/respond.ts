@@ -6,7 +6,8 @@ import type { ZodError } from "zod";
  *
  * Every collection answers with the same envelope:
  *
- *     { "data": [...], "page": 1, "totalPages": 3, "total": 118 }
+ *     { "data": [...], "page": 1, "totalPages": 3, "total": 118,
+ *       "next_cursor": "eyJ0Ijoi…" }
  *
  * and every single resource with `{ "data": { ... } }`. Consumers can therefore
  * write one unwrapper. Errors are always
@@ -20,21 +21,36 @@ import type { ZodError } from "zod";
  * payload in v1, never removed or retyped. A consumer that reads `data[].id`
  * today must still read it in a year.
  *
- * NOT IMPLEMENTED (future work, called out rather than half-built):
- *   - rate limiting / quotas per key
- *   - CORS headers (the API is server-to-server today; no browser origin is
- *     allowed, which is the safe default rather than an oversight)
- *   - cursor pagination for large collections
- *   - webhooks
+ * CORS is open (`*`) on every v1 response, with no credentials: the only
+ * credential this API accepts is a bearer key the browser has to be given
+ * explicitly, so `Access-Control-Allow-Origin: *` cannot be used to ride a
+ * cookie the way it could on a session-authenticated endpoint. The rate-limit
+ * headers are named in `Access-Control-Expose-Headers` so a browser client can
+ * actually read its own budget.
  */
 
 export const PAGE_SIZE = 50;
+
+/** Sent on EVERY v1 response, including preflights and errors. */
+export const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Expose-Headers":
+    "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After",
+  "Access-Control-Max-Age": "86400",
+};
+
+function baseHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { ...CORS_HEADERS, "Cache-Control": "no-store", ...extra };
+}
 
 export type ErrorCode =
   | "unauthorized"
   | "forbidden"
   | "not_found"
   | "invalid_request"
+  | "rate_limited"
   | "server_error";
 
 const STATUS: Record<ErrorCode, number> = {
@@ -42,13 +58,18 @@ const STATUS: Record<ErrorCode, number> = {
   forbidden: 403,
   not_found: 404,
   invalid_request: 400,
+  rate_limited: 429,
   server_error: 500,
 };
 
-export function apiError(code: ErrorCode, message: string): NextResponse {
+export function apiError(
+  code: ErrorCode,
+  message: string,
+  headers?: Record<string, string>,
+): NextResponse {
   return NextResponse.json(
     { error: { code, message } },
-    { status: STATUS[code], headers: { "Cache-Control": "no-store" } },
+    { status: STATUS[code], headers: baseHeaders(headers) },
   );
 }
 
@@ -64,7 +85,7 @@ export function zodError(error: ZodError): NextResponse {
 
 export function apiList<T>(
   data: T[],
-  meta: { page: number; total: number },
+  meta: { page: number; total: number; nextCursor?: string | null },
 ): NextResponse {
   return NextResponse.json(
     {
@@ -72,16 +93,16 @@ export function apiList<T>(
       page: meta.page,
       totalPages: Math.max(1, Math.ceil(meta.total / PAGE_SIZE)),
       total: meta.total,
+      // Present on every list, null when this is the last page. A client that
+      // follows `next_cursor` never has to think about page numbers at all.
+      next_cursor: meta.nextCursor ?? null,
     },
-    { headers: { "Cache-Control": "no-store" } },
+    { headers: baseHeaders() },
   );
 }
 
 export function apiItem<T>(data: T, status = 200): NextResponse {
-  return NextResponse.json(
-    { data },
-    { status, headers: { "Cache-Control": "no-store" } },
-  );
+  return NextResponse.json({ data }, { status, headers: baseHeaders() });
 }
 
 /** `?page=` -> a 1-based page number. Junk and out-of-range collapse to 1. */
@@ -115,4 +136,16 @@ export async function readJson(
       response: apiError("invalid_request", "Body must be valid JSON."),
     };
   }
+}
+
+/**
+ * A PATCH body that names no known field is refused rather than silently
+ * treated as a no-op — "nothing happened and we said 200" is the hardest kind
+ * of integration bug to find.
+ */
+export function noFieldsError(fields: readonly string[]): NextResponse {
+  return apiError(
+    "invalid_request",
+    `Send at least one field to change: ${fields.join(", ")}.`,
+  );
 }

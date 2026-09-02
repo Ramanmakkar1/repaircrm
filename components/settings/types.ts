@@ -111,6 +111,7 @@ export type MessagingConfig = {
   emailVars: { name: string; set: boolean }[];
   smsVars: { name: string; set: boolean }[];
   payments: PaymentsConfig;
+  inbound: InboundConfig;
 };
 
 /**
@@ -133,4 +134,65 @@ export type PaymentsConfig = {
   /** The endpoint to register in the Stripe dashboard. */
   webhookUrl: string;
   vars: { name: string; set: boolean }[];
+};
+
+/**
+ * An outbound webhook endpoint as the settings screen sees it.
+ *
+ * There is no `secret` here. Unlike an API key the secret IS stored in the
+ * clear (the server has to sign every delivery with it), but it still crosses
+ * to the browser exactly once — in the response to the create action — and
+ * never again. A "reveal" affordance would put it in every page render.
+ */
+export type WebhookItem = {
+  id: string;
+  url: string;
+  /** Event names, or the single entry "*". */
+  events: string[];
+  active: boolean;
+  createdAt: string;
+};
+
+/** The one place the signing secret is ever handed back. */
+export type CreateWebhookResult =
+  | { ok: true; secret: string; item: WebhookItem }
+  | { ok: false; error: string };
+
+/** One delivery attempt, for the recent-activity table. */
+export type WebhookDeliveryItem = {
+  id: string;
+  webhookId: string;
+  event: string;
+  /** "pending" | "delivered" | "failed" */
+  status: string;
+  attempts: number;
+  responseCode: number | null;
+  lastError: string | null;
+  createdAt: string;
+  lastAttemptAt: string | null;
+};
+
+/**
+ * Inbound email/SMS configuration, as the Messaging tab sees it.
+ *
+ * `inboundEmail` is the shop's own choice (stored in `Shop.settings`); the
+ * flags are read from `process.env` on the server and only their presence
+ * crosses to the browser, never a value.
+ */
+export type InboundConfig = {
+  /** The address customers reply to, matched against a webhook's `to`. */
+  inboundEmail: string;
+  emailUrl: string;
+  smsUrl: string;
+  /** True once RESEND_WEBHOOK_SECRET is set — signature checking is on. */
+  resendSecretSet: boolean;
+  /** True once INBOUND_SECRET is set — the generic ?token= route works. */
+  inboundTokenSet: boolean;
+  /** True once TWILIO_AUTH_TOKEN is set — without it SMS is refused outright. */
+  twilioTokenSet: boolean;
+  /** The number Twilio delivers to, used to resolve which shop a text is for. */
+  twilioFrom: string | null;
+  /** Whether this deployment has more than one shop (changes the fallback). */
+  singleShop: boolean;
+  canEdit: boolean;
 };

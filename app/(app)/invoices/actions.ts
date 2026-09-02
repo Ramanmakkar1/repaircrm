@@ -7,8 +7,14 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
+import { emitInvoiceEvent } from "@/lib/events";
+import { formatCents, parseCents } from "@/lib/money";
 import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
+import {
+  PAYMENT_METHODS,
+  recordPayment,
+  type PaymentMethodName,
+} from "@/lib/payments/record";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
 import {
@@ -147,6 +153,8 @@ export async function createInvoiceAction(
     })
   );
 
+  await emitInvoiceEvent(shopId, "invoice.created", invoice.id);
+
   revalidatePath("/invoices");
   redirect(`/invoices/${invoice.id}`);
 }
@@ -211,93 +219,31 @@ export async function takePaymentAction(
 ): Promise<FormState> {
   const { shopId, userId } = await requireUser();
 
-  const invoiceId = String(formData.get("invoiceId") ?? "");
-  const invoice = await db.invoice.findFirst({
-    where: { id: invoiceId, shopId },
-    include: { lines: true, payments: true },
-  });
-  if (!invoice) return formError("That invoice no longer exists.");
-  if (invoice.status === "VOID") {
-    return formError("This invoice is void — it cannot take payments.");
-  }
-
   const method = String(formData.get("method") ?? "CARD").toUpperCase();
-  if (!["CASH", "CARD", "CHECK", "OTHER", "CREDIT"].includes(method)) {
+  if (!PAYMENT_METHODS.includes(method as PaymentMethodName)) {
     return formError("Pick a payment method.");
   }
 
-  const amountCents = parseCents(String(formData.get("amount") ?? ""));
-  if (amountCents <= 0) return formError("Enter an amount greater than zero.");
+  // The settlement itself — credit draw-down, payment row, invoice restatement
+  // and the outbound events — lives in lib/payments/record.ts, because
+  // POST /api/v1/payments has to do exactly the same thing and two copies of
+  // "what does taking money mean" is how a till and an API start disagreeing.
+  const result = await recordPayment({
+    shopId,
+    invoiceId: String(formData.get("invoiceId") ?? ""),
+    amountCents: parseCents(String(formData.get("amount") ?? "")),
+    method: method as PaymentMethodName,
+    reference: String(formData.get("reference") ?? "").trim() || null,
+    takenById: userId,
+  });
 
-  const totals = invoiceTotals(
-    invoice.lines,
-    invoice.taxRateBps,
-    invoice.payments
-  );
-  if (totals.totalCents <= 0) {
-    return formError("Add line items before taking a payment.");
-  }
-  if (amountCents > totals.balanceCents) {
-    return formError(
-      `That is more than the ${formatCents(totals.balanceCents)} still outstanding.`
-    );
-  }
-
-  const reference = String(formData.get("reference") ?? "").trim() || null;
-  const balanceAfter = totals.balanceCents - amountCents;
-  const nextStatus = balanceAfter <= 0 ? "PAID" : "PARTIAL";
-
-  try {
-    await db.$transaction(async (tx) => {
-      // Store credit is real money already held for the customer, so drawing it
-      // down and writing the payment must succeed or fail together.
-      if (method === "CREDIT") {
-        const customer = await tx.customer.findFirst({
-          where: { id: invoice.customerId, shopId },
-          select: { id: true, creditBalanceCents: true },
-        });
-        if (!customer) throw new Error("Customer not found.");
-        if (customer.creditBalanceCents < amountCents) {
-          throw new Error(
-            `Only ${formatCents(customer.creditBalanceCents)} of store credit is available.`
-          );
-        }
-        await tx.customer.update({
-          where: { id: customer.id },
-          data: { creditBalanceCents: { decrement: amountCents } },
-        });
-      }
-
-      await tx.payment.create({
-        data: {
-          shopId,
-          invoiceId: invoice.id,
-          amountCents,
-          method: method as "CASH" | "CARD" | "CHECK" | "OTHER" | "CREDIT",
-          reference,
-          takenById: userId,
-        },
-      });
-
-      await tx.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          status: nextStatus,
-          paidAt: balanceAfter <= 0 ? new Date() : null,
-        },
-      });
-    });
-  } catch (error) {
-    return formError(
-      error instanceof Error ? error.message : "Could not record that payment."
-    );
-  }
+  if (!result.ok) return formError(result.error);
 
   revalidatePath("/invoices");
-  revalidatePath(`/invoices/${invoice.id}`);
+  revalidatePath(`/invoices/${String(formData.get("invoiceId") ?? "")}`);
   // `settled` rides along so the dialog can offer to email a receipt the moment
   // the invoice clears. Additive: every other caller ignores it.
-  return { ...formSuccess(), settled: nextStatus === "PAID" };
+  return { ...formSuccess(), settled: result.settled };
 }
 
 // ---------------------------------------------------------------------------
@@ -537,6 +483,8 @@ export async function voidInvoiceAction(formData: FormData): Promise<void> {
     where: { id: invoice.id },
     data: { status: "VOID", paidAt: null },
   });
+
+  await emitInvoiceEvent(shopId, "invoice.voided", invoice.id);
 
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoice.id}`);

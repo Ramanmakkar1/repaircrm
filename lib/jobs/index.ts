@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
 import { purgeExpiredPortalTokens } from "./housekeeping";
 import { runDueRecurringInvoicesForShop } from "./recurring";
+import { runDueWebhookDeliveries } from "./webhooks";
 import {
   emptySummary,
   summaryLine,
@@ -18,14 +19,16 @@ export { summaryLine };
 /**
  * The automation runner: the one place that decides what runs unattended.
  *
- * Three jobs, per shop, in this order:
+ * Four jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
  *                          date has arrived (lib/jobs/recurring.ts)
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
- *   3. housekeeping        drop portal tokens expired for over a week
+ *   3. webhooks            POST every queued delivery that is due, with
+ *                          signature and backoff (lib/jobs/webhooks.ts)
+ *   4. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -303,7 +306,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   return summary;
 }
 
-/** All three jobs for one shop. Each is isolated so one failure is not three. */
+/** All four jobs for one shop. Each is isolated so one failure is not four. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
@@ -331,6 +334,17 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`campaigns: ${message(error)}`);
+  }
+
+  try {
+    // Outbound webhooks: drain what emitEvent queued, with their own retries
+    // and backoff. Isolated like everything else — a shop whose endpoint is
+    // down must not stop the next shop's billing.
+    const hooks = await runDueWebhookDeliveries(shopId);
+    summary.webhooks.delivered += hooks.delivered;
+    summary.webhooks.failed += hooks.failed;
+  } catch (error) {
+    summary.errors.push(`webhooks: ${message(error)}`);
   }
 
   try {

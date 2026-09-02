@@ -323,3 +323,217 @@ export function serialiseInvoiceDetail(invoice: InvoiceRow) {
     })),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Product
+// ---------------------------------------------------------------------------
+
+/**
+ * `costCents` IS published. It is the shop's own buy price, and the caller is
+ * the shop — an inventory sync that cannot see cost cannot reconcile a purchase
+ * order. It is never rendered on anything a customer can reach.
+ */
+export const productSelect = {
+  id: true,
+  name: true,
+  sku: true,
+  upc: true,
+  description: true,
+  priceCents: true,
+  costCents: true,
+  taxable: true,
+  stockQty: true,
+  lowStockAt: true,
+  category: true,
+  active: true,
+  serialized: true,
+  warrantyDays: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductSelect;
+
+type ProductRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
+
+export function serialiseProduct(product: ProductRow) {
+  return {
+    ...product,
+    createdAt: product.createdAt.toISOString(),
+    updatedAt: product.updatedAt.toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Payment
+// ---------------------------------------------------------------------------
+
+/**
+ * `takenBy` is a name, never an email — same rule as a ticket's assignee. The
+ * Stripe ids are included because an accounting integration reconciling a
+ * payout needs them, and they identify a transaction rather than a person.
+ */
+export const paymentSelect = {
+  id: true,
+  invoiceId: true,
+  amountCents: true,
+  method: true,
+  reference: true,
+  stripePaymentIntentId: true,
+  stripeSource: true,
+  createdAt: true,
+  takenBy: { select: { name: true } },
+  invoice: { select: { number: true, customerId: true, status: true } },
+} satisfies Prisma.PaymentSelect;
+
+type PaymentRow = Prisma.PaymentGetPayload<{ select: typeof paymentSelect }>;
+
+export function serialisePayment(payment: PaymentRow) {
+  return {
+    id: payment.id,
+    invoiceId: payment.invoiceId,
+    invoiceNumber: payment.invoice.number,
+    invoiceStatus: payment.invoice.status,
+    customerId: payment.invoice.customerId,
+    amountCents: payment.amountCents,
+    method: payment.method,
+    reference: payment.reference,
+    stripePaymentIntentId: payment.stripePaymentIntentId,
+    stripeSource: payment.stripeSource,
+    takenByName: payment.takenBy?.name ?? null,
+    createdAt: payment.createdAt.toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Estimate
+// ---------------------------------------------------------------------------
+
+/**
+ * `publicToken` is NOT serialised. It is a bearer credential for the customer
+ * portal — anyone holding it can read that estimate without signing in — and an
+ * API that hands it out has turned a per-customer link into a shop-wide one.
+ */
+export const estimateSelect = {
+  id: true,
+  number: true,
+  status: true,
+  customerId: true,
+  ticketId: true,
+  taxRateBps: true,
+  notes: true,
+  expiresAt: true,
+  approvedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  lines: {
+    orderBy: [{ sortOrder: "asc" }],
+    select: {
+      id: true,
+      productId: true,
+      description: true,
+      quantity: true,
+      unitPriceCents: true,
+      taxable: true,
+      sortOrder: true,
+    },
+  },
+} satisfies Prisma.EstimateSelect;
+
+type EstimateRow = Prisma.EstimateGetPayload<{ select: typeof estimateSelect }>;
+
+export function serialiseEstimate(estimate: EstimateRow) {
+  // An estimate has no payments, so the totals are lines + tax only.
+  const totals = invoiceTotals(estimate.lines, estimate.taxRateBps, []);
+  return {
+    id: estimate.id,
+    number: estimate.number,
+    status: estimate.status,
+    customerId: estimate.customerId,
+    ticketId: estimate.ticketId,
+    taxRateBps: estimate.taxRateBps,
+    notes: estimate.notes,
+    expiresAt: iso(estimate.expiresAt),
+    approvedAt: iso(estimate.approvedAt),
+    createdAt: estimate.createdAt.toISOString(),
+    updatedAt: estimate.updatedAt.toISOString(),
+    totals: {
+      subtotalCents: totals.subtotalCents,
+      taxCents: totals.taxCents,
+      totalCents: totals.totalCents,
+    },
+    lines: estimate.lines.map((line) => ({
+      ...line,
+      amountCents: line.quantity * line.unitPriceCents,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Lead
+// ---------------------------------------------------------------------------
+
+export const leadSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phone: true,
+  source: true,
+  message: true,
+  status: true,
+  customerId: true,
+  ticketId: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.LeadSelect;
+
+type LeadRow = Prisma.LeadGetPayload<{ select: typeof leadSelect }>;
+
+export function serialiseLead(lead: LeadRow) {
+  return {
+    ...lead,
+    createdAt: lead.createdAt.toISOString(),
+    updatedAt: lead.updatedAt.toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Appointment
+// ---------------------------------------------------------------------------
+
+export const appointmentSelect = {
+  id: true,
+  title: true,
+  notes: true,
+  status: true,
+  customerId: true,
+  ticketId: true,
+  assignedToId: true,
+  locationId: true,
+  startsAt: true,
+  endsAt: true,
+  createdAt: true,
+  updatedAt: true,
+  assignedTo: { select: { id: true, name: true } },
+} satisfies Prisma.AppointmentSelect;
+
+type AppointmentRow = Prisma.AppointmentGetPayload<{
+  select: typeof appointmentSelect;
+}>;
+
+export function serialiseAppointment(appointment: AppointmentRow) {
+  return {
+    id: appointment.id,
+    title: appointment.title,
+    notes: appointment.notes,
+    status: appointment.status,
+    customerId: appointment.customerId,
+    ticketId: appointment.ticketId,
+    locationId: appointment.locationId,
+    assignedTo: appointment.assignedTo
+      ? { id: appointment.assignedTo.id, name: appointment.assignedTo.name }
+      : null,
+    startsAt: appointment.startsAt.toISOString(),
+    endsAt: appointment.endsAt.toISOString(),
+    createdAt: appointment.createdAt.toISOString(),
+    updatedAt: appointment.updatedAt.toISOString(),
+  };
+}

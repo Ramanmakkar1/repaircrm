@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarClock,
   CircleDollarSign,
+  MessageSquare,
   Receipt,
   Wrench,
   type LucideIcon,
@@ -18,6 +19,8 @@ import { TicketCard } from "@/components/tickets/ticket-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
+import { needsReplyTicketIds } from "@/lib/needs-reply";
+import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +37,14 @@ export default async function DashboardPage() {
   const { shopId } = await requireUser();
   const now = new Date();
 
-  const [statusGroups, dueToday, monthPayments, unpaidCandidates, recentTickets] =
-    await Promise.all([
+  const [
+    statusGroups,
+    dueToday,
+    monthPayments,
+    unpaidCandidates,
+    recentTickets,
+    awaitingReply,
+  ] = await Promise.all([
       db.ticket.groupBy({
         by: ["status"],
         where: { shopId },
@@ -66,6 +75,9 @@ export default async function DashboardPage() {
           asset: { select: { type: true, make: true, model: true } },
         },
       }),
+      // Customers who wrote in and have not been answered — see
+      // lib/needs-reply.ts for what "answered" means.
+      needsReplyTicketIds(shopId),
     ]);
 
   const statusCounts = new Map(statusGroups.map((g) => [g.status, g._count._all]));
@@ -108,6 +120,14 @@ export default async function DashboardPage() {
       tint: "bg-status-in-progress-bg text-status-in-progress-fg",
     },
     {
+      label: "Customer Replies",
+      value: String(awaitingReply.length),
+      hint: "waiting on an answer",
+      href: `/tickets?status=${NEEDS_REPLY_FILTER}`,
+      icon: MessageSquare,
+      tint: "bg-accent-soft text-accent-soft-foreground",
+    },
+    {
       label: "Unpaid Invoices",
       value: String(unpaidCandidates.length),
       hint: `${formatCents(unpaidBalanceCents)} outstanding`,
@@ -141,7 +161,7 @@ export default async function DashboardPage() {
       />
 
       {/* The four numbers that answer "how is today going?" */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => (
           <Link
             key={stat.label}

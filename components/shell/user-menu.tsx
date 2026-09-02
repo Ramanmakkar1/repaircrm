@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { InstallAppItem } from "@/components/pwa/install-app-item";
 
 export interface CurrentUser {
   name: string;
@@ -51,6 +52,9 @@ export function UserMenu({ user }: { user: CurrentUser }) {
             Profile
           </Link>
         </DropdownMenuItem>
+        {/* Renders only once the browser has told us an install is possible —
+            see components/pwa/install-app-item.tsx. */}
+        <InstallAppItem />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="text-destructive focus:text-destructive">
           <form action="/logout" method="post" className="contents">

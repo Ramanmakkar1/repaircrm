@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { DEFAULT_WEB_SOURCE } from "@/components/leads/lead-meta";
 import { db } from "@/lib/db";
+import { emitLeadEvent } from "@/lib/events";
 
 /**
  * PUBLIC lead capture — the backend for the embeddable "request a quote" form.
@@ -144,7 +145,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return fail(400, "An email address or a phone number is required.");
   }
 
-  await db.lead.create({
+  const lead = await db.lead.create({
     data: {
       shopId: shop.id,
       name: input.name,
@@ -154,7 +155,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       source: input.source || DEFAULT_WEB_SOURCE,
       status: "NEW",
     },
+    select: { id: true },
   });
+
+  await emitLeadEvent(shop.id, "lead.created", lead.id);
 
   return ok();
 }

@@ -17,6 +17,8 @@ import type {
   MessagingConfig,
   ShopSettingsValues,
   TeamMember,
+  WebhookDeliveryItem,
+  WebhookItem,
 } from "./types";
 
 /**
@@ -42,6 +44,8 @@ export function SettingsTabs({
   members,
   messaging,
   apiKeys,
+  webhooks,
+  webhookDeliveries,
   automation,
 }: {
   role: string;
@@ -55,6 +59,9 @@ export function SettingsTabs({
   messaging: MessagingConfig;
   /** Owner-only; empty for everyone else because the query never ran. */
   apiKeys: ApiKeyItem[];
+  /** Owner-only, for the same reason: where this shop's data is sent. */
+  webhooks: WebhookItem[];
+  webhookDeliveries: WebhookDeliveryItem[];
   /** Owner-only; scheduler state and the last automation run. */
   automation: AutomationConfig;
 }) {
@@ -136,7 +143,12 @@ export function SettingsTabs({
 
       {isOwner ? (
         <TabsContent value="api-keys">
-          <ApiKeysTab keys={apiKeys} appUrl={messaging.appUrl} />
+          <ApiKeysTab
+            keys={apiKeys}
+            appUrl={messaging.appUrl}
+            webhooks={webhooks}
+            deliveries={webhookDeliveries}
+          />
         </TabsContent>
       ) : null}
     </Tabs>
