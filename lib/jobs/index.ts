@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
 import { purgeExpiredPortalTokens } from "./housekeeping";
 import { runDueRecurringInvoicesForShop } from "./recurring";
+import { runSlaChecksForShop } from "./sla";
 import {
   emptySummary,
   summaryLine,
@@ -25,7 +26,9 @@ export { summaryLine };
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
- *   3. housekeeping        drop portal tokens expired for over a week
+ *   3. SLA                 stamp every open ticket that has run past its due
+ *                          date and alert whoever owns it (lib/jobs/sla.ts)
+ *   4. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -303,7 +306,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   return summary;
 }
 
-/** All three jobs for one shop. Each is isolated so one failure is not three. */
+/** All four jobs for one shop. Each is isolated so one failure is not four. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
@@ -331,6 +334,17 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`campaigns: ${message(error)}`);
+  }
+
+  try {
+    const sla = await runSlaChecksForShop(shopId);
+    summary.sla.breached += sla.breached;
+    summary.sla.notified += sla.notified;
+    for (const error of sla.errors) {
+      summary.errors.push(`sla: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`sla: ${message(error)}`);
   }
 
   try {

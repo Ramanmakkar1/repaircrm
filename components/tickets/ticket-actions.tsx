@@ -31,7 +31,7 @@ import {
   updateTicketAction,
 } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE, type ActionState } from "./action-state";
-import type { Option } from "./ticket-form";
+import type { Option, WarrantyOption } from "./ticket-form";
 import { PRIORITIES, PRIORITY_META } from "./ticket-meta";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +45,8 @@ export type TicketEditValues = {
   /** Pre-formatted yyyy-MM-dd so the date input doesn't re-parse a timestamp. */
   dueDate: string;
   diagnosticNotes: string;
+  /** The warranted line this ticket claims against, if any. */
+  warrantyInvoiceLineId?: string | null;
 };
 
 export function EditTicketDialog({
@@ -53,12 +55,15 @@ export function EditTicketDialog({
   problemTypes,
   techs,
   assets,
+  warranties = [],
 }: {
   ticketId: string;
   values: TicketEditValues;
   problemTypes: string[];
   techs: Option[];
   assets: Option[];
+  /** This customer's still-live warranted purchases. Empty hides the field. */
+  warranties?: WarrantyOption[];
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -195,6 +200,39 @@ export function EditTicketDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Warranty claim. The already-claimed line stays selectable even
+              once its cover has lapsed, so saving an old claim cannot silently
+              drop it. */}
+          {warranties.length > 0 || values.warrantyInvoiceLineId ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="edit-warranty">Warranty claim</Label>
+              <Select
+                name="warrantyInvoiceLineId"
+                defaultValue={values.warrantyInvoiceLineId ?? "none"}
+              >
+                <SelectTrigger id="edit-warranty">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="none">Not a warranty job</SelectItem>
+                  {values.warrantyInvoiceLineId &&
+                  !warranties.some(
+                    (w) => w.value === values.warrantyInvoiceLineId,
+                  ) ? (
+                    <SelectItem value={values.warrantyInvoiceLineId}>
+                      Current claim (cover has lapsed)
+                    </SelectItem>
+                  ) : null}
+                  {warranties.map((warranty) => (
+                    <SelectItem key={warranty.value} value={warranty.value}>
+                      {warranty.label} · {warranty.hint}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-notes">Diagnostic notes</Label>

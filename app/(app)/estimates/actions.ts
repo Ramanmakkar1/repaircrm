@@ -7,7 +7,9 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { estimateMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
+import { newRecordLocationId } from "@/lib/location";
 import { calcTotals } from "@/lib/money";
+import { warrantyDaysByProduct } from "@/lib/warranty";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
 import {
@@ -516,7 +518,7 @@ export async function declineEstimateAction(formData: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function convertEstimateAction(formData: FormData): Promise<void> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const id = String(formData.get("id") ?? "");
   const estimate = await db.estimate.findFirst({
@@ -525,6 +527,14 @@ export async function convertEstimateAction(formData: FormData): Promise<void> {
   });
   if (!estimate || !CONVERTIBLE.includes(estimate.status)) return;
   if (estimate.lines.length === 0) return;
+
+  const locationId = await newRecordLocationId(shopId, userId);
+  // Warranty is snapshotted at INVOICE time, not estimate time: an estimate is
+  // not a sale, and cover starts when the customer actually buys.
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    estimate.lines.map((line) => line.productId),
+  );
 
   // The invoice is created first: if numbering or the write fails, the estimate
   // is left untouched and convertible, rather than marked CONVERTED with no
@@ -536,6 +546,7 @@ export async function convertEstimateAction(formData: FormData): Promise<void> {
         customerId: estimate.customerId,
         ticketId: estimate.ticketId,
         estimateId: estimate.id,
+        locationId,
         number,
         status: "DRAFT",
         // Carry the estimate's snapshotted rate, not today's shop setting —
@@ -549,6 +560,9 @@ export async function convertEstimateAction(formData: FormData): Promise<void> {
             quantity: line.quantity,
             unitPriceCents: line.unitPriceCents,
             taxable: line.taxable,
+            warrantyDays: line.productId
+              ? (warranty.get(line.productId) ?? null)
+              : null,
             sortOrder: index,
           })),
         },

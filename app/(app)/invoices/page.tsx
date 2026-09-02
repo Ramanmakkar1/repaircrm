@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,8 +39,8 @@ export default async function InvoicesPage({
   const customerId = typeof params.customerId === "string" ? params.customerId : "";
   const page = Math.max(1, Number.parseInt(String(params.page ?? "1"), 10) || 1);
 
-  // Tenant boundary first, then the user's filters on top of it.
-  const where: Prisma.InvoiceWhereInput = { shopId };
+  // Tenant boundary first, then the branch on screen, then the user's filters.
+  const where: Prisma.InvoiceWhereInput = { shopId, ...(await locationWhere()) };
   if (status) where.status = status as Prisma.InvoiceWhereInput["status"];
   if (customerId) where.customerId = customerId;
 

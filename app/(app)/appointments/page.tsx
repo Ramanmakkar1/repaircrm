@@ -30,6 +30,7 @@ import { cn } from "@/components/ui/cn";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { locationWhere } from "@/lib/location";
 
 export const metadata: Metadata = { title: "Appointments · RepairFlow" };
 
@@ -83,10 +84,14 @@ export default async function AppointmentsPage({
     location: { select: { id: true, name: true } },
   } as const;
 
+  // The calendar follows the top-bar branch: a second store's bookings are
+  // somebody else's day.
+  const branch = await locationWhere();
+
   const [appointments, todayRows, customers, tickets, techs, locations, editing] =
     await Promise.all([
       db.appointment.findMany({
-        where: { shopId, startsAt: { gte: rangeStart, lte: rangeEnd } },
+        where: { shopId, ...branch, startsAt: { gte: rangeStart, lte: rangeEnd } },
         orderBy: { startsAt: "asc" },
         select,
       }),
@@ -94,6 +99,7 @@ export default async function AppointmentsPage({
       db.appointment.findMany({
         where: {
           shopId,
+          ...branch,
           startsAt: { gte: startOfDay(now), lte: endOfDay(now) },
           status: { not: "CANCELED" },
         },
@@ -118,7 +124,7 @@ export default async function AppointmentsPage({
         select: { id: true, name: true },
       }),
       db.location.findMany({
-        where: { shopId },
+        where: { shopId, active: true },
         orderBy: { name: "asc" },
         select: { id: true, name: true },
       }),

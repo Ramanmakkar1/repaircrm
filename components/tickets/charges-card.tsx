@@ -30,11 +30,14 @@ export function ChargesCard({
   charges,
   products,
   taxRateBps,
+  warranty = false,
 }: {
   ticketId: string;
   charges: ChargeRow[];
   products: ProductOption[];
   taxRateBps: number;
+  /** Warranty job: new charges start at $0, since the work is already paid for. */
+  warranty?: boolean;
 }) {
   const totals = calcTotals(charges, taxRateBps);
   const uninvoiced = charges.filter((charge) => charge.invoiceId === null);
@@ -47,6 +50,7 @@ export function ChargesCard({
         <ChargeDialog
           ticketId={ticketId}
           products={products}
+          warranty={warranty}
           trigger={
             <Button variant="outline" size="sm">
               <Plus className="size-4" />

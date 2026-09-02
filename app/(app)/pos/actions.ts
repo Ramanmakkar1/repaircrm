@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth";
+import { newRecordLocationId } from "@/lib/location";
 import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
 import { performCheckout } from "./checkout";
 
@@ -19,7 +20,11 @@ import { performCheckout } from "./checkout";
 export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResult> {
   const { shopId, userId } = await requireUser();
 
-  const result = await performCheckout({ shopId, userId }, input);
+  // The branch stamped on the sale comes from the session too — the register
+  // is standing somewhere, and the payload does not get a say in where.
+  const locationId = await newRecordLocationId(shopId, userId);
+
+  const result = await performCheckout({ shopId, userId, locationId }, input);
 
   if (result.ok) {
     // Stock moved and a paid invoice exists, so every screen that counts either

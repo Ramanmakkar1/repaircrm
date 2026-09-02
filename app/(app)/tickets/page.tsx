@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { endOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus, Wrench } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { checklistProgress, parseChecklist } from "@/lib/checklist";
+import { locationWhere } from "@/lib/location";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -39,13 +42,20 @@ export default async function TicketsPage({
   const tech = one(params.tech, "all");
   const problemType = one(params.problemType, "all");
   const sort = one(params.sort, "created");
+  const due = one(params.due, "all");
   const customerId = one(params.customerId, "");
   const page = Math.max(1, Number.parseInt(one(params.page, "1"), 10) || 1);
 
   // ------------------------------------------------------------- filters ---
   // Every branch narrows an already shop-scoped `where`; shopId is never
   // overridable from the query string.
-  const where: Prisma.TicketWhereInput = { shopId };
+  // The branch on screen, when one is selected. `locationWhere()` re-validates
+  // the cookie against this shop, so it can only ever narrow to our own rows.
+  const where: Prisma.TicketWhereInput = { shopId, ...(await locationWhere()) };
+
+  // One request-time clock: the due filters below and every card in the render
+  // must agree on where "now" is.
+  const requestNow = new Date();
 
   if (status === "open") {
     where.status = { not: RESOLVED_STATUS };
@@ -65,6 +75,16 @@ export default async function TicketsPage({
 
   if (customerId) {
     where.customerId = customerId;
+  }
+
+  // Due filters only ever mean anything for work that is still open, so they
+  // exclude resolved tickets regardless of which status pill is lit.
+  if (due === "overdue") {
+    where.dueDate = { lt: requestNow };
+    where.status = { not: RESOLVED_STATUS };
+  } else if (due === "today") {
+    where.dueDate = { gte: requestNow, lte: endOfDay(requestNow) };
+    where.status = { not: RESOLVED_STATUS };
   }
 
   if (q) {
@@ -114,6 +134,7 @@ export default async function TicketsPage({
         dueDate: true,
         createdAt: true,
         updatedAt: true,
+        checklist: true,
         customer: {
           select: { firstName: true, lastName: true, businessName: true },
         },
@@ -134,14 +155,14 @@ export default async function TicketsPage({
   // Single request-time clock, so every row in this render is measured against
   // the same instant. eslint-disable: react-hooks/purity targets Client
   // Components; this is a Server Component that renders once per request.
-  // eslint-disable-next-line react-hooks/purity
-  const now = Date.now();
+  const now = requestNow.getTime();
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltered =
     q !== "" ||
     status !== "open" ||
     tech !== "all" ||
     problemType !== "all" ||
+    due !== "all" ||
     customerId !== "";
 
   // Preserve the active filters when paging.
@@ -152,6 +173,7 @@ export default async function TicketsPage({
     if (tech !== "all") sp.set("tech", tech);
     if (problemType !== "all") sp.set("problemType", problemType);
     if (sort !== "created") sp.set("sort", sort);
+    if (due !== "all") sp.set("due", due);
     if (customerId) sp.set("customerId", customerId);
     if (target > 1) sp.set("page", String(target));
     const qs = sp.toString();
@@ -174,7 +196,7 @@ export default async function TicketsPage({
       />
 
       <TicketFilters
-        values={{ q, status, tech, problemType, sort }}
+        values={{ q, status, tech, problemType, sort, due }}
         statuses={ticketStatuses(shop?.settings)}
         problemTypes={problems.map((p) => p.problemType)}
         techs={techs}
@@ -210,7 +232,14 @@ export default async function TicketsPage({
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {tickets.map((ticket) => (
-              <TicketCard key={ticket.id} ticket={ticket} now={now} />
+              <TicketCard
+                key={ticket.id}
+                ticket={{
+                  ...ticket,
+                  checklist: checklistProgress(parseChecklist(ticket.checklist)),
+                }}
+                now={now}
+              />
             ))}
           </div>
 

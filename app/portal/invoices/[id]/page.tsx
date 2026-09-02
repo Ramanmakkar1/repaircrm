@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { requirePortalCustomer } from "@/lib/portal-session";
+import { warrantyLabel } from "@/lib/warranty";
 import { PayOnlineButton } from "../../_components/pay-online";
 import {
   BackLink,
@@ -62,6 +63,7 @@ export default async function PortalInvoicePage({
           unitPriceCents: true,
           taxable: true,
           serial: true,
+          warrantyDays: true,
         },
       },
       payments: {
@@ -216,6 +218,11 @@ export default async function PortalInvoicePage({
                       {line.serial ? (
                         <span className="ml-2 font-mono text-[12px] text-muted-foreground">
                           {line.serial}
+                        </span>
+                      ) : null}
+                      {line.warrantyDays ? (
+                        <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
+                          Warranty: {warrantyLabel(line.warrantyDays)}
                         </span>
                       ) : null}
                     </td>

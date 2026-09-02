@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { startOfDay, endOfDay, startOfMonth } from "date-fns";
 import {
+  AlarmClock,
   ArrowRight,
   CalendarClock,
   CircleDollarSign,
@@ -16,7 +17,9 @@ import { STATUS_META, normalizeStatus } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { TicketCard } from "@/components/tickets/ticket-card";
 import { requireUser } from "@/lib/auth";
+import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { db } from "@/lib/db";
+import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -34,30 +37,53 @@ export default async function DashboardPage() {
   const { shopId } = await requireUser();
   const now = new Date();
 
-  const [statusGroups, dueToday, monthPayments, unpaidCandidates, recentTickets] =
-    await Promise.all([
+  // Every tile and list below narrows to the branch on screen, when one is
+  // selected. A single-location shop always resolves this to "all".
+  const branch = await locationWhere();
+
+  const [
+    statusGroups,
+    dueToday,
+    overdueCount,
+    monthPayments,
+    unpaidCandidates,
+    recentTickets,
+  ] = await Promise.all([
       db.ticket.groupBy({
         by: ["status"],
-        where: { shopId },
+        where: { shopId, ...branch },
         _count: { _all: true },
       }),
       db.ticket.count({
         where: {
           shopId,
+          ...branch,
           status: { not: "Resolved" },
           dueDate: { gte: startOfDay(now), lte: endOfDay(now) },
         },
       }),
+      db.ticket.count({
+        where: {
+          shopId,
+          ...branch,
+          status: { not: "Resolved" },
+          dueDate: { lt: now },
+        },
+      }),
       db.payment.aggregate({
-        where: { shopId, createdAt: { gte: startOfMonth(now) } },
+        where: {
+          shopId,
+          createdAt: { gte: startOfMonth(now) },
+          ...(branch.locationId ? { invoice: { locationId: branch.locationId } } : {}),
+        },
         _sum: { amountCents: true },
       }),
       db.invoice.findMany({
-        where: { shopId, status: { in: ["SENT", "PARTIAL"] } },
+        where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } },
         include: { lines: true, payments: true },
       }),
       db.ticket.findMany({
-        where: { shopId },
+        where: { shopId, ...branch },
         orderBy: { updatedAt: "desc" },
         take: 6,
         include: {
@@ -103,9 +129,17 @@ export default async function DashboardPage() {
       label: "Due Today",
       value: String(dueToday),
       hint: "promised back today",
-      href: "/tickets?sort=due",
+      href: "/tickets?due=today",
       icon: CalendarClock,
       tint: "bg-status-in-progress-bg text-status-in-progress-fg",
+    },
+    {
+      label: "Overdue",
+      value: String(overdueCount),
+      hint: overdueCount === 0 ? "nothing past its date" : "past their promised date",
+      href: "/tickets?due=overdue",
+      icon: AlarmClock,
+      tint: "bg-status-overdue-bg text-status-overdue-fg",
     },
     {
       label: "Unpaid Invoices",
@@ -141,7 +175,7 @@ export default async function DashboardPage() {
       />
 
       {/* The four numbers that answer "how is today going?" */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {stats.map((stat) => (
           <Link
             key={stat.label}
@@ -249,7 +283,14 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {recentTickets.map((ticket) => (
-              <TicketCard key={ticket.id} ticket={ticket} now={clock} />
+              <TicketCard
+                key={ticket.id}
+                ticket={{
+                  ...ticket,
+                  checklist: checklistProgress(parseChecklist(ticket.checklist)),
+                }}
+                now={clock}
+              />
             ))}
           </div>
         )}

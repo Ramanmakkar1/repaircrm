@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   BarChart3,
+  CalendarCheck,
   CircleDollarSign,
   Clock,
   Download,
@@ -33,6 +34,7 @@ import {
 import { loadReport } from "@/components/reports/query";
 import { BigStat, CardLink, ReportCard } from "@/components/reports/stat-card";
 import { requireUser } from "@/lib/auth";
+import { currentLocationId } from "@/lib/location";
 import { formatCents } from "@/lib/money";
 
 export const metadata = { title: "Reports · RepairFlow" };
@@ -54,19 +56,25 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; location?: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { period: periodParam } = await searchParams;
+  const { period: periodParam, location: locationParam } = await searchParams;
 
   const canSeeMoney = role === "OWNER" || role === "FRONT_DESK";
   const canExport = role === "OWNER";
 
   const period = resolveReportPeriod(periodParam);
-  const { money, throughput, resolveTime, leaderboard } = await loadReport(
+
+  // `?location=` wins when it is given (so a branch report is linkable), and
+  // the top-bar branch decides otherwise. Either way the id is re-validated
+  // against this shop inside the query.
+  const location = locationParam ?? (await currentLocationId());
+
+  const { money, throughput, onTime, resolveTime, leaderboard } = await loadReport(
     shopId,
     period,
-    { includeMoney: canSeeMoney },
+    { includeMoney: canSeeMoney, location },
   );
 
   // The export routes take an *inclusive* `to`, while a period carries an
@@ -104,8 +112,16 @@ export default async function ReportsPage({
 
       <PeriodPills active={period.key} />
 
-      {money ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Five tiles for a money-viewer, one for a technician — the column count
+          follows so neither ends up with a lonely tile on its own row. */}
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-4 sm:grid-cols-2",
+          money ? "xl:grid-cols-5" : "xl:grid-cols-4",
+        )}
+      >
+        {money ? (
+          <>
           <BigStat
             label="Revenue"
             value={formatCents(money.revenueCents)}
@@ -141,8 +157,23 @@ export default async function ReportsPage({
             tint="bg-status-overdue-bg text-status-overdue-fg"
             href="/invoices?status=SENT"
           />
-        </div>
-      ) : null}
+          </>
+        ) : null}
+
+        {/* Shown to every role: keeping a promise is not a money question. */}
+        <BigStat
+          label="On-time %"
+          value={onTime.pct === null ? "—" : `${onTime.pct}%`}
+          hint={
+            onTime.withDue === 0
+              ? "no dated tickets resolved yet"
+              : `${onTime.onTime} of ${onTime.withDue} met their due date`
+          }
+          icon={CalendarCheck}
+          tint="bg-status-ready-bg text-status-ready-fg"
+          href="/tickets?due=overdue"
+        />
+      </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
         {money ? (

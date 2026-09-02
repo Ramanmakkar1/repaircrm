@@ -7,7 +7,9 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
+import { newRecordLocationId } from "@/lib/location";
 import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
+import { warrantyDaysByProduct } from "@/lib/warranty";
 import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
@@ -93,7 +95,12 @@ function readNotes(formData: FormData): string | null {
   return notes === "" ? null : notes.slice(0, 5000);
 }
 
-function lineCreateData(lines: Line[]) {
+/**
+ * `warranty` is the product-policy map for the products on these lines. The
+ * days are SNAPSHOTTED onto the line here, so changing a product's warranty
+ * later never restates cover a customer already bought.
+ */
+function lineCreateData(lines: Line[], warranty?: Map<string, number>) {
   return lines.map((line, index) => ({
     productId: line.productId,
     description: line.description,
@@ -101,6 +108,8 @@ function lineCreateData(lines: Line[]) {
     unitPriceCents: line.unitPriceCents,
     taxable: line.taxable,
     serial: line.serial,
+    warrantyDays:
+      line.productId && warranty ? (warranty.get(line.productId) ?? null) : null,
     sortOrder: index,
   }));
 }
@@ -113,7 +122,7 @@ export async function createInvoiceAction(
   _state: FormState,
   formData: FormData
 ): Promise<FormState> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const customer = await resolveCustomer(shopId, formData.get("customerId"));
   if (!customer) return formError("Choose a customer for this invoice.");
@@ -127,6 +136,11 @@ export async function createInvoiceAction(
   });
 
   const ticketId = await resolveTicketId(shopId, formData.get("ticketId"));
+  const locationId = await newRecordLocationId(shopId, userId);
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    parsed.lines.map((line) => line.productId),
+  );
 
   const invoice = await withNextNumber(shopId, "invoice", (number) =>
     db.invoice.create({
@@ -134,6 +148,7 @@ export async function createInvoiceAction(
         shopId,
         customerId: customer.id,
         ticketId,
+        locationId,
         number,
         status: "DRAFT",
         // Snapshot the rate now — a later settings change must not silently
@@ -141,7 +156,7 @@ export async function createInvoiceAction(
         taxRateBps: shop?.taxRateBps ?? 0,
         notes: readNotes(formData),
         dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines) },
+        lines: { create: lineCreateData(parsed.lines, warranty) },
       },
       select: { id: true },
     })
@@ -180,6 +195,11 @@ export async function updateInvoiceAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    parsed.lines.map((line) => line.productId),
+  );
+
   // Replace-all rather than diff: line ids are not surfaced to the client, and
   // an invoice has a handful of rows, so a clean rewrite is both simpler and
   // immune to a stale id from a concurrent edit.
@@ -191,7 +211,7 @@ export async function updateInvoiceAction(
         customerId: customer.id,
         notes: readNotes(formData),
         dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines) },
+        lines: { create: lineCreateData(parsed.lines, warranty) },
       },
     }),
   ]);

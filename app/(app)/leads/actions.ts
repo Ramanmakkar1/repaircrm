@@ -12,6 +12,8 @@ import type {
 import { splitName, ticketSubjectFromLead } from "@/components/leads/lead-meta";
 import { requireRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { newRecordLocationId } from "@/lib/location";
+import { slaDueDate } from "@/lib/sla";
 import { withNextNumber } from "@/lib/sequence";
 
 /**
@@ -322,9 +324,13 @@ export async function convertLeadAction(
     const subject = input.ticketSubject || ticketSubjectFromLead(lead);
     const problemType = input.ticketProblemType || "Other";
 
-    const defaultLocation = await db.location.findFirst({
-      where: { shopId, isDefault: true },
-      select: { id: true },
+    const locationId = await newRecordLocationId(shopId, userId);
+
+    // Same rule as the intake form: no date given, so the shop's response
+    // target for this priority sets one.
+    const shop = await db.shop.findUnique({
+      where: { id: shopId },
+      select: { settings: true },
     });
 
     const ticket = await withNextNumber(shopId, "ticket", (number) =>
@@ -333,11 +339,12 @@ export async function convertLeadAction(
           shopId,
           number,
           customerId,
-          locationId: defaultLocation?.id ?? null,
+          locationId,
           subject,
           problemType,
           status: "New",
           priority: "NORMAL",
+          dueDate: slaDueDate(shop?.settings, "NORMAL"),
           diagnosticNotes: lead.message ?? null,
           comments: {
             create: {

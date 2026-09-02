@@ -2,10 +2,10 @@ import { startOfDay, endOfDay } from "date-fns";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { locationWhere } from "@/lib/location";
 import {
   DEFAULT_TICKET_STATUSES,
   RESOLVED_STATUS,
-  stalenessLevel,
 } from "@/components/tickets/ticket-meta";
 import { normalizeStatus } from "@/components/ui/badge";
 import { STATUS_TV_COLORS } from "@/components/display/display-tokens";
@@ -31,10 +31,15 @@ export default async function DisplayPage() {
   const now = new Date();
   const nowMs = now.getTime();
 
+  // The board hangs on ONE shop floor, so it shows that branch's work when a
+  // branch is selected in the top bar.
+  const branch = await locationWhere();
+
   const [tickets, resolvedTodayCount] = await Promise.all([
     db.ticket.findMany({
       where: {
         shopId,
+        ...branch,
         status: { not: RESOLVED_STATUS, mode: "insensitive" },
       },
       // Oldest `updatedAt` first == most stale first — the whole point of
@@ -46,6 +51,7 @@ export default async function DisplayPage() {
         subject: true,
         status: true,
         updatedAt: true,
+        dueDate: true,
         customer: { select: { lastName: true } },
         assignedTo: { select: { name: true } },
       },
@@ -53,6 +59,7 @@ export default async function DisplayPage() {
     db.ticket.count({
       where: {
         shopId,
+        ...branch,
         resolvedAt: { gte: startOfDay(now), lte: endOfDay(now) },
       },
     }),
@@ -62,7 +69,9 @@ export default async function DisplayPage() {
   let overdueCount = 0;
   for (const ticket of tickets) {
     statusCounts.set(ticket.status, (statusCounts.get(ticket.status) ?? 0) + 1);
-    if (stalenessLevel(ticket.updatedAt, ticket.status, nowMs) === "critical") {
+    // "Overdue" on the wall now means what it means everywhere else: past the
+    // date the customer was given, not merely untouched for three days.
+    if (ticket.dueDate !== null && ticket.dueDate.getTime() < nowMs) {
       overdueCount += 1;
     }
   }

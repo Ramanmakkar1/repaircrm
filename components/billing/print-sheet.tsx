@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { formatCents } from "@/lib/money";
+import { warrantyLabel } from "@/lib/warranty";
 import {
   Masthead,
   MetaTable,
@@ -41,6 +42,8 @@ export type PrintLine = {
   unitPriceCents: number;
   /** Drives the taxable marker; omit to leave every line unmarked. */
   taxable?: boolean | null;
+  /** Warranty sold with this line, in days. Printed under the description. */
+  warrantyDays?: number | null;
 };
 
 export type PrintTotalRow = {
@@ -194,6 +197,11 @@ export function PrintSheet({
                       </div>
                       {showSerial && line.serial ? (
                         <div className="rf-item-sub">S/N {line.serial}</div>
+                      ) : null}
+                      {line.warrantyDays ? (
+                        <div className="rf-item-sub">
+                          Warranty: {warrantyLabel(line.warrantyDays)}
+                        </div>
                       ) : null}
                     </td>
                     <td className="rf-num">{line.quantity}</td>

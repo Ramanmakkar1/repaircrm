@@ -12,6 +12,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseCents } from "@/lib/money";
+import { MAX_WARRANTY_DAYS } from "@/lib/warranty";
 
 /**
  * Server actions for the Inventory module.
@@ -107,6 +108,14 @@ const productSchema = z.object({
     .int()
     .min(0, "The reorder point can't be negative")
     .nullable(),
+  // The POLICY. Each sale snapshots it onto its own invoice line, so changing
+  // it here never restates cover somebody already bought (see lib/warranty.ts).
+  warrantyDays: z
+    .number()
+    .int()
+    .min(0, "Warranty can't be negative")
+    .max(MAX_WARRANTY_DAYS, "That warranty is longer than ten years")
+    .nullable(),
   active: z.boolean(),
 });
 
@@ -124,6 +133,8 @@ function readProduct(formData: FormData): ProductInput {
     taxable: flag(formData, "taxable"),
     stockQty: whole(formData, "stockQty") ?? 0,
     lowStockAt: whole(formData, "lowStockAt"),
+    // 0 and blank both mean "no warranty"; null is what the column stores.
+    warrantyDays: whole(formData, "warrantyDays") || null,
     active: flag(formData, "active"),
   };
 }
@@ -184,6 +195,7 @@ export async function createProductAction(
           taxable: input.taxable,
           stockQty: input.stockQty,
           lowStockAt: input.lowStockAt,
+          warrantyDays: input.warrantyDays,
           active: input.active,
         },
         select: { id: true, stockQty: true },
@@ -261,6 +273,7 @@ export async function updateProductAction(
         ...(role === "OWNER" ? { costCents: input.costCents } : {}),
         taxable: input.taxable,
         lowStockAt: input.lowStockAt,
+        warrantyDays: input.warrantyDays,
         active: input.active,
         // stockQty is deliberately NOT here. Stock only moves through
         // adjustStockAction, so every change lands in the audit trail.

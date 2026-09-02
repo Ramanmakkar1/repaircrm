@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
+import { shopDefaultLocationId } from "@/lib/location";
 import { withNextNumber } from "@/lib/sequence";
+import { warrantyDaysByProduct } from "@/lib/warranty";
 import {
   addUtcDays,
   advanceRunDate,
@@ -121,6 +123,14 @@ async function generate(
     return { ok: false, error: `"${schedule.name}" has no line items to bill.` };
   }
 
+  // No session in a job, so the shop's own default branch is the only sensible
+  // answer for where a generated invoice belongs.
+  const locationId = await shopDefaultLocationId(shopId);
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    schedule.lines.map((line) => line.productId),
+  );
+
   const scheduledFor = schedule.nextRunAt;
   const nextRunAt = advanceRunDate(scheduledFor, asFrequency(schedule.frequency));
   // Terms run from the day the bill is raised, normalised to UTC midnight so
@@ -134,6 +144,7 @@ async function generate(
           shopId,
           customerId: schedule.customerId,
           recurringInvoiceId: schedule.id,
+          locationId,
           number,
           status: "DRAFT",
           taxRateBps: schedule.taxRateBps,
@@ -145,6 +156,9 @@ async function generate(
               quantity: line.quantity,
               unitPriceCents: line.unitPriceCents,
               taxable: line.taxable,
+              warrantyDays: line.productId
+                ? (warranty.get(line.productId) ?? null)
+                : null,
               sortOrder: index,
             })),
           },

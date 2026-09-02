@@ -3,15 +3,21 @@
 import * as React from "react";
 import { CommandPalette } from "@/components/search/command-palette";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { SwitcherLocation } from "./location-switcher";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import type { CurrentUser } from "./user-menu";
 
 export function AppShell({
   user,
+  locations,
+  currentLocationId,
   children,
 }: {
   user: CurrentUser;
+  /** Active branches, for the topbar switcher. */
+  locations: SwitcherLocation[];
+  currentLocationId: string;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -26,6 +32,8 @@ export function AppShell({
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
             user={user}
+            locations={locations}
+            currentLocationId={currentLocationId}
             onMenuClick={() => setMobileOpen(true)}
             onSearchClick={() => setSearchOpen(true)}
           />

@@ -7,6 +7,8 @@ export type DisplayTicket = {
   subject: string;
   status: string;
   updatedAt: Date;
+  /** Null when nobody promised a date. */
+  dueDate?: Date | null;
   customer: { lastName: string };
   assignedTo: { name: string } | null;
 };
@@ -28,10 +30,17 @@ function initialsFor(name: string | null | undefined): string {
 export function TicketTile({ ticket, now }: { ticket: DisplayTicket; now: number }) {
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
   const palette = STALENESS_TV_COLORS[level];
+  // Past the date the customer was given. A red rim, not a red tile: the tile
+  // colour already carries staleness, and two meanings in one colour is none.
+  const overdue = ticket.dueDate != null && ticket.dueDate.getTime() < now;
 
   return (
     <div
-      className="flex min-h-[9.5rem] flex-col justify-between rounded-2xl p-4 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]"
+      className={
+        overdue
+          ? "flex min-h-[9.5rem] flex-col justify-between rounded-2xl p-4 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset] ring-4 ring-inset ring-[#e5484d]"
+          : "flex min-h-[9.5rem] flex-col justify-between rounded-2xl p-4 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]"
+      }
       style={{ background: palette.bg }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -59,7 +68,10 @@ export function TicketTile({ ticket, now }: { ticket: DisplayTicket; now: number
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/15 pt-2 text-xs font-semibold text-white/85">
-        <span className="truncate uppercase tracking-wide">{ticket.status}</span>
+        <span className="truncate uppercase tracking-wide">
+          {overdue ? "Overdue · " : ""}
+          {ticket.status}
+        </span>
         <span className="shrink-0 tabular-nums">
           {relativeShort(ticket.updatedAt, now)}
         </span>

@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { shopDefaultLocationId } from "@/lib/location";
 import { withNextNumber } from "@/lib/sequence";
+import { slaDueDate } from "@/lib/sla";
 import { authApiKey, isDenied } from "../_lib/auth";
 import {
   apiError,
@@ -75,6 +77,18 @@ export async function POST(request: Request) {
   });
   if (!customer) return apiError("not_found", "No customer with that id.");
 
+  // An API-created ticket gets the same treatment as one taken at the counter:
+  // the shop's default branch, and a due date from the response target for its
+  // priority (there is no session here, so no user default to consult).
+  const [shop, locationId] = await Promise.all([
+    db.shop.findUnique({
+      where: { id: auth.shopId },
+      select: { settings: true },
+    }),
+    shopDefaultLocationId(auth.shopId),
+  ]);
+  const priority = parsed.data.priority ?? "NORMAL";
+
   try {
     // Ticket numbers are per-shop sequential and guarded by a unique index;
     // withNextNumber allocates and retries on the race. Same path the intake
@@ -86,9 +100,11 @@ export async function POST(request: Request) {
           shopId: auth.shopId,
           customerId: customer.id,
           number,
+          locationId,
           subject: parsed.data.subject,
           problemType: parsed.data.problemType,
-          priority: parsed.data.priority ?? "NORMAL",
+          priority,
+          dueDate: slaDueDate(shop?.settings, priority),
         },
         select: ticketSelect,
       }),

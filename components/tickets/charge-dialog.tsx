@@ -60,11 +60,17 @@ export function ChargeDialog({
   products,
   charge,
   trigger,
+  warranty = false,
 }: {
   ticketId: string;
   products: ProductOption[];
   charge?: ChargeDraft;
   trigger: React.ReactNode;
+  /**
+   * Warranty job. The line is still recorded — the shop wants to know what a
+   * claim cost it — but it starts at $0, because the customer already paid.
+   */
+  warranty?: boolean;
 }) {
   const isEdit = charge !== undefined;
   const [open, setOpen] = React.useState(false);
@@ -73,7 +79,7 @@ export function ChargeDialog({
   const [description, setDescription] = React.useState(charge?.description ?? "");
   const [quantity, setQuantity] = React.useState(String(charge?.quantity ?? 1));
   const [unitPrice, setUnitPrice] = React.useState(
-    charge ? dollars(charge.unitPriceCents) : "",
+    charge ? dollars(charge.unitPriceCents) : warranty ? "0.00" : "",
   );
   const [taxable, setTaxable] = React.useState(charge?.taxable ?? true);
 
@@ -91,7 +97,7 @@ export function ChargeDialog({
           setProductId("none");
           setDescription("");
           setQuantity("1");
-          setUnitPrice("");
+          setUnitPrice(warranty ? "0.00" : "");
           setTaxable(true);
         }
       }
@@ -105,7 +111,7 @@ export function ChargeDialog({
     const product = products.find((p) => p.id === value);
     if (!product) return;
     setDescription(product.name);
-    setUnitPrice(dollars(product.priceCents));
+    setUnitPrice(warranty ? "0.00" : dollars(product.priceCents));
     setTaxable(product.taxable);
   }
 
@@ -162,6 +168,13 @@ export function ChargeDialog({
               placeholder="Display assembly replacement"
             />
           </div>
+
+          {warranty && !isEdit ? (
+            <p className="rounded-md bg-status-ready-bg px-3 py-2 text-xs font-medium text-status-ready-fg">
+              Warranty job — parts and labour start at $0. Override the price if
+              this part of the repair is not covered.
+            </p>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">

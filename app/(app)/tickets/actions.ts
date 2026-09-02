@@ -7,6 +7,10 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { checklistFromTemplate } from "@/lib/checklist";
+import { newRecordLocationId, validLocationId } from "@/lib/location";
+import { warrantyDaysByProduct } from "@/lib/warranty";
+import { slaDueDate } from "@/lib/sla";
 import { sendEmail, sendSms } from "@/lib/comms";
 import { withNextNumber } from "@/lib/sequence";
 import { parseCents } from "@/lib/money";
@@ -31,6 +35,9 @@ import type { ActionState } from "@/components/tickets/action-state";
 
 /** Radix Select can't hold an empty string, so "none" is the null sentinel. */
 const NONE = "none";
+
+/** Checklist picker: "let the problem type decide" — see resolveChecklist. */
+const AUTO = "auto";
 
 function str(fd: FormData, key: string): string {
   const value = fd.get(key);
@@ -123,6 +130,64 @@ async function validUserId(
   return user?.id ?? null;
 }
 
+/**
+ * Verifies a warranty claim points at a line the SAME customer actually bought
+ * from this shop, so a guessed line id cannot staple somebody else's purchase
+ * (or another tenant's) onto a ticket.
+ */
+async function validWarrantyLineId(
+  shopId: string,
+  customerId: string,
+  lineId: string | null,
+): Promise<string | null> {
+  if (!lineId) return null;
+  const line = await db.invoiceLine.findFirst({
+    where: {
+      id: lineId,
+      warrantyDays: { not: null },
+      invoice: { shopId, customerId, status: { not: "VOID" } },
+    },
+    select: { id: true },
+  });
+  return line?.id ?? null;
+}
+
+/**
+ * The checklist a new ticket starts with: the template the form named, or —
+ * when the form left it on "auto" — the one that claims this problem type.
+ * Items are COPIED onto the ticket so editing the template later never
+ * rewrites a job already on the bench.
+ */
+async function resolveChecklist(
+  shopId: string,
+  templateId: string | null,
+  problemType: string,
+  auto: boolean,
+): Promise<{ items: Prisma.InputJsonValue | undefined; templateId: string | null }> {
+  const template = templateId
+    ? await db.checklistTemplate.findFirst({
+        where: { id: templateId, shopId, active: true },
+        select: { id: true, items: true },
+      })
+    : auto
+      ? await db.checklistTemplate.findFirst({
+          where: { shopId, active: true, problemType },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, items: true },
+        })
+      : null;
+
+  if (!template) return { items: undefined, templateId: null };
+
+  const items = checklistFromTemplate(template.items as string[]);
+  if (items.length === 0) return { items: undefined, templateId: null };
+
+  return {
+    items: items as unknown as Prisma.InputJsonValue,
+    templateId: template.id,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -147,10 +212,11 @@ export async function createTicketAction(
   });
   if (!customer) return { error: "That customer no longer exists." };
 
-  const defaultLocation = await db.location.findFirst({
-    where: { shopId, isDefault: true },
-    select: { id: true },
-  });
+  // The branch on screen, else the user's own, else the shop default. A form
+  // that named one wins, but only if it is this shop's and still open.
+  const locationId =
+    (await validLocationId(shopId, optionalId(formData, "locationId"))) ??
+    (await newRecordLocationId(shopId, userId));
 
   // Resolved up front: `withNextNumber`'s callback must stay synchronous in the
   // object literal it builds, and these are ownership checks, not formatting.
@@ -164,20 +230,54 @@ export async function createTicketAction(
     optionalId(formData, "assignedToId"),
   );
 
+  const priority = asPriority(str(formData, "priority"));
+
+  // No date typed in? The shop's response target for this priority decides it,
+  // which is what makes "Overdue" mean something on a board nobody dated.
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { settings: true },
+  });
+  const dueDate =
+    optionalDate(formData, "dueDate") ?? slaDueDate(shop?.settings, priority);
+
+  // A checklist named on the form wins; on "auto" (the default, and what a
+  // form with no picker at all sends) the template that claims this problem
+  // type attaches itself; "none" attaches nothing.
+  const checklistChoice = str(formData, "checklistTemplateId");
+  const checklist = await resolveChecklist(
+    shopId,
+    checklistChoice && checklistChoice !== NONE && checklistChoice !== AUTO
+      ? checklistChoice
+      : null,
+    problemType,
+    checklistChoice === "" || checklistChoice === AUTO,
+  );
+
+  const warrantyLineId = await validWarrantyLineId(
+    shopId,
+    customerId,
+    optionalId(formData, "warrantyInvoiceLineId"),
+  );
+
   const ticket = await withNextNumber(shopId, "ticket", (number) =>
     db.ticket.create({
       data: {
         shopId,
         number,
         customerId,
-        locationId: defaultLocation?.id ?? null,
+        locationId,
         assetId,
         subject,
         problemType,
         status: str(formData, "status") || "New",
-        priority: asPriority(str(formData, "priority")),
+        priority,
         assignedToId,
-        dueDate: optionalDate(formData, "dueDate"),
+        dueDate,
+        checklist: checklist.items,
+        checklistTemplateId: checklist.templateId,
+        isWarranty: warrantyLineId !== null,
+        warrantyInvoiceLineId: warrantyLineId,
         diagnosticNotes: str(formData, "diagnosticNotes") || null,
         comments: {
           create: {
@@ -215,6 +315,12 @@ export async function updateTicketAction(
   const subject = str(formData, "subject");
   if (!subject) return { error: "A subject is required." };
 
+  const warrantyLineId = await validWarrantyLineId(
+    shopId,
+    ticket.customerId,
+    optionalId(formData, "warrantyInvoiceLineId"),
+  );
+
   await db.ticket.update({
     where: { id: ticket.id },
     data: {
@@ -231,6 +337,10 @@ export async function updateTicketAction(
         optionalId(formData, "assetId"),
       ),
       dueDate: optionalDate(formData, "dueDate"),
+      // The claim is only kept when the line is still one of THIS customer's
+      // warranted purchases — clearing the picker clears the flag with it.
+      warrantyInvoiceLineId: warrantyLineId,
+      isWarranty: warrantyLineId !== null,
       diagnosticNotes: str(formData, "diagnosticNotes") || null,
     },
   });
@@ -907,6 +1017,11 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
   });
 
   const charges = ticket.charges;
+  const locationId = await newRecordLocationId(shopId, userId);
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    charges.map((charge) => charge.productId),
+  );
 
   const invoice = await withNextNumber(shopId, "invoice", (number) =>
     db.$transaction(async (tx) => {
@@ -915,6 +1030,7 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
           shopId,
           customerId: ticket.customerId,
           ticketId: ticket.id,
+          locationId,
           number,
           status: "DRAFT",
           taxRateBps: shop?.taxRateBps ?? 0,
@@ -925,6 +1041,9 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
               quantity: charge.quantity,
               unitPriceCents: charge.unitPriceCents,
               taxable: charge.taxable,
+              warrantyDays: charge.productId
+                ? (warranty.get(charge.productId) ?? null)
+                : null,
               sortOrder: index,
             })),
           },

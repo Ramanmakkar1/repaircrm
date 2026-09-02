@@ -61,6 +61,20 @@ export type ThroughputReport = {
   byBucket: TwoSeriesPoint[];
 };
 
+/**
+ * Did the work land when it was promised?
+ *
+ * Only tickets resolved in the period that HAD a due date can answer, so
+ * `withDue` is reported alongside the percentage — "100% of 2" is not the same
+ * claim as "100% of 200".
+ */
+export type OnTimeReport = {
+  onTime: number;
+  withDue: number;
+  /** 0-100, rounded. Null when nothing in the period carried a due date. */
+  pct: number | null;
+};
+
 export type ResolveTimeReport = {
   count: number;
   meanMs: number;
@@ -80,6 +94,7 @@ export type ReportData = {
   /** null when the viewer is a technician — the queries never ran. */
   money: MoneyReport | null;
   throughput: ThroughputReport;
+  onTime: OnTimeReport;
   resolveTime: ResolveTimeReport;
   leaderboard: LeaderboardRow[];
 };
@@ -87,17 +102,33 @@ export type ReportData = {
 export async function loadReport(
   shopId: string,
   period: ReportPeriod,
-  options: { includeMoney: boolean },
+  options: {
+    includeMoney: boolean;
+    /**
+     * One branch, or null/"all" for the whole shop. Applied to tickets and
+     * invoices; payments follow their invoice's branch.
+     */
+    location?: string | null;
+  },
 ): Promise<ReportData> {
   const inPeriod = { gte: period.from, lt: period.toExclusive };
+  const branch =
+    options.location && options.location !== "all"
+      ? { locationId: options.location }
+      : {};
 
   const [work, money] = await Promise.all([
-    loadWork(shopId, period, inPeriod),
-    options.includeMoney ? loadMoney(shopId, period, inPeriod) : Promise.resolve(null),
+    loadWork(shopId, period, inPeriod, branch),
+    options.includeMoney
+      ? loadMoney(shopId, period, inPeriod, branch)
+      : Promise.resolve(null),
   ]);
 
   return { ...work, money };
 }
+
+/** The branch narrowing, as the two `where` shapes the queries below need. */
+type Branch = { locationId?: string };
 
 // ---------------------------------------------------------------------------
 // Work: throughput, time-to-resolve, tech leaderboard
@@ -107,22 +138,32 @@ async function loadWork(
   shopId: string,
   period: ReportPeriod,
   inPeriod: { gte: Date; lt: Date },
+  branch: Branch,
 ): Promise<Omit<ReportData, "money">> {
   const [created, resolved, timeGroups, members] = await Promise.all([
     db.ticket.findMany({
-      where: { shopId, createdAt: inPeriod },
+      where: { shopId, ...branch, createdAt: inPeriod },
       select: { createdAt: true },
     }),
     db.ticket.findMany({
-      where: { shopId, resolvedAt: inPeriod },
-      select: { createdAt: true, resolvedAt: true, assignedToId: true },
+      where: { shopId, ...branch, resolvedAt: inPeriod },
+      select: {
+        createdAt: true,
+        resolvedAt: true,
+        dueDate: true,
+        assignedToId: true,
+      },
     }),
     // `seconds` is only set once an entry is stopped; a running timer sums as
     // null and is therefore excluded, which is the honest reading of "hours
     // logged" — the work is not logged until it is stopped.
     db.timeEntry.groupBy({
       by: ["userId"],
-      where: { shopId, startedAt: inPeriod },
+      where: {
+        shopId,
+        startedAt: inPeriod,
+        ...(branch.locationId ? { ticket: { locationId: branch.locationId } } : {}),
+      },
       _sum: { seconds: true },
     }),
     db.user.findMany({
@@ -145,9 +186,21 @@ async function loadWork(
 
   const durations: number[] = [];
   const resolvedByUser = new Map<string, number>();
+  let onTimeCount = 0;
+  let withDueCount = 0;
 
   for (const ticket of resolved) {
     if (!ticket.resolvedAt) continue;
+
+    // On time = closed at or before the date the customer was given. Tickets
+    // with no due date are not counted either way — there was no promise to
+    // keep, and scoring them would flatter (or damn) the number for free.
+    if (ticket.dueDate) {
+      withDueCount += 1;
+      if (ticket.resolvedAt.getTime() <= ticket.dueDate.getTime()) {
+        onTimeCount += 1;
+      }
+    }
     const index = bucketIndex(period.buckets, ticket.resolvedAt);
     if (index >= 0) buckets[index].resolved += 1;
 
@@ -186,6 +239,11 @@ async function loadWork(
       resolved: resolved.length,
       byBucket: buckets,
     },
+    onTime: {
+      onTime: onTimeCount,
+      withDue: withDueCount,
+      pct: withDueCount === 0 ? null : Math.round((onTimeCount / withDueCount) * 100),
+    },
     resolveTime: summarise(durations),
     leaderboard,
   };
@@ -219,30 +277,36 @@ async function loadMoney(
   shopId: string,
   period: ReportPeriod,
   inPeriod: { gte: Date; lt: Date },
+  branch: Branch,
 ): Promise<MoneyReport> {
+  // Payments have no branch of their own — they belong to the branch that
+  // raised the invoice.
+  const paymentBranch = branch.locationId
+    ? { invoice: { locationId: branch.locationId } }
+    : {};
   const [payments, methodGroups, raisedRows, paidRows, productLines, owing] =
     await Promise.all([
       db.payment.findMany({
-        where: { shopId, createdAt: inPeriod },
+        where: { shopId, ...paymentBranch, createdAt: inPeriod },
         select: { amountCents: true, createdAt: true },
       }),
       db.payment.groupBy({
         by: ["method"],
-        where: { shopId, createdAt: inPeriod },
+        where: { shopId, ...paymentBranch, createdAt: inPeriod },
         _sum: { amountCents: true },
         _count: { _all: true },
       }),
       // Void invoices are excluded everywhere: a voided document is not a
       // thing that was billed, it is a thing that was un-billed.
       db.invoice.findMany({
-        where: { shopId, createdAt: inPeriod, status: { not: "VOID" } },
+        where: { shopId, ...branch, createdAt: inPeriod, status: { not: "VOID" } },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         },
       }),
       db.invoice.findMany({
-        where: { shopId, paidAt: inPeriod, status: { not: "VOID" } },
+        where: { shopId, ...branch, paidAt: inPeriod, status: { not: "VOID" } },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
@@ -251,7 +315,7 @@ async function loadMoney(
       db.invoiceLine.findMany({
         where: {
           productId: { not: null },
-          invoice: { shopId, createdAt: inPeriod, status: { not: "VOID" } },
+          invoice: { shopId, ...branch, createdAt: inPeriod, status: { not: "VOID" } },
         },
         select: {
           quantity: true,
@@ -260,7 +324,7 @@ async function loadMoney(
         },
       }),
       db.invoice.findMany({
-        where: { shopId, status: { in: [...OWING_STATUSES] } },
+        where: { shopId, ...branch, status: { in: [...OWING_STATUSES] } },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },

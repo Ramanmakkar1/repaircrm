@@ -5,6 +5,9 @@ import { ArrowLeft, Printer } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { parseChecklist } from "@/lib/checklist";
+import { activeLocations } from "@/lib/location";
+import { customerWarranties } from "@/lib/warranty";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -15,6 +18,8 @@ import {
   type AttachmentRow,
 } from "@/components/tickets/attachments-card";
 import { ChargesCard } from "@/components/tickets/charges-card";
+import { ChecklistCard } from "@/components/tickets/checklist-card";
+import { TicketLocation } from "@/components/tickets/ticket-location";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
 import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
@@ -83,6 +88,10 @@ export default async function TicketDetailPage({
       customFields: true,
       assignedToId: true,
       assetId: true,
+      checklist: true,
+      isWarranty: true,
+      warrantyInvoiceLineId: true,
+      locationId: true,
       location: { select: { name: true } },
       customer: {
         select: {
@@ -172,8 +181,16 @@ export default async function TicketDetailPage({
 
   if (!ticket) notFound();
 
-  const [shop, techs, products, cannedResponses, customerAssets] =
-    await Promise.all([
+  const [
+    shop,
+    techs,
+    products,
+    cannedResponses,
+    customerAssets,
+    locations,
+    checklistTemplates,
+    warranties,
+  ] = await Promise.all([
       db.shop.findUnique({
         where: { id: shopId },
         select: { settings: true, taxRateBps: true },
@@ -204,6 +221,13 @@ export default async function TicketDetailPage({
         orderBy: { createdAt: "desc" },
         select: { id: true, type: true, make: true, model: true, serial: true },
       }),
+      activeLocations(shopId),
+      db.checklistTemplate.findMany({
+        where: { shopId, active: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
+      }),
+      customerWarranties(shopId, ticket.customer.id, { activeOnly: true }),
     ]);
 
   // Single request-time clock, so every row in this render is measured against
@@ -218,6 +242,23 @@ export default async function TicketDetailPage({
     ticket.dueDate !== null &&
     ticket.dueDate.getTime() < now &&
     ticket.status !== RESOLVED_STATUS;
+  const checklist = parseChecklist(ticket.checklist);
+
+  // The claimed purchase, so the badge can link straight at the invoice it
+  // was sold on. Looked up through the invoice, which carries the shopId.
+  const warrantyClaim = ticket.warrantyInvoiceLineId
+    ? await db.invoiceLine.findFirst({
+        where: {
+          id: ticket.warrantyInvoiceLineId,
+          invoice: { shopId, customerId: ticket.customer.id },
+        },
+        select: {
+          description: true,
+          warrantyDays: true,
+          invoice: { select: { id: true, number: true, createdAt: true } },
+        },
+      })
+    : null;
 
   const timeEntries: TimeEntryRow[] = ticket.timeEntries.map((entry) => ({
     id: entry.id,
@@ -298,6 +339,21 @@ export default async function TicketDetailPage({
                 </span>
                 <StatusBadge status={ticket.status} />
                 <PriorityBadge priority={ticket.priority} />
+                {ticket.isWarranty ? (
+                  warrantyClaim ? (
+                    <Link
+                      href={`/invoices/${warrantyClaim.invoice.id}`}
+                      className="rounded-full bg-status-ready-bg px-2.5 py-1 text-[12.5px] font-bold text-status-ready-fg hover:underline"
+                      title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
+                    >
+                      Warranty · #{warrantyClaim.invoice.number}
+                    </Link>
+                  ) : (
+                    <span className="rounded-full bg-status-ready-bg px-2.5 py-1 text-[12.5px] font-bold text-status-ready-fg">
+                      Warranty
+                    </span>
+                  )
+                ) : null}
                 <span
                   title={STALENESS_LABEL[level]}
                   className={cn(
@@ -336,7 +392,13 @@ export default async function TicketDetailPage({
                     ? format(ticket.dueDate, "yyyy-MM-dd")
                     : "",
                   diagnosticNotes: ticket.diagnosticNotes ?? "",
+                  warrantyInvoiceLineId: ticket.warrantyInvoiceLineId,
                 }}
+                warranties={warranties.map((row) => ({
+                  value: row.id,
+                  label: row.description,
+                  hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
+                }))}
                 problemTypes={problemTypes(shop?.settings)}
                 techs={techs.map((t) => ({ value: t.id, label: t.name }))}
                 assets={customerAssets.map((asset) => ({
@@ -411,6 +473,13 @@ export default async function TicketDetailPage({
             charges={ticket.charges}
             products={products}
             taxRateBps={shop?.taxRateBps ?? 0}
+            warranty={ticket.isWarranty}
+          />
+
+          <ChecklistCard
+            ticketId={ticket.id}
+            items={checklist}
+            templates={checklistTemplates}
           />
 
           <PartsCard
@@ -463,7 +532,17 @@ export default async function TicketDetailPage({
                   <span className="text-faint-foreground">None on file</span>
                 )}
               </Fact>
-              <Fact label="Location">{ticket.location?.name ?? "—"}</Fact>
+              <Fact label="Location">
+                {locations.length > 1 ? (
+                  <TicketLocation
+                    ticketId={ticket.id}
+                    locationId={ticket.locationId}
+                    locations={locations}
+                  />
+                ) : (
+                  (ticket.location?.name ?? "—")
+                )}
+              </Fact>
               {ticket.resolvedAt ? (
                 <Fact label="Resolved">
                   {format(ticket.resolvedAt, "MMM d, yyyy h:mm a")}

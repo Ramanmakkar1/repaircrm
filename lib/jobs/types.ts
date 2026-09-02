@@ -33,6 +33,8 @@ export type JobsSummary = {
   shops: number;
   recurring: { created: number };
   campaigns: { queued: number; sent: number; failed: number };
+  /** Tickets newly stamped as past due, and alerts actually delivered. */
+  sla: { breached: number; notified: number };
   tokensPurged: number;
   /**
    * One line per failure, already prefixed with the shop it came from. A run
@@ -69,6 +71,7 @@ export function emptySummary(source: JobSource): JobsSummary {
     shops: 0,
     recurring: { created: 0 },
     campaigns: { queued: 0, sent: 0, failed: 0 },
+    sla: { breached: 0, notified: 0 },
     tokensPurged: 0,
     errors: [],
     source,
@@ -86,6 +89,8 @@ export function summaryLine(summary: JobsSummary): string {
     `${summary.campaigns.queued} queued`,
     `${summary.campaigns.sent} sent`,
     `${summary.campaigns.failed} failed`,
+    // Optional-chained: a summary stored by an older build has no `sla` key.
+    `${summary.sla?.breached ?? 0} overdue`,
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     `${summary.ms}ms`,
   ].join(", ");

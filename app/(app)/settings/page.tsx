@@ -18,6 +18,8 @@ import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
 import type { MessagingConfig } from "@/components/settings/types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
+import { readSla } from "@/lib/sla";
+import { parseTemplateItems } from "@/lib/checklist";
 
 export const metadata = { title: "Settings · RepairFlow" };
 
@@ -38,7 +40,8 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
 
-  const [shop, cannedResponses, members, apiKeys] = await Promise.all([
+  const [shop, cannedResponses, members, apiKeys, checklists, locations] =
+    await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
@@ -74,6 +77,7 @@ export default async function SettingsPage({
             role: true,
             active: true,
             createdAt: true,
+            defaultLocationId: true,
           },
         })
       : Promise.resolve([]),
@@ -95,9 +99,39 @@ export default async function SettingsPage({
           },
         })
       : Promise.resolve([]),
+    // Checklists and branches are owner-only screens, so a technician's
+    // request never loads them at all.
+    isOwner
+      ? db.checklistTemplate.findMany({
+          where: { shopId: session.shopId, active: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, problemType: true, items: true },
+        })
+      : Promise.resolve([]),
+    isOwner
+      ? db.location.findMany({
+          where: { shopId: session.shopId },
+          orderBy: [{ active: "desc" }, { isDefault: "desc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            address1: true,
+            address2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            phone: true,
+            isDefault: true,
+            active: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!shop) notFound();
+
+  // "Staff based here" needs each member's current branch, by name.
+  const locationNames = new Map(locations.map((l) => [l.id, l.name]));
 
   const messaging: MessagingConfig = {
     emailDriver: emailDriverName(),
@@ -192,6 +226,23 @@ export default async function SettingsPage({
         }))}
         messaging={messaging}
         automation={automation}
+        sla={readSla(shop.settings)}
+        checklists={checklists.map((template) => ({
+          id: template.id,
+          name: template.name,
+          problemType: template.problemType,
+          items: parseTemplateItems(template.items),
+        }))}
+        locations={locations}
+        locationStaff={members.map((member) => ({
+          id: member.id,
+          name: member.name,
+          email: member.email,
+          defaultLocationId: member.defaultLocationId,
+          defaultLocationName: member.defaultLocationId
+            ? (locationNames.get(member.defaultLocationId) ?? null)
+            : null,
+        }))}
         apiKeys={apiKeys.map((key) => ({
           ...key,
           lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,

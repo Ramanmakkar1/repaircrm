@@ -7,10 +7,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeysTab } from "./api-keys-tab";
 import { AutomationTab, type AutomationConfig } from "./automation-tab";
 import { CannedTab } from "./canned-tab";
+import {
+  LocationsTab,
+  type LocationItem,
+  type LocationStaffMember,
+} from "./locations-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
+import type { ChecklistTemplateItem } from "./checklists-card";
+import type { SlaHours } from "@/lib/sla";
 import type {
   ApiKeyItem,
   CannedResponseItem,
@@ -43,6 +50,10 @@ export function SettingsTabs({
   messaging,
   apiKeys,
   automation,
+  sla,
+  checklists,
+  locations,
+  locationStaff,
 }: {
   role: string;
   currentUserId: string;
@@ -57,6 +68,11 @@ export function SettingsTabs({
   apiKeys: ApiKeyItem[];
   /** Owner-only; scheduler state and the last automation run. */
   automation: AutomationConfig;
+  /** Owner-only; response targets, checklists and the shop's branches. */
+  sla: SlaHours;
+  checklists: ChecklistTemplateItem[];
+  locations: LocationItem[];
+  locationStaff: LocationStaffMember[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,6 +86,7 @@ export function SettingsTabs({
         isOwner ? { value: "shop", label: "Shop" } : null,
         isOwner ? { value: "workflow", label: "Workflow" } : null,
         { value: "canned", label: "Canned responses" },
+        isOwner ? { value: "locations", label: "Locations" } : null,
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
         isOwner ? { value: "automation", label: "Automation" } : null,
@@ -110,6 +127,8 @@ export function SettingsTabs({
           <WorkflowTab
             problemTypes={problemTypes}
             ticketStatuses={ticketStatuses}
+            sla={sla}
+            checklists={checklists}
           />
         </TabsContent>
       ) : null}
@@ -117,6 +136,12 @@ export function SettingsTabs({
       <TabsContent value="canned">
         <CannedTab responses={cannedResponses} canManage={canManageCanned} />
       </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="locations">
+          <LocationsTab locations={locations} members={locationStaff} />
+        </TabsContent>
+      ) : null}
 
       {isOwner ? (
         <TabsContent value="team">

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { shopDefaultLocationId } from "@/lib/location";
+import { warrantyDaysByProduct } from "@/lib/warranty";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
 import { formError, parseLines, type FormState } from "@/components/billing/types";
@@ -253,6 +255,14 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
     return { ok: false, error: `"${schedule.name}" has no line items to bill.` };
   }
 
+  // Same rules as the unattended twin in lib/jobs/recurring.ts: the shop's
+  // default branch, and the warranty policy snapshotted at billing time.
+  const locationId = await shopDefaultLocationId(shopId);
+  const warranty = await warrantyDaysByProduct(
+    shopId,
+    schedule.lines.map((line) => line.productId),
+  );
+
   const scheduledFor = schedule.nextRunAt;
   const nextRunAt = advanceRunDate(scheduledFor, asFrequency(schedule.frequency));
   // Terms run from the day the bill is raised, normalised to UTC midnight so
@@ -266,6 +276,7 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
           shopId,
           customerId: schedule.customerId,
           recurringInvoiceId: schedule.id,
+          locationId,
           number,
           status: "DRAFT",
           taxRateBps: schedule.taxRateBps,
@@ -277,6 +288,9 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
               quantity: line.quantity,
               unitPriceCents: line.unitPriceCents,
               taxable: line.taxable,
+              warrantyDays: line.productId
+                ? (warranty.get(line.productId) ?? null)
+                : null,
               sortOrder: index,
             })),
           },

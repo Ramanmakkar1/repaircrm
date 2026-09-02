@@ -7,15 +7,21 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { LocationSwitcher, type SwitcherLocation } from "./location-switcher";
 import { NewMenu } from "./new-menu";
 import { UserMenu, type CurrentUser } from "./user-menu";
 
 export function Topbar({
   user,
+  locations,
+  currentLocationId,
   onMenuClick,
   onSearchClick,
 }: {
   user: CurrentUser;
+  /** Active branches. Fewer than two and the switcher is not rendered. */
+  locations: SwitcherLocation[];
+  currentLocationId: string;
   onMenuClick: () => void;
   onSearchClick: () => void;
 }) {
@@ -42,6 +48,12 @@ export function Topbar({
       <SearchTrigger onOpen={onSearchClick} />
 
       <div className="ml-auto flex items-center gap-2.5">
+        {locations.length > 1 ? (
+          <LocationSwitcher
+            locations={locations}
+            currentId={currentLocationId}
+          />
+        ) : null}
         <NewMenu />
         <UserMenu user={user} />
       </div>

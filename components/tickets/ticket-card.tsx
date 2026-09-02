@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { CalendarDays, Package, Wrench } from "lucide-react";
+import { CalendarDays, ListChecks, Package, Wrench } from "lucide-react";
+
+import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
+import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
 
 import { STATUS_META, StatusBadge, normalizeStatus } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
@@ -52,6 +55,11 @@ export type TicketCardData = {
    * recent-tickets strip, the landing-page mockup) need not query for them.
    */
   partOrders?: { status: string }[];
+  /**
+   * Checklist progress, when the ticket carries one. Computed by the page so
+   * the card never has to parse the Json blob itself.
+   */
+  checklist?: ChecklistProgress | null;
 };
 
 export function TicketCard({
@@ -68,10 +76,9 @@ export function TicketCard({
   const statusMeta = STATUS_META[normalizeStatus(ticket.status)];
   const priority = asPriority(ticket.priority);
   const loud = priority === "HIGH" || priority === "URGENT";
-  const overdue =
-    ticket.dueDate != null &&
-    ticket.dueDate.getTime() < now &&
-    ticket.status !== RESOLVED_STATUS;
+  const due = dueChip(ticket.dueDate, ticket.status === RESOLVED_STATUS, now);
+  const checklist =
+    ticket.checklist && ticket.checklist.total > 0 ? ticket.checklist : null;
 
   const device =
     ticket.asset && (ticket.asset.make || ticket.asset.model)
@@ -134,16 +141,30 @@ export function TicketCard({
           </Chip>
         ) : null}
 
-        {ticket.dueDate ? (
+        {checklist ? (
+          <Chip
+            icon={ListChecks}
+            className={cn(
+              checklist.done === checklist.total &&
+                "bg-status-resolved-bg font-semibold text-status-resolved-fg",
+            )}
+            title="Checklist progress"
+          >
+            {progressLabel(checklist)}
+          </Chip>
+        ) : null}
+
+        {/* Red once it is late, amber inside the last day, quiet before that —
+            see lib/sla.ts. */}
+        {ticket.dueDate && due ? (
           <Chip
             icon={CalendarDays}
-            className={cn(
-              overdue && "bg-status-overdue-bg font-bold text-status-overdue-fg",
-            )}
+            className={cn(DUE_TONE_CLASS[due.tone])}
             title={ticket.dueDate.toLocaleString()}
           >
-            {overdue ? "Overdue " : "Due "}
-            {format(ticket.dueDate, "MMM d")}
+            {due.tone === "later"
+              ? `Due ${format(ticket.dueDate, "MMM d")}`
+              : due.label}
           </Chip>
         ) : null}
       </div>

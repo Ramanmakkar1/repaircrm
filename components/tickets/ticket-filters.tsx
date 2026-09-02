@@ -32,6 +32,8 @@ export type TicketFilterValues = {
   tech: string;
   problemType: string;
   sort: string;
+  /** "all" | "overdue" | "today" — the response-target lens on the board. */
+  due: string;
 };
 
 /**
@@ -80,6 +82,7 @@ export function TicketFilters({
         params.set("problemType", next.problemType);
       }
       if (next.sort && next.sort !== "created") params.set("sort", next.sort);
+      if (next.due && next.due !== "all") params.set("due", next.due);
       // Any filter change invalidates the current page offset.
       const qs = params.toString();
       startTransition(() => router.push(qs ? `/tickets?${qs}` : "/tickets"));
@@ -92,7 +95,11 @@ export function TicketFilters({
     (values.problemType !== "all" ? 1 : 0) +
     (values.sort !== "created" ? 1 : 0);
 
-  const isFiltered = values.q !== "" || values.status !== "open" || advancedCount > 0;
+  const isFiltered =
+    values.q !== "" ||
+    values.status !== "open" ||
+    values.due !== "all" ||
+    advancedCount > 0;
 
   const pills: { value: string; label: string }[] = [
     { value: "open", label: "Open jobs" },
@@ -137,6 +144,24 @@ export function TicketFilters({
             </button>
           );
         })}
+
+        {/* The two lenses that answer "what is late?" — separate from status,
+            because an overdue ticket can be in any of the columns. */}
+        <span aria-hidden className="mx-1 h-6 w-px bg-border" />
+        <DuePill
+          label="Overdue"
+          active={values.due === "overdue"}
+          tone="bg-status-overdue-bg text-status-overdue-fg"
+          onClick={() =>
+            push({ due: values.due === "overdue" ? "all" : "overdue" })
+          }
+        />
+        <DuePill
+          label="Due today"
+          active={values.due === "today"}
+          tone="bg-status-in-progress-bg text-status-in-progress-fg"
+          onClick={() => push({ due: values.due === "today" ? "all" : "today" })}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +218,35 @@ export function TicketFilters({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function DuePill({
+  label,
+  active,
+  tone,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  tone: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex h-10 items-center gap-2 rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        active
+          ? cn("border-transparent shadow-sm", tone)
+          : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
   );
 }
 

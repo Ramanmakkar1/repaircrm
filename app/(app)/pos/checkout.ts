@@ -108,6 +108,8 @@ type ResolvedLine = {
   quantity: number;
   unitPriceCents: number;
   taxable: boolean;
+  /** Snapshot of the product's warranty policy at the moment of sale. */
+  warrantyDays: number | null;
   /**
    * Set on lines that came off a repair ticket. Two things key off it: the
    * charge row gets stamped with the new invoiceId, and the stock loop skips
@@ -116,11 +118,18 @@ type ResolvedLine = {
   ticketChargeId: string | null;
 };
 
-/** The tenant + operator identity, always resolved from the session by the caller. */
-export type SaleContext = { shopId: string; userId: string };
+/**
+ * The tenant + operator identity, always resolved from the session by the
+ * caller — plus the branch the register is standing in, resolved the same way.
+ */
+export type SaleContext = {
+  shopId: string;
+  userId: string;
+  locationId?: string | null;
+};
 
 export async function performCheckout(
-  { shopId, userId }: SaleContext,
+  { shopId, userId, locationId = null }: SaleContext,
   input: CheckoutInput,
 ): Promise<CheckoutResult> {
   const parsed = checkoutSchema.safeParse(input);
@@ -149,7 +158,13 @@ export async function performCheckout(
               // Scoped to the session's shop: an id from another tenant simply
               // does not come back, and the check below turns that into an error.
               where: { id: { in: productIds }, shopId },
-              select: { id: true, name: true, priceCents: true, taxable: true },
+              select: {
+                id: true,
+                name: true,
+                priceCents: true,
+                taxable: true,
+                warrantyDays: true,
+              },
             })
           : [];
 
@@ -184,6 +199,7 @@ export async function performCheckout(
                 quantity: true,
                 unitPriceCents: true,
                 taxable: true,
+                product: { select: { warrantyDays: true } },
                 ticket: { select: { id: true, number: true, customerId: true } },
               },
             })
@@ -216,6 +232,7 @@ export async function performCheckout(
               quantity: charge.quantity,
               unitPriceCents: charge.unitPriceCents,
               taxable: charge.taxable,
+              warrantyDays: charge.product?.warrantyDays ?? null,
               ticketChargeId: charge.id,
             };
           }
@@ -227,6 +244,7 @@ export async function performCheckout(
               quantity: line.quantity,
               unitPriceCents: product.priceCents,
               taxable: product.taxable,
+              warrantyDays: product.warrantyDays,
               ticketChargeId: null,
             };
           }
@@ -240,6 +258,8 @@ export async function performCheckout(
             quantity: line.quantity,
             unitPriceCents: Math.max(0, line.unitPriceCents),
             taxable: line.taxable,
+            // A typed-at-the-counter item has no catalogue policy to snapshot.
+            warrantyDays: null,
             ticketChargeId: null,
           };
         });
@@ -298,6 +318,8 @@ export async function performCheckout(
             // The invoice↔ticket link, so the repair is reachable from the
             // receipt and the ticket page shows the money it brought in.
             ticketId: billedTicket?.id ?? null,
+            // The branch the register is standing in.
+            locationId,
             number,
             status: "PAID",
             paidAt: new Date(),
@@ -309,6 +331,7 @@ export async function performCheckout(
                 quantity: line.quantity,
                 unitPriceCents: line.unitPriceCents,
                 taxable: line.taxable,
+                warrantyDays: line.warrantyDays,
                 sortOrder: index,
               })),
             },

@@ -101,6 +101,7 @@ export default async function InvoicePrintPage({
         quantity: line.quantity,
         unitPriceCents: line.unitPriceCents,
         taxable: line.taxable,
+        warrantyDays: line.warrantyDays,
       }))}
       showSerial={invoice.lines.some((line) => Boolean(line.serial))}
       totals={totalRows}

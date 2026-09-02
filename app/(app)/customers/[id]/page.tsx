@@ -35,6 +35,7 @@ import {
 import { InfoCard } from "@/components/customers/info-card";
 import { NotesCard } from "@/components/customers/notes-card";
 import { StatsRow } from "@/components/customers/stats-row";
+import { WarrantiesCard } from "@/components/customers/warranties-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import { Chip } from "@/components/ui/chip";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
+import { customerWarranties } from "@/lib/warranty";
 
 /** Ticket statuses that mean "no longer on the bench". */
 const CLOSED_TICKET_STATUSES = [
@@ -146,6 +148,7 @@ export default async function CustomerHubPage({
     owingInvoices,
     communicationCount,
     creditHistory,
+    warranties,
   ] = await Promise.all([
     db.ticket.findMany({
       where: { shopId, customerId: id },
@@ -248,6 +251,9 @@ export default async function CustomerHubPage({
           },
         })
       : Promise.resolve([]),
+    // Live cover first, then lapsed — "is this still covered?" is the question
+    // being asked at the counter.
+    customerWarranties(shopId, id),
   ]);
 
   const unpaidBalanceCents = owingInvoices.reduce((sum, invoice) => {
@@ -385,6 +391,7 @@ export default async function CustomerHubPage({
             estimates={estimates}
             total={customer._count.estimates}
           />
+          <WarrantiesCard warranties={warranties} />
           <PaymentsCard payments={payments} total={paymentTotals._count._all} />
           <CommunicationsCard entries={communications} total={communicationCount} />
         </div>

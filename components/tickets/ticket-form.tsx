@@ -16,11 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { createTicketAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE } from "./action-state";
 import { PRIORITIES, PRIORITY_META } from "./ticket-meta";
 
 export type Option = { value: string; label: string };
+
+/** A past purchase still under warranty, offered when a claim is flagged. */
+export type WarrantyOption = {
+  value: string;
+  label: string;
+  /** "Invoice #1042 · expires Nov 3" — the line under the description. */
+  hint: string;
+};
 
 /**
  * New-ticket intake form.
@@ -36,12 +45,26 @@ export function TicketForm({
   techs,
   problemTypes,
   defaultCustomerId,
+  locations = [],
+  defaultLocationId,
+  checklists = [],
+  warrantiesByCustomer = {},
+  slaHint,
 }: {
   customers: Option[];
   assetsByCustomer: Record<string, Option[]>;
   techs: Option[];
   problemTypes: string[];
   defaultCustomerId?: string;
+  /** Active branches. Fewer than two and the picker is not rendered at all. */
+  locations?: Option[];
+  defaultLocationId?: string;
+  /** Saved checklists, for the optional override of the automatic one. */
+  checklists?: Option[];
+  /** Still-live warranted purchases, per customer. */
+  warrantiesByCustomer?: Record<string, WarrantyOption[]>;
+  /** "Due 3 days out at Normal priority" — what an empty date will become. */
+  slaHint?: string;
 }) {
   const [state, formAction, pending] = useActionState(
     createTicketAction,
@@ -50,8 +73,11 @@ export function TicketForm({
 
   const [customerId, setCustomerId] = React.useState(defaultCustomerId ?? "");
   const [assetId, setAssetId] = React.useState("none");
+  const [isWarranty, setIsWarranty] = React.useState(false);
+  const [warrantyLineId, setWarrantyLineId] = React.useState("none");
 
   const assets = customerId ? (assetsByCustomer[customerId] ?? []) : [];
+  const warranties = customerId ? (warrantiesByCustomer[customerId] ?? []) : [];
 
   return (
     <form action={formAction}>
@@ -73,8 +99,11 @@ export function TicketForm({
                 value={customerId}
                 onValueChange={(value) => {
                   setCustomerId(value);
-                  // The previous device belongs to the previous customer.
+                  // The previous device — and the previous warranty — belong
+                  // to the previous customer.
                   setAssetId("none");
+                  setWarrantyLineId("none");
+                  setIsWarranty(false);
                 }}
               >
                 <SelectTrigger id="customerId">
@@ -177,10 +206,99 @@ export function TicketForm({
               </Select>
             </Field>
 
-            <Field label="Due date" htmlFor="dueDate">
+            <Field
+              label="Due date"
+              htmlFor="dueDate"
+              hint={slaHint}
+            >
               <Input id="dueDate" name="dueDate" type="date" />
             </Field>
+
+            {locations.length > 1 ? (
+              <Field label="Location" htmlFor="locationId">
+                <Select name="locationId" defaultValue={defaultLocationId}>
+                  <SelectTrigger id="locationId">
+                    <SelectValue placeholder="Choose…" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {locations.map((location) => (
+                      <SelectItem key={location.value} value={location.value}>
+                        {location.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
+
+            {checklists.length > 0 ? (
+              <Field
+                label="Checklist"
+                htmlFor="checklistTemplateId"
+                hint="Automatic picks the checklist saved for this problem type."
+              >
+                <Select name="checklistTemplateId" defaultValue="auto">
+                  <SelectTrigger id="checklistTemplateId">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="auto">Automatic</SelectItem>
+                    <SelectItem value="none">No checklist</SelectItem>
+                    {checklists.map((checklist) => (
+                      <SelectItem key={checklist.value} value={checklist.value}>
+                        {checklist.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
           </div>
+
+          {/* Warranty claim. Hidden entirely until a customer with a live
+              warranty is chosen — most tickets are not claims, and an empty
+              picker is just a question nobody can answer. */}
+          {warranties.length > 0 ? (
+            <div className="flex flex-col gap-3 rounded-md border border-border bg-surface-hover/60 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="isWarranty">Warranty claim</Label>
+                  <p className="text-[13px] text-muted-foreground">
+                    This customer has {warranties.length} purchase
+                    {warranties.length === 1 ? "" : "s"} still under warranty.
+                  </p>
+                </div>
+                <Switch
+                  id="isWarranty"
+                  checked={isWarranty}
+                  onCheckedChange={(next) => {
+                    setIsWarranty(next);
+                    if (!next) setWarrantyLineId("none");
+                  }}
+                />
+              </div>
+
+              {isWarranty ? (
+                <Select
+                  name="warrantyInvoiceLineId"
+                  value={warrantyLineId}
+                  onValueChange={setWarrantyLineId}
+                >
+                  <SelectTrigger aria-label="Warranted purchase">
+                    <SelectValue placeholder="Which purchase?" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value="none">Not chosen yet</SelectItem>
+                    {warranties.map((warranty) => (
+                      <SelectItem key={warranty.value} value={warranty.value}>
+                        {warranty.label} · {warranty.hint}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+            </div>
+          ) : null}
 
           <Field label="Diagnostic notes" htmlFor="diagnosticNotes">
             <Textarea

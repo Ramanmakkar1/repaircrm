@@ -50,6 +50,7 @@ export default async function EditProductPage({
       taxable: true,
       stockQty: true,
       lowStockAt: true,
+      warrantyDays: true,
       active: true,
     },
   });

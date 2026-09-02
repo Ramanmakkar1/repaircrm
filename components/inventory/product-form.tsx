@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { WARRANTY_PRESETS } from "@/lib/warranty";
 import { marginPct } from "./format";
 
 export type ProductFormValues = {
@@ -31,6 +32,7 @@ export type ProductFormValues = {
   taxable: boolean;
   stockQty: number;
   lowStockAt: number | null;
+  warrantyDays: number | null;
   active: boolean;
 };
 
@@ -43,7 +45,8 @@ type TextKey =
   | "price"
   | "cost"
   | "stockQty"
-  | "lowStockAt";
+  | "lowStockAt"
+  | "warrantyDays";
 
 type Values = Record<TextKey, string> & { taxable: boolean; active: boolean };
 
@@ -61,6 +64,8 @@ function initialValues(product?: ProductFormValues | null): Values {
     cost: dollars(product?.costCents),
     stockQty: product ? String(product.stockQty) : "",
     lowStockAt: product?.lowStockAt == null ? "" : String(product.lowStockAt),
+    warrantyDays:
+      product?.warrantyDays == null ? "" : String(product.warrantyDays),
     taxable: product?.taxable ?? true,
     active: product?.active ?? true,
   };
@@ -228,6 +233,61 @@ export function ProductForm({
               <MoneyInput {...field("cost")} aria-invalid={Boolean(errors.cost)} />
             </Field>
           ) : null}
+
+          <Field
+            label="Warranty"
+            htmlFor="warrantyDays"
+            error={errors.warrantyDays}
+            hint="How long this is covered after it's sold. Snapshotted onto the invoice, so changing it later won't alter cover already sold."
+            className="sm:col-span-2"
+          >
+            <div className="flex flex-col gap-2">
+              <div className="relative sm:max-w-[12rem]">
+                <Input
+                  {...field("warrantyDays")}
+                  type="number"
+                  step={1}
+                  min={0}
+                  inputMode="numeric"
+                  placeholder="0"
+                  className="pr-14 tabular-nums"
+                  aria-invalid={Boolean(errors.warrantyDays)}
+                />
+                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-faint-foreground">
+                  days
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {WARRANTY_PRESETS.map((preset) => {
+                  const current =
+                    (values.warrantyDays === "" ? 0 : Number(values.warrantyDays)) ===
+                    preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      aria-pressed={current}
+                      onClick={() =>
+                        set(
+                          "warrantyDays",
+                          preset.value === 0 ? "" : String(preset.value),
+                        )
+                      }
+                      className={cn(
+                        "inline-flex h-9 items-center rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                        current
+                          ? "border-transparent bg-accent text-accent-foreground shadow-sm"
+                          : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                      )}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Field>
 
           <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-surface-hover/60 p-4 sm:col-span-2">
             <div className="flex flex-col gap-1">
