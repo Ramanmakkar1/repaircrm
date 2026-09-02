@@ -18,7 +18,7 @@ const NAV_GROUPS: { label: string; hrefs: string[] }[] = [
   },
   { label: "Money", hrefs: ["/estimates", "/invoices", "/pos", "/inventory"] },
   { label: "Grow", hrefs: ["/marketing", "/reports"] },
-  { label: "Shop", hrefs: ["/display", "/settings"] },
+  { label: "Shop", hrefs: ["/display", "/time-clock", "/settings"] },
 ];
 
 function groupNavItems(): { label: string; items: NavItem[] }[] {

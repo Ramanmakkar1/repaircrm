@@ -13,6 +13,7 @@ import {
   type LocationItem,
   type LocationStaffMember,
 } from "./locations-tab";
+import { CheckinTab, type CheckinTabConfig } from "./checkin-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ProfileTab } from "./profile-tab";
 import { PaymentsTab } from "./payments-tab";
@@ -73,6 +74,7 @@ export function SettingsTabs({
   locationStaff,
   profile,
   auditPage,
+  checkin,
 }: {
   role: string;
   currentUserId: string;
@@ -103,6 +105,8 @@ export function SettingsTabs({
   profile: ProfileValues;
   /** Owner-only; the first page of the audit trail, newest first. */
   auditPage: AuditPage;
+  /** Owner-only; the public check-in form and the review request. */
+  checkin: CheckinTabConfig;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -123,6 +127,7 @@ export function SettingsTabs({
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
         isOwner ? { value: "payments", label: "Payments" } : null,
+        isOwner ? { value: "checkin", label: "Check-in & reviews" } : null,
         isOwner ? { value: "automation", label: "Automation" } : null,
         isOwner ? { value: "profile", label: "My profile" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
@@ -196,6 +201,12 @@ export function SettingsTabs({
             disconnectAction={disconnectStripeAction}
             registerReaderAction={registerReaderAction}
           />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="checkin">
+          <CheckinTab config={checkin} />
         </TabsContent>
       ) : null}
 

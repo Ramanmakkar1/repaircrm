@@ -2,10 +2,12 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
+import { runDueAppointmentRemindersForShop } from "./appointments";
 import { purgeExpiredPortalTokens } from "./housekeeping";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import { runSlaChecksForShop } from "./sla";
 import { runDueWebhookDeliveries } from "./webhooks";
+import { runDueReviewRequestsForShop } from "./reviews";
 import {
   emptySummary,
   summaryLine,
@@ -20,7 +22,7 @@ export { summaryLine };
 /**
  * The automation runner: the one place that decides what runs unattended.
  *
- * Five jobs, per shop, in this order:
+ * Seven jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
  *                          date has arrived, then — only where the schedule
@@ -33,7 +35,11 @@ export { summaryLine };
  *                          date and alert whoever owns it (lib/jobs/sla.ts)
  *   4. webhooks            POST every queued delivery that is due, with
  *                          signature and backoff (lib/jobs/webhooks.ts)
- *   5. housekeeping        drop portal tokens expired for over a week
+ *   5. reminders           "you're booked in tomorrow" for appointments inside
+ *                          the next 24h (lib/jobs/appointments.ts)
+ *   6. reviews             the post-pickup review ask, once the shop's delay
+ *                          has elapsed (lib/jobs/reviews.ts)
+ *   7. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -311,7 +317,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   return summary;
 }
 
-/** All four jobs for one shop. Each is isolated so one failure is not four. */
+/** Every job for one shop. Each is isolated so one failure is not all of them. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
@@ -364,6 +370,30 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     summary.webhooks.failed += hooks.failed;
   } catch (error) {
     summary.errors.push(`webhooks: ${message(error)}`);
+  }
+
+  try {
+    // "You're booked in tomorrow" — the 24h window and the reminderSentAt claim
+    // both live in lib/jobs/appointments.ts.
+    const reminders = await runDueAppointmentRemindersForShop(shopId);
+    summary.reminders.sent += reminders.sent;
+    for (const error of reminders.errors) {
+      summary.errors.push(`reminders: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`reminders: ${message(error)}`);
+  }
+
+  try {
+    // The post-pickup review ask. Its queue is the ticket's own pickedUpAt
+    // stamp — see lib/jobs/reviews.ts.
+    const reviews = await runDueReviewRequestsForShop(shopId);
+    summary.reviews.sent += reviews.sent;
+    for (const error of reviews.errors) {
+      summary.errors.push(`reviews: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`reviews: ${message(error)}`);
   }
 
   try {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, FileText, Receipt, Wrench } from "lucide-react";
+import { ChevronRight, FileText, Plus, Receipt, Wrench } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
 import {
@@ -104,13 +104,22 @@ export default async function PortalHomePage() {
       shopName={customer.shop.name}
       customerName={`${customer.firstName} ${customer.lastName}`}
     >
-      <div className="mb-7">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Hi {customer.firstName} 👋
-        </h1>
-        <p className="mt-1.5 text-[15px] text-muted-foreground">
-          {summaryLine({ openTickets, awaitingApproval, outstanding })}
-        </p>
+      <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Hi {customer.firstName} 👋
+          </h1>
+          <p className="mt-1.5 text-[15px] text-muted-foreground">
+            {summaryLine({ openTickets, awaitingApproval, outstanding })}
+          </p>
+        </div>
+        <Link
+          href="/portal/tickets/new"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-[14px] font-semibold text-accent-foreground shadow-xs transition-colors hover:bg-accent-hover"
+        >
+          <Plus className="size-4" />
+          New request
+        </Link>
       </div>
 
       <div className="flex flex-col gap-6">
@@ -132,7 +141,14 @@ export default async function PortalHomePage() {
           {tickets.length === 0 ? (
             <EmptyRow>
               Nothing here yet — a repair will appear as soon as the shop books
-              your device in.
+              your device in, or you can{" "}
+              <Link
+                href="/portal/tickets/new"
+                className="font-semibold text-accent hover:underline"
+              >
+                start a request
+              </Link>
+              .
             </EmptyRow>
           ) : (
             <ul className="divide-y divide-border">

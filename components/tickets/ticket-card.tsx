@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { CalendarDays, HandCoins, ListChecks, Package, Wrench } from "lucide-react";
+import { BellRing, CalendarDays, HandCoins, ListChecks, Package, Wrench } from "lucide-react";
 
 import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
@@ -13,6 +13,7 @@ import { formatCents } from "@/lib/money";
 import {
   asPriority,
   customerLabel,
+  isReadyForPickup,
   PRIORITY_META,
   RESOLVED_STATUS,
   relativeShort,
@@ -72,6 +73,11 @@ export type TicketCardData = {
    * recent strip, the landing-page mockup) need not.
    */
   needsReply?: boolean;
+  /**
+   * When the device actually left. Optional so the callers that don't care
+   * (the dashboard strip, the landing-page mockup) need not select it.
+   */
+  pickedUpAt?: Date | null;
 };
 
 export function TicketCard({
@@ -99,6 +105,10 @@ export function TicketCard({
 
   const tech = ticket.assignedTo?.name ?? null;
   const partsLabel = partsChipLabel(ticket.partOrders);
+  // Fixed, on the shelf, and still nobody has come for it — the one state a
+  // front counter can actually do something about with a phone call.
+  const awaitingPickup =
+    isReadyForPickup(ticket.status) && !ticket.pickedUpAt;
 
   return (
     <Link
@@ -157,6 +167,15 @@ export function TicketCard({
             className="bg-status-waiting-bg font-semibold text-status-waiting-fg"
           >
             {partsLabel}
+          </Chip>
+        ) : null}
+
+        {awaitingPickup ? (
+          <Chip
+            icon={BellRing}
+            className="bg-status-resolved-bg font-semibold text-status-resolved-fg"
+          >
+            Awaiting pickup
           </Chip>
         ) : null}
 

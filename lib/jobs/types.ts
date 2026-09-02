@@ -44,6 +44,10 @@ export type JobsSummary = {
   sla: { breached: number; notified: number };
   /** Outbound webhook deliveries attempted this pass (lib/jobs/webhooks.ts). */
   webhooks: { delivered: number; failed: number };
+  /** Appointment reminders that reached a provider (lib/jobs/appointments.ts). */
+  reminders: { sent: number };
+  /** Post-pickup review requests that reached a provider (lib/jobs/reviews.ts). */
+  reviews: { sent: number };
   tokensPurged: number;
   /**
    * One line per failure, already prefixed with the shop it came from. A run
@@ -83,6 +87,8 @@ export function emptySummary(source: JobSource): JobsSummary {
     campaigns: { queued: 0, sent: 0, failed: 0 },
     sla: { breached: 0, notified: 0 },
     webhooks: { delivered: 0, failed: 0 },
+    reminders: { sent: 0 },
+    reviews: { sent: 0 },
     tokensPurged: 0,
     errors: [],
     source,
@@ -107,6 +113,9 @@ export function summaryLine(summary: JobsSummary): string {
     // `?? 0` because a summary stored by an older build has no `webhooks` key,
     // and the settings screen replays those stored blobs verbatim.
     `${summary.webhooks?.delivered ?? 0} hooks delivered`,
+    // Same reasoning for the two newest counters.
+    `${summary.reminders?.sent ?? 0} reminder${(summary.reminders?.sent ?? 0) === 1 ? "" : "s"}`,
+    `${summary.reviews?.sent ?? 0} review${(summary.reviews?.sent ?? 0) === 1 ? "" : "s"}`,
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     `${summary.ms}ms`,
   ].join(", ");

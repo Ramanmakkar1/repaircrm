@@ -27,6 +27,14 @@ export const DEFAULT_TICKET_STATUSES = [
 export const RESOLVED_STATUS = "Resolved";
 
 /**
+ * The state a device is in once it is fixed and sitting on the shelf. The
+ * one-click pickup notice sets it, and "Awaiting pickup" is measured from it —
+ * so like RESOLVED_STATUS it is named once here rather than spelled out at each
+ * call site.
+ */
+export const READY_FOR_PICKUP_STATUS = "Ready for Pickup";
+
+/**
  * Fallback problem types, used only when `Shop.settings.problemTypes` is empty.
  * A configured shop always wins so the picker matches the shop's own history.
  */
@@ -68,6 +76,10 @@ export function problemTypes(settings: unknown): string[] {
 
 export function isResolved(status: string): boolean {
   return status.trim().toLowerCase() === RESOLVED_STATUS.toLowerCase();
+}
+
+export function isReadyForPickup(status: string): boolean {
+  return status.trim().toLowerCase() === READY_FOR_PICKUP_STATUS.toLowerCase();
 }
 
 // ---------------------------------------------------------------------------

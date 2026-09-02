@@ -17,10 +17,10 @@
  * leaves the building — the whole queue is inspectable on the campaign detail
  * page, with a date against every name.
  *
- * FUTURE WORK: both phases are driven by the "Sync & send due now" button
- * rather than a cron. Wiring them to a scheduled job (or a route handler behind
- * a shared secret) that loops over shops is the remaining piece; the functions
- * already take a shopId for exactly that reason.
+ * Both phases run unattended: lib/jobs/index.ts calls them per shop on every
+ * scheduler pass (the in-app timer, /api/cron, or the "Run now" button). The
+ * "Sync & send due now" button on the campaign screen calls the same two
+ * functions — it is a shortcut past the wait, not the only way they run.
  */
 
 import { db } from "@/lib/db";

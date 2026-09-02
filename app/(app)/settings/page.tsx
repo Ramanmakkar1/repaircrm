@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import QRCode from "qrcode";
 
 import { readAuditPage } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
@@ -23,6 +24,11 @@ import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
+import type { CheckinTabConfig } from "@/components/settings/checkin-tab";
+import {
+  readCheckinSettings,
+  readReviewSettings,
+} from "@/components/settings/checkin-meta";
 import type {
   MessagingConfig,
   PaymentsTabConfig,
@@ -65,11 +71,13 @@ export default async function SettingsPage({
     webhooks,
     deliveries,
     shopCount,
+    reviewsSentThisMonth,
   ] = await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
         name: true,
+        slug: true,
         address1: true,
         address2: true,
         city: true,
@@ -221,6 +229,16 @@ export default async function SettingsPage({
     // Whether the single-shop inbound fallback applies — see
     // app/api/inbound/_lib/shop.ts.
     db.shop.count(),
+    // "Sent this month" on the Reviews card. Counted off the tickets themselves
+    // — `reviewRequestedAt` is the stamp lib/jobs/reviews.ts writes.
+    isOwner
+      ? db.ticket.count({
+          where: {
+            shopId: session.shopId,
+            reviewRequestedAt: { gte: startOfMonth() },
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   if (!shop) notFound();
@@ -343,6 +361,22 @@ export default async function SettingsPage({
     canRun: isOwner,
   };
 
+  // The public check-in link, its kiosk variant, and a QR of the first — the QR
+  // is rendered to a data URL HERE so no QR library ever reaches the browser
+  // for an image that only changes when the shop's slug does.
+  const checkinUrl = `${appUrl()}/checkin/${shop.slug}`;
+  const kioskUrl = `${checkinUrl}?kiosk=1`;
+  const checkin: CheckinTabConfig = {
+    checkin: readCheckinSettings(shop.settings),
+    reviews: readReviewSettings(shop.settings),
+    checkinUrl,
+    kioskUrl,
+    qrDataUrl: isOwner
+      ? await QRCode.toDataURL(checkinUrl, { margin: 1, width: 320 })
+      : "",
+    reviewsSentThisMonth,
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -406,6 +440,7 @@ export default async function SettingsPage({
             ? (locationNames.get(member.defaultLocationId) ?? null)
             : null,
         }))}
+        checkin={checkin}
         apiKeys={apiKeys.map((key) => ({
           ...key,
           lastUsedAt: key.lastUsedAt ? key.lastUsedAt.toISOString() : null,
@@ -432,6 +467,12 @@ export default async function SettingsPage({
  * Mirrors the parsing in instrumentation.ts so the screen reports what the
  * timer will actually do, not what the raw string says.
  */
+/** First instant of the current calendar month, in the server's own zone. */
+function startOfMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
 function envNumber(raw: string | undefined, fallback: number): number {
   const trimmed = raw?.trim();
   if (!trimmed) return fallback;

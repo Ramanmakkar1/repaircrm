@@ -20,7 +20,13 @@ import { readLabourSettings } from "@/lib/labour";
 import { calcTotals, parseCents } from "@/lib/money";
 import { labourLinesFor, loadBillableTime } from "@/lib/time-billing";
 import { resolveDocumentTax } from "@/components/billing/queries";
-import { asPriority, isResolved } from "@/components/tickets/ticket-meta";
+import {
+  asPriority,
+  isReadyForPickup,
+  isResolved,
+  READY_FOR_PICKUP_STATUS,
+  RESOLVED_STATUS,
+} from "@/components/tickets/ticket-meta";
 import {
   IN_PROGRESS_STATUS,
   isTerminalPartStatus,
@@ -1230,4 +1236,189 @@ function invoicedNote(
     parts.push(`${timeCount} time entr${timeCount === 1 ? "y" : "ies"}`);
   }
   return `Invoice #${number} created from ${parts.join(" and ")}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Pickup — the two buttons the front counter actually presses
+// ---------------------------------------------------------------------------
+
+/**
+ * The canned response the pickup notice is written from. Created on first use
+ * so the message is always something the shop can edit in Settings, never a
+ * string frozen in this file.
+ */
+const PICKUP_CANNED_TITLE = "Ready for pickup";
+
+const PICKUP_CANNED_BODY =
+  "Hi {customer}, your device is repaired and ready to collect from {shop}. Please bring ticket {ticket} with you. See you soon!";
+
+/** Fills {customer} / {ticket} / {shop} in a pickup message. */
+function fillPickupTokens(
+  template: string,
+  values: { customer: string; ticket: string; shop: string },
+): string {
+  return template
+    .replaceAll("{customer}", values.customer)
+    .replaceAll("{ticket}", values.ticket)
+    .replaceAll("{shop}", values.shop);
+}
+
+/**
+ * "Notify: ready for pickup" — one press, three things.
+ *
+ * The status moves to Ready for Pickup, the shop's own pickup message goes out
+ * (SMS when the customer asked for texts and gave us a mobile, email otherwise),
+ * and the timeline gets the public comment — exactly the shape `postUpdateAction`
+ * produces, so a notice sent from this button and one typed into the composer
+ * read identically in the history.
+ *
+ * Sending happens after the transaction commits, for the same reason it does
+ * there: a mail provider timing out must not roll back a status that is already
+ * true of the device on the shelf.
+ */
+export async function notifyReadyForPickupAction(
+  ticketId: string,
+): Promise<ActionState> {
+  const { shopId, userId } = await requireUser();
+
+  const ticket = await db.ticket.findFirst({
+    where: { id: ticketId, shopId },
+    select: {
+      id: true,
+      number: true,
+      subject: true,
+      status: true,
+      customerId: true,
+      customer: {
+        select: { firstName: true, mobile: true, smsOptIn: true },
+      },
+    },
+  });
+  if (!ticket) return { error: "Ticket not found." };
+  if (isReadyForPickup(ticket.status)) {
+    return { error: "This ticket is already marked ready for pickup." };
+  }
+
+  const [shop, canned] = await Promise.all([
+    db.shop.findUnique({ where: { id: shopId }, select: { name: true } }),
+    db.cannedResponse.findFirst({
+      where: { shopId, title: PICKUP_CANNED_TITLE },
+      select: { body: true },
+    }),
+  ]);
+
+  // First use writes the default into the shop's own canned responses, so the
+  // next edit of this message happens in Settings rather than in a code change.
+  let template = canned?.body;
+  if (!template) {
+    await db.cannedResponse.create({
+      data: { shopId, title: PICKUP_CANNED_TITLE, body: PICKUP_CANNED_BODY },
+    });
+    template = PICKUP_CANNED_BODY;
+    revalidatePath("/settings");
+  }
+
+  const message = fillPickupTokens(template, {
+    customer: ticket.customer.firstName,
+    ticket: `#${ticket.number}`,
+    shop: shop?.name ?? "the shop",
+  });
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        status: READY_FOR_PICKUP_STATUS,
+        // Ready for Pickup is not the terminal state — clear any stale stamp a
+        // previously-resolved-then-reopened ticket is carrying.
+        resolvedAt: null,
+      },
+    });
+
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: ticket.id,
+        authorId: userId,
+        body: message,
+        isPublic: true,
+        subject: `Ticket #${ticket.number} is ready for pickup`,
+        updateType: READY_FOR_PICKUP_STATUS,
+        channel: "NOTE",
+      },
+    });
+  });
+
+  // A text when the customer asked for texts and we have a mobile; otherwise
+  // email. Not both — this is one notice, and lib/comms files the single outbox
+  // row either way, including when it has to skip.
+  const useSms = ticket.customer.smsOptIn && Boolean(ticket.customer.mobile);
+  const portalPath = `/portal/tickets/${ticket.id}`;
+
+  if (useSms) {
+    await sendSms({
+      shopId,
+      customerId: ticket.customerId,
+      ticketId: ticket.id,
+      body: message,
+      portalPath,
+    });
+  } else {
+    await sendEmail({
+      shopId,
+      customerId: ticket.customerId,
+      ticketId: ticket.id,
+      subject: `Ticket #${ticket.number} is ready for pickup`,
+      body: message,
+      context: `Ticket #${ticket.number} · ${ticket.subject}`,
+      portalPath,
+    });
+  }
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
+}
+
+/**
+ * "Mark picked up" — the device left the building.
+ *
+ * Stamps `pickedUpAt`, closes the ticket, and by doing so QUEUES the review
+ * request: lib/jobs/reviews.ts looks for exactly this shape (a pickup stamp
+ * older than the shop's delay, with no `reviewRequestedAt`). Nothing is sent
+ * here — asking for a review while the customer is still at the counter is the
+ * fastest way to not get one.
+ */
+export async function markPickedUpAction(ticketId: string): Promise<ActionState> {
+  const { shopId, userId } = await requireUser();
+
+  const ticket = await findTicket(shopId, ticketId);
+  if (!ticket) return { error: "Ticket not found." };
+
+  const now = new Date();
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { id: ticket.id },
+      data: {
+        pickedUpAt: now,
+        status: RESOLVED_STATUS,
+        resolvedAt: now,
+      },
+    });
+
+    await tx.ticketComment.create({
+      data: {
+        shopId,
+        ticketId: ticket.id,
+        authorId: userId,
+        body: "Device collected by the customer.",
+        isPublic: false,
+        updateType: RESOLVED_STATUS,
+        channel: "NOTE",
+      },
+    });
+  });
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
 }

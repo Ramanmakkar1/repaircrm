@@ -76,6 +76,7 @@ export default async function AppointmentsPage({
     startsAt: true,
     endsAt: true,
     status: true,
+    reminderSentAt: true,
     customer: {
       select: { id: true, firstName: true, lastName: true, businessName: true },
     },
@@ -312,6 +313,7 @@ function defaultFormValues(now: Date): AppointmentFormValues {
     duration: "60",
     endTime: toTimeParam(new Date(start.getTime() + 60 * 60_000)),
     notes: "",
+    reminderSentLabel: null,
   };
 }
 
@@ -337,6 +339,9 @@ function valuesFromAppointment(
     duration: preset,
     endTime: toTimeParam(appointment.endsAt),
     notes: appointment.notes ?? "",
+    reminderSentLabel: appointment.reminderSentAt
+      ? format(appointment.reminderSentAt, "MMM d, h:mm a")
+      : null,
   };
 }
 

@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Paperclip } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
 import { formatDateTime } from "@/components/billing/format";
+import { PhotoUpload } from "@/components/portal/photo-upload";
+import { ReplyBox } from "@/components/portal/reply-box";
+import { fileKind, formatBytes } from "@/components/tickets/attachment-meta";
 import { StatusProgress } from "@/components/tickets/status-progress";
 import { ticketStatuses } from "@/components/tickets/ticket-meta";
 import { db } from "@/lib/db";
@@ -57,7 +60,29 @@ export default async function PortalTicketPage({
       comments: {
         where: { isPublic: true },
         orderBy: { createdAt: "asc" },
-        select: { id: true, subject: true, body: true, createdAt: true },
+        select: {
+          id: true,
+          subject: true,
+          body: true,
+          createdAt: true,
+          // Who said it, and nothing more about them: a null author is the
+          // customer's own message, which the timeline labels differently.
+          authorId: true,
+        },
+      },
+      // ONLY the customer's own uploads. Bench photos and the tech's log dumps
+      // are internal, and the way to keep them internal is to never select them.
+      attachments: {
+        where: { customerId: customer.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fileName: true,
+          mimeType: true,
+          sizeBytes: true,
+          path: true,
+          createdAt: true,
+        },
       },
     },
   });
@@ -123,23 +148,95 @@ export default async function PortalTicketPage({
             </EmptyRow>
           ) : (
             <ol className="divide-y divide-border">
-              {ticket.comments.map((comment) => (
-                <li key={comment.id} className="px-5 py-4 sm:px-6">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-[14px] font-semibold">
-                      {comment.subject ?? "Update"}
-                    </span>
-                    <span className="text-[12px] text-muted-foreground">
-                      {formatDateTime(comment.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
-                    {comment.body}
-                  </p>
-                </li>
-              ))}
+              {ticket.comments.map((comment) => {
+                // A null author is the customer's own message. Tinting those
+                // means the thread reads as a conversation rather than a
+                // notice board.
+                const mine = comment.authorId === null;
+                return (
+                  <li
+                    key={comment.id}
+                    className={mine ? "bg-surface-hover px-5 py-4 sm:px-6" : "px-5 py-4 sm:px-6"}
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="text-[14px] font-semibold">
+                        {mine ? "You" : (comment.subject ?? "Update")}
+                      </span>
+                      <span className="text-[12px] text-muted-foreground">
+                        {formatDateTime(comment.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
+                      {comment.body}
+                    </p>
+                  </li>
+                );
+              })}
             </ol>
           )}
+
+          <div className="border-t border-border">
+            <ReplyBox ticketId={ticket.id} />
+          </div>
+        </PortalCard>
+
+        <PortalCard>
+          <PortalCardHeader
+            title={
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-flex size-7 items-center justify-center rounded-lg bg-chip-accent-bg text-chip-accent-fg">
+                  <Paperclip className="size-3.5" />
+                </span>
+                Photos you&apos;ve sent
+              </span>
+            }
+            description="A picture of the fault often saves a phone call."
+          />
+
+          {ticket.attachments.length === 0 ? (
+            <EmptyRow>
+              Nothing sent yet. Add a photo below and the shop will see it on
+              your repair.
+            </EmptyRow>
+          ) : (
+            <ul className="divide-y divide-border">
+              {ticket.attachments.map((file) => (
+                <li key={file.id} className="px-5 py-3.5 sm:px-6">
+                  <a
+                    href={file.path}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3.5"
+                  >
+                    {fileKind(file.mimeType) === "image" ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={file.path}
+                        alt={file.fileName}
+                        className="size-11 shrink-0 rounded-md border border-border object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-surface-hover">
+                        <Paperclip className="size-4 text-muted-foreground" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[14px] font-medium text-foreground">
+                        {file.fileName}
+                      </span>
+                      <span className="block text-[12.5px] text-muted-foreground">
+                        {formatBytes(file.sizeBytes)} · {formatDateTime(file.createdAt)}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="border-t border-border">
+            <PhotoUpload ticketId={ticket.id} />
+          </div>
         </PortalCard>
       </div>
     </PortalShell>
