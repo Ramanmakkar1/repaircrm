@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
 import { purgeExpiredPortalTokens } from "./housekeeping";
+import { runIntegrationSyncForShop } from "./integrations";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import {
   emptySummary,
@@ -25,7 +26,11 @@ export { summaryLine };
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
- *   3. housekeeping        drop portal tokens expired for over a week
+ *   3. accounting          push customers, items, invoices and payments to
+ *                          QuickBooks / Xero (lib/jobs/integrations.ts) —
+ *                          after recurring, so an invoice stamped this pass
+ *                          reaches the books in the same pass
+ *   4. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -303,7 +308,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   return summary;
 }
 
-/** All three jobs for one shop. Each is isolated so one failure is not three. */
+/** All four jobs for one shop. Each is isolated so one failure is not four. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
@@ -331,6 +336,20 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`campaigns: ${message(error)}`);
+  }
+
+  try {
+    // Accounting last: it pushes invoices, and the recurring job above may
+    // have just stamped one. Running it first would leave that invoice a pass
+    // behind for no reason.
+    const accounting = await runIntegrationSyncForShop(shopId);
+    summary.accounting.pushed += accounting.pushed;
+    summary.accounting.failed += accounting.failed;
+    for (const error of accounting.errors) {
+      summary.errors.push(`accounting: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`accounting: ${message(error)}`);
   }
 
   try {

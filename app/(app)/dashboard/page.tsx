@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { STATUS_META, normalizeStatus } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { TicketCard } from "@/components/tickets/ticket-card";
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -139,6 +140,9 @@ export default async function DashboardPage() {
           </Button>
         }
       />
+
+      {/* Renders nothing once the shop is set up, or once it is dismissed. */}
+      <SetupChecklist />
 
       {/* The four numbers that answer "how is today going?" */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -1299,6 +1299,9 @@ model IntegrationLink {
   entity   String
   entityId String
   remoteId String
+  /// Provider bookkeeping for this row — QuickBooks SyncToken, Xero UpdatedDateUTC,
+  /// the DisplayName we had to disambiguate. Never business data.
+  meta     Json?
   syncedAt DateTime @default(now())
   shop     Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 

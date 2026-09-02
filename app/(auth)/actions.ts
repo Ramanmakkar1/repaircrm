@@ -40,7 +40,8 @@ export async function signupAction(
 
   if (!result.ok) return { error: result.error };
 
-  redirect("/");
+  // A brand new shop goes to the setup wizard, not the (empty) dashboard.
+  redirect("/setup");
 }
 
 /** Server Action form of sign-out. There is also a GET/POST route at /logout. */

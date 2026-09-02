@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeysTab } from "./api-keys-tab";
 import { AutomationTab, type AutomationConfig } from "./automation-tab";
 import { CannedTab } from "./canned-tab";
+import { IntegrationsTab, type IntegrationsConfig } from "./integrations-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
@@ -43,6 +44,7 @@ export function SettingsTabs({
   messaging,
   apiKeys,
   automation,
+  integrations,
 }: {
   role: string;
   currentUserId: string;
@@ -57,6 +59,8 @@ export function SettingsTabs({
   apiKeys: ApiKeyItem[];
   /** Owner-only; scheduler state and the last automation run. */
   automation: AutomationConfig;
+  /** Owner-only; accounting connections and where everything else is set up. */
+  integrations: IntegrationsConfig;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -72,6 +76,7 @@ export function SettingsTabs({
         { value: "canned", label: "Canned responses" },
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
+        isOwner ? { value: "integrations", label: "Integrations" } : null,
         isOwner ? { value: "automation", label: "Automation" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
       ].filter((tab): tab is { value: string; label: string } => tab !== null),
@@ -127,6 +132,12 @@ export function SettingsTabs({
       <TabsContent value="messaging">
         <MessagingTab config={messaging} />
       </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="integrations">
+          <IntegrationsTab config={integrations} />
+        </TabsContent>
+      ) : null}
 
       {isOwner ? (
         <TabsContent value="automation">
