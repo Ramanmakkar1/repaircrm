@@ -180,7 +180,11 @@ model User {
   /// Base32 TOTP secret; 2FA is enforced only once totpEnabledAt is set.
   totpSecret         String?
   totpEnabledAt      DateTime?
+  /// sha256 of each unused one-time recovery code; a code is removed once spent.
+  totpRecoveryCodes  String[]             @default([])
   lastLoginAt        DateTime?
+  /// Sessions issued before this instant are refused by the (app) layout.
+  passwordChangedAt  DateTime?
   defaultLocationId  String?
   defaultLocation    Location?            @relation(fields: [defaultLocationId], references: [id], onDelete: SetNull)
   passwordResets     PasswordResetToken[]

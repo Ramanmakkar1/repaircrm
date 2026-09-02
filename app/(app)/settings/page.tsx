@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { readAuditPage } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { emailDriverName, smsDriverName, appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
@@ -17,6 +18,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
 import type { MessagingConfig } from "@/components/settings/types";
+import type { ProfileValues } from "@/components/settings/profile-types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
 import { readSla } from "@/lib/sla";
 import { parseTemplateItems } from "@/lib/checklist";
@@ -40,8 +42,16 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
 
-  const [shop, cannedResponses, members, apiKeys, checklists, locations] =
-    await Promise.all([
+  const [
+    shop,
+    cannedResponses,
+    members,
+    apiKeys,
+    checklists,
+    locations,
+    profile,
+    auditPage,
+  ] = await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
@@ -78,6 +88,8 @@ export default async function SettingsPage({
             active: true,
             createdAt: true,
             defaultLocationId: true,
+            lastLoginAt: true,
+            totpEnabledAt: true,
           },
         })
       : Promise.resolve([]),
@@ -126,9 +138,38 @@ export default async function SettingsPage({
           },
         })
       : Promise.resolve([]),
+    // My profile is the one tab every role gets, so this always runs — and
+    // only ever for the session's own user id.
+    db.user.findFirst({
+      where: { id: session.userId, shopId: session.shopId },
+      select: {
+        name: true,
+        email: true,
+        role: true,
+        totpEnabledAt: true,
+        totpRecoveryCodes: true,
+        lastLoginAt: true,
+      },
+    }),
+    // The audit log is owner-only; a technician's request never reads it.
+    isOwner
+      ? readAuditPage(session.shopId)
+      : Promise.resolve({ rows: [], nextCursor: null }),
   ]);
 
   if (!shop) notFound();
+  if (!profile) notFound();
+
+  const profileValues: ProfileValues = {
+    name: profile.name,
+    email: profile.email,
+    role: profile.role,
+    totpEnabledAt: profile.totpEnabledAt
+      ? profile.totpEnabledAt.toISOString()
+      : null,
+    recoveryCodesLeft: profile.totpRecoveryCodes.length,
+    lastLoginAt: profile.lastLoginAt ? profile.lastLoginAt.toISOString() : null,
+  };
 
   // "Staff based here" needs each member's current branch, by name.
   const locationNames = new Map(locations.map((l) => [l.id, l.name]));
@@ -220,9 +261,15 @@ export default async function SettingsPage({
         problemTypes={problemTypes(shop.settings)}
         ticketStatuses={ticketStatuses(shop.settings)}
         cannedResponses={cannedResponses}
+        profile={profileValues}
+        auditPage={auditPage}
         members={members.map((member) => ({
           ...member,
           createdAt: member.createdAt.toISOString(),
+          lastLoginAt: member.lastLoginAt
+            ? member.lastLoginAt.toISOString()
+            : null,
+          twoFactorOn: member.totpEnabledAt !== null,
         }))}
         messaging={messaging}
         automation={automation}

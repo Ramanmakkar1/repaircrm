@@ -2,14 +2,17 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus } from "lucide-react";
+import { Copy, ShieldCheck, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   inviteUserAction,
+  resendInviteAction,
+  resetUserTotpAction,
   setUserActiveAction,
   updateUserRoleAction,
 } from "@/app/(app)/settings/actions";
+import { formatDateTime } from "@/components/billing/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -50,6 +53,11 @@ export function TeamTab({
   currentUserId: string;
 }) {
   const [inviting, setInviting] = React.useState(false);
+  // Only ever set when the email driver is "log" — see inviteUserAction.
+  const [inviteLink, setInviteLink] = React.useState<{
+    name: string;
+    url: string;
+  } | null>(null);
 
   return (
     <div className="flex flex-col gap-5">
@@ -71,7 +79,8 @@ export function TeamTab({
                   <Th>Name</Th>
                   <Th>Email</Th>
                   <Th className="w-[190px]">Role</Th>
-                  <Th className="w-[130px] text-right">Active</Th>
+                  <Th className="w-[110px] text-right">Active</Th>
+                  <Th className="w-[190px] text-right">Access</Th>
                 </Tr>
               </THead>
               <TBody>
@@ -80,6 +89,7 @@ export function TeamTab({
                     key={member.id}
                     member={member}
                     isSelf={member.id === currentUserId}
+                    onLink={setInviteLink}
                   />
                 ))}
               </TBody>
@@ -106,12 +116,26 @@ export function TeamTab({
         </CardContent>
       </Card>
 
-      <InviteDialog open={inviting} onClose={() => setInviting(false)} />
+      <InviteDialog
+        open={inviting}
+        onClose={() => setInviting(false)}
+        onLink={setInviteLink}
+      />
+
+      <InviteLinkDialog link={inviteLink} onClose={() => setInviteLink(null)} />
     </div>
   );
 }
 
-function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) {
+function MemberRow({
+  member,
+  isSelf,
+  onLink,
+}: {
+  member: TeamMember;
+  isSelf: boolean;
+  onLink: (link: { name: string; url: string }) => void;
+}) {
   const router = useRouter();
   const [role, setRole] = React.useState(member.role);
   const [active, setActive] = React.useState(member.active);
@@ -137,6 +161,36 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
     router.refresh();
   }
 
+  async function resendInvite() {
+    setBusy(true);
+    const result = await resendInviteAction(member.id);
+    setBusy(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    if (result.inviteUrl) {
+      onLink({ name: member.name, url: result.inviteUrl });
+    } else {
+      toast.success(`Invite re-sent to ${member.email}.`);
+    }
+    router.refresh();
+  }
+
+  async function resetTotp() {
+    setBusy(true);
+    const result = await resetUserTotpAction(member.id);
+    setBusy(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`Two-step verification cleared for ${member.name}.`);
+    router.refresh();
+  }
+
   async function changeActive(next: boolean) {
     setActive(next);
     setBusy(true);
@@ -155,20 +209,35 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
   return (
     <Tr>
       <Td>
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "font-semibold text-foreground",
-              !active && "text-muted-foreground",
-            )}
-          >
-            {member.name}
-          </span>
-          {isSelf ? (
-            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-accent-soft-foreground">
-              You
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "font-semibold text-foreground",
+                !active && "text-muted-foreground",
+              )}
+            >
+              {member.name}
             </span>
-          ) : null}
+            {isSelf ? (
+              <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-accent-soft-foreground">
+                You
+              </span>
+            ) : null}
+            {member.twoFactorOn ? (
+              <span
+                title="Two-step verification is on"
+                className="inline-flex items-center gap-1 rounded-full bg-status-resolved-bg px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-status-resolved-fg"
+              >
+                <ShieldCheck className="size-3" /> 2FA
+              </span>
+            ) : null}
+          </div>
+          <span className="text-[12.5px] text-muted-foreground">
+            {member.lastLoginAt
+              ? `Last sign-in ${formatDateTime(member.lastLoginAt)}`
+              : "Never signed in"}
+          </span>
         </div>
       </Td>
       <Td className="text-muted-foreground">{member.email}</Td>
@@ -196,36 +265,74 @@ function MemberRow({ member, isSelf }: { member: TeamMember; isSelf: boolean }) 
           />
         </div>
       </Td>
+      <Td className="text-right">
+        <div className="flex flex-wrap justify-end gap-2">
+          {!member.lastLoginAt ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy || !active}
+              onClick={resendInvite}
+            >
+              Resend invite
+            </Button>
+          ) : null}
+          {member.twoFactorOn ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={resetTotp}
+            >
+              Reset 2FA
+            </Button>
+          ) : null}
+        </div>
+      </Td>
     </Tr>
   );
 }
 
-function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function InviteDialog({
+  open,
+  onClose,
+  onLink,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onLink: (link: { name: string; url: string }) => void;
+}) {
   const router = useRouter();
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
   const [role, setRole] = React.useState("TECH");
   const [busy, setBusy] = React.useState(false);
 
   function reset() {
     setName("");
     setEmail("");
-    setPassword("");
     setRole("TECH");
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    const result = await inviteUserAction({ name, email, password, role });
+    const result = await inviteUserAction({ name, email, role });
     setBusy(false);
 
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    toast.success(`${name} can now sign in.`);
+
+    if (result.inviteUrl) {
+      // No mail provider is configured, so nothing was actually delivered —
+      // hand the owner the link rather than leaving the new hire waiting.
+      onLink({ name, url: result.inviteUrl });
+    } else {
+      toast.success(`Invite sent to ${email}.`);
+    }
+
     reset();
     onClose();
     router.refresh();
@@ -246,8 +353,8 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
         <DialogHeader>
           <DialogTitle>Add a team member</DialogTitle>
           <DialogDescription>
-            They sign in with this email and the temporary password you set —
-            pass it on in person and have them change it.
+            They&apos;ll get an email with a link to set their own password. It
+            works for three days — you never have to handle a password.
           </DialogDescription>
         </DialogHeader>
 
@@ -272,16 +379,6 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="jordan@example.com"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="invite-password">Temporary password</Label>
-            <Input
-              id="invite-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 8 characters"
             />
           </div>
 
@@ -317,11 +414,75 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
-              {busy ? "Creating…" : "Create account"}
+              {busy ? "Sending…" : "Send invite"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Shown only when no mail provider is configured.
+ *
+ * The link is the invite: without a provider the email went to the server
+ * console and nowhere else, so the owner has to pass it on themselves. It is
+ * displayed once, here, and refuses to close on an outside click.
+ */
+function InviteLinkDialog({
+  link,
+  onClose,
+}: {
+  link: { name: string; url: string } | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={Boolean(link)} onOpenChange={(next) => next || onClose()}>
+      <DialogContent
+        className="max-w-md"
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle>Send {link?.name} this link</DialogTitle>
+          <DialogDescription>
+            No email provider is set up yet, so nothing was actually delivered.
+            Copy this link to {link?.name} — it lets them set their own password
+            and works for three days.
+          </DialogDescription>
+        </DialogHeader>
+
+        {link ? <InviteLinkBody url={link.url} onClose={onClose} /> : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InviteLinkBody({ url, onClose }: { url: string; onClose: () => void }) {
+  const [copied, setCopied] = React.useState(false);
+
+  return (
+    <>
+      <code className="select-all break-all rounded-md bg-surface-hover px-3.5 py-3 font-mono text-[13px] leading-relaxed text-foreground">
+        {url}
+      </code>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(url);
+              setCopied(true);
+            } catch {
+              toast.error("Couldn't copy — select the link and copy it.");
+            }
+          }}
+        >
+          <Copy /> {copied ? "Copied" : "Copy link"}
+        </Button>
+        <Button onClick={onClose}>Done</Button>
+      </DialogFooter>
+    </>
   );
 }

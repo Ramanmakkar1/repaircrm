@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { destroySession, login, signup } from "@/lib/auth";
+import { login, signOutCurrentUser, signup } from "@/lib/auth";
 
 export type AuthFormState = { error?: string } | undefined;
 
@@ -16,15 +16,23 @@ export async function loginAction(
   _prev: AuthFormState,
   formData: FormData
 ): Promise<AuthFormState> {
+  const target = safeRedirectTarget(formData.get("redirectTo"));
+
   const result = await login(
     String(formData.get("email") ?? ""),
     String(formData.get("password") ?? "")
   );
 
-  if (!result.ok) return { error: result.error };
+  if (result.status === "error") return { error: result.error };
 
   // redirect() throws — keep it out of any try/catch.
-  redirect(safeRedirectTarget(formData.get("redirectTo")));
+  if (result.status === "2fa") {
+    // The password was right but no session exists yet; the pending cookie
+    // login() just set is what /login/verify trades for one.
+    redirect(`/login/verify?next=${encodeURIComponent(target)}`);
+  }
+
+  redirect(target);
 }
 
 export async function signupAction(
@@ -45,6 +53,6 @@ export async function signupAction(
 
 /** Server Action form of sign-out. There is also a GET/POST route at /logout. */
 export async function logoutAction(): Promise<void> {
-  await destroySession();
+  await signOutCurrentUser();
   redirect("/login");
 }
