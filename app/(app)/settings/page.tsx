@@ -21,6 +21,7 @@ import {
 } from "@/lib/payments";
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
+import { loadIntegrationCards } from "@/lib/integrations/cards";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
@@ -29,6 +30,7 @@ import {
   readCheckinSettings,
   readReviewSettings,
 } from "@/components/settings/checkin-meta";
+import type { IntegrationsConfig } from "@/components/settings/integrations-tab";
 import type {
   MessagingConfig,
   PaymentsTabConfig,
@@ -72,6 +74,7 @@ export default async function SettingsPage({
     deliveries,
     shopCount,
     reviewsSentThisMonth,
+    integrationCards,
   ] = await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
@@ -89,6 +92,9 @@ export default async function SettingsPage({
         timezone: true,
         taxRateBps: true,
         settings: true,
+        // Read-only here: Stripe Connect onboarding lives in the Payments
+        // settings; the Integrations hub only reports whether it happened.
+        stripeAccountId: true,
       },
     }),
     db.cannedResponse.findMany({
@@ -239,6 +245,9 @@ export default async function SettingsPage({
           },
         })
       : Promise.resolve(0),
+    // Same owner-only reasoning again: a technician's request never loads the
+    // shop's accounting connections.
+    isOwner ? loadIntegrationCards(session.shopId) : Promise.resolve([]),
   ]);
 
   if (!shop) notFound();
@@ -377,6 +386,17 @@ export default async function SettingsPage({
     reviewsSentThisMonth,
   };
 
+  const integrations: IntegrationsConfig = {
+    cards: integrationCards,
+    stripeConnected: Boolean(shop.stripeAccountId),
+    stripeLive: paymentsLive(),
+    emailDriver: emailDriverName(),
+    smsDriver: smsDriverName(),
+    apiKeyCount: apiKeys.filter((key) => key.active).length,
+    appUrl: appUrl(),
+    notice: integrationNotice(params),
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -457,6 +477,7 @@ export default async function SettingsPage({
             ? delivery.lastAttemptAt.toISOString()
             : null,
         }))}
+        integrations={integrations}
       />
     </div>
   );
@@ -478,4 +499,48 @@ function envNumber(raw: string | undefined, fallback: number): number {
   if (!trimmed) return fallback;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * One line about the OAuth round trip that just came back.
+ *
+ * The connect and callback routes can only speak through the query string —
+ * they redirect from a provider's domain, with no session state of their own
+ * to carry a message in — so this turns their codes into something an operator
+ * can read. `detail` is the provider's own words, already truncated at source.
+ */
+function integrationNotice(
+  params: Record<string, string | string[] | undefined>,
+): IntegrationsConfig["notice"] {
+  const one = (key: string) =>
+    typeof params[key] === "string" ? (params[key] as string) : "";
+
+  const connected = one("connected");
+  if (connected) {
+    return {
+      tone: "ok",
+      text:
+        connected === "xero"
+          ? "Xero connected. Press Sync now, or leave it to the automation timer."
+          : "QuickBooks Online connected. Press Sync now, or leave it to the automation timer.",
+    };
+  }
+
+  const error = one("error");
+  if (!error) return null;
+
+  const detail = one("detail");
+  const text: Record<string, string> = {
+    cancelled: "Connection cancelled — nothing was changed.",
+    "owner-only": "Only an owner can connect an accounting account.",
+    "not-configured":
+      "That integration is not configured on this server. The card below lists the environment variables it needs.",
+    "bad-callback":
+      "That sign-in link had expired or was incomplete. Start the connection again.",
+    "no-tenant":
+      "That Xero login does not reach any organisation. Pick a different login, or add the organisation in Xero first.",
+    "connect-failed": detail || "The provider refused the connection.",
+  };
+
+  return { tone: "bad", text: text[error] ?? "Something went wrong connecting." };
 }

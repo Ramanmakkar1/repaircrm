@@ -14,6 +14,7 @@ import {
   type LocationStaffMember,
 } from "./locations-tab";
 import { CheckinTab, type CheckinTabConfig } from "./checkin-tab";
+import { IntegrationsTab, type IntegrationsConfig } from "./integrations-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ProfileTab } from "./profile-tab";
 import { PaymentsTab } from "./payments-tab";
@@ -75,6 +76,7 @@ export function SettingsTabs({
   profile,
   auditPage,
   checkin,
+  integrations,
 }: {
   role: string;
   currentUserId: string;
@@ -107,6 +109,8 @@ export function SettingsTabs({
   auditPage: AuditPage;
   /** Owner-only; the public check-in form and the review request. */
   checkin: CheckinTabConfig;
+  /** Owner-only; accounting connections and where everything else is set up. */
+  integrations: IntegrationsConfig;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -128,6 +132,7 @@ export function SettingsTabs({
         { value: "messaging", label: "Messaging" },
         isOwner ? { value: "payments", label: "Payments" } : null,
         isOwner ? { value: "checkin", label: "Check-in & reviews" } : null,
+        isOwner ? { value: "integrations", label: "Integrations" } : null,
         isOwner ? { value: "automation", label: "Automation" } : null,
         isOwner ? { value: "profile", label: "My profile" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
@@ -207,6 +212,12 @@ export function SettingsTabs({
       {isOwner ? (
         <TabsContent value="checkin">
           <CheckinTab config={checkin} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="integrations">
+          <IntegrationsTab config={integrations} />
         </TabsContent>
       ) : null}
 

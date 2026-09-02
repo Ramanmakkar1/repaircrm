@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
 import { runDueAppointmentRemindersForShop } from "./appointments";
 import { purgeExpiredPortalTokens } from "./housekeeping";
+import { runIntegrationSyncForShop } from "./integrations";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import { runSlaChecksForShop } from "./sla";
 import { runDueWebhookDeliveries } from "./webhooks";
@@ -22,7 +23,7 @@ export { summaryLine };
 /**
  * The automation runner: the one place that decides what runs unattended.
  *
- * Seven jobs, per shop, in this order:
+ * Eight jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
  *                          date has arrived, then — only where the schedule
@@ -31,15 +32,19 @@ export { summaryLine };
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
- *   3. SLA                 stamp every open ticket that has run past its due
+ *   3. accounting          push customers, items, invoices and payments to
+ *                          QuickBooks / Xero (lib/jobs/integrations.ts) —
+ *                          after recurring, so an invoice stamped this pass
+ *                          reaches the books in the same pass
+ *   4. SLA                 stamp every open ticket that has run past its due
  *                          date and alert whoever owns it (lib/jobs/sla.ts)
- *   4. webhooks            POST every queued delivery that is due, with
+ *   5. webhooks            POST every queued delivery that is due, with
  *                          signature and backoff (lib/jobs/webhooks.ts)
- *   5. reminders           "you're booked in tomorrow" for appointments inside
+ *   6. reminders           "you're booked in tomorrow" for appointments inside
  *                          the next 24h (lib/jobs/appointments.ts)
- *   6. reviews             the post-pickup review ask, once the shop's delay
+ *   7. reviews             the post-pickup review ask, once the shop's delay
  *                          has elapsed (lib/jobs/reviews.ts)
- *   7. housekeeping        drop portal tokens expired for over a week
+ *   8. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -348,6 +353,20 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`campaigns: ${message(error)}`);
+  }
+
+  try {
+    // Accounting early: it pushes invoices, and the recurring job above may
+    // have just stamped one. Running it later in the pass would leave that
+    // invoice a pass behind for no reason.
+    const accounting = await runIntegrationSyncForShop(shopId);
+    summary.accounting.pushed += accounting.pushed;
+    summary.accounting.failed += accounting.failed;
+    for (const error of accounting.errors) {
+      summary.errors.push(`accounting: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`accounting: ${message(error)}`);
   }
 
   try {

@@ -48,6 +48,8 @@ export type JobsSummary = {
   reminders: { sent: number };
   /** Post-pickup review requests that reached a provider (lib/jobs/reviews.ts). */
   reviews: { sent: number };
+  /** Rows written to QuickBooks / Xero, across every connected provider. */
+  accounting: { pushed: number; failed: number };
   tokensPurged: number;
   /**
    * One line per failure, already prefixed with the shop it came from. A run
@@ -89,6 +91,7 @@ export function emptySummary(source: JobSource): JobsSummary {
     webhooks: { delivered: 0, failed: 0 },
     reminders: { sent: 0 },
     reviews: { sent: 0 },
+    accounting: { pushed: 0, failed: 0 },
     tokensPurged: 0,
     errors: [],
     source,
@@ -116,6 +119,8 @@ export function summaryLine(summary: JobsSummary): string {
     // Same reasoning for the two newest counters.
     `${summary.reminders?.sent ?? 0} reminder${(summary.reminders?.sent ?? 0) === 1 ? "" : "s"}`,
     `${summary.reviews?.sent ?? 0} review${(summary.reviews?.sent ?? 0) === 1 ? "" : "s"}`,
+    // Same reasoning again for the accounting counter.
+    `${summary.accounting?.pushed ?? 0} synced`,
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     `${summary.ms}ms`,
   ].join(", ");
