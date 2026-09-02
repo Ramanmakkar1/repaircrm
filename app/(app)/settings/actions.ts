@@ -394,6 +394,10 @@ export async function inviteUserAction(input: {
         name,
         role,
         mustChangePassword: true,
+        // Nothing they chose. It becomes true the moment they set one from the
+        // invite link — and stays false if they accept with Google instead,
+        // which is what stops them disconnecting it and locking themselves out.
+        hasPassword: false,
       },
       select: { id: true, name: true, email: true },
     });

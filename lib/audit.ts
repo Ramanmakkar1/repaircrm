@@ -34,6 +34,11 @@ export type AuditAction =
   | "user.2fa_enabled"
   | "user.2fa_disabled"
   | "user.2fa_reset"
+  // Sign in with Google. `user.login` covers the sign-in itself (meta.via).
+  | "user.google_linked"
+  | "user.google_unlinked"
+  | "user.google_refused"
+  | "user.signup_google"
   | "user.invited"
   | "user.role_changed"
   | "user.deactivated"

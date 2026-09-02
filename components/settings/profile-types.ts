@@ -14,6 +14,23 @@ export type ProfileValues = {
   /** How many unused recovery codes are left. */
   recoveryCodesLeft: number;
   lastLoginAt: string | null;
+
+  // --- Sign in with Google ---------------------------------------------
+  /** False when the server has no GOOGLE_CLIENT_ID/SECRET — the row is hidden. */
+  googleAvailable: boolean;
+  /** The linked Google address, or null when nothing is connected. */
+  googleEmail: string | null;
+  googleLinkedAt: string | null;
+  /** Google's profile picture, when there is one. */
+  avatarUrl: string | null;
+  /**
+   * False for an account whose owner has never chosen a password — a Google
+   * signup, or an invite accepted with Google. Disconnecting is refused while
+   * it is false, because it would leave them with no way back in.
+   */
+  hasPassword: boolean;
+  /** The outcome of a Connect round trip that just came back, if any. */
+  googleNotice: { tone: "ok" | "bad"; text: string } | null;
 };
 
 /**

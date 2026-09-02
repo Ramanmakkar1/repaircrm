@@ -86,7 +86,7 @@ export async function completeSignIn(user: {
   name: string;
   email: string;
   passwordChangedAt?: Date | null;
-}, options: { via?: "password" | "totp" | "recovery_code" } = {}): Promise<SessionUser> {
+}, options: { via?: "password" | "totp" | "recovery_code" | "google" } = {}): Promise<SessionUser> {
   const session = sessionFor(user);
   await setSessionCookie(session);
 
@@ -172,6 +172,27 @@ export async function verifyPassword(
   hash: string
 ): Promise<boolean> {
   return bcrypt.compare(plain, hash);
+}
+
+/**
+ * A bcrypt hash of 32 random bytes, immediately forgotten.
+ *
+ * `User.passwordHash` is a required column and stays that way: every code path
+ * in the app reads it without a null check, and making it optional to please
+ * one sign-in method would put a `?.` in front of the thing that decides who
+ * gets in. So an account with no password of its own gets a hash nothing can
+ * match — the bargain the invite flow already makes — and `hasPassword` is the
+ * flag that says so out loud.
+ */
+export async function unusablePasswordHash(): Promise<string> {
+  // Web Crypto rather than node:crypto: this module is reachable from
+  // lib/jobs, which Next compiles for the Edge runtime as well as Node, and a
+  // `node:` import there is a build error for 32 bytes either one can make.
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return hashPassword(
+    Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -306,15 +327,57 @@ export async function signup(input: {
     return { ok: false, error: "An account with that email already exists." };
   }
 
-  const passwordHash = await hashPassword(parsed.data.password);
-  const slug = await uniqueShopSlug(parsed.data.shopName);
+  const user = await createShopWithOwner({
+    shopName: parsed.data.shopName,
+    name: parsed.data.name,
+    email,
+    passwordHash: await hashPassword(parsed.data.password),
+  });
 
-  const user = await db.$transaction(async (tx) => {
+  const session = sessionFor(user);
+  await setSessionCookie(session);
+  return { ok: true, user: session };
+}
+
+/**
+ * Creates a brand new tenant: Shop + a "Main" Location + an OWNER user, in one
+ * transaction so a half-created shop can never exist.
+ *
+ * Extracted from `signup()` because "Sign up with Google" has to produce
+ * exactly the same three rows (see lib/google/account.ts). Two copies of the
+ * transaction that brings a tenant into existence is precisely the code that
+ * drifts, and the half that drifts is the one nobody is looking at.
+ *
+ * The caller supplies the password hash: a form signup passes the chosen
+ * password, a Google signup passes `unusablePasswordHash()`.
+ */
+export async function createShopWithOwner(input: {
+  shopName: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  /** Set when the owner arrived through Google, so the link exists from row one. */
+  google?: {
+    sub: string;
+    email: string;
+    avatarUrl: string | null;
+  };
+}): Promise<{
+  id: string;
+  shopId: string;
+  role: SessionRole;
+  name: string;
+  email: string;
+  passwordChangedAt: Date | null;
+}> {
+  const slug = await uniqueShopSlug(input.shopName);
+
+  return db.$transaction(async (tx) => {
     const shop = await tx.shop.create({
       data: {
-        name: parsed.data.shopName,
+        name: input.shopName,
         slug,
-        email,
+        email: input.email,
       },
     });
 
@@ -325,17 +388,32 @@ export async function signup(input: {
     return tx.user.create({
       data: {
         shopId: shop.id,
-        email,
-        passwordHash,
-        name: parsed.data.name,
+        email: input.email,
+        passwordHash: input.passwordHash,
+        name: input.name,
         role: "OWNER",
+        ...(input.google
+          ? {
+              googleSub: input.google.sub,
+              googleEmail: input.google.email,
+              googleLinkedAt: new Date(),
+              avatarUrl: input.google.avatarUrl,
+              // No password was ever chosen, so "Disconnect Google" has to
+              // refuse until one is — see lib/google/account.ts.
+              hasPassword: false,
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        shopId: true,
+        role: true,
+        name: true,
+        email: true,
+        passwordChangedAt: true,
       },
     });
   });
-
-  const session = sessionFor(user);
-  await setSessionCookie(session);
-  return { ok: true, user: session };
 }
 
 export function slugify(value: string): string {

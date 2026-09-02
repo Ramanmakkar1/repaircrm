@@ -202,6 +202,23 @@ model User {
   role               Role                 @default(TECH)
   active             Boolean              @default(true)
 
+  // --- Sign in with Google (staff only; the customer portal uses magic links) ---
+  /// Google's `sub`: the stable account id, and the identity a Google sign-in
+  /// is matched on. Globally unique for the same reason `email` is — one
+  /// Google account signs into exactly one RepairFlow user.
+  googleSub          String?              @unique
+  /// The Google address that was linked, kept for display. Usually equal to
+  /// `email`, but an owner can change `email` afterwards and a person may link
+  /// a personal Google account to a work address, so it is stored separately.
+  googleEmail        String?
+  googleLinkedAt     DateTime?
+  /// Google's `picture` claim. Remote URL; nothing is downloaded.
+  avatarUrl          String?
+  /// False once an account exists that its owner has never chosen a password
+  /// for — a Google signup, or an invite accepted with Google. It is what
+  /// stops "Disconnect" from locking someone out of their own shop.
+  hasPassword        Boolean              @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

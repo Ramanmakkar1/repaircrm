@@ -35,6 +35,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
+import { GoogleMark } from "@/components/auth/google-button";
 import { ROLE_BLURB, ROLE_OPTIONS, type TeamMember } from "./types";
 
 /**
@@ -236,6 +237,15 @@ function MemberRow({
                 className="inline-flex items-center gap-1 rounded-full bg-status-resolved-bg px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-status-resolved-fg"
               >
                 <ShieldCheck className="size-3" /> 2FA
+              </span>
+            ) : null}
+            {/* So an owner can see at a glance who signs in with Google. */}
+            {member.googleLinked ? (
+              <span
+                title="Signs in with Google"
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground"
+              >
+                <GoogleMark className="size-3" /> Google
               </span>
             ) : null}
           </div>

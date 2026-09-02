@@ -163,6 +163,9 @@ export async function resetPasswordAction(
         passwordHash,
         passwordChangedAt: changedAt,
         mustChangePassword: false,
+        // An account that had none until now (a fresh invite, or one created
+        // with Google) has one from here on — see lib/google/account.ts.
+        hasPassword: true,
       },
       select: {
         id: true,
@@ -308,6 +311,7 @@ export async function forcedPasswordChangeAction(
       passwordHash: await hashPassword(password),
       passwordChangedAt: changedAt,
       mustChangePassword: false,
+      hasPassword: true,
     },
     select: {
       id: true,

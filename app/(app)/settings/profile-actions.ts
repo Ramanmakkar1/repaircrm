@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { audit } from "@/lib/audit";
 import { hashPassword, requireUser, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { unlinkGoogleFromUser } from "@/lib/google/account";
 import { setSessionCookie } from "@/lib/session";
 import {
   formatSecretForDisplay,
@@ -127,6 +128,9 @@ export async function changeOwnPasswordAction(
       passwordHash: await hashPassword(next),
       passwordChangedAt: changedAt,
       mustChangePassword: false,
+      // They have now chosen a password of their own, so "Disconnect Google"
+      // is no longer a way to lock themselves out.
+      hasPassword: true,
     },
     select: { id: true, shopId: true, role: true, name: true, email: true },
   });
@@ -286,6 +290,26 @@ export async function disableTotpAction(
     entityId: user.id,
     summary: `${user.name} turned off two-step verification`,
   });
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Sign in with Google
+// ---------------------------------------------------------------------------
+
+/**
+ * Settings → My profile → "Disconnect".
+ *
+ * Connecting is a GET to /api/auth/google/start?intent=link — it has to be, it
+ * ends at Google — so only the disconnect half is an action. Both operate on
+ * `session.userId` and nothing else, like everything in this file.
+ */
+export async function disconnectGoogleAction(): Promise<SettingsResult> {
+  const session = await requireUser();
+  const result = await unlinkGoogleFromUser(session);
+  if (!result.ok) return result;
 
   revalidatePath("/settings");
   return { ok: true };

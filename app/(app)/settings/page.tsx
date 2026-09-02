@@ -22,6 +22,8 @@ import {
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
+import { googleConfigured } from "@/lib/google/config";
+import { googleNotice } from "@/lib/google/messages";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
@@ -118,6 +120,7 @@ export default async function SettingsPage({
             defaultLocationId: true,
             lastLoginAt: true,
             totpEnabledAt: true,
+            googleSub: true,
           },
         })
       : Promise.resolve([]),
@@ -191,6 +194,10 @@ export default async function SettingsPage({
         totpEnabledAt: true,
         totpRecoveryCodes: true,
         lastLoginAt: true,
+        googleEmail: true,
+        googleLinkedAt: true,
+        avatarUrl: true,
+        hasPassword: true,
       },
     }),
     // The audit log is owner-only; a technician's request never reads it.
@@ -262,6 +269,18 @@ export default async function SettingsPage({
       : null,
     recoveryCodesLeft: profile.totpRecoveryCodes.length,
     lastLoginAt: profile.lastLoginAt ? profile.lastLoginAt.toISOString() : null,
+    // Only *whether* the Google client credentials are populated crosses to the
+    // browser — the same rule the messaging and payments configs follow.
+    googleAvailable: googleConfigured(),
+    googleEmail: profile.googleEmail,
+    googleLinkedAt: profile.googleLinkedAt
+      ? profile.googleLinkedAt.toISOString()
+      : null,
+    avatarUrl: profile.avatarUrl,
+    hasPassword: profile.hasPassword,
+    googleNotice: googleNotice(
+      typeof params.google === "string" ? params.google : null,
+    ),
   };
 
   // "Staff based here" needs each member's current branch, by name.
@@ -439,6 +458,7 @@ export default async function SettingsPage({
             ? member.lastLoginAt.toISOString()
             : null,
           twoFactorOn: member.totpEnabledAt !== null,
+          googleLinked: member.googleSub !== null,
         }))}
         messaging={messaging}
         payments={payments}

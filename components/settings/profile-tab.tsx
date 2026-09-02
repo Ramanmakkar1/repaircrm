@@ -10,9 +10,12 @@ import {
   changeOwnPasswordAction,
   confirmTotpAction,
   disableTotpAction,
+  disconnectGoogleAction,
   startTotpSetupAction,
   updateProfileNameAction,
 } from "@/app/(app)/settings/profile-actions";
+import { GoogleButton, GoogleMark } from "@/components/auth/google-button";
+import { Avatar, AvatarFallback, AvatarImage, getInitials } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +45,7 @@ export function ProfileTab({ profile }: { profile: ProfileValues }) {
   return (
     <div className="flex flex-col gap-5">
       <DetailsCard profile={profile} />
+      <GoogleCard profile={profile} />
       <PasswordCard />
       <TwoFactorCard profile={profile} />
     </div>
@@ -140,6 +144,120 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
         <SubmitButton pendingLabel="Saving…">Save name</SubmitButton>
       </div>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sign in with Google
+// ---------------------------------------------------------------------------
+
+/**
+ * One row: connected or not.
+ *
+ * Connecting is a link, not a button with an action behind it — the flow ends
+ * at Google, so it has to be a GET to /api/auth/google/start. Disconnecting is
+ * an ordinary action, and it refuses while the account has no password of its
+ * own: someone who signed up with Google and disconnects it has no way back in.
+ *
+ * The whole card disappears when the server has no Google client credentials.
+ */
+function GoogleCard({ profile }: { profile: ProfileValues }) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+
+  if (!profile.googleAvailable) return null;
+
+  const linked = Boolean(profile.googleEmail);
+
+  async function disconnect() {
+    setBusy(true);
+    const result = await disconnectGoogleAction();
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Google account disconnected.");
+    router.refresh();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Google account</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {profile.googleNotice ? (
+          <div
+            role={profile.googleNotice.tone === "bad" ? "alert" : "status"}
+            className={
+              profile.googleNotice.tone === "bad"
+                ? "flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
+                : "flex items-start gap-2.5 rounded-md bg-status-resolved-bg px-4 py-3 text-sm font-semibold text-status-resolved-fg"
+            }
+          >
+            {profile.googleNotice.tone === "bad" ? (
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            )}
+            <span>{profile.googleNotice.text}</span>
+          </div>
+        ) : null}
+
+        {linked ? (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="size-10">
+                {profile.avatarUrl ? (
+                  <AvatarImage
+                    src={profile.avatarUrl}
+                    alt={`${profile.name}'s Google picture`}
+                  />
+                ) : null}
+                <AvatarFallback>{getInitials(profile.name)}</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col gap-0.5">
+                <span className="flex items-center gap-2 text-[15px] font-semibold text-foreground">
+                  <GoogleMark className="size-4" />
+                  {profile.googleEmail}
+                </span>
+                <span className="text-[13.5px] text-muted-foreground">
+                  {profile.googleLinkedAt
+                    ? `Connected ${formatDateTime(profile.googleLinkedAt)}`
+                    : "Connected"}
+                </span>
+              </div>
+            </div>
+
+            <Button variant="outline" disabled={busy} onClick={disconnect}>
+              {busy ? "Disconnecting…" : "Disconnect"}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="max-w-prose text-[14px] leading-relaxed text-muted-foreground">
+              Connect a Google account and you can sign in with one tap instead
+              of typing your password. Your email and password keep working
+              either way.
+            </p>
+            <GoogleButton
+              intent="link"
+              label="Connect"
+              className="w-auto px-5"
+            />
+          </div>
+        )}
+
+        {linked && !profile.hasPassword ? (
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            You&apos;ve never set a password here, so Google is your only way
+            in. To set one, sign out and use &ldquo;Forgot password?&rdquo; —
+            after that you can disconnect.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

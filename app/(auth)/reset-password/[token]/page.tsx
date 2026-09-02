@@ -4,7 +4,14 @@ import type { Metadata } from "next";
 
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth";
+import { googleConfigured } from "@/lib/google/config";
+import { googleNotice } from "@/lib/google/messages";
 import { resolveResetToken } from "@/lib/password-reset";
+import {
+  AuthDivider,
+  GoogleButton,
+  GoogleNoticeBanner,
+} from "@/components/auth/google-button";
 
 import { ResetForm } from "./reset-form";
 
@@ -20,13 +27,16 @@ export const metadata: Metadata = {
  */
 export default async function ResetPasswordPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ google?: string }>;
 }) {
   const session = await getSession();
   if (session) redirect("/");
 
   const { token } = await params;
+  const { google } = await searchParams;
   const resolved = await resolveResetToken(token);
 
   if (!resolved) {
@@ -60,6 +70,18 @@ export default async function ResetPasswordPage({
           dashboard.
         </p>
       </div>
+
+      <GoogleNoticeBanner notice={googleNotice(google)} />
+
+      {/* An invited colleague can accept with Google instead of choosing a
+          password. The callback insists the Google address is the one the
+          invite was sent to — see lib/google/account.ts. */}
+      {googleConfigured() ? (
+        <>
+          <GoogleButton intent={`invite:${token}`} />
+          <AuthDivider label="or set a password" />
+        </>
+      ) : null}
 
       <ResetForm token={token} />
     </>
