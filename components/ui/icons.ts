@@ -33,6 +33,7 @@ import {
   Hash,
   Inbox,
   KeyRound,
+  Landmark,
   Laptop,
   LayoutDashboard,
   Link2,
@@ -71,6 +72,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
+  Smartphone,
   Star,
   StickyNote,
   Store,
@@ -149,7 +151,15 @@ export const ICONS = {
 
   // --------------------------------------------------------------- money ----
   payment: CreditCard,
+  /**
+   * The physical machine a customer taps a card on, as distinct from the
+   * payment itself. The two sit on the same Payments screen — "connect a card
+   * machine" next to "take a card payment" — so they cannot share a glyph.
+   */
+  cardMachine: Smartphone,
   cash: Banknote,
+  /** Money leaving Stripe for the shop's bank. Not the cash in the till. */
+  payout: Landmark,
   deposit: Wallet,
   refund: Undo2,
   // Not the same wallet as a deposit: a deposit is the customer's money we are

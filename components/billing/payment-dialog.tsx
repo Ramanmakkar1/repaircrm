@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -33,19 +33,26 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
 /**
- * The card-reader half of this dialog, or absent when the shop has no reader.
+ * The card-machine half of this dialog, or absent when the shop has none.
  *
- * `record` is the Server Action that RETRIEVES the intent from Stripe and
+ * `record` is the Server Action that RETRIEVES the payment from Stripe and
  * verifies it against this invoice before writing a Payment — the browser only
  * ever passes an id along.
  */
 export type PaymentTerminal = {
-  /** Server-derived. Decides whether Stripe offers a simulated reader. */
+  /** Server-derived. Decides whether Stripe offers a practice machine. */
   testMode: boolean;
   record: (
     invoiceId: string,
     paymentIntentId: string,
   ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+  /**
+   * Opens a hosted Stripe page for this balance. Offered only when no card
+   * machine answers, so the counter still has a way to get paid.
+   */
+  paymentLink?: (
+    invoiceId: string,
+  ) => Promise<{ ok: true; url: string } | { ok: false; reason: string }>;
 };
 
 const METHODS = [
@@ -78,7 +85,7 @@ export function PaymentDialog({
   balanceCents: number;
   customerCreditCents: number;
   customerName: string;
-  /** Absent when this shop has no card reader paired. */
+  /** Absent when this shop has no card machine connected. */
   terminal?: PaymentTerminal;
   /**
    * Optional. When the payment just recorded clears the balance, the success
@@ -165,7 +172,7 @@ export function PaymentDialog({
               className="h-13"
               onClick={() => setReaderMode(true)}
             >
-              <ACTIONS.pay /> Take it on the card reader
+              <ACTIONS.pay /> Take it on the card machine
             </Button>
           ) : null}
 
@@ -246,11 +253,14 @@ export function PaymentDialog({
 }
 
 /**
- * Taking the card on a reader instead of typing an auth code.
+ * Taking the card on a machine instead of typing an auth code.
  *
  * The amount is not asked for and cannot be edited: /api/payments/terminal/intent
  * prices it from the invoice's own lines and payments, so what the customer
  * taps against is what the invoice actually owes.
+ *
+ * When no machine answers, the panel says so in one sentence and offers a
+ * payment link for the same balance rather than leaving the counter stuck.
  */
 function ReaderPayment({
   invoiceId,
@@ -311,6 +321,14 @@ function ReaderPayment({
         terminal={reader}
         onStart={start}
         startLabel={`Charge ${formatCents(balanceCents)}`}
+        fallback={
+          terminal.paymentLink ? (
+            <PaymentLinkButton
+              invoiceId={invoiceId}
+              action={terminal.paymentLink}
+            />
+          ) : null
+        }
       />
 
       <DialogFooter>
@@ -340,5 +358,48 @@ function ReaderPayment({
         )}
       </DialogFooter>
     </div>
+  );
+}
+
+/**
+ * The way out when no card machine answers.
+ *
+ * Copies a hosted Stripe link for exactly this balance, which the counter can
+ * text or email while the customer is still standing there. Same action the
+ * Share row uses, so there is one implementation of "what does this invoice
+ * cost" and not two.
+ */
+function PaymentLinkButton({
+  invoiceId,
+  action,
+}: {
+  invoiceId: string;
+  action: (
+    invoiceId: string,
+  ) => Promise<{ ok: true; url: string } | { ok: false; reason: string }>;
+}) {
+  const [busy, setBusy] = React.useState(false);
+
+  const copy = async () => {
+    setBusy(true);
+    const result = await action(invoiceId);
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.reason);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(result.url);
+      toast.success("Payment link copied — send it to the customer to pay by card.");
+    } catch {
+      toast.error("Couldn't reach the clipboard on this device.");
+    }
+  };
+
+  return (
+    <Button type="button" variant="outline" size="lg" disabled={busy} onClick={copy}>
+      {busy ? <Loader2 className="animate-spin" /> : <Link2 />}
+      Copy a payment link instead
+    </Button>
   );
 }

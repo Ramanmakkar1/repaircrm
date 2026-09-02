@@ -156,13 +156,57 @@ export type PaymentsConfig = {
   vars: { name: string; set: boolean }[];
 };
 
-/** One registered card reader, as the Payments tab lists it. */
+/** One paired card machine, as the Payments tab lists it. */
 export type ReaderItem = {
   id: string;
   label: string;
+  /** Stripe's word — "online", "offline", "unknown". Rendered as a sentence. */
   status: string;
   deviceType: string;
   serialNumber: string | null;
+  /** Stripe's software reader: no hardware, test keys only, labelled as such. */
+  simulated: boolean;
+  /** 0–100, only for models that have a battery. */
+  batteryPercent: number | null;
+  lastSeenAt: string | null;
+  locationId: string | null;
+};
+
+/**
+ * The state of the automatic payment-confirmation setup for this shop.
+ *
+ * There is no secret in here and there never will be. `lib/payments/endpoint.ts`
+ * builds this by naming each field it is allowed to read, precisely so that the
+ * signing key sitting in the next column cannot be swept into a page payload by
+ * a later refactor.
+ */
+export type PaymentSetupState = {
+  /** True when Stripe has been told, automatically, where to confirm payments. */
+  automatic: boolean;
+  endpointId: string | null;
+  url: string | null;
+  setUpAt: string | null;
+  /** One sentence saying why the automatic setup did not finish. */
+  error: string | null;
+  /** True when this app has moved since Stripe was told where to post. */
+  addressChanged: boolean;
+};
+
+/** Whether Stripe can reach this app at all, and the sentence to say so. */
+export type AppAddressState = {
+  url: string;
+  publicAddress: boolean;
+  message: string;
+};
+
+/** "How you get paid", already in prose. See lib/payments/payouts.ts. */
+export type PayoutState = {
+  scheduleText: string;
+  bankText: string | null;
+  available: { amountCents: number; currency: string }[];
+  pending: { amountCents: number; currency: string }[];
+  dashboardUrl: string;
+  error: string | null;
 };
 
 /**
@@ -202,6 +246,16 @@ export type PaymentsTabConfig = {
   hasReaderLocation: boolean;
   /** True when a card can be saved against a customer today. */
   cardOnFileReady: boolean;
+  /** The automatic payment-confirmation setup, and whether it finished. */
+  setup: PaymentSetupState;
+  /** Whether Stripe can reach this app, so the tab can be honest about it. */
+  address: AppAddressState;
+  /** Where the money lands and roughly when. */
+  payout: PayoutState;
+  /** True when a practice (simulated) card machine may be added. */
+  canPairPractice: boolean;
+  /** The events Stripe is asked to send, for the by-hand fallback. */
+  confirmationEvents: string[];
 };
 
 /**

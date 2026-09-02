@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { appUrl } from "@/lib/comms/config";
-import { exchangeConnectCode, saveConnection, verifyConnectState } from "@/lib/payments";
+import {
+  ensureShopWebhook,
+  exchangeConnectCode,
+  saveConnection,
+  verifyConnectState,
+} from "@/lib/payments";
 
 /**
  * GET /api/payments/stripe/callback — step two of one-click onboarding.
@@ -19,6 +24,13 @@ import { exchangeConnectCode, saveConnection, verifyConnectState } from "@/lib/p
  * Every exit is a redirect back to Settings → Payments carrying a short reason
  * code, which the tab turns into a sentence. Rendering an error page here
  * would strand the owner on a URL full of OAuth parameters.
+ *
+ * STEP THREE HAPPENS HERE TOO, AND THE OWNER NEVER SEES IT: the endpoint that
+ * lets Stripe confirm payments is created on the new account immediately
+ * (lib/payments/endpoint.ts). It cannot fail the connection — a shop whose
+ * automatic setup did not finish comes back with `connected-setup-failed` (or
+ * `connected-not-public` on a laptop) and the Payments tab offers a Retry
+ * button next to a one-line explanation.
  */
 
 export const dynamic = "force-dynamic";
@@ -57,6 +69,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   console.log(
     `[payments] shop ${shopId} connected Stripe account ${exchange.accountId} (livemode=${exchange.livemode})`,
   );
+
+  const setup = await ensureShopWebhook(shopId);
+  console.log(
+    `[payments] shop ${shopId} payment confirmations: ${setup.status}`,
+  );
+  if (setup.status === "failed") return back("connected-setup-failed");
+  if (setup.status === "not-public") return back("connected-not-public");
 
   return back("connected");
 }

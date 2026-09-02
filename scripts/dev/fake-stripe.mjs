@@ -29,6 +29,24 @@
  * a second implementation of Stripe is a fixture nobody trusts.
  *
  * Test cards: a `?decline=1` on the hosted page declines instead of paying.
+ *
+ * FAULT INJECTION
+ * ---------------
+ * The failure paths matter as much as the happy one — "automatic setup didn't
+ * finish", "that pairing code expired", "no machine is answering" are all
+ * states with their own screens, and a fixture that can only succeed cannot
+ * prove any of them. So `POST /fake/control` flips switches:
+ *
+ *   endpointsFail=permission   `/v1/webhook_endpoints` refuses with a real
+ *                              Stripe permission error
+ *   endpointsFail=             back to normal
+ *   readersOffline=1           every registered reader reports offline
+ *   deleteEndpoints=1          wipes the endpoints, as if deleted in the
+ *                              dashboard
+ *
+ * Pairing codes are meaningful: `expired-code` and `already-registered` return
+ * Stripe's own error shapes for those two cases, and `simulated-wpe` is the
+ * real registration code for a simulated reader.
  */
 
 import { createHmac } from "node:crypto";
@@ -52,6 +70,13 @@ const db = {
   refunds: new Map(),
   readers: new Map(),
   locations: new Map(),
+  endpoints: new Map(),
+};
+
+/** Fault switches, flipped through POST /fake/control. */
+const control = {
+  endpointsFail: "",
+  readersOffline: false,
 };
 
 let seq = 0;
@@ -61,7 +86,24 @@ const id = (prefix) => `${prefix}_${Date.now().toString(36)}${(seq++).toString(3
 // Webhook delivery
 // ---------------------------------------------------------------------------
 
-async function fire(type, object, account) {
+/**
+ * The secret an event would really be signed with.
+ *
+ * An endpoint registered ON a connected account is signed with THAT endpoint's
+ * own secret — which is the whole point of the per-shop setup, and the thing
+ * the app's route now has to get right. Platform (direct-mode) events fall back
+ * to the server-wide secret, exactly as before.
+ */
+function secretFor(account) {
+  if (account) {
+    for (const endpoint of db.endpoints.values()) {
+      if (endpoint.account === account) return endpoint.secret;
+    }
+  }
+  return WEBHOOK_SECRET;
+}
+
+async function fire(type, object, account, secretOverride) {
   const event = {
     id: id("evt"),
     object: "event",
@@ -73,7 +115,7 @@ async function fire(type, object, account) {
 
   const payload = JSON.stringify(event);
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = createHmac("sha256", WEBHOOK_SECRET)
+  const signature = createHmac("sha256", secretOverride ?? secretFor(account))
     .update(`${timestamp}.${payload}`, "utf8")
     .digest("hex");
 
@@ -109,6 +151,18 @@ function decodeForm(body) {
     node[path[path.length - 1]] = value;
   }
   return out;
+}
+
+/** Stripe reveals a signing secret once, on create, and never lists it again. */
+function withoutSecret(endpoint) {
+  const copy = { ...endpoint };
+  delete copy.secret;
+  return copy;
+}
+
+/** Applies the readersOffline switch without mutating the stored reader. */
+function withStatus(reader) {
+  return { ...reader, status: control.readersOffline ? "offline" : reader.status };
 }
 
 /** `{ "0": "card_present" }` reads back as an array. */
@@ -208,6 +262,19 @@ async function route(ctx) {
 
   if (path.startsWith("/v1/accounts/")) {
     const accountId = decodeURIComponent(path.split("/")[3]);
+    if (connectedAccount && accountId !== connectedAccount) {
+      // Exactly what Stripe says once the platform has been deauthorized.
+      return json(
+        {
+          error: {
+            message: `The provided key does not have access to account "${accountId}".`,
+            code: "account_invalid",
+            type: "invalid_request_error",
+          },
+        },
+        403,
+      );
+    }
     return json({
       id: accountId,
       object: "account",
@@ -219,7 +286,115 @@ async function route(ctx) {
       email: "owner@example.test",
       business_profile: { name: "Fake Connected Shop" },
       requirements: { disabled_reason: null },
+      settings: {
+        payouts: {
+          schedule: { interval: "weekly", weekly_anchor: "friday", delay_days: 2 },
+        },
+      },
+      external_accounts: {
+        object: "list",
+        data: [
+          {
+            id: id("ba"),
+            object: "bank_account",
+            bank_name: "Test Credit Union",
+            last4: "6789",
+            currency: "usd",
+          },
+        ],
+      },
     });
+  }
+
+  if (path === "/v1/balance") {
+    return json({
+      object: "balance",
+      livemode: false,
+      available: [{ amount: 128_450, currency: "usd" }],
+      pending: [{ amount: 24_900, currency: "usd" }],
+    });
+  }
+
+
+  // ------------------------------------------------- Webhook endpoints -----
+  // The whole point of Wave 9: RepairFlow creates these itself, on the shop's
+  // connected account, right after Connect finishes.
+
+  if (path === "/v1/webhook_endpoints") {
+    if (req.method === "POST") {
+      if (control.endpointsFail === "permission") {
+        // What a platform without the right Connect permission actually gets.
+        return json(
+          {
+            error: {
+              message:
+                "You do not have permission to create webhook endpoints on connected accounts. Contact Stripe support to enable it.",
+              code: "account_invalid",
+              type: "invalid_request_error",
+            },
+          },
+          403,
+        );
+      }
+      const endpoint = {
+        id: id("we"),
+        object: "webhook_endpoint",
+        url: form.url,
+        status: "enabled",
+        enabled_events: asList(form.enabled_events),
+        description: form.description ?? null,
+        metadata: form.metadata ?? {},
+        // Revealed ONCE, on create, exactly like the real API.
+        secret: `whsec_${id("s").replace(/[^a-z0-9]/gi, "")}`,
+        account,
+        created: Math.floor(Date.now() / 1000),
+      };
+      db.endpoints.set(endpoint.id, endpoint);
+      console.log(
+        `  endpoint ${endpoint.id} → ${endpoint.url} (${endpoint.enabled_events.length} events)`,
+      );
+      return json(endpoint);
+    }
+
+    const listed = [...db.endpoints.values()]
+      .filter((endpoint) => (endpoint.account ?? null) === (account ?? null))
+      // A listed endpoint never carries its secret. That is what forces the app
+      // to keep the one it got at create time, and to replace an endpoint whose
+      // secret it has lost rather than pretend it can reuse it.
+      .map(withoutSecret);
+    return json({ object: "list", data: listed, has_more: false });
+  }
+
+  if (path.startsWith("/v1/webhook_endpoints/")) {
+    const endpointId = decodeURIComponent(path.split("/")[3]);
+    const endpoint = db.endpoints.get(endpointId);
+    if (!endpoint) {
+      return json(
+        {
+          error: {
+            message: `No such webhook endpoint: '${endpointId}'`,
+            code: "resource_missing",
+            type: "invalid_request_error",
+          },
+        },
+        404,
+      );
+    }
+
+    if (req.method === "DELETE") {
+      db.endpoints.delete(endpointId);
+      console.log(`  endpoint ${endpointId} deleted`);
+      return json({ id: endpointId, object: "webhook_endpoint", deleted: true });
+    }
+
+    if (req.method === "POST") {
+      if (form.enabled_events) endpoint.enabled_events = asList(form.enabled_events);
+      if (form.url) endpoint.url = form.url;
+      if (form.disabled === "false") endpoint.status = "enabled";
+      if (form.description) endpoint.description = form.description;
+    }
+
+    return json(withoutSecret(endpoint));
   }
 
   // ------------------------------------------------------------ Customers --
@@ -391,23 +566,135 @@ async function route(ctx) {
 
   if (path === "/v1/terminal/readers") {
     if (req.method === "POST") {
+      const code = String(form.registration_code ?? "").trim();
+
+      // Stripe's own refusals, in Stripe's own shapes. Each one has a screen in
+      // the app that has to be exercised.
+      if (code === "expired-code") {
+        return json(
+          {
+            error: {
+              message: `No such registration code: '${code}'`,
+              code: "resource_missing",
+              type: "invalid_request_error",
+              param: "registration_code",
+            },
+          },
+          400,
+        );
+      }
+      if (code === "already-registered") {
+        return json(
+          {
+            error: {
+              message:
+                "This reader has already been registered to another Stripe account. Remove it there and generate a new code.",
+              code: "terminal_reader_invalid_location_for_activation",
+              type: "invalid_request_error",
+            },
+          },
+          400,
+        );
+      }
+      if (code === "offline-reader") {
+        return json(
+          {
+            error: {
+              message: "The reader is offline and could not be reached.",
+              code: "terminal_reader_offline",
+              type: "invalid_request_error",
+            },
+          },
+          400,
+        );
+      }
+
+      const simulated = code === "simulated-wpe";
       const reader = {
         id: id("tmr"),
         object: "terminal.reader",
         label: form.label ?? "Counter reader",
         status: "online",
-        device_type: "simulated_wisepos_e",
+        device_type: simulated ? "simulated_wisepos_e" : "stripe_s700",
         serial_number: id("SN").toUpperCase(),
         location: form.location,
+        ip_address: "192.168.1.42",
+        last_seen_at: Date.now(),
+        // Only a battery model reports this; a mains reader has no battery
+        // field at all, which the app has to render as "no battery shown".
+        battery_level: simulated ? null : 0.86,
       };
       db.readers.set(reader.id, reader);
       return json(reader);
     }
     const location = url.searchParams.get("location");
-    const readers = [...db.readers.values()].filter(
-      (reader) => !location || reader.location === location,
-    );
+    const readers = [...db.readers.values()]
+      .filter((reader) => !location || reader.location === location)
+      .map(withStatus);
     return json({ object: "list", data: readers, has_more: false });
+  }
+
+  if (path.startsWith("/v1/terminal/readers/")) {
+    const readerId = decodeURIComponent(path.split("/")[4]);
+    const reader = db.readers.get(readerId);
+    if (!reader) {
+      return json(
+        {
+          error: {
+            message: `No such reader: '${readerId}'`,
+            code: "resource_missing",
+            type: "invalid_request_error",
+          },
+        },
+        404,
+      );
+    }
+
+    if (req.method === "DELETE") {
+      db.readers.delete(readerId);
+      return json({ id: readerId, object: "terminal.reader", deleted: true });
+    }
+    if (req.method === "POST" && form.label) {
+      reader.label = form.label;
+    }
+    return json(withStatus(reader));
+  }
+
+  // --------------------------------------------------- Fault injection -----
+
+  if (path === "/fake/control" && req.method === "POST") {
+    if ("endpointsFail" in form) control.endpointsFail = form.endpointsFail;
+    if ("readersOffline" in form) control.readersOffline = form.readersOffline === "1";
+    if (form.deleteEndpoints === "1") db.endpoints.clear();
+    console.log(`  control ${JSON.stringify(control)} endpoints=${db.endpoints.size}`);
+    return json({ ok: true, control, endpoints: db.endpoints.size });
+  }
+
+  if (path === "/fake/state") {
+    return json({
+      control,
+      connectedAccount,
+      endpoints: [...db.endpoints.values()].map((endpoint) => ({
+        id: endpoint.id,
+        url: endpoint.url,
+        account: endpoint.account,
+        events: endpoint.enabled_events,
+        status: endpoint.status,
+      })),
+      readers: [...db.readers.values()].map(withStatus),
+    });
+  }
+
+  /** The browser stub asks this for the machines it can "see" on the network. */
+  if (path === "/fake/terminal/discover") {
+    return json({
+      data: [...db.readers.values()].map(withStatus).map((reader) => ({
+        id: reader.id,
+        label: reader.label,
+        status: reader.status,
+        device_type: reader.device_type,
+      })),
+    });
   }
 
   // ------------------------------------------ Terminal (browser stub) ------
@@ -492,16 +779,22 @@ ${buttons}</div></body>`;
 /**
  * A stand-in for js.stripe.com/terminal/v1/.
  *
- * Implements only the four calls components/payments/use-stripe-terminal.ts
- * makes, in the same shapes, so the register's step states are exercised for
- * real rather than mocked inside the app.
+ * Implements only the calls components/payments/use-stripe-terminal.ts makes,
+ * in the same shapes, so the register's step states are exercised for real
+ * rather than mocked inside the app.
+ *
+ * `discoverReaders` returns the readers actually registered here, not a fixed
+ * one — which is what makes "remember the machine this till used", the picker
+ * for a second machine, and "nothing is answering" all reachable from the UI.
  */
 function terminalStub() {
   return `window.StripeTerminal = {
   create: function (config) {
     return {
       discoverReaders: async function () {
-        return { discoveredReaders: [{ id: 'tmr_sim_fake', label: 'Simulated reader', status: 'online', device_type: 'simulated_wisepos_e' }] };
+        var res = await fetch('${SELF}/fake/terminal/discover');
+        var body = await res.json();
+        return { discoveredReaders: body.data };
       },
       connectReader: async function (reader) {
         return { reader: reader };

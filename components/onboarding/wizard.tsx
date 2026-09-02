@@ -543,8 +543,8 @@ function PaymentsStep({ data, onDone, onSkip }: StepProps) {
             live={data.stripeConnected}
           />
           <Method
-            icon={ICONS.cash}
-            title="Card reader at the counter"
+            icon={ICONS.cardMachine}
+            title="Card machine at the counter"
             body="Take a chip or tap payment on the front desk and it lands on the same invoice, so the day's takings reconcile without a second system."
             state="Set up alongside online payments"
             live={data.stripeConnected}

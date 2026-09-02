@@ -102,14 +102,49 @@ export {
 } from "./card-on-file";
 
 export {
+  checkAppAddress,
+  clearShopWebhook,
+  deleteShopWebhook,
+  ensureShopWebhook,
+  readRemoteEndpoint,
+  webhookEndpointUrl,
+  webhookSecretForAccount,
+  webhookSetupStatus,
+  PING_EVENT_TYPE,
+  WEBHOOK_EVENTS,
+  type AddressCheck,
+  type WebhookSetupResult,
+  type WebhookSetupStatus,
+} from "./endpoint";
+
+export {
+  describeSchedule,
+  payoutSummary,
+  stripeDashboardUrl,
+  type MoneyBucket,
+  type PayoutSummary,
+} from "./payouts";
+
+export {
+  runPaymentsHealthCheck,
+  type CheckLine,
+  type CheckStatus,
+  type PaymentsHealth,
+} from "./health";
+
+export {
   createConnectionToken,
   createPosTerminalIntent,
   createTerminalIntent,
   ensureTerminalLocation,
+  forgetReader,
   listReaders,
+  pairingMessage,
   readTerminalLocationId,
   recordTerminalPayment,
   registerReader,
+  registerSimulatedReader,
+  renameReader,
   verifyPosTerminalIntent,
   type TerminalIntent,
   type TerminalReader,

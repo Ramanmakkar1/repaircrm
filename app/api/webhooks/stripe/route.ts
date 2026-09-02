@@ -8,6 +8,8 @@ import {
   storeCardFromSetupIntent,
   stripeWebhookSecret,
   verifyStripeSignature,
+  webhookSecretForAccount,
+  PING_EVENT_TYPE,
   type ApplyOutcome,
   type CheckoutSessionEvent,
   type PaymentIntentEvent,
@@ -37,6 +39,20 @@ import { db } from "@/lib/db";
  * Platform (direct-mode) events have no `account` and fall back to metadata,
  * exactly as before.
  *
+ * WHICH SECRET VERIFIES IT
+ * ------------------------
+ * Since Wave 9 each connected shop has its OWN endpoint, created for it
+ * automatically (lib/payments/endpoint.ts), with its own signing secret stored
+ * on the Shop row. So the body is parsed ONCE, before verification, for the
+ * single purpose of reading `account` and choosing which secret to try — a
+ * parse is not trust, and nothing from that object is used for anything else
+ * until a signature has verified over the raw bytes.
+ *
+ * The env `STRIPE_WEBHOOK_SECRET` stays in the candidate list behind it. That
+ * is what serves direct-mode shops, and it is also the rotation tolerance: an
+ * event signed with either the shop's secret or the server's is accepted, so
+ * re-running setup mid-day does not drop the payments already in flight.
+ *
  * STATUS CODES ARE INSTRUCTIONS TO STRIPE, NOT DESCRIPTIONS OF OUR MOOD
  *   400  the signature did not verify — do not retry, it will never verify
  *   500  we could not write it down — please redeliver
@@ -56,25 +72,7 @@ type StripeEvent = {
 };
 
 export async function POST(request: Request): Promise<Response> {
-  const secret = stripeWebhookSecret();
-  if (!secret) {
-    // Not configured. Refuse loudly rather than accepting unsigned payloads —
-    // an endpoint that trusts anything is worse than an endpoint that is down.
-    console.error("[payments] STRIPE_WEBHOOK_SECRET is not set; rejecting webhook");
-    return new Response("webhook not configured", { status: 400 });
-  }
-
   const rawBody = await request.text();
-
-  const signature = verifyStripeSignature({
-    payload: rawBody,
-    header: request.headers.get("stripe-signature"),
-    secret,
-  });
-  if (!signature.ok) {
-    console.warn(`[payments] rejected webhook: ${signature.reason}`);
-    return new Response(`invalid signature: ${signature.reason}`, { status: 400 });
-  }
 
   let event: StripeEvent;
   try {
@@ -83,17 +81,68 @@ export async function POST(request: Request): Promise<Response> {
     return new Response("invalid payload", { status: 400 });
   }
 
+  // The shop this event belongs to, and the secret Stripe would have signed it
+  // with. Both come from OUR database, keyed by the account id on the event —
+  // an account this app never stored resolves to nothing and is refused below.
+  const connected = event.account
+    ? await webhookSecretForAccount(event.account)
+    : null;
+
+  const candidates: string[] = [];
+  if (connected) candidates.push(connected.secret);
+  const envSecret = stripeWebhookSecret();
+  if (envSecret) candidates.push(envSecret);
+
+  if (candidates.length === 0) {
+    // Nothing to check a signature against. Refuse loudly rather than accept an
+    // unsigned payload — an endpoint that trusts anything is worse than one
+    // that is down.
+    console.error(
+      event.account
+        ? `[payments] no signing secret stored for account ${event.account}; rejecting webhook`
+        : "[payments] STRIPE_WEBHOOK_SECRET is not set; rejecting webhook",
+    );
+    return new Response("webhook not configured", { status: 400 });
+  }
+
+  const header = request.headers.get("stripe-signature");
+  let reason = "signature mismatch";
+  const verified = candidates.some((secret) => {
+    const result = verifyStripeSignature({ payload: rawBody, header, secret });
+    if (!result.ok) reason = result.reason;
+    return result.ok;
+  });
+  if (!verified) {
+    console.warn(`[payments] rejected webhook: ${reason}`);
+    return new Response(`invalid signature: ${reason}`, { status: 400 });
+  }
+
   const type = event.type ?? "";
   const object = event.data?.object ?? {};
   // Resolved once, up front: every handler below needs the same answer, and a
   // Connect event that names an account we do not know must not fall through
   // to trusting the metadata instead.
-  const shopId = await resolveShopId(event.account);
+  const shopId = connected?.shopId ?? (await resolveShopId(event.account));
   if (event.account && !shopId) {
     return Response.json({ received: true, ignored: "unknown connected account" });
   }
 
   switch (type) {
+    case PING_EVENT_TYPE: {
+      // Not from Stripe: the "Test payments" check posts this to the app's own
+      // public address to prove the round trip works end to end. Reaching this
+      // line already means the signature verified against the stored secret,
+      // which is the whole point — and the nonce is echoed so the checker can
+      // be sure the 200 came from THIS message, not from a cached response or
+      // whatever else happens to answer on that address.
+      const nonce = (object as { nonce?: unknown }).nonce;
+      return Response.json({
+        received: true,
+        outcome: "setup_check",
+        nonce: typeof nonce === "string" ? nonce : null,
+      });
+    }
+
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded": {
       const session = object as CheckoutSessionEvent;
