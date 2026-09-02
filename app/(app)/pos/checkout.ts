@@ -2,8 +2,15 @@ import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import {
+  commitTicketDeposits,
+  NO_DEPOSITS,
+  planTicketDeposits,
+  recordCreditSpend,
+} from "@/lib/deposits";
 import { calcTotals, formatCents } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
+import { resolveTaxRate } from "@/lib/tax";
 import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/pos/types";
 
 /**
@@ -244,30 +251,71 @@ export async function performCheckout(
           };
         });
 
+        // ---------------------------------------------------------- customer
+        // Rule 2: a ticket owns the customer on its own invoice. The register
+        // already attaches them, but re-deriving it here means a tampered or
+        // stale client cannot bill Ticket #12's repair to someone else.
+        //
+        // Resolved BEFORE the totals because the customer decides the tax: a
+        // tax-exempt account pays 0% whatever the shop default says.
+        const customerId = billedTicket
+          ? billedTicket.customerId
+          : await resolveCustomerId(tx, shopId, sale.customerId);
+
         // ------------------------------------------------------------ totals
-        const shop = await tx.shop.findUnique({
-          where: { id: shopId },
-          select: { taxRateBps: true },
+        const [shop, taxRates, taxCustomer] = await Promise.all([
+          tx.shop.findUnique({
+            where: { id: shopId },
+            select: { taxRateBps: true },
+          }),
+          tx.taxRate.findMany({
+            where: { shopId },
+            select: {
+              id: true,
+              name: true,
+              rateBps: true,
+              isDefault: true,
+              active: true,
+            },
+          }),
+          tx.customer.findFirst({
+            where: { id: customerId, shopId },
+            select: { taxExempt: true, taxRateId: true },
+          }),
+        ]);
+
+        // The walk-in placeholder has no rate of its own, so it lands on the
+        // shop default — which is exactly what a counter sale should be taxed at.
+        const tax = resolveTaxRate({
+          shop: { taxRateBps: shop?.taxRateBps ?? 0, taxRates },
+          customer: taxCustomer,
         });
-        const taxRateBps = shop?.taxRateBps ?? 0;
+        const taxRateBps = tax.taxRateBps;
         const totals = calcTotals(lines, taxRateBps);
 
         if (totals.totalCents <= 0) {
           throw new SaleError("This sale comes to nothing — add a priced item.");
         }
 
-        // ---------------------------------------------------------- customer
-        // Rule 2: a ticket owns the customer on its own invoice. The register
-        // already attaches them, but re-deriving it here means a tampered or
-        // stale client cannot bill Ticket #12's repair to someone else.
-        const customerId = billedTicket
-          ? billedTicket.customerId
-          : await resolveCustomerId(tx, shopId, sale.customerId);
+        // --------------------------------------------------------- deposits
+        // A deposit taken at intake is spent the moment the repair is rung up.
+        // Planned before the tender is validated so the customer is only asked
+        // for the REMAINDER — the whole point of leaving money up front.
+        const depositPlan = billedTicket
+          ? await planTicketDeposits(tx, {
+              shopId,
+              ticketId: billedTicket.id,
+              customerId,
+              totalCents: totals.totalCents,
+            })
+          : NO_DEPOSITS;
+
+        const dueCents = totals.totalCents - depositPlan.amountCents;
 
         // ------------------------------------------------------ store credit
         // Drawing credit down and writing the payment must succeed or fail
         // together, so it happens inside the transaction, not before it.
-        if (sale.method === "CREDIT") {
+        if (sale.method === "CREDIT" && dueCents > 0) {
           if (!sale.customerId && !billedTicket) {
             throw new SaleError("Attach a customer before paying with store credit.");
           }
@@ -276,14 +324,16 @@ export async function performCheckout(
             select: { id: true, creditBalanceCents: true },
           });
           if (!customer) throw new SaleError("That customer no longer exists.");
-          if (customer.creditBalanceCents < totals.totalCents) {
+          // The deposit draws on the same balance, so it has to clear both.
+          const needed = dueCents + depositPlan.amountCents;
+          if (customer.creditBalanceCents < needed) {
             throw new SaleError(
-              `Only ${formatCents(customer.creditBalanceCents)} of store credit is available — short of the ${formatCents(totals.totalCents)} total.`,
+              `Only ${formatCents(customer.creditBalanceCents)} of store credit is available — short of the ${formatCents(needed)} total.`,
             );
           }
           await tx.customer.update({
             where: { id: customer.id },
-            data: { creditBalanceCents: { decrement: totals.totalCents } },
+            data: { creditBalanceCents: { decrement: dueCents } },
           });
         }
 
@@ -301,6 +351,7 @@ export async function performCheckout(
             number,
             status: "PAID",
             paidAt: new Date(),
+            taxRateId: tax.taxRateId,
             taxRateBps,
             lines: {
               create: lines.map((line, index) => ({
@@ -316,19 +367,49 @@ export async function performCheckout(
           select: { id: true, number: true },
         });
 
+        // The deposit lands as its own CREDIT payment before the tender, so the
+        // receipt reads the way the transaction actually happened: $50 already
+        // on account, $100 taken at the counter.
+        if (billedTicket) {
+          await commitTicketDeposits(tx, depositPlan, {
+            shopId,
+            customerId,
+            ticketNumber: billedTicket.number,
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.number,
+            userId,
+          });
+        }
+
         // The payment records what the sale was worth, never what the customer
         // handed over: a $100 bill against a $23 sale is a $23 payment plus
-        // change, not a $77 overpayment.
-        await tx.payment.create({
-          data: {
-            shopId,
-            invoiceId: invoice.id,
-            amountCents: totals.totalCents,
-            method: sale.method as TenderMethod,
-            reference: buildReference(sale.method, sale.reference, sale.tenderedCents),
-            takenById: userId,
-          },
-        });
+        // change, not a $77 overpayment. A sale fully covered by a deposit
+        // takes no tender at all.
+        if (dueCents > 0) {
+          await tx.payment.create({
+            data: {
+              shopId,
+              invoiceId: invoice.id,
+              amountCents: dueCents,
+              method: sale.method as TenderMethod,
+              reference: buildReference(sale.method, sale.reference, sale.tenderedCents),
+              takenById: userId,
+            },
+          });
+
+          // Credit spent at the till writes its ledger row here — the balance
+          // moved above, and a balance that moves with no explanation is what
+          // the CreditAdjustment table exists to prevent.
+          if (sale.method === "CREDIT") {
+            await recordCreditSpend(tx, {
+              shopId,
+              customerId,
+              amountCents: dueCents,
+              invoiceNumber: invoice.number,
+              userId,
+            });
+          }
+        }
 
         // ---------------------------------------------- close out the ticket
         if (billedTicket) {
@@ -391,13 +472,14 @@ export async function performCheckout(
 
         const changeDueCents =
           sale.method === "CASH" && sale.tenderedCents != null
-            ? Math.max(0, sale.tenderedCents - totals.totalCents)
+            ? Math.max(0, sale.tenderedCents - dueCents)
             : 0;
 
         return {
           invoiceId: invoice.id,
           number: invoice.number,
           totalCents: totals.totalCents,
+          depositAppliedCents: depositPlan.amountCents,
           changeDueCents,
           ticketId: billedTicket?.id ?? null,
           ticketNumber: billedTicket?.number ?? null,

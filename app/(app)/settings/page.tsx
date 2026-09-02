@@ -18,6 +18,7 @@ import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
 import type { MessagingConfig } from "@/components/settings/types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
+import { readLabourSettings } from "@/lib/labour";
 
 export const metadata = { title: "Settings · RepairFlow" };
 
@@ -38,7 +39,7 @@ export default async function SettingsPage({
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
 
-  const [shop, cannedResponses, members, apiKeys] = await Promise.all([
+  const [shop, cannedResponses, members, apiKeys, taxRates] = await Promise.all([
     db.shop.findUnique({
       where: { id: session.shopId },
       select: {
@@ -95,9 +96,25 @@ export default async function SettingsPage({
           },
         })
       : Promise.resolve([]),
+    // Named tax rates are an owner concern, like the rate they refine.
+    isOwner
+      ? db.taxRate.findMany({
+          where: { shopId: session.shopId },
+          orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            rateBps: true,
+            isDefault: true,
+            active: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!shop) notFound();
+
+  const labour = readLabourSettings(shop.settings);
 
   const messaging: MessagingConfig = {
     emailDriver: emailDriverName(),
@@ -179,7 +196,10 @@ export default async function SettingsPage({
           email: shop.email ?? "",
           timezone: shop.timezone,
           taxRateBps: shop.taxRateBps,
+          labourRateCents: labour.rateCents,
+          labourRoundingMinutes: labour.roundingMinutes,
         }}
+        taxRates={taxRates}
         // The *effective* lists — the shop's own when it has configured them,
         // the built-in defaults otherwise. Editing therefore starts from what
         // the ticket pickers are actually showing today.

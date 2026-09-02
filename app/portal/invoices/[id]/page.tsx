@@ -5,7 +5,8 @@ import { AlertCircle, CheckCircle2, Clock, Download } from "lucide-react";
 import { formatDate } from "@/components/billing/format";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
 import { db } from "@/lib/db";
-import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents, invoiceTotals } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { requirePortalCustomer } from "@/lib/portal-session";
 import { PayOnlineButton } from "../../_components/pay-online";
@@ -53,6 +54,7 @@ export default async function PortalInvoicePage({
       paidAt: true,
       notes: true,
       taxRateBps: true,
+      taxRate: { select: { name: true } },
       lines: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -238,7 +240,7 @@ export default async function PortalInvoicePage({
             <dl className="w-full max-w-xs space-y-2 text-[14px]">
               <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
               <TotalRow
-                label={`Sales tax (${formatBps(invoice.taxRateBps)})`}
+                label={taxLabel(invoice.taxRate?.name, invoice.taxRateBps)}
                 value={formatCents(totals.taxCents)}
               />
               <TotalRow

@@ -56,6 +56,8 @@ export function CartPanel({
   lines,
   totals,
   taxRateBps,
+  depositCents,
+  dueCents,
   customers,
   customerId,
   onCustomerChange,
@@ -73,6 +75,10 @@ export function CartPanel({
   lines: CartLine[];
   totals: Totals;
   taxRateBps: number;
+  /** Deposit already on account against the attached ticket, in cents. */
+  depositCents: number;
+  /** Total minus that deposit — what the customer actually hands over. */
+  dueCents: number;
   customers: PosCustomer[];
   customerId: string | null;
   onCustomerChange: (id: string | null) => void;
@@ -243,10 +249,27 @@ export function CartPanel({
         />
         <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-border pt-3">
           <span className="text-[15px] font-bold text-foreground">Total</span>
-          <span className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
+          <span
+            className={cn(
+              "font-bold tabular-nums tracking-tight text-foreground",
+              depositCents > 0 ? "text-xl" : "text-3xl",
+            )}
+          >
             {formatCents(totals.totalCents)}
           </span>
         </div>
+
+        {depositCents > 0 ? (
+          <>
+            <Row label="Deposit on file" value={`−${formatCents(depositCents)}`} />
+            <div className="flex items-baseline justify-between gap-4 border-t border-border pt-3">
+              <span className="text-[15px] font-bold text-foreground">Due now</span>
+              <span className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
+                {formatCents(dueCents)}
+              </span>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {/* ---------------------------------------------------------- tenders */}

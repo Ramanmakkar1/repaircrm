@@ -9,11 +9,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/billing/submit-button";
+import type { TaxRateOption } from "@/lib/tax";
+import { TaxRatesCard } from "./tax-rates-card";
 import { IDLE_SETTINGS_STATE, type ShopSettingsValues } from "./types";
 
 /** 825 -> "8.25" — what a human types into a percent box. */
 function bpsToPercentInput(bps: number): string {
   return String(Math.round(bps) / 100);
+}
+
+/** 9500 -> "95.00" — what a human types into a money box. */
+function centsToMoneyInput(cents: number): string {
+  return (Math.round(cents) / 100).toFixed(2);
 }
 
 /**
@@ -24,10 +31,17 @@ function bpsToPercentInput(bps: number): string {
  * captured a rate. That is deliberate and worth saying on screen, because
  * "I changed the tax rate and nothing changed" is otherwise a support ticket.
  */
-export function ShopTab({ shop }: { shop: ShopSettingsValues }) {
+export function ShopTab({
+  shop,
+  taxRates,
+}: {
+  shop: ShopSettingsValues;
+  taxRates: TaxRateOption[];
+}) {
   const [state, formAction] = useActionState(updateShopAction, IDLE_SETTINGS_STATE);
 
   return (
+    <div className="flex flex-col gap-5">
     <form action={formAction} className="flex flex-col gap-5">
       {state.error ? (
         <div
@@ -115,12 +129,65 @@ export function ShopTab({ shop }: { shop: ShopSettingsValues }) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Labour</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-5 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="labourRate">Hourly labour rate</Label>
+            <div className="flex items-center gap-2.5">
+              <span className="text-sm font-semibold text-muted-foreground">$</span>
+              <Input
+                id="labourRate"
+                name="labourRate"
+                defaultValue={centsToMoneyInput(shop.labourRateCents)}
+                inputMode="decimal"
+                className="w-32 text-right tabular-nums"
+              />
+            </div>
+            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+              What a stopped timer is worth per hour when it is billed onto an
+              invoice.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="labourRounding">Round time up to</Label>
+            <div className="flex items-center gap-2.5">
+              <Input
+                id="labourRounding"
+                name="labourRounding"
+                type="number"
+                min={1}
+                max={240}
+                step={1}
+                defaultValue={String(shop.labourRoundingMinutes)}
+                className="w-24 text-right tabular-nums"
+              />
+              <span className="text-sm font-semibold text-muted-foreground">
+                minutes
+              </span>
+            </div>
+            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+              Always up, never down — a 16-minute job bills as 30 at a
+              15-minute increment.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end">
         <SubmitButton size="lg" pendingLabel="Saving…">
           Save shop details
         </SubmitButton>
       </div>
     </form>
+
+    {/* Outside the form above: these rows save one at a time, and a form
+        nested inside a form is invalid HTML. */}
+    <TaxRatesCard rates={taxRates} />
+    </div>
   );
 }
 

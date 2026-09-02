@@ -60,8 +60,22 @@ export function Register({
   const keySeq = React.useRef(0);
   const nextKey = () => `line-${keySeq.current++}`;
 
-  const totals = calcTotals(lines, taxRateBps);
   const customer = customers.find((c) => c.id === customerId) ?? null;
+
+  // A walk-in is taxed at the shop default; an attached customer at their own
+  // rate, which is 0% when they are exempt. The server resolves it again at
+  // checkout — this keeps the cart honest while the cashier is looking at it.
+  const effectiveTaxRateBps = customer ? customer.taxRateBps : taxRateBps;
+  const totals = calcTotals(lines, effectiveTaxRateBps);
+
+  // Money already on account against the repair being billed. It comes off the
+  // total before the drawer opens, so the customer is only asked for the rest.
+  const attachedTicket = tickets.find((t) => t.id === ticketId) ?? null;
+  const depositCents = Math.min(
+    attachedTicket?.depositCents ?? 0,
+    totals.totalCents,
+  );
+  const dueCents = totals.totalCents - depositCents;
 
   // ------------------------------------------------------------ cart edits ---
 
@@ -216,6 +230,7 @@ export function Register({
         invoiceId: result.invoiceId,
         number: result.number,
         totalCents: result.totalCents,
+        depositAppliedCents: result.depositAppliedCents,
         changeDueCents: result.changeDueCents,
         method: result.method,
         ticketId: result.ticketId,
@@ -264,7 +279,9 @@ export function Register({
         <CartPanel
           lines={lines}
           totals={totals}
-          taxRateBps={taxRateBps}
+          taxRateBps={effectiveTaxRateBps}
+          depositCents={depositCents}
+          dueCents={dueCents}
           customers={customers}
           customerId={customerId}
           onCustomerChange={setCustomerId}
@@ -286,7 +303,7 @@ export function Register({
 
       <TenderDialog
         method={tender}
-        totalCents={totals.totalCents}
+        totalCents={dueCents}
         customerCredit={customer?.creditBalanceCents ?? 0}
         customerName={customer?.label ?? "a walk-in"}
         pending={pending}

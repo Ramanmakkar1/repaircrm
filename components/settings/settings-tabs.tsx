@@ -11,6 +11,7 @@ import { MessagingTab } from "./messaging-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
+import type { TaxRateOption } from "@/lib/tax";
 import type {
   ApiKeyItem,
   CannedResponseItem,
@@ -36,6 +37,7 @@ export function SettingsTabs({
   currentUserId,
   activeTab,
   shop,
+  taxRates,
   problemTypes,
   ticketStatuses,
   cannedResponses,
@@ -48,6 +50,8 @@ export function SettingsTabs({
   currentUserId: string;
   activeTab: string;
   shop: ShopSettingsValues;
+  /** Owner-only; empty for everyone else because the query never ran. */
+  taxRates: TaxRateOption[];
   problemTypes: string[];
   ticketStatuses: string[];
   cannedResponses: CannedResponseItem[];
@@ -101,7 +105,7 @@ export function SettingsTabs({
 
       {isOwner ? (
         <TabsContent value="shop">
-          <ShopTab shop={shop} />
+          <ShopTab shop={shop} taxRates={taxRates} />
         </TabsContent>
       ) : null}
 

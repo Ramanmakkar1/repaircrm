@@ -16,7 +16,8 @@ export default async function NewSchedulePage({
   const { shopId } = await requireUser();
   const params = await searchParams;
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   // Prefill arrives as a query param from the customer hub; re-verified against
   // the shop before it is trusted as a default.
@@ -40,6 +41,7 @@ export default async function NewSchedulePage({
         customers={customers}
         products={products}
         taxRateBps={taxRateBps}
+        taxRates={taxRates}
         initial={{
           customerId: prefillCustomer?.id ?? null,
           frequency: "MONTHLY",

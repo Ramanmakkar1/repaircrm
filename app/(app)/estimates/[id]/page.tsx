@@ -20,7 +20,8 @@ import {
   defaultEstimateSubject,
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { calcTotals, formatCents } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +66,7 @@ export default async function EstimateDetailPage({
     where: { id, shopId },
     include: {
       customer: true,
+      taxRate: { select: { name: true } },
       shop: { select: { name: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       lines: { orderBy: { sortOrder: "asc" } },
@@ -350,7 +352,7 @@ export default async function EstimateDetailPage({
                   value={formatCents(totals.subtotalCents)}
                 />
                 <TotalsRow
-                  label={`Tax (${formatBps(estimate.taxRateBps)})`}
+                  label={taxLabel(estimate.taxRate?.name, estimate.taxRateBps)}
                   value={formatCents(totals.taxCents)}
                 />
                 <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">

@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Play, Square, Timer, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
@@ -12,6 +15,9 @@ import {
   startTimerAction,
   stopTimerAction,
 } from "@/app/(app)/tickets/actions";
+import { setTimeEntryBillableAction } from "@/app/(app)/tickets/time-actions";
+import { formatCents } from "@/lib/money";
+import { formatHm } from "@/lib/labour";
 import { formatClock, formatDuration } from "./ticket-meta";
 
 export type TimeEntryRow = {
@@ -22,6 +28,13 @@ export type TimeEntryRow = {
   seconds: number | null;
   running: boolean;
   note: string | null;
+  billable: boolean;
+  /** Set once this entry has been charged onto an invoice. */
+  invoiceId: string | null;
+  /** What it will bill as, rounded up to the shop's increment. */
+  amountCents: number;
+  /** Those rounded seconds, so the row can show what is actually charged. */
+  billableSeconds: number;
 };
 
 /**
@@ -39,6 +52,18 @@ export function TimerCard({
   completedSeconds: number;
   myRunningEntry: TimeEntryRow | null;
 }) {
+  const unbilled = entries.filter(
+    (entry) => entry.billable && !entry.invoiceId && !entry.running,
+  );
+  const unbilledSeconds = unbilled.reduce(
+    (sum, entry) => sum + entry.billableSeconds,
+    0,
+  );
+  const unbilledCents = unbilled.reduce(
+    (sum, entry) => sum + entry.amountCents,
+    0,
+  );
+
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2">
@@ -86,56 +111,114 @@ export function TimerCard({
         ) : (
           <ul className="flex flex-col divide-y divide-border">
             {entries.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-start justify-between gap-2 py-1.5 text-sm first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-foreground">
-                    {entry.userName}
-                    <span className="ml-1.5 text-xs text-faint-foreground">
-                      {entry.startedAtLabel}
-                    </span>
-                  </p>
-                  {entry.note ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {entry.note}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      entry.running
-                        ? "font-medium text-status-in-progress-fg"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {entry.running ? (
-                      <LiveDuration startedAtISO={entry.startedAtISO} />
-                    ) : (
-                      formatDuration(entry.seconds ?? 0)
-                    )}
-                  </span>
-                  <form action={deleteTimeEntryAction.bind(null, entry.id)}>
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete time entry"
-                      className="size-6 text-faint-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </form>
-                </div>
-              </li>
+              <TimeRow key={entry.id} entry={entry} />
             ))}
           </ul>
         )}
+
+        {unbilled.length > 0 ? (
+          <div className="flex items-baseline justify-between gap-3 border-t border-border pt-3">
+            <span className="text-[13px] font-semibold text-muted-foreground">
+              {unbilled.length} unbilled · {formatHm(unbilledSeconds)}
+            </span>
+            <span className="text-[15px] font-bold tabular-nums text-foreground">
+              {formatCents(unbilledCents)}
+            </span>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * One logged stretch of bench time.
+ *
+ * The billable checkbox is the only control here that costs money, so it is the
+ * only one that reports back: an entry already on an invoice is locked, and
+ * says so, rather than silently ignoring the click.
+ */
+function TimeRow({ entry }: { entry: TimeEntryRow }) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+  const billed = entry.invoiceId !== null;
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    const result = await setTimeEntryBillableAction(entry.id, next);
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <li className="flex items-start justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Checkbox
+          className="mt-0.5 size-4"
+          checked={entry.billable}
+          disabled={busy || billed || entry.running}
+          onCheckedChange={(next) => toggle(next === true)}
+          aria-label={`Bill ${entry.userName}'s time on this ticket`}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-foreground">
+            {entry.userName}
+            <span className="ml-1.5 text-xs text-faint-foreground">
+              {entry.startedAtLabel}
+            </span>
+          </p>
+          {entry.note ? (
+            <p className="truncate text-xs text-muted-foreground">{entry.note}</p>
+          ) : null}
+          {entry.running ? null : (
+            <p className="text-xs text-faint-foreground">
+              {billed
+                ? "Billed"
+                : entry.billable
+                  ? `Unbilled · ${formatCents(entry.amountCents)}`
+                  : "Not billable"}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <span
+          className={cn(
+            "tabular-nums",
+            entry.running
+              ? "font-medium text-status-in-progress-fg"
+              : "text-muted-foreground",
+          )}
+        >
+          {entry.running ? (
+            <LiveDuration startedAtISO={entry.startedAtISO} />
+          ) : (
+            formatDuration(entry.seconds ?? 0)
+          )}
+        </span>
+        {billed ? (
+          // No delete button: the money is on an invoice. Voiding it releases
+          // the entry, which is the only honest way back.
+          <span className="size-6" aria-hidden />
+        ) : (
+          <form action={deleteTimeEntryAction.bind(null, entry.id)}>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              aria-label="Delete time entry"
+              className="size-6 text-faint-foreground hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </form>
+        )}
+      </div>
+    </li>
   );
 }
 

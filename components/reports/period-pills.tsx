@@ -11,7 +11,16 @@ import { REPORT_PERIODS, type ReportPeriodKey } from "./period";
  * do what an anchor already does — and would cost the operator the ability to
  * open "Last month" in a new tab.
  */
-export function PeriodPills({ active }: { active: ReportPeriodKey }) {
+export function PeriodPills({
+  active,
+  location,
+}: {
+  active: ReportPeriodKey;
+  /** Carried through so switching period does not reset the location filter. */
+  location?: string | null;
+}) {
+  const suffix = location ? `&location=${encodeURIComponent(location)}` : "";
+
   return (
     <nav aria-label="Reporting period" className="flex flex-wrap items-center gap-2">
       {REPORT_PERIODS.map((period) => {
@@ -19,7 +28,7 @@ export function PeriodPills({ active }: { active: ReportPeriodKey }) {
         return (
           <Link
             key={period.key}
-            href={`/reports?period=${period.key}`}
+            href={`/reports?period=${period.key}${suffix}`}
             aria-current={current ? "page" : undefined}
             className={cn(
               "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",

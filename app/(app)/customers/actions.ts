@@ -80,6 +80,9 @@ const customerSchema = z.object({
   notes: z.string().max(5000).optional(),
   smsOptIn: z.boolean(),
   emailOptIn: z.boolean(),
+  taxExempt: z.boolean(),
+  /** A TaxRate id, verified against this shop before it is stored. */
+  taxRateId: z.string().max(40).optional(),
 });
 
 type CustomerInput = z.infer<typeof customerSchema>;
@@ -102,7 +105,32 @@ function readCustomer(formData: FormData) {
     notes: text(formData, "notes"),
     smsOptIn: flag(formData, "smsOptIn"),
     emailOptIn: flag(formData, "emailOptIn"),
+    taxExempt: flag(formData, "taxExempt"),
+    // Radix Select cannot hold an empty value, so "none" is the null sentinel.
+    taxRateId:
+      text(formData, "taxRateId") === "none"
+        ? undefined
+        : text(formData, "taxRateId"),
   };
+}
+
+/**
+ * A tax rate id is only stored once it is confirmed to belong to this shop —
+ * otherwise a forged value would pin a customer to another tenant's rate.
+ * An exempt customer keeps no rate at all: 0% is not a rate, it is the absence
+ * of one.
+ */
+async function validTaxRateId(
+  shopId: string,
+  taxRateId: string | undefined,
+  taxExempt: boolean,
+): Promise<string | null> {
+  if (taxExempt || !taxRateId) return null;
+  const rate = await db.taxRate.findFirst({
+    where: { id: taxRateId, shopId },
+    select: { id: true },
+  });
+  return rate?.id ?? null;
 }
 
 /**
@@ -127,6 +155,7 @@ function customerData(input: CustomerInput) {
     notes: input.notes ?? null,
     smsOptIn: input.smsOptIn,
     emailOptIn: input.emailOptIn,
+    taxExempt: input.taxExempt,
   };
 }
 
@@ -145,7 +174,15 @@ export async function createCustomerAction(
   }
 
   const customer = await db.customer.create({
-    data: { ...customerData(parsed.data), shopId },
+    data: {
+      ...customerData(parsed.data),
+      shopId,
+      taxRateId: await validTaxRateId(
+        shopId,
+        parsed.data.taxRateId,
+        parsed.data.taxExempt,
+      ),
+    },
     select: { id: true },
   });
 
@@ -179,7 +216,14 @@ export async function updateCustomerAction(
 
   await db.customer.update({
     where: { id },
-    data: customerData(parsed.data),
+    data: {
+      ...customerData(parsed.data),
+      taxRateId: await validTaxRateId(
+        shopId,
+        parsed.data.taxRateId,
+        parsed.data.taxExempt,
+      ),
+    },
   });
 
   revalidatePath("/customers");

@@ -119,6 +119,7 @@ export default async function TicketsPage({
         },
         assignedTo: { select: { name: true } },
         asset: { select: { type: true, make: true, model: true } },
+        depositCents: true,
         // Only the OUTSTANDING part orders — a received or canceled one is not
         // something the card should still be shouting about. Filtered here
         // rather than in the component so the page never ships rows it will

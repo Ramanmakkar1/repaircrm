@@ -6,8 +6,10 @@ import {
   Download,
   FileSpreadsheet,
   Receipt,
+  HandCoins,
   Timer,
   TrendingUp,
+  Undo2,
   Users,
   Wallet,
   Wrench,
@@ -24,6 +26,7 @@ import {
   compactCents,
   type Series,
 } from "@/components/reports/charts";
+import { DateRangeForm } from "@/components/reports/date-range";
 import { PeriodPills } from "@/components/reports/period-pills";
 import {
   formatDuration,
@@ -33,6 +36,7 @@ import {
 import { loadReport } from "@/components/reports/query";
 import { BigStat, CardLink, ReportCard } from "@/components/reports/stat-card";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 
 export const metadata = { title: "Reports · RepairFlow" };
@@ -54,28 +58,42 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{
+    period?: string;
+    from?: string;
+    to?: string;
+    location?: string;
+  }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { period: periodParam } = await searchParams;
+  const params = await searchParams;
 
   const canSeeMoney = role === "OWNER" || role === "FRONT_DESK";
   const canExport = role === "OWNER";
 
-  const period = resolveReportPeriod(periodParam);
+  const period = resolveReportPeriod(params);
+
+  // `?location=` is re-read against this shop before it filters anything — an
+  // id from another tenant matches nothing and the report falls back to the
+  // whole shop rather than 404ing on a link somebody pasted.
+  const location = params.location
+    ? await db.location.findFirst({
+        where: { id: params.location, shopId },
+        select: { id: true, name: true },
+      })
+    : null;
+
   const { money, throughput, resolveTime, leaderboard } = await loadReport(
     shopId,
     period,
-    { includeMoney: canSeeMoney },
+    { includeMoney: canSeeMoney, locationId: location?.id ?? null },
   );
 
-  // The export routes take an *inclusive* `to`, while a period carries an
-  // exclusive upper bound — step back a day rather than shipping a range that
-  // silently includes tomorrow.
-  const toInclusive = new Date(period.toExclusive.getTime() - 86_400_000);
-  const range = `?from=${period.from.toISOString().slice(0, 10)}&to=${toInclusive
-    .toISOString()
-    .slice(0, 10)}`;
+  // The export routes take the same parameters this page did, so the file and
+  // the screen can never disagree about which window they cover.
+  const range =
+    `?period=${period.key}&from=${period.fromValue}&to=${period.toValue}` +
+    (location ? `&location=${location.id}` : "");
 
   const grainWord = period.grain === "month" ? "month" : "week";
   const showValues = period.buckets.length <= 8;
@@ -89,7 +107,9 @@ export default async function ReportsPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Reports"
-        description={`${period.label} · ${period.rangeLabel}`}
+        description={`${period.label} · ${period.rangeLabel}${
+          location ? ` · ${location.name}` : ""
+        }`}
         actions={
           canExport ? (
             <Button variant="outline" asChild>
@@ -102,18 +122,39 @@ export default async function ReportsPage({
         }
       />
 
-      <PeriodPills active={period.key} />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <PeriodPills active={period.key} location={location?.id} />
+        <DateRangeForm period={period} location={location?.id} />
+      </div>
 
       {money ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <BigStat
-            label="Revenue"
-            value={formatCents(money.revenueCents)}
-            hint={`${money.paymentCount} payment${
-              money.paymentCount === 1 ? "" : "s"
-            } collected`}
+            label="Net revenue"
+            value={formatCents(money.netRevenueCents)}
+            hint={`${formatCents(money.revenueCents)} collected · ${formatCents(
+              money.refundCents,
+            )} refunded`}
             icon={CircleDollarSign}
             tint="bg-status-resolved-bg text-status-resolved-fg"
+          />
+          <BigStat
+            label="Refunds"
+            value={formatCents(money.refundCents)}
+            hint={`${money.refundCount} refund${
+              money.refundCount === 1 ? "" : "s"
+            } issued`}
+            icon={Undo2}
+            tint="bg-status-overdue-bg text-status-overdue-fg"
+          />
+          <BigStat
+            label="Deposits held"
+            value={formatCents(money.depositsHeldCents)}
+            hint={`${money.depositsHeldCount} deposit${
+              money.depositsHeldCount === 1 ? "" : "s"
+            } owed back · all time`}
+            icon={HandCoins}
+            tint="bg-status-new-bg text-status-new-fg"
           />
           <BigStat
             label="Invoices raised"
@@ -153,7 +194,7 @@ export default async function ReportsPage({
               className="lg:col-span-2"
               action={
                 canExport ? (
-                  <CardLink href={`/api/exports/payments.csv${range}`} download>
+                  <CardLink href={`/api/exports/reports-revenue.csv${range}`} download>
                     <Download className="size-4" />
                     Export CSV
                   </CardLink>
@@ -162,12 +203,12 @@ export default async function ReportsPage({
             >
               <div className="flex flex-col gap-1">
                 <span className="text-[40px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-                  {formatCents(money.revenueCents)}
+                  {formatCents(money.netRevenueCents)}
                 </span>
                 <span className="text-[13.5px] text-muted-foreground">
-                  {`across ${money.paymentCount} payment${
+                  {`${formatCents(money.revenueCents)} across ${money.paymentCount} payment${
                     money.paymentCount === 1 ? "" : "s"
-                  } · ${period.rangeLabel}`}
+                  }, less ${formatCents(money.refundCents)} refunded · ${period.rangeLabel}`}
                 </span>
               </div>
               <ColumnChart
@@ -248,7 +289,14 @@ export default async function ReportsPage({
           description={`Work in and work out, by ${grainWord}.`}
           className="lg:col-span-2"
           action={
-            <CardLink href="/tickets?status=all">All tickets</CardLink>
+            canExport ? (
+              <CardLink href={`/api/exports/reports-tickets.csv${range}`} download>
+                <Download className="size-4" />
+                Export CSV
+              </CardLink>
+            ) : (
+              <CardLink href="/tickets?status=all">All tickets</CardLink>
+            )
           }
         >
           <div className="flex flex-wrap gap-x-10 gap-y-3">
@@ -326,6 +374,14 @@ export default async function ReportsPage({
           <ReportCard
             title="Top products by revenue"
             description="Billed on invoices raised in this period."
+            action={
+              canExport ? (
+                <CardLink href={`/api/exports/reports-products.csv${range}`} download>
+                  <Download className="size-4" />
+                  Export CSV
+                </CardLink>
+              ) : undefined
+            }
           >
             {money.topProducts.length === 0 ? (
               <EmptyState
@@ -346,10 +402,58 @@ export default async function ReportsPage({
           </ReportCard>
         ) : null}
 
+        {money ? (
+          <ReportCard
+            title="Refunds"
+            description="Money handed back in this period."
+          >
+            {money.refunds.length === 0 ? (
+              <EmptyState
+                icon={Undo2}
+                title="No refunds"
+                hint="Nothing went back out of the till in this period."
+              />
+            ) : (
+              <ul className="flex flex-col divide-y divide-border">
+                {money.refunds.map((refund) => (
+                  <li
+                    key={refund.id}
+                    className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <Link
+                        href={`/invoices/${refund.invoiceId}`}
+                        className="truncate text-[14.5px] font-semibold text-foreground hover:text-accent hover:underline"
+                      >
+                        {refund.customerName}
+                      </Link>
+                      <span className="truncate text-[12.5px] text-muted-foreground">
+                        Invoice #{refund.invoiceNumber} · {refund.methodLabel}
+                        {refund.reason ? ` · ${refund.reason}` : ""}
+                      </span>
+                    </div>
+                    <span className="shrink-0 text-[14.5px] font-bold tabular-nums text-destructive">
+                      −{formatCents(refund.amountCents)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ReportCard>
+        ) : null}
+
         <ReportCard
           title="Tech leaderboard"
           description="Tickets resolved and hours logged in this period."
           className={money ? undefined : "lg:col-span-2"}
+          action={
+            canExport ? (
+              <CardLink href={`/api/exports/reports-tech.csv${range}`} download>
+                <Download className="size-4" />
+                Export CSV
+              </CardLink>
+            ) : undefined
+          }
         >
           {leaderboard.length === 0 ? (
             <EmptyState

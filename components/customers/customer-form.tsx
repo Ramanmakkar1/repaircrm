@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { TaxRateSelect } from "@/components/billing/tax-rate-select";
+import type { TaxRateOption } from "@/lib/tax";
 
 export type CustomerFormValues = {
   id: string;
@@ -35,6 +37,8 @@ export type CustomerFormValues = {
   notes: string | null;
   smsOptIn: boolean;
   emailOptIn: boolean;
+  taxExempt: boolean;
+  taxRateId: string | null;
 };
 
 type TextKey =
@@ -55,6 +59,8 @@ type TextKey =
 type Values = Record<TextKey, string> & {
   smsOptIn: boolean;
   emailOptIn: boolean;
+  taxExempt: boolean;
+  taxRateId: string | null;
 };
 
 function initialValues(customer?: CustomerFormValues | null): Values {
@@ -74,6 +80,8 @@ function initialValues(customer?: CustomerFormValues | null): Values {
     notes: customer?.notes ?? "",
     smsOptIn: customer?.smsOptIn ?? false,
     emailOptIn: customer?.emailOptIn ?? true,
+    taxExempt: customer?.taxExempt ?? false,
+    taxRateId: customer?.taxRateId ?? null,
   };
 }
 
@@ -88,8 +96,11 @@ function initialValues(customer?: CustomerFormValues | null): Values {
  */
 export function CustomerForm({
   customer,
+  taxRates,
 }: {
   customer?: CustomerFormValues | null;
+  /** The shop's named tax rates. Empty means the shop uses one flat rate. */
+  taxRates: TaxRateOption[];
 }) {
   const isEdit = Boolean(customer);
   const [state, formAction] = React.useActionState<CustomerFormState, FormData>(
@@ -270,6 +281,28 @@ export function CustomerForm({
               placeholder="Anything the team should know before they pick up the phone."
             />
           </Field>
+
+          <div className="flex flex-col gap-4 rounded-md border border-border bg-surface-hover/60 p-4">
+            <OptIn
+              name="taxExempt"
+              label="Tax exempt"
+              hint="Their estimates, invoices and counter sales are taxed at 0%."
+              checked={values.taxExempt}
+              onChange={(next) => set("taxExempt", next)}
+            />
+            {taxRates.length > 0 && !values.taxExempt ? (
+              <TaxRateSelect
+                id="taxRateId"
+                name="taxRateId"
+                label="Preferred tax rate"
+                noneLabel="Shop default"
+                rates={taxRates}
+                value={values.taxRateId}
+                onChange={(next) => set("taxRateId", next.taxRateId)}
+                hint="Pin this customer to one rate — out-of-state, wholesale, a different province."
+              />
+            ) : null}
+          </div>
 
           <div className="flex flex-col gap-4 rounded-md border border-border bg-surface-hover/60 p-4">
             <OptIn

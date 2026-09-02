@@ -7,10 +7,12 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
+import { recordCreditSpend } from "@/lib/deposits";
 import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
 import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
+import { resolveDocumentTax } from "@/components/billing/queries";
 import {
   refundAwareTotals,
   statusForNetPaid,
@@ -121,10 +123,14 @@ export async function createInvoiceAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
-  const shop = await db.shop.findUnique({
-    where: { id: shopId },
-    select: { taxRateBps: true },
-  });
+  // Snapshot the rate now — a later settings change must not silently restate
+  // an invoice the customer has already been shown. The id rides along so the
+  // printed document can name the tax ("GST 5%") rather than only quote it.
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
 
   const ticketId = await resolveTicketId(shopId, formData.get("ticketId"));
 
@@ -136,9 +142,8 @@ export async function createInvoiceAction(
         ticketId,
         number,
         status: "DRAFT",
-        // Snapshot the rate now — a later settings change must not silently
-        // restate an invoice the customer has already been shown.
-        taxRateBps: shop?.taxRateBps ?? 0,
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
         notes: readNotes(formData),
         dueDate: fromDateInputValue(formData.get("date")),
         lines: { create: lineCreateData(parsed.lines) },
@@ -183,12 +188,22 @@ export async function updateInvoiceAction(
   // Replace-all rather than diff: line ids are not surfaced to the client, and
   // an invoice has a handful of rows, so a clean rewrite is both simpler and
   // immune to a stale id from a concurrent edit.
+  // An unpaid invoice can still be re-taxed; a paid or void one never reaches
+  // here (EDITABLE_STATUSES above).
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
+
   await db.$transaction([
     db.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } }),
     db.invoice.update({
       where: { id: invoice.id },
       data: {
         customerId: customer.id,
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
         notes: readNotes(formData),
         dueDate: fromDateInputValue(formData.get("date")),
         lines: { create: lineCreateData(parsed.lines) },
@@ -265,6 +280,16 @@ export async function takePaymentAction(
         await tx.customer.update({
           where: { id: customer.id },
           data: { creditBalanceCents: { decrement: amountCents } },
+        });
+        // The matching ledger row. Without it the customer's credit history
+        // reads as a list of top-ups with money disappearing between them —
+        // the balance moved and nothing said why.
+        await recordCreditSpend(tx, {
+          shopId,
+          customerId: customer.id,
+          amountCents,
+          invoiceNumber: invoice.number,
+          userId,
         });
       }
 
@@ -526,20 +551,34 @@ export async function voidInvoiceAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
-    select: { id: true, status: true, _count: { select: { payments: true } } },
+    select: {
+      id: true,
+      status: true,
+      ticketId: true,
+      _count: { select: { payments: true } },
+    },
   });
   if (!invoice) return;
   // Money has changed hands — voiding would orphan the payment history.
   if (invoice._count.payments > 0) return;
   if (invoice.status === "VOID") return;
 
-  await db.invoice.update({
-    where: { id: invoice.id },
-    data: { status: "VOID", paidAt: null },
-  });
+  await db.$transaction([
+    db.invoice.update({
+      where: { id: invoice.id },
+      data: { status: "VOID", paidAt: null },
+    }),
+    // Voiding un-bills the labour: the hours were worked, so they go back to
+    // being unbilled time on the ticket rather than dying with the document.
+    db.timeEntry.updateMany({
+      where: { invoiceId: invoice.id, shopId },
+      data: { invoiceId: null },
+    }),
+  ]);
 
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoice.id}`);
+  if (invoice.ticketId) revalidatePath(`/tickets/${invoice.ticketId}`);
 }
 
 export async function saveInvoiceSignatureAction(

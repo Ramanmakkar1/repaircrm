@@ -15,7 +15,8 @@ export default async function NewEstimatePage({
   const { shopId } = await requireUser();
   const params = await searchParams;
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   const requestedCustomerId =
     typeof params.customerId === "string" ? params.customerId : "";
@@ -49,6 +50,7 @@ export default async function NewEstimatePage({
         customers={customers}
         products={products}
         taxRateBps={taxRateBps}
+        taxRates={taxRates}
         initial={{
           customerId: prefillCustomer?.id ?? prefillTicket?.customerId ?? null,
           ticketId: prefillTicket?.id ?? null,

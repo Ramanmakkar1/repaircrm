@@ -6,6 +6,7 @@ import { Pencil, Receipt, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -265,38 +266,115 @@ export function DeleteTicketDialog({
 // ---------------------------------------------------------------------------
 
 /**
- * One-click ticket → invoice. Sweeps every un-invoiced charge onto a new DRAFT
- * invoice and redirects there; surfaces the "nothing to invoice" case as a
- * toast rather than a dead-end page.
+ * Ticket → invoice, behind a confirm.
+ *
+ * The confirm exists for one reason: the time checkbox. Billing the clock is a
+ * decision (some of that hour was the tech learning the board, some of it was
+ * the customer talking), and it is a decision that has to be made BEFORE the
+ * invoice exists, because after that the entries are stamped and read-only.
+ *
+ * On success the action redirects to the new invoice, so the only thing to
+ * surface here is the "nothing to invoice" case.
  */
 export function MakeInvoiceButton({
   ticketId,
   chargeCount,
+  unbilledTimeCount,
+  unbilledTimeLabel,
+  unbilledTimeValue,
 }: {
   ticketId: string;
   chargeCount: number;
+  /** Stopped, billable, not-yet-billed entries. */
+  unbilledTimeCount: number;
+  /** Those entries as h:mm, already rounded to the shop's increment. */
+  unbilledTimeLabel: string;
+  /** …and what they are worth, formatted. */
+  unbilledTimeValue: string;
 }) {
-  // On success the action redirects to the new invoice, so the only thing to
-  // surface here is the "nothing to invoice" case.
+  const [open, setOpen] = React.useState(false);
+  const [includeTime, setIncludeTime] = React.useState(true);
+
   const [, formAction, pending] = useActionState(
     async (): Promise<ActionState> => {
-      const result = await makeInvoiceAction(ticketId);
+      const result = await makeInvoiceAction(ticketId, { includeTime });
       if (result.error) toast.error(result.error);
       return result;
     },
     EMPTY_STATE,
   );
 
+  const nothingToBill = chargeCount === 0 && unbilledTimeCount === 0;
+  const billable = chargeCount + (includeTime ? unbilledTimeCount : 0);
+
   return (
-    <form action={formAction}>
-      <Button type="submit" size="sm" disabled={pending || chargeCount === 0}>
-        <Receipt className="size-4" />
-        {pending
-          ? "Creating…"
-          : chargeCount === 0
-            ? "Make Invoice"
-            : `Make Invoice (${chargeCount})`}
-      </Button>
-    </form>
+    <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+      <DialogTrigger asChild>
+        <Button type="button" size="sm" disabled={nothingToBill}>
+          <Receipt className="size-4" />
+          {nothingToBill ? "Make Invoice" : `Make Invoice (${chargeCount + unbilledTimeCount})`}
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Create an invoice</DialogTitle>
+          <DialogDescription>
+            Everything picked here is stamped onto the new invoice and becomes
+            read-only on the ticket.
+          </DialogDescription>
+        </DialogHeader>
+
+        <ul className="flex flex-col gap-2 text-sm">
+          <li className="flex items-baseline justify-between gap-3">
+            <span className="text-muted-foreground">Un-invoiced charges</span>
+            <span className="font-semibold tabular-nums text-foreground">
+              {chargeCount}
+            </span>
+          </li>
+        </ul>
+
+        {unbilledTimeCount > 0 ? (
+          <label className="flex items-start gap-2.5 rounded-md border border-border bg-surface-hover/60 p-3.5">
+            <Checkbox
+              className="mt-0.5"
+              checked={includeTime}
+              onCheckedChange={(next) => setIncludeTime(next === true)}
+              aria-label="Bill the logged time"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-[14px] font-semibold text-foreground">
+                Bill {unbilledTimeCount} time{" "}
+                {unbilledTimeCount === 1 ? "entry" : "entries"}
+              </span>
+              <span className="text-[13px] text-muted-foreground">
+                {unbilledTimeLabel} of labour · {unbilledTimeValue}
+              </span>
+            </span>
+          </label>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">
+            No unbilled time on this ticket.
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
+          <form action={formAction}>
+            <Button type="submit" size="sm" disabled={pending || billable === 0}>
+              {pending ? "Creating…" : "Create invoice"}
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

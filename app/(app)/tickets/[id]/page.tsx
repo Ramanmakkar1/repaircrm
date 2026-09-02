@@ -5,6 +5,8 @@ import { ArrowLeft, Printer } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
+import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
@@ -16,6 +18,7 @@ import {
 } from "@/components/tickets/attachments-card";
 import { ChargesCard } from "@/components/tickets/charges-card";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
+import { DepositCard, type DepositRow } from "@/components/tickets/deposit-card";
 import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
@@ -40,6 +43,15 @@ import {
 } from "@/components/tickets/ticket-meta";
 
 export const dynamic = "force-dynamic";
+
+/** Deposit tenders wear the same names they do on an invoice. */
+const DEPOSIT_METHOD_LABELS: Record<string, string> = {
+  CASH: "Cash",
+  CARD: "Card",
+  CHECK: "Check",
+  CREDIT: "Store credit",
+  OTHER: "Other",
+};
 
 /** `customFields` is untyped JSON — coerce it to flat string pairs for display. */
 function readCustomFields(value: unknown): Record<string, string> {
@@ -150,7 +162,23 @@ export default async function TicketDetailPage({
           endedAt: true,
           seconds: true,
           note: true,
+          billable: true,
+          invoiceId: true,
           user: { select: { name: true } },
+        },
+      },
+      deposits: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          amountCents: true,
+          method: true,
+          reference: true,
+          createdAt: true,
+          refundedAt: true,
+          appliedInvoiceId: true,
+          takenBy: { select: { name: true } },
+          appliedInvoice: { select: { number: true } },
         },
       },
       attachments: {
@@ -219,6 +247,11 @@ export default async function TicketDetailPage({
     ticket.dueDate.getTime() < now &&
     ticket.status !== RESOLVED_STATUS;
 
+  // The labour rate and rounding increment the shop set (Settings → Shop →
+  // Labour). Each row carries what it would bill as, so the card never has to
+  // reimplement the rounding the invoice will actually use.
+  const labour = readLabourSettings(shop?.settings);
+
   const timeEntries: TimeEntryRow[] = ticket.timeEntries.map((entry) => ({
     id: entry.id,
     userName: entry.user.name,
@@ -227,6 +260,36 @@ export default async function TicketDetailPage({
     seconds: entry.seconds,
     running: entry.endedAt === null,
     note: entry.note,
+    billable: entry.billable,
+    invoiceId: entry.invoiceId,
+    amountCents: labourAmountCents(entry.seconds ?? 0, labour),
+    billableSeconds: roundSecondsUp(entry.seconds ?? 0, labour.roundingMinutes),
+  }));
+
+  // What "Bill time" would sweep onto an invoice right now: stopped, billable,
+  // not already billed.
+  const unbilledTime = timeEntries.filter(
+    (entry) => entry.billable && !entry.invoiceId && !entry.running,
+  );
+  const unbilledTimeSeconds = unbilledTime.reduce(
+    (sum, entry) => sum + entry.billableSeconds,
+    0,
+  );
+  const unbilledTimeCents = unbilledTime.reduce(
+    (sum, entry) => sum + entry.amountCents,
+    0,
+  );
+
+  const deposits: DepositRow[] = ticket.deposits.map((deposit) => ({
+    id: deposit.id,
+    amountCents: deposit.amountCents,
+    methodLabel: DEPOSIT_METHOD_LABELS[deposit.method] ?? deposit.method,
+    reference: deposit.reference,
+    takenByName: deposit.takenBy?.name ?? null,
+    createdAtLabel: format(deposit.createdAt, "MMM d, h:mm a"),
+    appliedInvoiceNumber: deposit.appliedInvoice?.number ?? null,
+    appliedInvoiceId: deposit.appliedInvoiceId,
+    refunded: deposit.refundedAt !== null,
   }));
 
   const myRunningEntry =
@@ -323,6 +386,9 @@ export default async function TicketDetailPage({
               <MakeInvoiceButton
                 ticketId={ticket.id}
                 chargeCount={uninvoicedCount}
+                unbilledTimeCount={unbilledTime.length}
+                unbilledTimeLabel={formatHm(unbilledTimeSeconds)}
+                unbilledTimeValue={formatCents(unbilledTimeCents)}
               />
               <EditTicketDialog
                 ticketId={ticket.id}
@@ -497,6 +563,16 @@ export default async function TicketDetailPage({
                 : null
             }
           />
+
+          {role === "OWNER" || role === "FRONT_DESK" ? (
+            <DepositCard
+              ticketId={ticket.id}
+              ticketNumber={ticket.number}
+              customerName={customerLabel(ticket.customer)}
+              deposits={deposits}
+              isOwner={role === "OWNER"}
+            />
+          ) : null}
 
           <AttachmentsCard
             ticketId={ticket.id}

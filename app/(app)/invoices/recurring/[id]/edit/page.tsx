@@ -22,7 +22,8 @@ export default async function EditSchedulePage({
   });
   if (!schedule) notFound();
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   return (
     <div className="flex flex-col">
@@ -37,10 +38,12 @@ export default async function EditSchedulePage({
         // The schedule's own snapshotted rate, so editing never silently
         // re-taxes a contract at a rate the customer has not agreed to.
         taxRateBps={schedule.taxRateBps || taxRateBps}
+        taxRates={taxRates}
         initial={{
           id: schedule.id,
           name: schedule.name,
           customerId: schedule.customerId,
+          taxRateId: schedule.taxRateId,
           frequency: schedule.frequency,
           nextRunAt: toDateInputValue(schedule.nextRunAt),
           dueInDays: schedule.dueInDays,

@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { calcTotals } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
+import { resolveDocumentTax } from "@/components/billing/queries";
 import {
   describeOutcome,
   type SendChannelOutcome,
@@ -98,10 +99,12 @@ export async function createEstimateAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
-  const shop = await db.shop.findUnique({
-    where: { id: shopId },
-    select: { taxRateBps: true },
-  });
+  // Both halves of the tax are stored: the id it came from, the bps it is.
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
 
   const ticketId = await resolveTicketId(shopId, formData.get("ticketId"));
 
@@ -113,7 +116,8 @@ export async function createEstimateAction(
         ticketId,
         number,
         status: "DRAFT",
-        taxRateBps: shop?.taxRateBps ?? 0,
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
         notes: readNotes(formData),
         expiresAt: fromDateInputValue(formData.get("date")),
         lines: { create: lineCreateData(parsed.lines) },
@@ -150,12 +154,22 @@ export async function updateEstimateAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
+  // A quote that has not been accepted yet can still be re-taxed — the customer
+  // has not agreed to anything. Once it converts, the invoice owns the number.
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
+
   await db.$transaction([
     db.estimateLine.deleteMany({ where: { estimateId: estimate.id } }),
     db.estimate.update({
       where: { id: estimate.id },
       data: {
         customerId: customer.id,
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
         notes: readNotes(formData),
         expiresAt: fromDateInputValue(formData.get("date")),
         lines: { create: lineCreateData(parsed.lines) },

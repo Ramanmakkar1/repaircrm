@@ -18,10 +18,19 @@ export type ProductOption = {
   taxable: boolean;
 };
 
-/** A customer the document form can be addressed to. */
+/**
+ * A customer the document form can be addressed to.
+ *
+ * The tax fields are the rate this customer resolves to today (see lib/tax.ts),
+ * carried along so picking them in the form can pre-select the document's tax
+ * without a round-trip. The server re-resolves it on save regardless.
+ */
 export type CustomerOption = {
   id: string;
   label: string;
+  taxRateId: string | null;
+  taxRateBps: number;
+  taxExempt: boolean;
 };
 
 /**

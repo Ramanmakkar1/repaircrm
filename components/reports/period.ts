@@ -23,9 +23,19 @@ export const REPORT_PERIODS = [
   { key: "this-year", label: "This year" },
 ] as const;
 
-export type ReportPeriodKey = (typeof REPORT_PERIODS)[number]["key"];
+export type ReportPeriodKey = (typeof REPORT_PERIODS)[number]["key"] | "custom";
 
 export const DEFAULT_PERIOD: ReportPeriodKey = "this-month";
+
+/** The key a hand-picked from/to range travels under. */
+export const CUSTOM_PERIOD = "custom";
+
+/** Everything the URL carries about which slice of time is on screen. */
+export type ReportRangeParams = {
+  period?: string | string[] | null;
+  from?: string | string[] | null;
+  to?: string | string[] | null;
+};
 
 export type Bucket = {
   /** Short axis tick, e.g. "Aug 4" or "Aug". */
@@ -39,6 +49,10 @@ export type Bucket = {
 export type ReportPeriod = {
   key: ReportPeriodKey;
   label: string;
+  /** `yyyy-mm-dd`, for the date inputs and the CSV export links. */
+  fromValue: string;
+  /** `yyyy-mm-dd`, INCLUSIVE — the last day the report covers. */
+  toValue: string;
   /** Inclusive start, UTC midnight. */
   from: Date;
   /** Exclusive end — never later than the start of tomorrow. */
@@ -81,18 +95,55 @@ function utc(year: number, month: number, day = 1): Date {
   return new Date(Date.UTC(year, month, day));
 }
 
-/** `?period=` -> a resolved range. Anything unrecognised falls back to this month. */
+/** A single `yyyy-mm-dd` search param, or null when it is absent or malformed. */
+function parseDayParam(raw: string | string[] | null | undefined): Date | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dayValue(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * `?period=` (or `?period=custom&from=&to=`) -> a resolved range.
+ *
+ * Anything unrecognised falls back to this month, and a custom range missing
+ * either end does the same rather than reporting on half a window. `to` is
+ * INCLUSIVE to the operator — they typed a day they want counted — and
+ * exclusive to the queries, which is the conversion this function owns.
+ */
 export function resolveReportPeriod(
-  raw: unknown,
+  params: ReportRangeParams | string | null | undefined,
   now: Date = new Date(),
 ): ReportPeriod {
-  const key = REPORT_PERIODS.find((p) => p.key === raw)?.key ?? DEFAULT_PERIOD;
-  const label = REPORT_PERIODS.find((p) => p.key === key)!.label;
+  const input: ReportRangeParams =
+    typeof params === "string" || params == null ? { period: params } : params;
+  const raw = Array.isArray(input.period) ? input.period[0] : input.period;
 
   const today = startOfUtcDay(now);
   // Nothing can be recorded in the future, so no period ever runs past tonight.
   // Without this, "This year" would render four empty columns every August.
   const tomorrow = new Date(today.getTime() + DAY_MS);
+
+  if (raw === CUSTOM_PERIOD) {
+    const customFrom = parseDayParam(input.from);
+    const customTo = parseDayParam(input.to);
+    if (customFrom && customTo) {
+      // A reversed pair is swapped rather than refused — the intent is obvious.
+      const [start, end] =
+        customFrom.getTime() <= customTo.getTime()
+          ? [customFrom, customTo]
+          : [customTo, customFrom];
+      return buildPeriod(CUSTOM_PERIOD, "Custom range", start, new Date(end.getTime() + DAY_MS));
+    }
+  }
+
+  const key = REPORT_PERIODS.find((p) => p.key === raw)?.key ?? DEFAULT_PERIOD;
+  const label = REPORT_PERIODS.find((p) => p.key === key)!.label;
+
   const year = now.getUTCFullYear();
   const month = now.getUTCMonth();
 
@@ -119,19 +170,31 @@ export function resolveReportPeriod(
       break;
   }
 
+  return buildPeriod(key, label, from, toExclusive);
+}
+
+/** The shared tail of every branch above: grain, buckets and the printed label. */
+function buildPeriod(
+  key: ReportPeriodKey,
+  label: string,
+  from: Date,
+  toExclusive: Date,
+): ReportPeriod {
   const grain: "week" | "month" =
     toExclusive.getTime() - from.getTime() > 100 * DAY_MS ? "month" : "week";
+  const lastDay = new Date(toExclusive.getTime() - DAY_MS);
 
   return {
     key,
     label,
+    fromValue: dayValue(from),
+    toValue: dayValue(lastDay),
     from,
     toExclusive,
-    rangeLabel: `${dayMonth.format(from)} – ${dayMonthYear.format(
-      new Date(toExclusive.getTime() - DAY_MS),
-    )}`,
+    rangeLabel: `${dayMonth.format(from)} – ${dayMonthYear.format(lastDay)}`,
     grain,
-    buckets: grain === "month" ? monthBuckets(from, toExclusive) : weekBuckets(from, toExclusive),
+    buckets:
+      grain === "month" ? monthBuckets(from, toExclusive) : weekBuckets(from, toExclusive),
   };
 }
 

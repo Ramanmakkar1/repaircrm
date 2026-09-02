@@ -4,6 +4,7 @@ import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosTicket } from "@/components/pos/types";
+import { resolveTaxRate } from "@/lib/tax";
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function PosPage() {
   const { shopId } = await requireUser();
 
-  const [products, customerRows, ticketRows, shop] = await Promise.all([
+  const [products, customerRows, ticketRows, shop, taxRates] = await Promise.all([
     db.product.findMany({
       where: { shopId, active: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
@@ -49,6 +50,8 @@ export default async function PosPage() {
         lastName: true,
         businessName: true,
         creditBalanceCents: true,
+        taxExempt: true,
+        taxRateId: true,
       },
     }),
     // Tickets the counter can bill: still open, and carrying work nobody has
@@ -84,13 +87,31 @@ export default async function PosPage() {
             taxable: true,
           },
         },
+        // Only deposits still sitting unapplied count — `Ticket.depositCents`
+        // is the lifetime total and would double-count a refunded one.
+        deposits: {
+          where: { appliedInvoiceId: null, refundedAt: null },
+          select: { amountCents: true },
+        },
       },
     }),
     db.shop.findUnique({
       where: { id: shopId },
       select: { taxRateBps: true },
     }),
+    db.taxRate.findMany({
+      where: { shopId },
+      select: {
+        id: true,
+        name: true,
+        rateBps: true,
+        isDefault: true,
+        active: true,
+      },
+    }),
   ]);
+
+  const shopTax = { taxRateBps: shop?.taxRateBps ?? 0, taxRates };
 
   const tickets: PosTicket[] = ticketRows.map((ticket) => ({
     id: ticket.id,
@@ -103,16 +124,28 @@ export default async function PosPage() {
       (sum, charge) => sum + charge.quantity * charge.unitPriceCents,
       0,
     ),
+    depositCents: ticket.deposits.reduce(
+      (sum, deposit) => sum + deposit.amountCents,
+      0,
+    ),
   }));
 
   return (
     <Register
       products={products}
-      customers={customerRows.map((c) => ({
-        id: c.id,
-        label: customerLabel(c),
-        creditBalanceCents: c.creditBalanceCents,
-      }))}
+      customers={customerRows.map((c) => {
+        // The rate each customer resolves to, so attaching them at the counter
+        // re-prices the cart instantly. performCheckout resolves it again —
+        // this is the display half, never the authority.
+        const tax = resolveTaxRate({ shop: shopTax, customer: c });
+        return {
+          id: c.id,
+          label: customerLabel(c),
+          creditBalanceCents: c.creditBalanceCents,
+          taxRateBps: tax.taxRateBps,
+          taxExempt: c.taxExempt,
+        };
+      })}
       tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}
     />
