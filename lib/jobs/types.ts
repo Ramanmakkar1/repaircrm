@@ -32,6 +32,13 @@ export type JobsSummary = {
   /** How many shops were visited. */
   shops: number;
   recurring: { created: number };
+  /**
+   * Cards charged automatically off recurring schedules. `attempted` counts
+   * schedules with auto-charge on whose invoice was raised this pass, so
+   * attempted − succeeded − failed is always zero and a run that charged
+   * nothing is visibly different from a run that charged and was declined.
+   */
+  charges: { attempted: number; succeeded: number; failed: number };
   campaigns: { queued: number; sent: number; failed: number };
   /** Tickets newly stamped as past due, and alerts actually delivered. */
   sla: { breached: number; notified: number };
@@ -70,6 +77,7 @@ export function emptySummary(source: JobSource): JobsSummary {
     ms: 0,
     shops: 0,
     recurring: { created: 0 },
+    charges: { attempted: 0, succeeded: 0, failed: 0 },
     campaigns: { queued: 0, sent: 0, failed: 0 },
     sla: { breached: 0, notified: 0 },
     tokensPurged: 0,
@@ -86,6 +94,8 @@ export function summaryLine(summary: JobsSummary): string {
   return [
     `${summary.shops} shop${summary.shops === 1 ? "" : "s"}`,
     `${summary.recurring.created} invoice${summary.recurring.created === 1 ? "" : "s"}`,
+    // Optional-chained: a summary stored by an older build has no `charges` key.
+    `${summary.charges?.succeeded ?? 0}/${summary.charges?.attempted ?? 0} charged`,
     `${summary.campaigns.queued} queued`,
     `${summary.campaigns.sent} sent`,
     `${summary.campaigns.failed} failed`,

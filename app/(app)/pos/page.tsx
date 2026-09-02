@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { paymentsLive, readTerminalLocationId, stripeTestMode } from "@/lib/payments";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
@@ -97,7 +98,7 @@ export default async function PosPage() {
     }),
     db.shop.findUnique({
       where: { id: shopId },
-      select: { taxRateBps: true },
+      select: { taxRateBps: true, settings: true },
     }),
     db.taxRate.findMany({
       where: { shopId },
@@ -146,6 +147,15 @@ export default async function PosPage() {
           taxExempt: c.taxExempt,
         };
       })}
+      // The reader option appears only for a shop that has actually registered
+      // one — an empty Terminal Location means no hardware was ever paired, and
+      // a dead button on every till in the world is not a feature. `testMode`
+      // is the only thing derived from the Stripe key that crosses to the
+      // browser, and it is a boolean.
+      cardReader={{
+        enabled: paymentsLive() && Boolean(readTerminalLocationId(shop?.settings)),
+        testMode: stripeTestMode(),
+      }}
       tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}
     />

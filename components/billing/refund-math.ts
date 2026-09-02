@@ -36,11 +36,31 @@
 
 import { calcTotals, sumPayments, type LineLike, type Totals } from "@/lib/money";
 
-export type RefundLike = { amountCents: number };
+export type RefundLike = {
+  amountCents: number;
+  /**
+   * "completed" | "pending" | "failed". Optional: rows recorded by hand carry
+   * "completed" by default and callers that never had a Stripe refund can omit
+   * it entirely.
+   */
+  status?: string | null;
+};
 
-/** Sum of refund amounts, in cents. Mirrors `sumPayments`. */
+/**
+ * Sum of refund amounts, in cents. Mirrors `sumPayments`.
+ *
+ * FAILED REFUNDS DO NOT COUNT. A Stripe refund that the API rejected is money
+ * that never left — the row survives as an audit trail of the attempt, but
+ * counting it would tell the customer they had been paid back when they had
+ * not. A PENDING refund does count: the shop has instructed Stripe to send it,
+ * and reporting a balance that is about to be wrong in the customer's favour
+ * is the safer of the two errors.
+ */
 export function sumRefunds(refunds: readonly RefundLike[]): number {
-  return refunds.reduce((sum, r) => sum + (Math.round(r.amountCents) || 0), 0);
+  return refunds.reduce(
+    (sum, r) => (r.status === "failed" ? sum : sum + (Math.round(r.amountCents) || 0)),
+    0,
+  );
 }
 
 /**

@@ -7,6 +7,14 @@ import { toast } from "sonner";
 const MESSAGES: Record<string, string> = {
   created: "Customer created.",
   updated: "Customer updated.",
+  // Stripe redirects back here after the hosted card-setup page. The card
+  // itself lands via the webhook a moment later — see CardOnFileCard.
+  "card-saved": "Card saved. It will appear here in a moment.",
+};
+
+/** Flashes that are not good news. */
+const WARNINGS: Record<string, string> = {
+  "card-canceled": "No card was saved.",
 };
 
 /**
@@ -21,9 +29,11 @@ export function FlashToast({ flash }: { flash?: string }) {
   React.useEffect(() => {
     if (fired.current || !flash) return;
     const message = MESSAGES[flash];
-    if (!message) return;
+    const warning = WARNINGS[flash];
+    if (!message && !warning) return;
     fired.current = true;
-    toast.success(message);
+    if (message) toast.success(message);
+    else toast.message(warning);
     router.replace(pathname, { scroll: false });
   }, [flash, pathname, router]);
 

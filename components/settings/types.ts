@@ -130,7 +130,6 @@ export type MessagingConfig = {
   /** Env vars the active driver needs, with whether each one is populated. */
   emailVars: { name: string; set: boolean }[];
   smsVars: { name: string; set: boolean }[];
-  payments: PaymentsConfig;
 };
 
 /**
@@ -138,7 +137,8 @@ export type MessagingConfig = {
  *
  * Same rule as the messaging drivers: only *whether* each secret is populated
  * ever reaches the browser, never its value. A Stripe secret key in a client
- * bundle is a full account compromise.
+ * bundle is a full account compromise, and `testMode` — a single boolean — is
+ * the only thing about the key itself that is ever derived for the UI.
  */
 export type PaymentsConfig = {
   /** What PAYMENTS_DRIVER resolved to: "off" or "stripe". */
@@ -153,4 +153,52 @@ export type PaymentsConfig = {
   /** The endpoint to register in the Stripe dashboard. */
   webhookUrl: string;
   vars: { name: string; set: boolean }[];
+};
+
+/** One registered card reader, as the Payments tab lists it. */
+export type ReaderItem = {
+  id: string;
+  label: string;
+  status: string;
+  deviceType: string;
+  serialNumber: string | null;
+};
+
+/**
+ * Everything the Payments tab renders.
+ *
+ * Assembled on the server in app/(app)/settings/page.tsx: the environment
+ * facts from `process.env`, the connection from the database, and the account
+ * and reader lists from live Stripe calls. Anything Stripe could not answer
+ * arrives as an `*Error` string rather than as a missing section, so the tab
+ * can say "we could not reach Stripe" instead of quietly claiming a shop has
+ * no readers.
+ */
+export type PaymentsTabConfig = {
+  env: PaymentsConfig;
+  /** True when both STRIPE_SECRET_KEY and STRIPE_CLIENT_ID are present. */
+  connectConfigured: boolean;
+  connected: boolean;
+  accountId: string | null;
+  onboardedAt: string | null;
+  /** Platform key is sk_test_… — the only key-derived fact the browser gets. */
+  testMode: boolean;
+  /** The shop's stored currency. */
+  currency: string;
+  account: {
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    defaultCurrency: string | null;
+    country: string | null;
+    businessName: string | null;
+    disabledReason: string | null;
+  } | null;
+  accountError: string | null;
+  readers: ReaderItem[];
+  readersError: string | null;
+  /** Whether a Terminal Location exists, i.e. a reader was ever registered. */
+  hasReaderLocation: boolean;
+  /** True when a card can be saved against a customer today. */
+  cardOnFileReady: boolean;
 };

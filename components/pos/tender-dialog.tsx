@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CreditCard, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
+import { TerminalPanel } from "@/components/payments/terminal-panel";
+import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents, parseCents } from "@/lib/money";
 import { METHOD_LABELS, type TenderMethod } from "./types";
 
@@ -24,6 +26,24 @@ const QUICK_BILLS = [2000, 5000, 10000];
 export type TenderConfirm = {
   reference: string | null;
   tenderedCents: number | null;
+};
+
+/**
+ * Everything the card-reader path needs, or absent when this shop has no
+ * reader — in which case the option is not rendered at all rather than
+ * rendered disabled. A greyed-out "Card reader" button on a counter that has
+ * never owned one is an advert, not a control.
+ */
+export type TenderTerminal = {
+  /** Discovers a SIMULATED reader. Server-derived boolean; no key crosses over. */
+  testMode: boolean;
+  /** Opens a card-present PaymentIntent for the server-priced cart. */
+  createIntent: () => Promise<
+    | { ok: true; clientSecret: string | null; paymentIntentId: string }
+    | { ok: false; error: string }
+  >;
+  /** Rings the sale up once Stripe approves. */
+  record: (paymentIntentId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 /**
@@ -46,6 +66,7 @@ export function TenderDialog({
   customerName,
   pending,
   error,
+  terminal,
   onClose,
   onConfirm,
 }: {
@@ -55,6 +76,8 @@ export function TenderDialog({
   customerName: string;
   pending: boolean;
   error: string | null;
+  /** Absent when this shop cannot take a card at a reader. */
+  terminal?: TenderTerminal;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
@@ -82,6 +105,7 @@ export function TenderDialog({
             customerCredit={customerCredit}
             pending={pending}
             error={error}
+            terminal={terminal}
             onClose={onClose}
             onConfirm={onConfirm}
           />
@@ -97,6 +121,7 @@ function TenderForm({
   customerCredit,
   pending,
   error,
+  terminal,
   onClose,
   onConfirm,
 }: {
@@ -105,10 +130,17 @@ function TenderForm({
   customerCredit: number;
   pending: boolean;
   error: string | null;
+  terminal?: TenderTerminal;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
   const isCash = method === "CASH";
+  // A card can be keyed in (the cashier ran it on a separate machine and types
+  // the auth code) or taken on a reader wired to this shop's Stripe account.
+  // Only the second one moves money from in here, so the two are separate
+  // choices rather than one button that does different things.
+  const canUseReader = method === "CARD" && Boolean(terminal);
+  const [useReader, setUseReader] = React.useState(false);
   // Opening on the exact amount makes the overwhelmingly common "card, done"
   // and "exact change" paths a single click.
   const [received, setReceived] = React.useState(() =>
@@ -131,6 +163,18 @@ function TenderForm({
     });
   };
 
+  if (canUseReader && useReader && terminal) {
+    return (
+      <ReaderTender
+        totalCents={totalCents}
+        terminal={terminal}
+        error={error}
+        onKeyIn={() => setUseReader(false)}
+        onClose={onClose}
+      />
+    );
+  }
+
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       {error ? (
@@ -141,6 +185,18 @@ function TenderForm({
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
           <span>{error}</span>
         </div>
+      ) : null}
+
+      {canUseReader ? (
+        <Button
+          type="button"
+          variant="soft"
+          size="lg"
+          className="h-14 text-[15px]"
+          onClick={() => setUseReader(true)}
+        >
+          <CreditCard /> Take it on the card reader
+        </Button>
       ) : null}
 
       {isCash ? (
@@ -266,5 +322,78 @@ function QuickAmount({
     >
       {label}
     </button>
+  );
+}
+
+/**
+ * The card-reader tender.
+ *
+ * The sale is NOT rung up first: the card is presented, Stripe approves, and
+ * only then does `terminal.record` write the invoice and its payment. A
+ * declined card therefore leaves nothing behind — no half-invoice, no stock
+ * movement — and the cashier can hand it back and try another tender.
+ */
+function ReaderTender({
+  totalCents,
+  terminal,
+  error,
+  onKeyIn,
+  onClose,
+}: {
+  totalCents: number;
+  terminal: TenderTerminal;
+  error: string | null;
+  onKeyIn: () => void;
+  onClose: () => void;
+}) {
+  const reader = useStripeTerminal(terminal.testMode);
+
+  const start = () => {
+    void reader.collect({
+      createIntent: terminal.createIntent,
+      record: terminal.record,
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      <TerminalPanel
+        amountCents={totalCents}
+        terminal={reader}
+        onStart={start}
+        startLabel={`Charge ${formatCents(totalCents)}`}
+      />
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          disabled={reader.busy}
+          onClick={onKeyIn}
+        >
+          Key it in instead
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          disabled={reader.busy}
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }

@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarSync, Plus, Repeat, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarSync,
+  CreditCard,
+  Mail,
+  Plus,
+  Repeat,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -148,6 +157,26 @@ export default async function RecurringSchedulesPage() {
                   </Chip>
                   {schedule.lastRunAt ? (
                     <Chip>Last {formatDate(schedule.lastRunAt)}</Chip>
+                  ) : null}
+                  {schedule.autoSend ? <Chip icon={Mail}>Auto-send</Chip> : null}
+                  {schedule.autoCharge ? (
+                    <Chip
+                      icon={CreditCard}
+                      className="bg-chip-accent-bg text-chip-accent-fg"
+                    >
+                      Auto-charge
+                    </Chip>
+                  ) : null}
+                  {/* Cleared automatically on the next successful charge, so
+                      this chip only ever describes the situation right now. */}
+                  {schedule.lastChargeError ? (
+                    <Chip
+                      icon={TriangleAlert}
+                      className="bg-destructive-soft font-bold text-destructive"
+                      title={schedule.lastChargeError}
+                    >
+                      Last charge failed
+                    </Chip>
                   ) : null}
                   {!schedule.active ? (
                     <Chip className="bg-surface-hover font-bold">Paused</Chip>

@@ -1,11 +1,14 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth";
 import { newRecordLocationId } from "@/lib/location";
+import { createPosTerminalIntent } from "@/lib/payments";
 import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
-import { performCheckout } from "./checkout";
+import { performCheckout, priceCart } from "./checkout";
 
 /**
  * The only way into a POS sale.
@@ -43,4 +46,61 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   }
 
   return result;
+}
+
+/**
+ * Opens a card-present PaymentIntent for the cart currently on screen.
+ *
+ * WHY THE REGISTER IS DIFFERENT FROM AN INVOICE. On an invoice the balance
+ * already exists, so /api/payments/terminal/intent can price it from the
+ * database. At the counter there is no invoice yet — the sale is only written
+ * once the money is taken — so the cart has to be priced first. That pricing
+ * runs through `priceCart`, which is the SAME catalogue lookup the sale itself
+ * uses (see ./checkout.ts), so the amount on the reader is the amount the
+ * invoice will be rung up for and neither comes from the browser.
+ *
+ * The intent id then travels back through `checkoutAction`, which retrieves it
+ * from Stripe and refuses the sale unless the shop and amount both agree.
+ */
+export async function posTerminalIntentAction(
+  input: CheckoutInput,
+): Promise<
+  | { ok: true; paymentIntentId: string; clientSecret: string | null; amountCents: number }
+  | { ok: false; error: string }
+> {
+  const { shopId } = await requireUser();
+
+  const priced = await priceCart(shopId, input);
+  if (!priced.ok) return { ok: false, error: priced.error };
+
+  // Stable for a given cart, so re-presenting a card after a dropped reader
+  // connection re-uses the intent instead of opening a second one.
+  const cartKey = createHash("sha1")
+    .update(
+      JSON.stringify(
+        input.lines.map((line) => [
+          line.productId,
+          line.ticketChargeId ?? null,
+          line.quantity,
+          line.description,
+          line.unitPriceCents,
+        ]),
+      ),
+    )
+    .digest("hex")
+    .slice(0, 16);
+
+  const result = await createPosTerminalIntent({
+    shopId,
+    amountCents: priced.totalCents,
+    cartKey,
+  });
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  return {
+    ok: true,
+    paymentIntentId: result.intent.id,
+    clientSecret: result.intent.clientSecret,
+    amountCents: result.intent.amountCents,
+  };
 }

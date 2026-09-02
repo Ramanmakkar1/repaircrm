@@ -65,6 +65,32 @@ function readActive(formData: FormData): boolean {
   return raw === "on" || raw === "true" || raw === "1";
 }
 
+/** Reads one of the unattended-run switches. Same encoding as `active`. */
+function readFlag(formData: FormData, name: string): boolean {
+  const raw = formData.get(name);
+  return raw === "on" || raw === "true" || raw === "1";
+}
+
+/**
+ * Auto-charge is only allowed to be ON when the customer actually has a card.
+ *
+ * The form disables the switch, but a form is a suggestion: a schedule stored
+ * with `autoCharge` against a customer who has no card would fail on every run
+ * and email the owner about it every time.
+ */
+async function readAutoCharge(
+  shopId: string,
+  customerId: string,
+  formData: FormData,
+): Promise<boolean> {
+  if (!readFlag(formData, "autoCharge")) return false;
+  const customer = await db.customer.findFirst({
+    where: { id: customerId, shopId },
+    select: { stripePaymentMethodId: true },
+  });
+  return Boolean(customer?.stripePaymentMethodId);
+}
+
 function lineCreateData(
   lines: { productId: string | null; description: string; quantity: number; unitPriceCents: number; taxable: boolean }[],
 ) {
@@ -126,6 +152,8 @@ export async function createScheduleAction(
       taxRateId: tax.taxRateId,
       taxRateBps: tax.taxRateBps,
       dueInDays: readDueInDays(formData),
+      autoCharge: await readAutoCharge(shopId, customer.id, formData),
+      autoSend: readFlag(formData, "autoSend"),
       lines: { create: lineCreateData(parsed.lines) },
     },
     select: { id: true },
@@ -182,6 +210,11 @@ export async function updateScheduleAction(
         nextRunAt,
         active: readActive(formData),
         dueInDays: readDueInDays(formData),
+        autoCharge: await readAutoCharge(shopId, customer.id, formData),
+        autoSend: readFlag(formData, "autoSend"),
+        // A settings change is a fresh start: the last failure is no longer
+        // what the schedule is doing, so the red chip clears.
+        lastChargeError: null,
         lines: { create: lineCreateData(parsed.lines) },
       },
     }),

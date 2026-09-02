@@ -284,6 +284,19 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
         />
       </div>
 
+      {/* Only shown once a schedule has auto-charge turned on. A permanent
+          "0 cards charged" on every shop that never uses it is noise. */}
+      {(summary.charges?.attempted ?? 0) > 0 ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Cards charged" value={summary.charges?.succeeded ?? 0} />
+          <Stat
+            label="Cards declined"
+            value={summary.charges?.failed ?? 0}
+            alarming={(summary.charges?.failed ?? 0) > 0}
+          />
+        </div>
+      ) : null}
+
       <p className="text-[13px] text-muted-foreground">
         {summary.shops} shop{summary.shops === 1 ? "" : "s"} checked ·{" "}
         {summary.sla?.breached ?? 0} overdue ticket

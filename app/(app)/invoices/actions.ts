@@ -12,7 +12,14 @@ import { recordCreditSpend } from "@/lib/deposits";
 import { newRecordLocationId } from "@/lib/location";
 import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
 import { warrantyDaysByProduct } from "@/lib/warranty";
-import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
+import {
+  chargeCardOnFile,
+  createInvoiceCheckout,
+  createStripeRefund,
+  markRefundStatus,
+  paymentsLive,
+  recordTerminalPayment,
+} from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
 import { resolveDocumentTax } from "@/components/billing/queries";
@@ -379,14 +386,21 @@ export async function takePaymentAction(
  * survive on an invoice whose money has gone back to the customer.
  *
  * ---------------------------------------------------------------------------
- * STRIPE IS OUT OF SCOPE — DOCUMENTED BOUNDARY
+ * TWO KINDS OF REFUND, AND THE DIALOG SAYS WHICH
  * ---------------------------------------------------------------------------
- * This records the BUSINESS FACT of a refund. It does not call Stripe. When the
- * linked payment's reference starts with "cs_" it was taken through the hosted
- * checkout (see lib/payments), and the money only genuinely moves once the
- * refund is issued from the Stripe dashboard too — the dialog says so. Pushing
- * the reversal through the API would need a Stripe PaymentIntent id we do not
- * store and a webhook to confirm it, which is its own wave of work.
+ *   TO CARD (STRIPE)   the selected payment was taken through Stripe, so this
+ *                      calls the API and the money genuinely goes back. The
+ *                      row is born "pending" and becomes "completed" the
+ *                      moment Stripe says succeeded — synchronously if it
+ *                      answers straight away, otherwise from the
+ *                      `refund.updated` / `charge.refunded` webhook.
+ *   MANUAL             cash out of the drawer, a cheque, store credit. The row
+ *                      is born "completed" because the money moved when the
+ *                      drawer opened, and Stripe is not involved at all.
+ *
+ * A Stripe refund the API refuses is marked "failed" and STOPS COUNTING (see
+ * sumRefunds in components/billing/refund-math.ts): the attempt stays on the
+ * record, but an invoice must never report money as returned when it was not.
  */
 export async function refundInvoiceAction(
   _state: FormState,
@@ -418,6 +432,20 @@ export async function refundInvoiceAction(
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 500) || null;
   const requestedPaymentId =
     String(formData.get("paymentId") ?? "").trim() || null;
+  // The dialog's radio choice. Only ever a request: the server still has to
+  // find a Stripe PaymentIntent on the linked payment before it will call out.
+  const wantsStripe = String(formData.get("viaStripe") ?? "") === "true";
+
+  /**
+   * Filled inside the transaction when this refund must go to Stripe.
+   *
+   * A box rather than a bare `let` because it is written from inside a
+   * callback, and TypeScript's control-flow analysis cannot see that the
+   * callback runs before the read below.
+   */
+  const pushToStripe: {
+    value: { refundId: string; paymentIntentId: string } | null;
+  } = { value: null };
 
   try {
     await db.$transaction(async (tx) => {
@@ -430,11 +458,16 @@ export async function refundInvoiceAction(
         }),
         tx.payment.findMany({
           where: { invoiceId: invoice.id },
-          select: { id: true, amountCents: true },
+          select: {
+            id: true,
+            amountCents: true,
+            method: true,
+            stripePaymentIntentId: true,
+          },
         }),
         tx.refund.findMany({
           where: { invoiceId: invoice.id },
-          select: { amountCents: true },
+          select: { amountCents: true, status: true },
         }),
         tx.invoice.findUniqueOrThrow({
           where: { id: invoice.id },
@@ -467,13 +500,27 @@ export async function refundInvoiceAction(
       // An optional link to the specific payment being reversed. Validated
       // against THIS invoice's payments so a forged id cannot staple a refund
       // onto someone else's transaction.
-      const paymentId =
-        requestedPaymentId &&
-        payments.some((payment) => payment.id === requestedPaymentId)
-          ? requestedPaymentId
-          : null;
+      const linked =
+        (requestedPaymentId &&
+          payments.find((payment) => payment.id === requestedPaymentId)) ||
+        null;
+      const paymentId = linked?.id ?? null;
 
-      await tx.refund.create({
+      // A Stripe reversal needs a card payment with a PaymentIntent behind it.
+      // Refusing here rather than silently downgrading to a manual refund is
+      // the point: staff who chose "Refund to card" must not walk away
+      // believing money moved when it did not.
+      const viaStripe =
+        wantsStripe && method === "CARD" && Boolean(linked?.stripePaymentIntentId);
+      if (wantsStripe && !viaStripe) {
+        throw new Error(
+          linked
+            ? "That payment was not taken through Stripe, so it cannot be refunded to a card from here. Record it as a manual refund instead."
+            : "Choose the Stripe payment you are reversing before refunding to a card.",
+        );
+      }
+
+      const refund = await tx.refund.create({
         data: {
           shopId,
           invoiceId: invoice.id,
@@ -482,8 +529,22 @@ export async function refundInvoiceAction(
           method: method as RefundMethod,
           reason,
           refundedById: userId,
+          // Pending until Stripe confirms. A manual refund is money that has
+          // already left the drawer, so it is complete the moment it is typed.
+          status: viaStripe ? "pending" : "completed",
         },
+        select: { id: true },
       });
+
+      if (viaStripe && linked?.stripePaymentIntentId) {
+        // The API call happens AFTER this transaction commits: a network round
+        // trip inside a Serializable transaction holds a lock open for however
+        // long Stripe feels like taking.
+        pushToStripe.value = {
+          refundId: refund.id,
+          paymentIntentId: linked.stripePaymentIntentId,
+        };
+      }
 
       // Refunding TO store credit is the shop keeping the cash and owing the
       // customer instead, so the balance moves and the CreditAdjustment ledger
@@ -538,10 +599,142 @@ export async function refundInvoiceAction(
     meta: { method, amountCents, reason },
   });
 
+  // ------------------------------------------------------------- to Stripe
+  // The row is already written, which is what makes this safe to retry: the
+  // idempotency key is that row's id, so a second attempt returns the first
+  // refund instead of sending the customer their money twice.
+  let stripeProblem: string | null = null;
+  const push = pushToStripe.value;
+  if (push) {
+    const sent = await createStripeRefund({
+      shopId,
+      refundId: push.refundId,
+      paymentIntentId: push.paymentIntentId,
+      amountCents,
+      reason,
+    });
+
+    if (sent.ok) {
+      // "pending" is normal — bank rails are slow, and `refund.updated` will
+      // finish the row later. `markRefundStatus` re-derives the invoice status
+      // from the rows either way, so both outcomes converge.
+      await markRefundStatus({
+        shopId,
+        refundId: push.refundId,
+        status: sent.status,
+        stripeRefundId: sent.stripeRefundId,
+      });
+    } else {
+      await markRefundStatus({
+        shopId,
+        refundId: push.refundId,
+        status: "failed",
+      });
+      stripeProblem = sent.reason;
+    }
+  }
+
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoice.id}`);
   revalidatePath(`/customers/${invoice.customerId}`);
+
+  if (stripeProblem) {
+    return formError(
+      `Stripe refused the refund: ${stripeProblem} It has been recorded as a failed attempt and the invoice is unchanged.`,
+    );
+  }
   return formSuccess();
+}
+
+// ---------------------------------------------------------------------------
+// Card on file
+// ---------------------------------------------------------------------------
+
+/**
+ * Charges the outstanding balance to the customer's saved card.
+ *
+ * The amount is NOT a parameter. It is recomputed inside
+ * `chargeCardOnFile` from the invoice's own lines and payments, so a button
+ * rendered before somebody keyed in a cash payment cannot bill the old,
+ * larger balance.
+ *
+ * The Payment row is written here, synchronously, because the cashier is
+ * standing there and needs to see the invoice go green. Stripe ALSO sends
+ * `payment_intent.succeeded` moments later; both land in the same idempotent
+ * settlement code (lib/payments/settle.ts) and exactly one Payment results.
+ */
+export async function chargeCardOnFileAction(
+  invoiceId: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const { shopId, userId, role } = await requireUser();
+  if (role !== "OWNER" && role !== "FRONT_DESK") {
+    return { ok: false, error: "Only an owner or front desk can take a payment." };
+  }
+
+  const result = await chargeCardOnFile({
+    shopId,
+    invoiceId: String(invoiceId ?? ""),
+    takenById: userId,
+  });
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+
+  if (result.outcome.status === "error") {
+    // Stripe took the money and the write failed. Say so plainly — the
+    // webhook will settle it, but nobody should be told "done" meanwhile.
+    return {
+      ok: false,
+      error:
+        "The card was charged but the payment could not be filed. It will appear once Stripe's confirmation arrives.",
+    };
+  }
+  if (result.outcome.status === "ignored") {
+    return { ok: true, message: "That payment was already recorded." };
+  }
+  return {
+    ok: true,
+    message: `Charged ${formatCents(result.amountCents)} to the card on file.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Card reader (Stripe Terminal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Records a card-present payment the reader has already approved.
+ *
+ * THE BROWSER IS NOT A WITNESS. All it supplies is a PaymentIntent id;
+ * `recordTerminalPayment` retrieves that intent from Stripe and refuses it
+ * unless the status is succeeded AND its metadata names this invoice AND this
+ * shop. Without those three checks a forged id would mark any invoice paid.
+ */
+export async function recordTerminalPaymentAction(
+  invoiceId: string,
+  paymentIntentId: string,
+): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  const { shopId, userId } = await requireUser();
+
+  const result = await recordTerminalPayment({
+    shopId,
+    invoiceId: String(invoiceId ?? ""),
+    paymentIntentId: String(paymentIntentId ?? ""),
+    takenById: userId,
+  });
+  if (!result.ok) return { ok: false, error: result.reason };
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoiceId}`);
+
+  if (result.outcome.status === "ignored") {
+    return { ok: true, message: "That payment was already recorded." };
+  }
+  return {
+    ok: true,
+    message: `Approved — ${formatCents(result.amountCents)} taken on the reader.`,
+  };
 }
 
 // ---------------------------------------------------------------------------

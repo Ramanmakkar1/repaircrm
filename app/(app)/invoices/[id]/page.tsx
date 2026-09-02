@@ -24,10 +24,16 @@ import {
   defaultInvoiceSubject,
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { formatCents } from "@/lib/money";
+import { formatBps, formatCents } from "@/lib/money";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { taxLabel } from "@/lib/tax";
-import { isStripeReference, paymentsLive } from "@/lib/payments";
+import {
+  cardOnFile,
+  isStripeReference,
+  paymentsLive,
+  readTerminalLocationId,
+  stripeTestMode,
+} from "@/lib/payments";
 import { refundAwareTotals } from "@/components/billing/refund-math";
 import {
   RefundDialog,
@@ -55,13 +61,16 @@ import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ConfirmActionDialog } from "@/components/billing/action-form";
 import { formatDate, formatDateTime, isOverdue } from "@/components/billing/format";
+import { ChargeCardButton } from "@/components/billing/charge-card-button";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
 import { SignatureDialog } from "@/components/billing/signature-dialog";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
 import {
+  chargeCardOnFileAction,
   emailInvoiceReceiptAction,
   invoicePaymentLinkAction,
   previewInvoiceSendAction,
+  recordTerminalPaymentAction,
   refundInvoiceAction,
   saveInvoiceSignatureAction,
   sendInvoiceAction,
@@ -82,8 +91,16 @@ const METHOD_LABELS: Record<string, string> = {
  * 11pm are both `CARD`, and staff need to tell them apart when a customer
  * phones about a charge. The Stripe session id in `reference` is the tell.
  */
-function paymentLabel(method: string, reference: string | null): string {
-  if (isStripeReference(reference)) return "Card (online)";
+function paymentLabel(
+  method: string,
+  reference: string | null,
+  source?: string | null,
+): string {
+  // Wave 8 stamps the journey onto the row; older rows are recognised by their
+  // `cs_…` reference alone.
+  if (source === "terminal") return "Card (reader)";
+  if (source === "card_on_file") return "Card on file";
+  if (source === "checkout" || isStripeReference(reference)) return "Card (online)";
   return METHOD_LABELS[method] ?? method;
 }
 
@@ -116,7 +133,9 @@ export default async function InvoiceDetailPage({
         orderBy: { createdAt: "asc" },
         include: {
           refundedBy: { select: { name: true } },
-          payment: { select: { method: true, reference: true } },
+          payment: {
+            select: { method: true, reference: true, stripeSource: true },
+          },
         },
       },
     },
@@ -157,11 +176,17 @@ export default async function InvoiceDetailPage({
   const refundablePayments: RefundablePayment[] = invoice.payments.map(
     (payment) => ({
       id: payment.id,
-      label: `${paymentLabel(payment.method, payment.reference)} · ${formatCents(
-        payment.amountCents
-      )} · ${formatDate(payment.createdAt)}`,
+      label: `${paymentLabel(
+        payment.method,
+        payment.reference,
+        payment.stripeSource
+      )} · ${formatCents(payment.amountCents)} · ${formatDate(payment.createdAt)}`,
       amountCents: payment.amountCents,
-      isStripe: isStripeReference(payment.reference),
+      isStripe:
+        isStripeReference(payment.reference) || Boolean(payment.stripeSource),
+      // Only a payment whose PaymentIntent we hold can be reversed from here.
+      canRefundToCard:
+        payment.method === "CARD" && Boolean(payment.stripePaymentIntentId),
     })
   );
 
@@ -171,6 +196,17 @@ export default async function InvoiceDetailPage({
   // Shown only when it is true. "Online payments: off" on every invoice of
   // every shop that never enabled Stripe is an advert, not a status.
   const onlinePayments = paymentsLive() && canTakePayment;
+
+  // The saved card, and whether a reader is paired. Both drive buttons that
+  // move money, so both are decided here on the server.
+  const savedCard = cardOnFile(invoice.customer);
+  const canChargeCard =
+    paymentsLive() &&
+    canTakePayment &&
+    savedCard !== null &&
+    (role === "OWNER" || role === "FRONT_DESK");
+  const readerPaired =
+    paymentsLive() && Boolean(readTerminalLocationId(invoice.shop.settings));
 
   // ---------------------------------------------------------------- sending
   // The most recent thing that left the building for THIS invoice, whichever
@@ -340,6 +376,16 @@ export default async function InvoiceDetailPage({
                 />
               ) : null}
 
+              {canChargeCard && savedCard ? (
+                <ChargeCardButton
+                  invoiceId={invoice.id}
+                  balanceCents={totals.balanceCents}
+                  cardLabel={`${savedCard.brand} ····${savedCard.last4}`}
+                  customerName={customerName}
+                  action={chargeCardOnFileAction}
+                />
+              ) : null}
+
               {canTakePayment ? (
                 <PaymentDialog
                   action={takePaymentAction}
@@ -348,6 +394,14 @@ export default async function InvoiceDetailPage({
                   customerCreditCents={invoice.customer.creditBalanceCents}
                   customerName={customerName}
                   receiptAction={emailInvoiceReceiptAction}
+                  terminal={
+                    readerPaired
+                      ? {
+                          testMode: stripeTestMode(),
+                          record: recordTerminalPaymentAction,
+                        }
+                      : undefined
+                  }
                 />
               ) : null}
 
@@ -555,7 +609,11 @@ export default async function InvoiceDetailPage({
                     >
                       <div className="flex min-w-0 flex-col gap-2">
                         <span className="text-sm font-semibold text-foreground">
-                          {paymentLabel(payment.method, payment.reference)}
+                          {paymentLabel(
+                            payment.method,
+                            payment.reference,
+                            payment.stripeSource
+                          )}
                         </span>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Chip icon={CalendarDays}>
@@ -608,7 +666,8 @@ export default async function InvoiceDetailPage({
                           {refund.payment
                             ? ` · against ${paymentLabel(
                                 refund.payment.method,
-                                refund.payment.reference
+                                refund.payment.reference,
+                                refund.payment.stripeSource
                               )}`
                             : ""}
                         </span>
@@ -624,11 +683,35 @@ export default async function InvoiceDetailPage({
                           {refund.refundedBy?.name ? (
                             <Chip icon={User}>{refund.refundedBy.name}</Chip>
                           ) : null}
+                          {/* A Stripe refund is not money back until Stripe
+                              says so. "Completed" is the silent default; the
+                              two that need chasing say so. */}
+                          {refund.status === "pending" ? (
+                            <Chip
+                              icon={CalendarClock}
+                              className="bg-status-waiting-bg text-status-waiting-fg"
+                            >
+                              Waiting on Stripe
+                            </Chip>
+                          ) : null}
+                          {refund.status === "failed" ? (
+                            <Chip
+                              icon={Ban}
+                              className="bg-destructive-soft text-destructive"
+                            >
+                              Failed — nothing was returned
+                            </Chip>
+                          ) : null}
                         </div>
                       </div>
                       {/* Negative-styled: money leaving reads red and signed,
                           so a refund can never be mistaken for a collection. */}
-                      <span className="shrink-0 text-lg font-bold tabular-nums text-destructive">
+                      <span
+                        className={cn(
+                          "shrink-0 text-lg font-bold tabular-nums text-destructive",
+                          refund.status === "failed" && "line-through opacity-60",
+                        )}
+                      >
                         −{formatCents(refund.amountCents)}
                       </span>
                     </li>

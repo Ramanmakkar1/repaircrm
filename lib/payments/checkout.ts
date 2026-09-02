@@ -25,17 +25,13 @@ import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
 import { appUrl } from "@/lib/comms/config";
 
+import { accountFor } from "./account";
+import { stripeFetch } from "./stripe";
 import {
   currencySupported,
   paymentsCurrency,
   paymentsLive,
-  stripeSecretKey,
 } from "./config";
-
-/** Abandon rather than hang a Server Action behind a slow processor. */
-const TIMEOUT_MS = 15_000;
-
-const STRIPE_CHECKOUT_URL = "https://api.stripe.com/v1/checkout/sessions";
 
 export type CheckoutResult =
   | { ok: true; url: string; sessionId: string }
@@ -96,6 +92,10 @@ export function buildCheckoutParams(input: CheckoutParamsInput): URLSearchParams
   // only exists on the session is metadata you cannot see at month end.
   params.set("payment_intent_data[metadata][invoiceId]", input.invoiceId);
   params.set("payment_intent_data[metadata][shopId]", input.shopId);
+  // Tells `payment_intent.succeeded` which of the three card journeys this
+  // was, so a payment recorded from that event alone still reports honestly on
+  // the invoice instead of guessing.
+  params.set("payment_intent_data[metadata][source]", "checkout");
 
   params.set("client_reference_id", input.publicToken);
 
@@ -208,45 +208,30 @@ export async function createInvoiceCheckout(
     customerEmail: invoice.customer.email,
   });
 
-  try {
-    const response = await fetch(STRIPE_CHECKOUT_URL, {
+  // Connected shops charge on their own account; everyone else stays in direct
+  // mode on the platform key, exactly as before Connect existed.
+  const account = await accountFor(invoice.shopId);
+
+  const result = await stripeFetch<{ id?: string; url?: string }>(
+    "/v1/checkout/sessions",
+    {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${stripeSecretKey()}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Idempotency-Key": checkoutIdempotencyKey(
-          invoice.id,
-          totals.balanceCents,
-        ),
-        "Stripe-Version": "2024-06-20",
-      },
-      body: params.toString(),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+      body: Object.fromEntries(params),
+      account,
+      idempotencyKey: checkoutIdempotencyKey(invoice.id, totals.balanceCents),
+    },
+  );
 
-    const payload = (await response.json().catch(() => null)) as {
-      id?: string;
-      url?: string;
-      error?: { message?: string };
-    } | null;
-
-    if (!response.ok || !payload?.url || !payload?.id) {
-      const detail = payload?.error?.message ?? `stripe ${response.status}`;
-      console.error("[payments] checkout session failed:", detail);
-      // The customer is told something neutral; the operator gets the detail in
-      // the log. A processor's error string is not a customer-facing sentence.
-      return {
-        ok: false,
-        reason: "Card payments are unavailable right now. Please try again.",
-      };
-    }
-
-    return { ok: true, url: payload.url, sessionId: payload.id };
-  } catch (error) {
-    console.error("[payments] checkout session error:", error);
+  if (!result.ok || !result.data.url || !result.data.id) {
+    const detail = result.ok ? "no session url" : result.message;
+    console.error("[payments] checkout session failed:", detail);
+    // The customer is told something neutral; the operator gets the detail in
+    // the log. A processor's error string is not a customer-facing sentence.
     return {
       ok: false,
       reason: "Card payments are unavailable right now. Please try again.",
     };
   }
+
+  return { ok: true, url: result.data.url, sessionId: result.data.id };
 }

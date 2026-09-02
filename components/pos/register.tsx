@@ -5,15 +5,16 @@ import { AlertCircle } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { calcTotals } from "@/lib/money";
-import { checkoutAction } from "@/app/(app)/pos/actions";
+import { checkoutAction, posTerminalIntentAction } from "@/app/(app)/pos/actions";
 import { CartPanel } from "./cart-panel";
 import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
-import { TenderDialog } from "./tender-dialog";
+import { TenderDialog, type TenderTerminal } from "./tender-dialog";
 import {
   isTicketLine,
   tracksStock,
   type CartLine,
+  type CheckoutInput,
   type PosCustomer,
   type PosProduct,
   type PosTicket,
@@ -41,12 +42,19 @@ export function Register({
   customers,
   tickets,
   taxRateBps,
+  cardReader,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
   /** Open tickets with un-invoiced work — the "Add from ticket" list. */
   tickets: PosTicket[];
   taxRateBps: number;
+  /**
+   * Whether this shop can take a card at a reader, and whether the platform is
+   * on test keys (which is what makes Stripe offer a simulated reader). Both
+   * are decided on the server; no key material crosses over.
+   */
+  cardReader: { enabled: boolean; testMode: boolean };
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
@@ -189,37 +197,53 @@ export function Register({
 
   // -------------------------------------------------------------- checkout ---
 
-  const confirmTender = ({
-    reference,
-    tenderedCents,
-  }: {
-    reference: string | null;
-    tenderedCents: number | null;
-  }) => {
-    if (!tender) return;
-    setError(null);
+  /**
+   * The cart as the server will re-price it.
+   *
+   * Descriptions and prices ride along for the CUSTOM lines only — everything
+   * with a productId or a ticketChargeId is re-read from the database, so this
+   * payload is a list of intents rather than a bill.
+   */
+  const cartPayload = React.useCallback(
+    (method: TenderMethod): CheckoutInput => ({
+      lines: lines.map((line) => ({
+        productId: line.productId,
+        description: line.name,
+        unitPriceCents: line.unitPriceCents,
+        taxable: line.taxable,
+        quantity: line.quantity,
+        ticketChargeId: line.ticketChargeId ?? null,
+      })),
+      customerId,
+      method,
+      reference: null,
+      tenderedCents: null,
+    }),
+    [lines, customerId],
+  );
 
-    startTransition(async () => {
+  /** Rings the sale up. Shared by the keyed-in tenders and the card reader. */
+  const runCheckout = React.useCallback(
+    async (
+      method: TenderMethod,
+      extra: {
+        reference: string | null;
+        tenderedCents: number | null;
+        terminalPaymentIntentId?: string | null;
+      },
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
       const result = await checkoutAction({
-        lines: lines.map((line) => ({
-          productId: line.productId,
-          description: line.name,
-          unitPriceCents: line.unitPriceCents,
-          taxable: line.taxable,
-          quantity: line.quantity,
-          ticketChargeId: line.ticketChargeId ?? null,
-        })),
-        customerId,
-        method: tender,
-        reference,
-        tenderedCents,
+        ...cartPayload(method),
+        reference: extra.reference,
+        tenderedCents: extra.tenderedCents,
+        terminalPaymentIntentId: extra.terminalPaymentIntentId ?? null,
       });
 
       if (!result.ok) {
         // The cart is left exactly as it was: nothing was charged, and the
         // cashier can fix the problem and take the payment again.
         setError(result.error);
-        return;
+        return { ok: false, error: result.error };
       }
 
       setTender(null);
@@ -236,8 +260,54 @@ export function Register({
         ticketId: result.ticketId,
         ticketNumber: result.ticketNumber,
       });
+      return { ok: true };
+    },
+    [cartPayload],
+  );
+
+  const confirmTender = ({
+    reference,
+    tenderedCents,
+  }: {
+    reference: string | null;
+    tenderedCents: number | null;
+  }) => {
+    if (!tender) return;
+    setError(null);
+    startTransition(async () => {
+      await runCheckout(tender, { reference, tenderedCents });
     });
   };
+
+  /**
+   * The card-reader tender.
+   *
+   * `createIntent` prices the cart on the server and opens a card-present
+   * PaymentIntent for it; `record` completes the sale once Stripe has approved
+   * the card. Nothing is written until then, so a decline leaves the cart
+   * exactly as it was.
+   */
+  const terminal: TenderTerminal | undefined = cardReader.enabled
+    ? {
+        testMode: cardReader.testMode,
+        createIntent: async () => {
+          const result = await posTerminalIntentAction(cartPayload("CARD"));
+          return result.ok
+            ? {
+                ok: true as const,
+                clientSecret: result.clientSecret,
+                paymentIntentId: result.paymentIntentId,
+              }
+            : { ok: false as const, error: result.error };
+        },
+        record: (paymentIntentId: string) =>
+          runCheckout("CARD", {
+            reference: null,
+            tenderedCents: null,
+            terminalPaymentIntentId: paymentIntentId,
+          }),
+      }
+    : undefined;
 
   const startNewSale = () => {
     setSale(null);
@@ -308,6 +378,7 @@ export function Register({
         customerName={customer?.label ?? "a walk-in"}
         pending={pending}
         error={tender ? error : null}
+        terminal={terminal}
         onClose={() => {
           setTender(null);
           setError(null);

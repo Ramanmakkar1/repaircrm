@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
 import { SubmitButton } from "./submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
@@ -43,8 +44,15 @@ export type RefundablePayment = {
   id: string;
   label: string;
   amountCents: number;
-  /** True when the money came in through Stripe's hosted checkout. */
+  /** True when the money came in through Stripe. */
   isStripe: boolean;
+  /**
+   * True when we hold the PaymentIntent id, which is what a Stripe refund is
+   * issued against. A pre-Wave-8 Checkout payment can be `isStripe` without
+   * this — the money came through Stripe, but the reversal has to be done from
+   * the dashboard.
+   */
+  canRefundToCard: boolean;
 };
 
 /**
@@ -81,6 +89,10 @@ export function RefundDialog({
   const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
   const [method, setMethod] = React.useState(defaultMethod);
   const [paymentId, setPaymentId] = React.useState(NO_PAYMENT);
+  // "Send it back to the card" vs "write down a refund that happened
+  // elsewhere". Defaults to the card whenever that is possible, because it is
+  // the one that actually returns the customer's money.
+  const [viaStripe, setViaStripe] = React.useState(true);
   const [amount, setAmount] = React.useState(() =>
     (Math.max(refundableCents, 0) / 100).toFixed(2),
   );
@@ -96,6 +108,7 @@ export function RefundDialog({
       setAmount((Math.max(refundableCents, 0) / 100).toFixed(2));
       setMethod(defaultMethod);
       setPaymentId(NO_PAYMENT);
+      setViaStripe(true);
     }
     setOpen(next);
   };
@@ -104,11 +117,16 @@ export function RefundDialog({
   const overCeiling = Number.isFinite(typedCents) && typedCents > refundableCents;
 
   const linked = payments.find((payment) => payment.id === paymentId) ?? null;
-  // The hint follows the LINKED payment when there is one, and otherwise warns
-  // if any of the money on this invoice arrived through Stripe at all.
-  const stripeInvolved = linked
-    ? linked.isStripe
-    : payments.some((payment) => payment.isStripe);
+  // A Stripe reversal needs a specific card payment to reverse, so it only
+  // becomes available once one is chosen. The server enforces the same rule.
+  const canGoToCard = Boolean(linked?.canRefundToCard) && method === "CARD";
+  const refundToCard = canGoToCard && viaStripe;
+  // The dashboard warning is for the leftover case: Stripe money we cannot
+  // reverse from here, either because no payment is linked or because the row
+  // predates the PaymentIntent id being stored.
+  const stripeInvolved =
+    !refundToCard &&
+    (linked ? linked.isStripe : payments.some((payment) => payment.isStripe));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -133,6 +151,11 @@ export function RefundDialog({
             type="hidden"
             name="paymentId"
             value={paymentId === NO_PAYMENT ? "" : paymentId}
+          />
+          <input
+            type="hidden"
+            name="viaStripe"
+            value={refundToCard ? "true" : "false"}
           />
 
           {state.error ? (
@@ -221,12 +244,35 @@ export function RefundDialog({
             </p>
           ) : null}
 
+          {canGoToCard ? (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                How this refund happens
+              </span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <RefundRoute
+                  selected={viaStripe}
+                  onSelect={() => setViaStripe(true)}
+                  title="Refund to card (Stripe)"
+                  detail="Sends the money back to the card it came from."
+                />
+                <RefundRoute
+                  selected={!viaStripe}
+                  onSelect={() => setViaStripe(false)}
+                  title="Record manual refund"
+                  detail="You already handed it back some other way."
+                />
+              </div>
+            </div>
+          ) : null}
+
           {stripeInvolved && method !== "CREDIT" ? (
             <p className="flex items-start gap-2.5 rounded-md bg-status-waiting-bg px-3 py-2 text-[13.5px] font-medium text-status-waiting-fg">
               <Info className="mt-0.5 size-4 shrink-0" />
               <span>
-                Process the refund in your Stripe dashboard too — this records
-                the refund on the invoice, it does not move the money back.
+                {linked
+                  ? "This payment has no Stripe payment id on file, so process the refund in your Stripe dashboard too — this only records it on the invoice."
+                  : "Some of this money came in through Stripe. Pick that payment above to send the refund back to the card; otherwise process it in your Stripe dashboard as well."}
               </span>
             </p>
           ) : null}
@@ -240,11 +286,48 @@ export function RefundDialog({
               pendingLabel="Refunding…"
               disabled={overCeiling}
             >
-              Issue refund
+              {refundToCard ? "Refund to card" : "Record refund"}
             </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * One of the two routes a refund can take.
+ *
+ * A pair of buttons rather than a Select: there are exactly two, they do
+ * genuinely different things to the customer's money, and both need a sentence
+ * of explanation that a dropdown has nowhere to put.
+ */
+function RefundRoute({
+  selected,
+  onSelect,
+  title,
+  detail,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        "flex flex-col gap-1 rounded-md border px-3.5 py-3 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        selected
+          ? "border-accent/50 bg-accent-soft text-accent-soft-foreground"
+          : "border-border bg-surface text-muted-foreground hover:bg-surface-hover",
+      )}
+    >
+      <span className="text-[14px] font-bold text-foreground">{title}</span>
+      <span className="text-[13px] leading-snug">{detail}</span>
+    </button>
   );
 }

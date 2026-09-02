@@ -23,6 +23,7 @@ import {
 } from "@/components/customers/activity-cards";
 import { AssetsCard } from "@/components/customers/assets-card";
 import { ContactsCard } from "@/components/customers/contacts-card";
+import { CardOnFileCard } from "@/components/billing/card-on-file-card";
 import { CreditDialog } from "@/components/credits/credit-dialog";
 import { CustomerActionsMenu } from "@/components/customers/customer-actions-menu";
 import { FlashToast } from "@/components/customers/flash-toast";
@@ -44,6 +45,11 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
 import { customerWarranties } from "@/lib/warranty";
+import { cardExpired, cardOnFile, paymentsLive } from "@/lib/payments";
+import {
+  removeCardAction,
+  startSaveCardAction,
+} from "@/app/(app)/customers/card-actions";
 
 /** Ticket statuses that mean "no longer on the bench". */
 const CLOSED_TICKET_STATUSES = [
@@ -117,6 +123,12 @@ export default async function CustomerHubPage({
       createdAt: true,
       taxExempt: true,
       taxRate: { select: { name: true, rateBps: true } },
+      stripeCustomerId: true,
+      stripePaymentMethodId: true,
+      cardBrand: true,
+      cardLast4: true,
+      cardExpMonth: true,
+      cardExpYear: true,
       contacts: {
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true, email: true, phone: true, label: true },
@@ -270,6 +282,13 @@ export default async function CustomerHubPage({
   const name = fullName(customer);
   const blockedReason = deleteBlockedReason(customer._count);
 
+  // Only the four display fields ever cross to the browser — never the payment
+  // method id, which is a handle to a real card at Stripe.
+  const saved = cardOnFile(customer);
+  const savedCard = saved
+    ? { ...saved, expired: cardExpired(saved) }
+    : null;
+
   return (
     <div className="flex flex-col gap-6">
       <FlashToast flash={flash} />
@@ -373,6 +392,16 @@ export default async function CustomerHubPage({
         <div className="flex flex-col gap-5">
           <InfoCard customer={customer} />
           <NotesCard customerId={customer.id} notes={customer.notes} />
+          <CardOnFileCard
+            customerId={customer.id}
+            customerName={name}
+            card={savedCard}
+            paymentsConfigured={paymentsLive()}
+            canManage={role === "OWNER" || role === "FRONT_DESK"}
+            justSaved={flash === "card-saved"}
+            saveAction={startSaveCardAction}
+            removeAction={removeCardAction}
+          />
           <ContactsCard customerId={customer.id} contacts={customer.contacts} />
           <AssetsCard customerId={customer.id} assets={customer.assets} />
         </div>

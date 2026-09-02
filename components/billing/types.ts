@@ -31,6 +31,12 @@ export type CustomerOption = {
   taxRateId: string | null;
   taxRateBps: number;
   taxExempt: boolean;
+  /**
+   * True when this customer has a card saved at Stripe. Only the recurring
+   * schedule form reads it — auto-charge is meaningless without one — but it
+   * rides along on the shared option so no caller needs a second query.
+   */
+  hasCard?: boolean;
 };
 
 /**

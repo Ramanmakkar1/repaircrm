@@ -37,6 +37,9 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         businessName: true,
         taxExempt: true,
         taxRateId: true,
+        // Only whether a card exists — never the payment method id, which is a
+        // handle to a real card.
+        stripePaymentMethodId: true,
       },
     }),
     db.product.findMany({
@@ -81,6 +84,7 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         taxRateId: tax.taxRateId,
         taxRateBps: tax.taxRateBps,
         taxExempt: c.taxExempt,
+        hasCard: Boolean(c.stripePaymentMethodId),
       };
     }),
     products: productRows,
