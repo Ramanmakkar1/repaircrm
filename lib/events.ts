@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
@@ -56,7 +54,10 @@ export function buildPayload(
   data: Record<string, unknown>,
 ): EventPayload {
   return {
-    id: `evt_${randomUUID().replace(/-/g, "")}`,
+    // The Web Crypto global, not `node:crypto`: this module is reachable from
+    // lib/jobs, which Next also compiles for the Edge runtime, and a Node-only
+    // import there is a build warning for a dependency this line does not need.
+    id: `evt_${crypto.randomUUID().replace(/-/g, "")}`,
     event,
     created: new Date().toISOString(),
     shopId,
