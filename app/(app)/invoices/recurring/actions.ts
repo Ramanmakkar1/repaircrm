@@ -307,11 +307,12 @@ export async function runRecurringInvoice(scheduleId: string): Promise<RunResult
 /**
  * Every active schedule whose run date has arrived, billed once each.
  *
- * FUTURE WORK: this is driven by the "Generate due now" button rather than a
- * cron. A schedule that is several periods overdue advances one period per run,
- * so it catches up one click at a time instead of silently skipping the
- * invoices nobody raised. Wiring this to a scheduled job (or a route handler
- * behind a shared secret) is the remaining piece.
+ * The scheduler already does this unattended — lib/jobs/index.ts runs the same
+ * generator per shop on every pass. This action is the "Generate due now"
+ * button: the same work, on demand, for the operator who does not want to wait
+ * fifteen minutes. A schedule several periods overdue advances one period per
+ * run either way, so it catches up a period at a time instead of silently
+ * skipping the invoices nobody raised.
  */
 export async function runDueRecurringInvoices(): Promise<{
   generated: number;

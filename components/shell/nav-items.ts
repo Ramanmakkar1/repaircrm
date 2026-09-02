@@ -11,6 +11,7 @@ import {
   Megaphone,
   BarChart3,
   Monitor,
+  Timer,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -37,5 +38,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Marketing", href: "/marketing", icon: Megaphone },
   { label: "Reports", href: "/reports", icon: BarChart3 },
   { label: "Shop Display", href: "/display", icon: Monitor },
+  { label: "Time clock", href: "/time-clock", icon: Timer },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

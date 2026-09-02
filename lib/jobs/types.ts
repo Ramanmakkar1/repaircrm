@@ -33,6 +33,10 @@ export type JobsSummary = {
   shops: number;
   recurring: { created: number };
   campaigns: { queued: number; sent: number; failed: number };
+  /** Appointment reminders that reached a provider (lib/jobs/appointments.ts). */
+  reminders: { sent: number };
+  /** Post-pickup review requests that reached a provider (lib/jobs/reviews.ts). */
+  reviews: { sent: number };
   tokensPurged: number;
   /**
    * One line per failure, already prefixed with the shop it came from. A run
@@ -69,6 +73,8 @@ export function emptySummary(source: JobSource): JobsSummary {
     shops: 0,
     recurring: { created: 0 },
     campaigns: { queued: 0, sent: 0, failed: 0 },
+    reminders: { sent: 0 },
+    reviews: { sent: 0 },
     tokensPurged: 0,
     errors: [],
     source,
@@ -86,6 +92,8 @@ export function summaryLine(summary: JobsSummary): string {
     `${summary.campaigns.queued} queued`,
     `${summary.campaigns.sent} sent`,
     `${summary.campaigns.failed} failed`,
+    `${summary.reminders.sent} reminder${summary.reminders.sent === 1 ? "" : "s"}`,
+    `${summary.reviews.sent} review${summary.reviews.sent === 1 ? "" : "s"}`,
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     `${summary.ms}ms`,
   ].join(", ");

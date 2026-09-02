@@ -112,6 +112,7 @@ export default async function TicketsPage({
         priority: true,
         problemType: true,
         dueDate: true,
+        pickedUpAt: true,
         createdAt: true,
         updatedAt: true,
         customer: {

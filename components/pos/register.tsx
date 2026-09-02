@@ -41,12 +41,18 @@ export function Register({
   customers,
   tickets,
   taxRateBps,
+  drawer,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
   /** Open tickets with un-invoiced work — the "Add from ticket" list. */
   tickets: PosTicket[];
   taxRateBps: number;
+  /**
+   * The cash-drawer strip, rendered by the page so this component stays
+   * ignorant of the till: the register rings sales, the drawer holds money.
+   */
+  drawer?: React.ReactNode;
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
@@ -237,6 +243,7 @@ export function Register({
     return (
       <div className="flex flex-col gap-5">
         <PageHeader title="POS" description="Ring up walk-in sales at the counter." />
+        {drawer}
         <SaleComplete sale={sale} onNewSale={startNewSale} />
       </div>
     );
@@ -245,6 +252,8 @@ export function Register({
   return (
     <div className="flex flex-col gap-5">
       <PageHeader title="POS" description="Ring up walk-in sales at the counter." />
+
+      {drawer}
 
       {error && tender === null ? (
         <div

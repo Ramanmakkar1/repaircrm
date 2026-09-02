@@ -344,6 +344,8 @@ model Ticket {
   depositCents           Int                @default(0)
   deposits               Deposit[]
   pickedUpAt             DateTime?
+  /// Stamped once the post-pickup review request has gone out (lib/jobs/reviews.ts).
+  reviewRequestedAt      DateTime?
   id                     String             @id @default(cuid())
   shopId                 String
   locationId             String?

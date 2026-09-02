@@ -18,6 +18,7 @@ import { ChargesCard } from "@/components/tickets/charges-card";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
 import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
+import { PickupActions } from "@/components/tickets/pickup-actions";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
 import { StatusProgress } from "@/components/tickets/status-progress";
 import {
@@ -31,6 +32,7 @@ import { UpdateComposer } from "@/components/tickets/update-composer";
 import {
   assetLabel,
   customerLabel,
+  isReadyForPickup,
   problemTypes,
   RESOLVED_STATUS,
   STALENESS_CLASS,
@@ -79,6 +81,7 @@ export default async function TicketDetailPage({
       createdAt: true,
       updatedAt: true,
       resolvedAt: true,
+      pickedUpAt: true,
       diagnosticNotes: true,
       customFields: true,
       assignedToId: true,
@@ -313,7 +316,14 @@ export default async function TicketDetailPage({
               </h1>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {/* First in the row on purpose: this is the button the counter
+                  reaches for more than any other. */}
+              <PickupActions
+                ticketId={ticket.id}
+                isReady={isReadyForPickup(ticket.status)}
+                pickedUp={ticket.pickedUpAt !== null}
+              />
               <Button asChild variant="outline">
                 <Link href={`/print/tickets/${ticket.id}`}>
                   <Printer /> Work Order

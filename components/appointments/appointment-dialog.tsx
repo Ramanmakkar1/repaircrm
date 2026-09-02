@@ -52,6 +52,11 @@ export type AppointmentFormValues = {
   duration: string;
   endTime: string;
   notes: string;
+  /**
+   * "Sep 1, 9:14 AM" when the reminder has already gone out, null otherwise.
+   * Pre-formatted on the server so the dialog never reaches for its own clock.
+   */
+  reminderSentLabel?: string | null;
 };
 
 /**
@@ -147,6 +152,15 @@ export function AppointmentDialog({
               : "Drop-off, pickup, callback or an on-site job — anything that needs a slot."}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Moving a booking the customer has already been reminded about is
+            worth knowing before you press save, so it sits at the top. */}
+        {initial.reminderSentLabel ? (
+          <p className="flex items-center gap-2 rounded-md bg-status-resolved-bg px-3.5 py-2.5 text-[13px] font-medium text-status-resolved-fg">
+            <Check className="size-4 shrink-0" />
+            Reminder sent {initial.reminderSentLabel}
+          </p>
+        ) : null}
 
         <form
           onSubmit={(event) => {

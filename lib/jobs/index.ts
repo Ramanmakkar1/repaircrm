@@ -2,8 +2,10 @@ import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
+import { runDueAppointmentRemindersForShop } from "./appointments";
 import { purgeExpiredPortalTokens } from "./housekeeping";
 import { runDueRecurringInvoicesForShop } from "./recurring";
+import { runDueReviewRequestsForShop } from "./reviews";
 import {
   emptySummary,
   summaryLine,
@@ -18,14 +20,18 @@ export { summaryLine };
 /**
  * The automation runner: the one place that decides what runs unattended.
  *
- * Three jobs, per shop, in this order:
+ * Five jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
  *                          date has arrived (lib/jobs/recurring.ts)
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
- *   3. housekeeping        drop portal tokens expired for over a week
+ *   3. reminders           "you're booked in tomorrow" for appointments inside
+ *                          the next 24h (lib/jobs/appointments.ts)
+ *   4. reviews             the post-pickup review ask, once the shop's delay
+ *                          has elapsed (lib/jobs/reviews.ts)
+ *   5. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -303,7 +309,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   return summary;
 }
 
-/** All three jobs for one shop. Each is isolated so one failure is not three. */
+/** Every job for one shop. Each is isolated so one failure is not all of them. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
@@ -331,6 +337,30 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`campaigns: ${message(error)}`);
+  }
+
+  try {
+    // "You're booked in tomorrow" — the 24h window and the reminderSentAt claim
+    // both live in lib/jobs/appointments.ts.
+    const reminders = await runDueAppointmentRemindersForShop(shopId);
+    summary.reminders.sent += reminders.sent;
+    for (const error of reminders.errors) {
+      summary.errors.push(`reminders: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`reminders: ${message(error)}`);
+  }
+
+  try {
+    // The post-pickup review ask. Its queue is the ticket's own pickedUpAt
+    // stamp — see lib/jobs/reviews.ts.
+    const reviews = await runDueReviewRequestsForShop(shopId);
+    summary.reviews.sent += reviews.sent;
+    for (const error of reviews.errors) {
+      summary.errors.push(`reviews: ${error}`);
+    }
+  } catch (error) {
+    summary.errors.push(`reviews: ${message(error)}`);
   }
 
   try {

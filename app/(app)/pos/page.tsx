@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { DrawerStrip } from "@/components/pos/drawer-strip";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
@@ -16,9 +17,9 @@ export const dynamic = "force-dynamic";
  * product tile. The only server round-trip in a sale is the checkout itself.
  */
 export default async function PosPage() {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
 
-  const [products, customerRows, ticketRows, shop] = await Promise.all([
+  const [products, customerRows, ticketRows, shop, drawer] = await Promise.all([
     db.product.findMany({
       where: { shopId, active: true },
       orderBy: [{ category: "asc" }, { name: "asc" }],
@@ -90,6 +91,19 @@ export default async function PosPage() {
       where: { id: shopId },
       select: { taxRateBps: true },
     }),
+    // The one open cash-drawer session for this shop. `locationId: null` is
+    // deliberate and matches how the drawer actions write it — there is no
+    // per-location register in the app yet (see app/(app)/pos/drawers/actions.ts).
+    db.cashDrawerSession.findFirst({
+      where: { shopId, locationId: null, closedAt: null },
+      orderBy: { openedAt: "desc" },
+      select: {
+        id: true,
+        openedAt: true,
+        openingCents: true,
+        openedBy: { select: { name: true } },
+      },
+    }),
   ]);
 
   const tickets: PosTicket[] = ticketRows.map((ticket) => ({
@@ -115,6 +129,21 @@ export default async function PosPage() {
       }))}
       tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}
+      drawer={
+        <DrawerStrip
+          isOwner={role === "OWNER"}
+          drawer={
+            drawer
+              ? {
+                  id: drawer.id,
+                  openedAtISO: drawer.openedAt.toISOString(),
+                  openedByName: drawer.openedBy.name,
+                  openingCents: drawer.openingCents,
+                }
+              : null
+          }
+        />
+      }
     />
   );
 }

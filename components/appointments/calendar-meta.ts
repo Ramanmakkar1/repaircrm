@@ -213,6 +213,8 @@ export type CalendarAppointment = {
   ticket: { id: string; number: number; subject: string } | null;
   assignedTo: { id: string; name: string } | null;
   location: { id: string; name: string } | null;
+  /** Stamped by lib/jobs/appointments.ts once the reminder has gone out. */
+  reminderSentAt?: Date | null;
 };
 
 export function customerNameOf(

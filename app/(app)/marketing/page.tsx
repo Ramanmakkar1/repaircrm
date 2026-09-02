@@ -101,11 +101,12 @@ export default async function MarketingPage() {
           <p className="px-1 text-[13.5px] leading-relaxed text-muted-foreground">
             Switching one on queues the customers who already qualify — from the
             last 30 days, so nobody hears from you about a repair they have long
-            forgotten. Nothing leaves until you press{" "}
+            forgotten. Queued messages then send themselves — the scheduler runs
+            every fifteen minutes (Settings &rarr; Automation) — or press{" "}
             <span className="font-semibold text-foreground">
               Sync &amp; send due now
-            </span>
-            .
+            </span>{" "}
+            to go immediately.
           </p>
         </div>
       ) : (
@@ -119,7 +120,8 @@ export default async function MarketingPage() {
                 {dueCount} message{dueCount === 1 ? "" : "s"} due to go out.
               </span>
               <span className="text-[13.5px] text-status-waiting-fg/80">
-                Sending is manual for now — a scheduled job is future work.
+                These go out on their own — the scheduler picks them up within
+                fifteen minutes. Press the button to send them right now.
               </span>
             </div>
           ) : null}

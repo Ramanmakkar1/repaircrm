@@ -9,6 +9,11 @@ import { db } from "@/lib/db";
 import { parseBps } from "@/lib/money";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import {
+  CHECKIN_OPTIONAL_FIELDS,
+  DEFAULT_REVIEW_DELAY_HOURS,
+  safeExternalUrl,
+} from "@/components/settings/checkin-meta";
+import {
   settingsError,
   settingsSuccess,
   type SettingsFormState,
@@ -403,6 +408,117 @@ export async function setUserActiveAction(
   }
 
   await db.user.update({ where: { id: user.id }, data: { active } });
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Tab 8 — Check-in & reviews
+// ---------------------------------------------------------------------------
+
+/**
+ * The public check-in form's configuration.
+ *
+ * OWNER only: switching this on publishes a page at /checkin/<slug> that
+ * anybody on the internet can post to, which is the shop owner's decision to
+ * make and nobody else's. Both writes go through `mergeSettings`, so turning
+ * check-in on cannot clobber the problem types stored beside it.
+ */
+export async function updateCheckinAction(input: {
+  enabled: boolean;
+  terms: string;
+  fields: Record<string, boolean>;
+}): Promise<SettingsResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const terms = input.terms.trim().slice(0, 5000);
+  if (input.enabled && terms.length < 10) {
+    return {
+      ok: false,
+      error: "Write the terms customers are agreeing to before switching this on.",
+    };
+  }
+
+  // Only the known field keys are stored — an unexpected key in the blob would
+  // be read back as an option that the form has no idea how to render.
+  const fields: Record<string, boolean> = {};
+  for (const key of CHECKIN_OPTIONAL_FIELDS) {
+    fields[key] = input.fields[key] === true;
+  }
+
+  const shop = await db.shop.findUnique({
+    where: { id: session.shopId },
+    select: { settings: true },
+  });
+  if (!shop) return { ok: false, error: "Shop not found." };
+
+  await db.shop.update({
+    where: { id: session.shopId },
+    data: {
+      settings: mergeSettings(shop.settings, {
+        checkin: { enabled: input.enabled, terms, fields },
+      }),
+    },
+  });
+
+  revalidatePath("/settings");
+  // The public page reads these on every request, but it is `force-dynamic`
+  // rather than cached — this only refreshes the settings screen itself.
+  return { ok: true };
+}
+
+/**
+ * The post-pickup review request.
+ *
+ * The link is validated as an http(s) URL here rather than at send time: a
+ * `javascript:` "review link" saved now would otherwise be mailed out under the
+ * shop's name later. lib/jobs/reviews.ts re-checks it anyway.
+ */
+export async function updateReviewsAction(input: {
+  enabled: boolean;
+  url: string;
+  delayHours: number;
+  template: string;
+}): Promise<SettingsResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const url = input.url.trim().slice(0, 500);
+  if (input.enabled && !safeExternalUrl(url)) {
+    return {
+      ok: false,
+      error: "Paste the full review link, starting with https://",
+    };
+  }
+
+  const template = input.template.trim().slice(0, 1000);
+  if (input.enabled && !template.includes("{link}")) {
+    return {
+      ok: false,
+      error: "Keep {link} in the message — without it there's nowhere to review.",
+    };
+  }
+
+  const delayHours = Number.isFinite(input.delayHours)
+    ? Math.max(0, Math.min(Math.round(input.delayHours), 24 * 30))
+    : DEFAULT_REVIEW_DELAY_HOURS;
+
+  const shop = await db.shop.findUnique({
+    where: { id: session.shopId },
+    select: { settings: true },
+  });
+  if (!shop) return { ok: false, error: "Shop not found." };
+
+  await db.shop.update({
+    where: { id: session.shopId },
+    data: {
+      settings: mergeSettings(shop.settings, {
+        reviews: { enabled: input.enabled, url, delayHours, template },
+      }),
+    },
+  });
 
   revalidatePath("/settings");
   return { ok: true };
