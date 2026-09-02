@@ -6,18 +6,23 @@ import { requireUser } from "@/lib/auth";
 import { emailDriverName, smsDriverName, appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
 import {
+  checkAppAddress,
   connectConfigured,
   connectStatus,
   currencySupported,
   listReaders,
+  payoutSummary,
   paymentsCurrency,
   paymentsDriverName,
   paymentsLive,
   readTerminalLocationId,
   stripeClientId,
   stripeSecretKey,
+  stripeTestMode,
   stripeWebhookSecret,
+  webhookSetupStatus,
   webhookReady,
+  WEBHOOK_EVENTS,
 } from "@/lib/payments";
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
@@ -330,9 +335,13 @@ export default async function SettingsPage({
   };
 
   const shouldQueryStripe = isOwner && paymentsLive();
-  const [connection, readers] = await Promise.all([
+  const [connection, readers, setup, payout] = await Promise.all([
     shouldQueryStripe ? connectStatus(session.shopId) : Promise.resolve(null),
     shouldQueryStripe ? listReaders(session.shopId) : Promise.resolve(null),
+    isOwner ? webhookSetupStatus(session.shopId) : Promise.resolve(null),
+    shouldQueryStripe
+      ? payoutSummary({ shopId: session.shopId, testMode: stripeTestMode() })
+      : Promise.resolve(null),
   ]);
 
   const payments: PaymentsTabConfig = {
@@ -349,8 +358,32 @@ export default async function SettingsPage({
     readersError: readers && !readers.ok ? readers.reason : null,
     hasReaderLocation: Boolean(readTerminalLocationId(shop.settings)),
     // A card can only be saved when the whole online path works — the setup
-    // page is a Checkout Session and the card arrives by webhook.
-    cardOnFileReady: paymentsLive() && webhookReady(),
+    // page is a Checkout Session and the card arrives on a confirmation from
+    // Stripe, which a connected shop now gets from its own endpoint.
+    cardOnFileReady:
+      paymentsLive() && (webhookReady() || (setup?.automatic ?? false)),
+    setup: setup ?? {
+      automatic: false,
+      endpointId: null,
+      url: null,
+      setUpAt: null,
+      error: null,
+      addressChanged: false,
+    },
+    address: checkAppAddress(),
+    payout: payout ?? {
+      scheduleText:
+        "Connect a Stripe account to see when your money reaches the bank.",
+      bankText: null,
+      available: [],
+      pending: [],
+      dashboardUrl: "https://dashboard.stripe.com/balance",
+      error: null,
+    },
+    // A practice machine is software: only offered while the server is on test
+    // keys, and labelled as practice everywhere it appears.
+    canPairPractice: stripeTestMode() && paymentsLive(),
+    confirmationEvents: [...WEBHOOK_EVENTS],
   };
 
   // Scheduler state. Like the messaging config above, this is read from

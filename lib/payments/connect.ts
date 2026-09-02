@@ -34,6 +34,7 @@ import { appUrl } from "@/lib/comms/config";
 import { db } from "@/lib/db";
 
 import { paymentsCurrency, stripeSecretKey } from "./config";
+import { clearShopWebhook, deleteShopWebhook } from "./endpoint";
 import {
   stripeClientId,
   stripeConnectBase,
@@ -233,6 +234,12 @@ export async function disconnectShop(
   const accountId = shop?.stripeAccountId;
   if (!accountId) return { ok: true };
 
+  // Before the deauthorize, while the platform still has permission: the
+  // endpoint RepairFlow created on this account would otherwise keep posting a
+  // disconnected shop's events at this app forever, and nothing left here
+  // could tell whose they were.
+  await deleteShopWebhook(shopId);
+
   const clientId = stripeClientId();
   let reason: string | null = null;
 
@@ -257,6 +264,8 @@ export async function clearConnection(shopId: string): Promise<void> {
     where: { id: shopId },
     data: { stripeAccountId: null, stripeOnboardedAt: null },
   });
+  // The stored signing secret belongs to an account this shop no longer uses.
+  await clearShopWebhook(shopId);
 }
 
 /**
@@ -272,7 +281,17 @@ export async function clearConnectionByAccount(
 ): Promise<number> {
   const result = await db.shop.updateMany({
     where: { stripeAccountId: accountId },
-    data: { stripeAccountId: null, stripeOnboardedAt: null },
+    data: {
+      stripeAccountId: null,
+      stripeOnboardedAt: null,
+      // Same reasoning as clearConnection: a signing secret for an account we
+      // no longer serve is a credential with nothing left to authenticate.
+      stripeWebhookId: null,
+      stripeWebhookSecret: null,
+      stripeWebhookUrl: null,
+      stripeWebhookAt: null,
+      stripeWebhookError: null,
+    },
   });
   return result.count;
 }

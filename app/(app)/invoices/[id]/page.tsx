@@ -399,6 +399,9 @@ export default async function InvoiceDetailPage({
                       ? {
                           testMode: stripeTestMode(),
                           record: recordTerminalPaymentAction,
+                          // The way out when the machine is unplugged: the
+                          // same hosted link the Share row hands out.
+                          paymentLink: invoicePaymentLinkAction,
                         }
                       : undefined
                   }

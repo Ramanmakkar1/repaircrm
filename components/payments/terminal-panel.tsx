@@ -16,13 +16,16 @@ import { formatCents } from "@/lib/money";
 import type { TerminalStep, UseStripeTerminal } from "./use-stripe-terminal";
 
 /**
- * The card-reader step, rendered the same way at the register and on an
- * invoice.
+ * The card-machine step, rendered the same way at the till and on an invoice.
  *
  * There is exactly ONE thing on screen at a time — the amount, and the sentence
- * describing what the cashier should be doing about it. A reader flow that
- * shows a progress bar, a spinner, a reader name and three buttons at once is a
- * flow where somebody taps a card during "connecting" and then taps it again.
+ * describing what the cashier should be doing about it. A payment flow that
+ * shows a progress bar, a spinner, a machine name and three buttons at once is
+ * a flow where somebody taps a card during "connecting" and then taps it again.
+ *
+ * The panel connects to the machine the moment it is mounted, so by the time
+ * the cashier has read the amount the everyday sale is one tap. The picker only
+ * appears when the hook could not decide on its own; see use-stripe-terminal.ts.
  *
  * The colours follow the app's status palette rather than introducing a new
  * one: waiting is amber, approved is green, a decline is the destructive red
@@ -32,16 +35,29 @@ export function TerminalPanel({
   amountCents,
   terminal,
   onStart,
-  startLabel = "Take payment on reader",
+  startLabel = "Take payment on the card machine",
+  fallback,
   className,
 }: {
   amountCents: number;
   terminal: UseStripeTerminal;
   onStart: () => void;
   startLabel?: string;
+  /**
+   * Shown when there is no machine to use — a payment link, usually. Rendered
+   * under the one-sentence explanation of why the machine is not an option.
+   */
+  fallback?: React.ReactNode;
   className?: string;
 }) {
-  const { step, message, error, busy, readerLabel } = terminal;
+  const { step, message, error, busy, readerLabel, choices, unavailable, prepare } =
+    terminal;
+
+  // Connect ahead of the cashier. `prepare` is a no-op once connected, so a
+  // re-render or a second opening of the dialog costs nothing.
+  React.useEffect(() => {
+    void prepare();
+  }, [prepare]);
 
   return (
     <div
@@ -66,12 +82,56 @@ export function TerminalPanel({
         </span>
         {readerLabel && !error ? (
           <span className="text-[13px] text-faint-foreground">
-            Reader: {readerLabel}
+            Card machine: {readerLabel}
           </span>
         ) : null}
       </div>
 
-      {step === "approved" ? null : (
+      {step === "choose" ? (
+        <div className="flex w-full flex-col gap-2">
+          {choices.map((choice) => (
+            <Button
+              key={choice.id}
+              type="button"
+              variant="outline"
+              size="lg"
+              disabled={!choice.online}
+              onClick={() => void terminal.choose(choice.id)}
+              className="w-full justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Smartphone />
+                {choice.label}
+                {choice.simulated ? (
+                  <span className="rounded-full bg-status-waiting-bg px-2 py-0.5 text-[11.5px] font-semibold uppercase tracking-wide text-status-waiting-fg">
+                    Practice
+                  </span>
+                ) : null}
+              </span>
+              <span className="text-[13px] font-semibold text-muted-foreground">
+                {choice.online ? "Ready" : "Not answering"}
+              </span>
+            </Button>
+          ))}
+        </div>
+      ) : unavailable && step !== "approved" ? (
+        <div className="flex w-full flex-col gap-3">
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            {unavailable}
+          </p>
+          {fallback}
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={busy}
+            onClick={onStart}
+            className="w-full"
+          >
+            <RefreshCw /> Look again
+          </Button>
+        </div>
+      ) : step === "approved" ? null : (
         <Button
           type="button"
           size="lg"
@@ -121,7 +181,7 @@ function StepIcon({ step }: { step: TerminalStep }) {
       </span>
     );
   }
-  if (step === "idle") {
+  if (step === "idle" || step === "choose") {
     return (
       <span className="flex size-14 items-center justify-center rounded-full bg-surface text-muted-foreground">
         <CreditCard className="size-7" strokeWidth={2.25} />

@@ -40,7 +40,12 @@ import { invoiceTotals } from "@/lib/money";
 import { currencySupported, paymentsCurrency, paymentsLive } from "./config";
 import { accountFor } from "./account";
 import { settleStripePayment, type SettleOutcome } from "./settle";
-import { chargeIdOf, stripeFetch, type StripePaymentIntent } from "./stripe";
+import {
+  chargeIdOf,
+  stripeFetch,
+  stripeTestMode,
+  type StripePaymentIntent,
+} from "./stripe";
 
 /** Stripe refuses a card payment below this in a two-decimal currency. */
 const MIN_CHARGE_CENTS = 50;
@@ -161,9 +166,18 @@ export async function ensureTerminalLocation(
 export type TerminalReader = {
   id: string;
   label: string;
+  /** "online" | "offline" | "unknown" — Stripe's word, shown as a sentence. */
   status: string;
   deviceType: string;
   serialNumber: string | null;
+  /** True for Stripe's software reader, which has no hardware behind it. */
+  simulated: boolean;
+  /** 0–100, or null. Stripe reports this only for readers with a battery. */
+  batteryPercent: number | null;
+  /** ISO timestamp of the reader's last contact with Stripe, or null. */
+  lastSeenAt: string | null;
+  /** The Terminal Location this reader is registered to. */
+  locationId: string | null;
 };
 
 type StripeReader = {
@@ -172,7 +186,70 @@ type StripeReader = {
   status?: string | null;
   device_type?: string | null;
   serial_number?: string | null;
+  location?: string | { id?: string } | null;
+  /** Milliseconds since the epoch, per Stripe's terminal.reader object. */
+  last_seen_at?: number | null;
+  /** Only present on battery-powered models; 0–1. */
+  battery_level?: number | null;
 };
+
+/** Stripe's own registration code for a software reader. Test keys only. */
+const SIMULATED_REGISTRATION_CODE = "simulated-wpe";
+
+/** One Stripe reader, in the shape every screen in this app reads. */
+function toReader(reader: StripeReader): TerminalReader {
+  const deviceType = reader.device_type ?? "unknown";
+  const battery =
+    typeof reader.battery_level === "number"
+      ? Math.max(0, Math.min(100, Math.round(reader.battery_level * 100)))
+      : null;
+  const locationValue = reader.location;
+  return {
+    id: reader.id,
+    label: reader.label ?? reader.id,
+    status: reader.status ?? "unknown",
+    deviceType,
+    serialNumber: reader.serial_number ?? null,
+    simulated: deviceType.startsWith("simulated"),
+    batteryPercent: battery,
+    lastSeenAt:
+      typeof reader.last_seen_at === "number" && reader.last_seen_at > 0
+        ? new Date(reader.last_seen_at).toISOString()
+        : null,
+    locationId:
+      typeof locationValue === "string"
+        ? locationValue
+        : (locationValue?.id ?? null),
+  };
+}
+
+/**
+ * Stripe's pairing refusals, rewritten for someone holding the reader.
+ *
+ * The three that actually happen at a counter are a code that timed out while
+ * the owner was finding their glasses, a reader still paired to the shop's old
+ * processor, and a reader that never got onto the wifi. Stripe describes all
+ * three in terms of API resources; none of those sentences tell the person
+ * standing there what to press next.
+ */
+export function pairingMessage(code: string | null, message: string): string {
+  const text = message.toLowerCase();
+
+  if (
+    code === "terminal_reader_invalid_registration_code" ||
+    text.includes("registration code") ||
+    text.includes("expired")
+  ) {
+    return "That pairing code didn't work — they only last a few minutes. On the reader, generate a new code and type it in straight away.";
+  }
+  if (text.includes("already been registered") || text.includes("already registered")) {
+    return "This reader is already paired to a different Stripe account. Remove it there first, then generate a new pairing code on the reader.";
+  }
+  if (text.includes("offline") || text.includes("not reachable")) {
+    return "The reader isn't answering. Check it is switched on and connected to the same wifi as this computer, then try again.";
+  }
+  return message;
+}
 
 /**
  * The readers registered to this shop.
@@ -202,16 +279,89 @@ export async function listReaders(
   );
   if (!result.ok) return { ok: false, reason: result.message };
 
-  return {
-    ok: true,
-    readers: (result.data.data ?? []).map((reader) => ({
-      id: reader.id,
-      label: reader.label ?? reader.id,
-      status: reader.status ?? "unknown",
-      deviceType: reader.device_type ?? "unknown",
-      serialNumber: reader.serial_number ?? null,
-    })),
-  };
+  return { ok: true, readers: (result.data.data ?? []).map(toReader) };
+}
+
+/**
+ * The reader, but only if it belongs to THIS shop.
+ *
+ * Rename and Forget both take an id from the browser, and an id is not a
+ * claim of ownership. Stripe scopes a reader to a Terminal Location, and this
+ * shop's location id is read from its own row — so a reader registered to
+ * another tenant's location is refused before anything is changed.
+ */
+async function readerOwnedBy(
+  shopId: string,
+  readerId: string,
+): Promise<{ ok: true; reader: TerminalReader; account: string | null } | { ok: false; reason: string }> {
+  const id = readerId.trim();
+  if (!id.startsWith("tmr_")) {
+    return { ok: false, reason: "That is not a card reader." };
+  }
+
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { settings: true },
+  });
+  const locationId = readTerminalLocationId(shop?.settings);
+  if (!locationId) {
+    return { ok: false, reason: "This shop has no card readers set up." };
+  }
+
+  const account = await accountFor(shopId);
+  const result = await stripeFetch<StripeReader>(
+    `/v1/terminal/readers/${encodeURIComponent(id)}`,
+    { account },
+  );
+  if (!result.ok) return { ok: false, reason: result.message };
+
+  const reader = toReader(result.data);
+  if (reader.locationId !== locationId) {
+    return { ok: false, reason: "That card reader belongs to another shop." };
+  }
+  return { ok: true, reader, account };
+}
+
+/** Renames a reader. Cosmetic, and the only editable thing about one. */
+export async function renameReader(input: {
+  shopId: string;
+  readerId: string;
+  label: string;
+}): Promise<{ ok: true; reader: TerminalReader } | { ok: false; reason: string }> {
+  const label = input.label.trim().slice(0, 60);
+  if (!label) return { ok: false, reason: "Give the reader a name." };
+
+  const owned = await readerOwnedBy(input.shopId, input.readerId);
+  if (!owned.ok) return owned;
+
+  const updated = await stripeFetch<StripeReader>(
+    `/v1/terminal/readers/${encodeURIComponent(owned.reader.id)}`,
+    { method: "POST", account: owned.account, body: { label } },
+  );
+  if (!updated.ok) return { ok: false, reason: updated.message };
+  return { ok: true, reader: toReader(updated.data) };
+}
+
+/**
+ * Unpairs a reader from this shop.
+ *
+ * Nothing about money changes: payments already taken on it are facts with
+ * their own rows, and this only removes the registration. The reader can be
+ * paired again from its own screen whenever it is needed.
+ */
+export async function forgetReader(input: {
+  shopId: string;
+  readerId: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const owned = await readerOwnedBy(input.shopId, input.readerId);
+  if (!owned.ok) return owned;
+
+  const removed = await stripeFetch(
+    `/v1/terminal/readers/${encodeURIComponent(owned.reader.id)}`,
+    { method: "DELETE", account: owned.account },
+  );
+  if (!removed.ok) return { ok: false, reason: removed.message };
+  return { ok: true };
 }
 
 /**
@@ -247,18 +397,37 @@ export async function registerReader(input: {
       location: location.locationId,
     },
   });
-  if (!created.ok) return { ok: false, reason: created.message };
+  if (!created.ok) {
+    return { ok: false, reason: pairingMessage(created.code, created.message) };
+  }
 
-  return {
-    ok: true,
-    reader: {
-      id: created.data.id,
-      label: created.data.label ?? created.data.id,
-      status: created.data.status ?? "unknown",
-      deviceType: created.data.device_type ?? "unknown",
-      serialNumber: created.data.serial_number ?? null,
-    },
-  };
+  return { ok: true, reader: toReader(created.data) };
+}
+
+/**
+ * Pairs Stripe's SIMULATED reader — software, no hardware, test keys only.
+ *
+ * It is how a shop sees the whole counter flow before the box arrives, and how
+ * this app is developed at all. Refused outright on a live key: a simulated
+ * reader that approves every card would be a very convincing way to ship a
+ * till that takes no money.
+ */
+export async function registerSimulatedReader(input: {
+  shopId: string;
+  label: string;
+}): Promise<{ ok: true; reader: TerminalReader } | { ok: false; reason: string }> {
+  if (!stripeTestMode()) {
+    return {
+      ok: false,
+      reason:
+        "A practice reader can only be added while this server is using Stripe test keys.",
+    };
+  }
+  return registerReader({
+    shopId: input.shopId,
+    registrationCode: SIMULATED_REGISTRATION_CODE,
+    label: input.label.trim() || "Practice reader",
+  });
 }
 
 /**

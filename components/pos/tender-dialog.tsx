@@ -29,13 +29,13 @@ export type TenderConfirm = {
 };
 
 /**
- * Everything the card-reader path needs, or absent when this shop has no
- * reader — in which case the option is not rendered at all rather than
- * rendered disabled. A greyed-out "Card reader" button on a counter that has
+ * Everything the card-machine path needs, or absent when this shop has no
+ * machine — in which case the option is not rendered at all rather than
+ * rendered disabled. A greyed-out "Card machine" button on a counter that has
  * never owned one is an advert, not a control.
  */
 export type TenderTerminal = {
-  /** Discovers a SIMULATED reader. Server-derived boolean; no key crosses over. */
+  /** Discovers a PRACTICE machine. Server-derived boolean; no key crosses over. */
   testMode: boolean;
   /** Opens a card-present PaymentIntent for the server-priced cart. */
   createIntent: () => Promise<
@@ -136,7 +136,7 @@ function TenderForm({
 }) {
   const isCash = method === "CASH";
   // A card can be keyed in (the cashier ran it on a separate machine and types
-  // the auth code) or taken on a reader wired to this shop's Stripe account.
+  // the auth code) or taken on a machine wired to this shop's Stripe account.
   // Only the second one moves money from in here, so the two are separate
   // choices rather than one button that does different things.
   const canUseReader = method === "CARD" && Boolean(terminal);
@@ -195,7 +195,7 @@ function TenderForm({
           className="h-14 text-[15px]"
           onClick={() => setUseReader(true)}
         >
-          <CreditCard /> Take it on the card reader
+          <CreditCard /> Take it on the card machine
         </Button>
       ) : null}
 
@@ -326,7 +326,7 @@ function QuickAmount({
 }
 
 /**
- * The card-reader tender.
+ * The card-machine tender.
  *
  * The sale is NOT rung up first: the card is presented, Stripe approves, and
  * only then does `terminal.record` write the invoice and its payment. A

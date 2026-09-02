@@ -38,7 +38,12 @@ import type {
 } from "./types";
 import {
   disconnectStripeAction,
+  forgetReaderAction,
+  pairPracticeReaderAction,
   registerReaderAction,
+  renameReaderAction,
+  retryPaymentSetupAction,
+  testPaymentsAction,
 } from "@/app/(app)/settings/payments-actions";
 
 /**
@@ -205,6 +210,11 @@ export function SettingsTabs({
             config={payments}
             disconnectAction={disconnectStripeAction}
             registerReaderAction={registerReaderAction}
+            pairPracticeReaderAction={pairPracticeReaderAction}
+            renameReaderAction={renameReaderAction}
+            forgetReaderAction={forgetReaderAction}
+            retrySetupAction={retryPaymentSetupAction}
+            testPaymentsAction={testPaymentsAction}
           />
         </TabsContent>
       ) : null}

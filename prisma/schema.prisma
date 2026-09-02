@@ -86,6 +86,15 @@ model Shop {
   /// Stripe Connect: the shop's own Stripe account (one-click onboarding).
   stripeAccountId        String?
   stripeOnboardedAt      DateTime?
+  /// The payment-confirmation endpoint RepairFlow created on that account.
+  stripeWebhookId        String?
+  /// Its signing secret. SERVER ONLY — never selected into anything a client sees.
+  stripeWebhookSecret    String?
+  /// The URL the endpoint was created for, so a moved app is detectable.
+  stripeWebhookUrl       String?
+  stripeWebhookAt        DateTime?
+  /// Why automatic setup did not finish, in the words the tab shows.
+  stripeWebhookError     String?
   auditLogs              AuditLog[]
   taxRates               TaxRate[]
   vendors                Vendor[]
