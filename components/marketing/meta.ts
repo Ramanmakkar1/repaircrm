@@ -5,6 +5,8 @@
  * must stay pure: no `db`, no `next/*`, no "use server".
  */
 
+import type { StatusTone } from "@/components/ui/badge";
+
 // ---------------------------------------------------------------------------
 // Triggers
 // ---------------------------------------------------------------------------
@@ -181,6 +183,20 @@ export function sendBucket(status: string): SendBucket {
   if (status.startsWith("failed")) return "failed";
   return "scheduled";
 }
+
+/**
+ * Where each outcome sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`): violet while it is waiting on its send date,
+ * amber while the provider has it, green once it left, grey when it was never
+ * going to go, red when it tried and failed.
+ */
+export const SEND_STATUS_META: Record<SendBucket, { tone: StatusTone }> = {
+  scheduled: { tone: "waiting" },
+  sending: { tone: "active" },
+  sent: { tone: "success" },
+  skipped: { tone: "neutral" },
+  failed: { tone: "danger" },
+};
 
 /** "skipped: opted out" → "Opted out". Statuses are shown, not decoded. */
 export function sendStatusLabel(status: string): string {

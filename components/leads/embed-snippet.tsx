@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, Code2, Copy } from "lucide-react";
+import { Check, Code2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 
@@ -50,7 +51,7 @@ export function EmbedSnippet({ shopSlug, endpoint }: { shopSlug: string; endpoin
           </div>
         </div>
         <Button size="sm" variant="soft" onClick={copy}>
-          {copied ? <Check /> : <Copy />}
+          {copied ? <Check /> : <ACTIONS.copy />}
           {copied ? "Copied" : "Copy"}
         </Button>
       </CardHeader>

@@ -10,6 +10,8 @@
  * these strings.
  */
 
+import type { StatusTone } from "@/components/ui/badge";
+
 export const WEBHOOK_EVENTS = [
   "ticket.created",
   "ticket.status_changed",
@@ -52,6 +54,27 @@ export function isWebhookEvent(value: string): value is WebhookEvent {
 /** The delivery states a `WebhookDelivery.status` can hold. */
 export const DELIVERY_STATUSES = ["pending", "delivered", "failed"] as const;
 export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
+/**
+ * Where a delivery sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`): amber while it is still being retried, green once
+ * the endpoint answered 2xx, red when the retries ran out. The column stores
+ * these lowercase, which is a database value, not a word to put on a chip.
+ */
+export const DELIVERY_STATUS_META: Record<
+  DeliveryStatus,
+  { label: string; tone: StatusTone }
+> = {
+  pending: { label: "Pending", tone: "active" },
+  delivered: { label: "Delivered", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+};
+
+export function asDeliveryStatus(value: string): DeliveryStatus {
+  return (DELIVERY_STATUSES as readonly string[]).includes(value)
+    ? (value as DeliveryStatus)
+    : "pending";
+}
 
 /**
  * Retry schedule, in minutes, indexed by the attempt that just failed.

@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Wallet } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +67,7 @@ export function ChargeCardButton({
     <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Wallet /> Charge card on file
+          <ACTIONS.pay /> Charge card on file
         </Button>
       </DialogTrigger>
 

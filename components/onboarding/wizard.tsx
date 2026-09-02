@@ -3,19 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Banknote,
-  Check,
-  CreditCard,
-  Package,
-  Plus,
-  Printer,
-  Store,
-  Trash2,
-  Users,
-} from "lucide-react";
+// Check is the "you're done" tick; the rest of these are the concepts each
+// wizard step is about, and come from ICONS below.
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -27,7 +17,9 @@ import {
   setOnboardingStepAction,
   type InviteOutcome,
 } from "@/app/(app)/setup/actions";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,7 +158,7 @@ export function OnboardingWizard({ data }: { data: WizardData }) {
       <div className="flex items-center justify-between">
         {previous ? (
           <Button variant="ghost" size="sm" onClick={() => goTo(previous)}>
-            <ArrowLeft /> Back
+            <ACTIONS.back /> Back
           </Button>
         ) : (
           <span />
@@ -339,7 +331,7 @@ function ShopStep({ data, onDone, onSkip }: StepProps) {
         onSkip={onSkip}
         primary={
           <Button onClick={save} disabled={busy}>
-            <Store /> {busy ? "Saving…" : "Save and continue"}
+            <ICONS.vendor /> {busy ? "Saving…" : "Save and continue"}
           </Button>
         }
       />
@@ -411,9 +403,11 @@ function TeamStep({ data, onDone, onSkip }: StepProps) {
                     {person.inviteUrl}
                   </code>
                 ) : (
-                  <span className="shrink-0 rounded-full bg-status-resolved-bg px-2.5 py-1 text-[12.5px] font-semibold text-status-resolved-fg">
-                    Emailed
-                  </span>
+                  <StatusPill
+                    tone="success"
+                    label="Emailed"
+                    className="shrink-0"
+                  />
                 )}
               </li>
             ))}
@@ -421,7 +415,7 @@ function TeamStep({ data, onDone, onSkip }: StepProps) {
         </CardContent>
         <CardFooter>
           <Button onClick={onDone}>
-            Done <ArrowRight />
+            Done <ACTIONS.next />
           </Button>
         </CardFooter>
       </>
@@ -489,7 +483,7 @@ function TeamStep({ data, onDone, onSkip }: StepProps) {
                   setRows((current) => current.filter((_, i) => i !== index))
                 }
               >
-                <Trash2 />
+                <ACTIONS.delete />
               </Button>
             </div>
           ))}
@@ -505,7 +499,7 @@ function TeamStep({ data, onDone, onSkip }: StepProps) {
             setRows((current) => [...current, { name: "", email: "", role: "TECH" }])
           }
         >
-          <Plus /> Add another
+          <ACTIONS.add /> Add another
         </Button>
 
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
@@ -518,7 +512,7 @@ function TeamStep({ data, onDone, onSkip }: StepProps) {
         onSkip={onSkip}
         primary={
           <Button onClick={invite} disabled={busy}>
-            <Users /> {busy ? "Adding…" : "Add these people"}
+            <ICONS.team /> {busy ? "Adding…" : "Add these people"}
           </Button>
         }
       />
@@ -536,7 +530,7 @@ function PaymentsStep({ data, onDone, onSkip }: StepProps) {
       <CardContent className="flex flex-col gap-4">
         <ul className="flex flex-col gap-3">
           <Method
-            icon={CreditCard}
+            icon={ICONS.payment}
             title="Online card payments"
             body="Invoices you email carry a Pay button, the customer pays on Stripe's own page, and the invoice marks itself paid. Nothing sensitive touches this server."
             state={
@@ -549,14 +543,14 @@ function PaymentsStep({ data, onDone, onSkip }: StepProps) {
             live={data.stripeConnected}
           />
           <Method
-            icon={Banknote}
+            icon={ICONS.cash}
             title="Card reader at the counter"
             body="Take a chip or tap payment on the front desk and it lands on the same invoice, so the day's takings reconcile without a second system."
             state="Set up alongside online payments"
             live={data.stripeConnected}
           />
           <Method
-            icon={Store}
+            icon={ICONS.pos}
             title="Cash and cheque"
             body="Already works, nothing to configure. Record the tender on the invoice and RepairFlow keeps the balance."
             state="Ready"
@@ -577,7 +571,7 @@ function PaymentsStep({ data, onDone, onSkip }: StepProps) {
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild>
               <Link href="/settings?tab=payments">
-                <CreditCard /> Open payment settings
+                <ICONS.payment /> Open payment settings
               </Link>
             </Button>
             <Button variant="outline" onClick={onDone}>
@@ -716,7 +710,7 @@ function ItemsStep({ data, onDone, onSkip }: StepProps) {
                   setRows((current) => current.filter((_, i) => i !== index))
                 }
               >
-                <Trash2 />
+                <ACTIONS.delete />
               </Button>
             </div>
           ))}
@@ -732,7 +726,7 @@ function ItemsStep({ data, onDone, onSkip }: StepProps) {
               setRows((current) => [...current, { name: "", price: "", taxable: true }])
             }
           >
-            <Plus /> Add another
+            <ACTIONS.add /> Add another
           </Button>
           <Button type="button" variant="ghost" size="sm" asChild>
             <Link href="/inventory/new">Add one with stock and SKU instead</Link>
@@ -749,7 +743,7 @@ function ItemsStep({ data, onDone, onSkip }: StepProps) {
         onSkip={onSkip}
         primary={
           <Button onClick={save} disabled={busy}>
-            <Package /> {busy ? "Adding…" : "Add to catalogue"}
+            <ICONS.product /> {busy ? "Adding…" : "Add to catalogue"}
           </Button>
         }
       />
@@ -801,7 +795,7 @@ function ReadyStep({
                 target="_blank"
                 rel="noreferrer"
               >
-                <Printer /> Print a test ticket
+                <ACTIONS.print /> Print a test ticket
               </a>
             </Button>
           </div>

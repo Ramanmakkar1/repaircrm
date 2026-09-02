@@ -6,7 +6,7 @@ export function Brand() {
     <Link
       href="/dashboard"
       /* px-3 so the mark's left edge lines up with the nav row icons below */
-      className="flex items-center gap-3 rounded-md px-3 py-1.5 transition-colors hover:bg-surface-hover"
+      className="flex items-center gap-3 rounded-md px-3 py-1.5 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-xs">
         <Wrench className="size-[18px]" strokeWidth={2.5} />

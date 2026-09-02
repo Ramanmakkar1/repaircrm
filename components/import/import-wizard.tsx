@@ -3,16 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Download,
-  FileSpreadsheet,
-  TriangleAlert,
-  Upload,
-} from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, Loader2, TriangleAlert } from "lucide-react";
 
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
+import { ACTIONS } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -194,14 +188,22 @@ export function ImportWizard({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            {/* The input itself is visually hidden, so the focus ring has to
+                live on the label — otherwise tabbing to the file picker shows
+                nothing at all. */}
             <label
               className={cn(
                 "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border-strong bg-surface-hover/50 px-6 py-12 text-center transition-colors",
                 "hover:border-accent/50 hover:bg-surface-hover",
+                "focus-within:border-accent focus-within:ring-2 focus-within:ring-ring/50",
               )}
             >
               <span className="flex size-14 items-center justify-center rounded-xl bg-accent-soft text-accent-soft-foreground">
-                <FileSpreadsheet className="size-6" />
+                {busy ? (
+                  <Loader2 className="size-6 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="size-6" />
+                )}
               </span>
               <span className="flex flex-col gap-1">
                 <span className="text-[15px] font-bold text-foreground">
@@ -230,7 +232,7 @@ export function ImportWizard({
               </p>
               <Button variant="outline" size="sm" asChild>
                 <a href={sampleUrl} download>
-                  <Download className="size-4" />
+                  <ACTIONS.download className="size-4" />
                   Sample CSV
                 </a>
               </Button>
@@ -368,23 +370,31 @@ export function ImportWizard({
                           <Td
                             key={field.key}
                             className="max-w-[14rem] truncate text-foreground"
+                            title={row.values[field.key] || undefined}
                           >
                             {row.values[field.key] || "—"}
                           </Td>
                         ))}
+                      {/* What this row will do when Import is pressed, in the
+                          app's own status language: red it will not go, amber
+                          it lands on something already on file, green it is a
+                          new record. */}
                       <Td>
                         {row.errors.length > 0 ? (
-                          <span className="rounded-full bg-status-overdue-bg px-2.5 py-1 text-[12.5px] font-semibold text-status-overdue-fg">
-                            {row.errors[0]}
-                          </span>
+                          <StatusPill
+                            tone="danger"
+                            label={row.errors[0]!}
+                            size="sm"
+                            title={row.errors.join(" · ")}
+                          />
                         ) : row.duplicate ? (
-                          <span className="rounded-full bg-status-in-progress-bg px-2.5 py-1 text-[12.5px] font-semibold text-status-in-progress-fg">
-                            {mode === "skip" ? "Skip" : "Update"} — {row.duplicate}
-                          </span>
+                          <StatusPill
+                            tone="active"
+                            label={`${mode === "skip" ? "Skip" : "Update"} — ${row.duplicate}`}
+                            size="sm"
+                          />
                         ) : (
-                          <span className="rounded-full bg-status-resolved-bg px-2.5 py-1 text-[12.5px] font-semibold text-status-resolved-fg">
-                            New
-                          </span>
+                          <StatusPill tone="success" label="New" size="sm" />
                         )}
                       </Td>
                     </Tr>
@@ -449,7 +459,7 @@ export function ImportWizard({
               <Button asChild>
                 <Link href={doneHref}>
                   {doneLabel}
-                  <ArrowRight />
+                  <ACTIONS.next />
                 </Link>
               </Button>
             </div>
@@ -467,7 +477,7 @@ export function ImportWizard({
               setStep((current) => current - 1);
             }}
           >
-            <ArrowLeft />
+            <ACTIONS.back />
             Back
           </Button>
 
@@ -476,15 +486,16 @@ export function ImportWizard({
               disabled={busy || missingRequired.length > 0}
               onClick={() => void runPreview()}
             >
+              {busy ? <Loader2 className="animate-spin" /> : null}
               {busy ? "Checking…" : "Preview"}
-              <ArrowRight />
+              {busy ? null : <ACTIONS.next />}
             </Button>
           ) : (
             <Button
               disabled={busy || (preview?.valid ?? 0) === 0}
               onClick={() => void runCommit()}
             >
-              <Upload />
+              {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.upload />}
               {busy ? "Importing…" : `Import ${preview?.valid ?? 0} rows`}
             </Button>
           )}
@@ -502,6 +513,7 @@ function Steps({ current }: { current: number }) {
       {STEPS.map((label, index) => (
         <li key={label} className="flex items-center gap-2">
           <span
+            aria-current={index === current ? "step" : undefined}
             className={cn(
               "inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
               index === current
@@ -533,7 +545,7 @@ function Tile({
   tone?: "good" | "bad" | "warn";
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-4 shadow-sm">
+    <Card className="flex flex-col gap-1 px-4 py-4">
       <span
         className={cn(
           "text-[26px] font-bold leading-none tabular-nums tracking-tight",
@@ -549,7 +561,7 @@ function Tile({
         {value.toLocaleString()}
       </span>
       <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
-    </div>
+    </Card>
   );
 }
 
@@ -571,6 +583,7 @@ function ModeCard({
       aria-pressed={active}
       className={cn(
         "flex flex-col gap-1 rounded-md border px-4 py-3.5 text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "border-accent bg-accent-soft"
           : "border-border-strong bg-surface hover:bg-surface-hover",

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { MessageSquare, Paperclip } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
+import { ICONS } from "@/components/ui/icons";
 import { formatDateTime } from "@/components/billing/format";
 import { PhotoUpload } from "@/components/portal/photo-upload";
 import { ReplyBox } from "@/components/portal/reply-box";
@@ -9,7 +9,7 @@ import { fileKind, formatBytes } from "@/components/tickets/attachment-meta";
 import { StatusProgress } from "@/components/tickets/status-progress";
 import { ticketStatuses } from "@/components/tickets/ticket-meta";
 import { db } from "@/lib/db";
-import { requirePortalCustomer } from "@/lib/portal-session";
+import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import {
   BackLink,
   EmptyRow,
@@ -18,6 +18,9 @@ import {
   PortalCardHeader,
   PortalShell,
 } from "../../_components/shell";
+
+const MessageIcon = ICONS.message;
+const AttachmentIcon = ICONS.attachment;
 
 /**
  * One repair, as the customer is allowed to see it.
@@ -35,6 +38,33 @@ import {
  * never fetched cannot leak through an RSC payload, a stray `<pre>`, or the next
  * person to edit this file.
  */
+
+/**
+ * The tab title carries the repair number, because a customer chasing a repair
+ * usually has three of these tabs open. Scoped through the cookie exactly like
+ * the render below — `getPortalSession` rather than `requirePortalCustomer`
+ * because metadata must not redirect; the page itself does the guarding.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await getPortalSession();
+  if (!session) return { title: "Your repair · RepairFlow" };
+
+  const ticket = await db.ticket.findFirst({
+    where: { id, customerId: session.customerId, shopId: session.shopId },
+    select: { number: true },
+  });
+  return {
+    title: ticket
+      ? `Repair #${ticket.number} · RepairFlow`
+      : "Your repair · RepairFlow",
+  };
+}
+
 export default async function PortalTicketPage({
   params,
 }: {
@@ -133,7 +163,7 @@ export default async function PortalTicketPage({
             title={
               <span className="inline-flex items-center gap-2">
                 <span className="inline-flex size-7 items-center justify-center rounded-lg bg-chip-accent-bg text-chip-accent-fg">
-                  <MessageSquare className="size-3.5" />
+                  <MessageIcon className="size-3.5" />
                 </span>
                 Updates from the shop
               </span>
@@ -185,7 +215,7 @@ export default async function PortalTicketPage({
             title={
               <span className="inline-flex items-center gap-2">
                 <span className="inline-flex size-7 items-center justify-center rounded-lg bg-chip-accent-bg text-chip-accent-fg">
-                  <Paperclip className="size-3.5" />
+                  <AttachmentIcon className="size-3.5" />
                 </span>
                 Photos you&apos;ve sent
               </span>
@@ -217,7 +247,7 @@ export default async function PortalTicketPage({
                       />
                     ) : (
                       <span className="flex size-11 shrink-0 items-center justify-center rounded-md border border-border bg-surface-hover">
-                        <Paperclip className="size-4 text-muted-foreground" />
+                        <AttachmentIcon className="size-4 text-muted-foreground" />
                       </span>
                     )}
                     <span className="min-w-0 flex-1">

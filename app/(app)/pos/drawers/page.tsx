@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { ArrowLeft, Banknote, Printer } from "lucide-react";
-
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import {
-  DRAWER_VERDICT_CLASS,
+  DRAWER_VERDICT_META,
   drawerVerdict,
 } from "@/components/pos/drawer-types";
 
@@ -56,11 +55,12 @@ export default async function DrawersPage() {
         href="/pos"
         className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="size-4" />
+        <ACTIONS.back className="size-4" />
         Back to the register
       </Link>
 
       <PageHeader
+        icon={ICONS.cash}
         title="Cash drawers"
         description="Every open and close, with what the till was expected to hold and what it actually held."
       />
@@ -68,7 +68,7 @@ export default async function DrawersPage() {
       {sessions.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Banknote}
+            icon={ICONS.cash}
             title="No drawer sessions yet"
             hint="Open the drawer at the register and the first session will appear here."
             action={
@@ -88,11 +88,21 @@ export default async function DrawersPage() {
                 ? session.countedCents - session.expectedCents
                 : null;
             const verdict = difference === null ? null : drawerVerdict(difference);
+            const verdictMeta = verdict === null ? null : DRAWER_VERDICT_META[verdict];
 
             return (
-              <div
+              // Only a till that did not balance is worth a stripe; a
+              // balanced or still-open drawer is a white card like any other.
+              <Card
                 key={session.id}
-                className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm"
+                tone={
+                  verdict === "short"
+                    ? "danger"
+                    : verdict === "over"
+                      ? "active"
+                      : undefined
+                }
+                className="flex flex-col gap-4 p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -105,21 +115,23 @@ export default async function DrawersPage() {
                     </div>
                   </div>
 
-                  {verdict ? (
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-3 py-1 font-mono text-[13px] font-bold tabular-nums",
-                        DRAWER_VERDICT_CLASS[verdict],
-                      )}
-                    >
-                      {verdict === "balanced"
-                        ? "Balanced"
-                        : `${difference! > 0 ? "+" : ""}${formatCents(difference!)}`}
-                    </span>
+                  {/* The verdict is the thing the eye should land on, so it
+                      is the one pill on the card. A live session has not been
+                      counted yet and says so instead. */}
+                  {verdict && verdictMeta ? (
+                    <StatusPill
+                      className="shrink-0 tabular-nums"
+                      tone={verdictMeta.tone}
+                      label={
+                        // Balanced is the whole word on its own; over and short
+                        // carry the amount, unsigned — the word is the sign.
+                        verdict === "balanced"
+                          ? verdictMeta.label
+                          : `${verdictMeta.label} ${formatCents(Math.abs(difference ?? 0))}`
+                      }
+                    />
                   ) : (
-                    <span className="shrink-0 rounded-full bg-accent-soft px-3 py-1 text-[13px] font-bold text-accent-soft-foreground">
-                      Open
-                    </span>
+                    <StatusPill className="shrink-0" tone="info" label="Open" />
                   )}
                 </div>
 
@@ -157,13 +169,13 @@ export default async function DrawersPage() {
                   {closed ? (
                     <Button asChild variant="outline" size="sm">
                       <Link href={`/print/drawers/${session.id}`}>
-                        <Printer className="size-4" />
+                        <ACTIONS.print className="size-4" />
                         Z-report
                       </Link>
                     </Button>
                   ) : null}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

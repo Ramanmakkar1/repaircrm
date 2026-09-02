@@ -1,11 +1,13 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { ICONS } from "@/components/ui/icons";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+const Search = ICONS.search;
 
 /**
  * The topbar's search affordance. It looks like the field it replaced but is a

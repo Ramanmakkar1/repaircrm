@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 
 import { CustomerForm } from "@/components/customers/customer-form";
 import { fullName } from "@/components/customers/format";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -64,16 +63,17 @@ export default async function EditCustomerPage({
   const taxRates = await loadTaxRates(shopId);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
-      <Link
-        href={`/customers/${customer.id}`}
-        className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronLeft className="size-3.5" />
-        {fullName(customer)}
-      </Link>
-
-      <PageHeader title="Edit customer" />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <PageHeader
+        icon={ICONS.customer}
+        breadcrumbs={[
+          { label: "Customers", href: "/customers" },
+          { label: fullName(customer), href: `/customers/${customer.id}` },
+          { label: "Edit" },
+        ]}
+        title="Edit customer"
+        description="Changes apply from the next ticket, estimate and invoice on."
+      />
 
       <CustomerForm customer={customer} taxRates={taxRates} />
     </div>

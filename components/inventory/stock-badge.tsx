@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { STOCK_META, stockStatus, type StockLevel } from "./format";
 
@@ -8,6 +9,8 @@ import { STOCK_META, stockStatus, type StockLevel } from "./format";
  *
  * green in stock · amber at-or-below the reorder point · red none left ·
  * grey when the product isn't stock-tracked at all (labour, services).
+ * The tones come from the app-wide set, so "low" here is the same amber as
+ * "partial" on a purchase order.
  */
 export function StockBadge({
   product,
@@ -18,20 +21,17 @@ export function StockBadge({
   size?: "sm" | "md";
   className?: string;
 }) {
-  const status = stockStatus(product);
-  const meta = STOCK_META[status];
+  const meta = STOCK_META[stockStatus(product)];
 
   return (
-    <span
+    <StatusPill
+      tone={meta.tone}
+      label={meta.label(product.stockQty)}
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-full font-semibold leading-none tabular-nums",
-        size === "sm" ? "px-2 py-1 text-[12px]" : "px-2.5 py-1 text-[12.5px]",
-        meta.chip,
+        "tabular-nums",
+        size === "sm" && "px-2 py-1 text-[12px]",
         className,
       )}
-    >
-      <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
-      {meta.label(product.stockQty)}
-    </span>
+    />
   );
 }

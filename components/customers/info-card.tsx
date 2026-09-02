@@ -1,8 +1,7 @@
 import * as React from "react";
 import { Check, IdCard, Mail, MapPin, Phone, Smartphone, X } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
 import { formatBps } from "@/lib/money";
@@ -32,10 +31,7 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center gap-3">
-        <IconChip icon={IdCard} size="sm" />
-        <CardTitle>Details</CardTitle>
-      </CardHeader>
+      <CardHeader icon={IdCard} title="Details" />
 
       <CardContent className="flex flex-col gap-5">
         <section className="flex flex-col gap-3">

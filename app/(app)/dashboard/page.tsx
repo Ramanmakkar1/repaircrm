@@ -1,20 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { startOfDay, endOfDay, startOfMonth } from "date-fns";
-import {
-  AlarmClock,
-  ArrowRight,
-  CalendarClock,
-  CircleDollarSign,
-  MessageSquare,
-  Receipt,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+// AlarmClock is the one glyph here with no concept in components/ui/icons.ts.
+import { AlarmClock, type LucideIcon } from "lucide-react";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  StatTile,
+} from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { STATUS_META, normalizeStatus } from "@/components/ui/badge";
+import { STATUS_META, normalizeStatus, type StatusTone } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { TicketCard } from "@/components/tickets/ticket-card";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
@@ -25,6 +24,8 @@ import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
 import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
+
+export const metadata: Metadata = { title: "Dashboard · RepairFlow" };
 
 export const dynamic = "force-dynamic";
 
@@ -117,29 +118,32 @@ export default async function DashboardPage() {
   // eslint-disable-next-line react-hooks/purity
   const clock = Date.now();
 
+  // Six tiles, one tone each, and the tone is the meaning: blue is the work in
+  // hand, amber is due today, violet is blocked on a customer, red is late or
+  // unpaid, green is money in.
   const stats: {
     label: string;
     value: string;
     hint: string;
     href: string;
     icon: LucideIcon;
-    tint: string;
+    tone: StatusTone;
   }[] = [
     {
       label: "Open Tickets",
       value: String(openTickets),
       hint: "on the bench right now",
       href: "/tickets",
-      icon: Wrench,
-      tint: "bg-status-new-bg text-status-new-fg",
+      icon: ICONS.ticket,
+      tone: "info",
     },
     {
       label: "Due Today",
       value: String(dueToday),
       hint: "promised back today",
       href: "/tickets?due=today",
-      icon: CalendarClock,
-      tint: "bg-status-in-progress-bg text-status-in-progress-fg",
+      icon: ICONS.dueDate,
+      tone: "active",
     },
     {
       label: "Overdue",
@@ -147,43 +151,44 @@ export default async function DashboardPage() {
       hint: overdueCount === 0 ? "nothing past its date" : "past their promised date",
       href: "/tickets?due=overdue",
       icon: AlarmClock,
-      tint: "bg-status-overdue-bg text-status-overdue-fg",
+      tone: "danger",
     },
     {
       label: "Customer Replies",
       value: String(awaitingReply.length),
       hint: "waiting on an answer",
       href: `/tickets?status=${NEEDS_REPLY_FILTER}`,
-      icon: MessageSquare,
-      tint: "bg-accent-soft text-accent-soft-foreground",
+      icon: ICONS.message,
+      tone: "waiting",
     },
     {
       label: "Unpaid Invoices",
       value: String(unpaidCandidates.length),
       hint: `${formatCents(unpaidBalanceCents)} outstanding`,
       href: "/invoices?status=SENT",
-      icon: Receipt,
-      tint: "bg-status-overdue-bg text-status-overdue-fg",
+      icon: ICONS.invoice,
+      tone: "danger",
     },
     {
       label: "This Month",
       value: formatCents(monthPayments._sum.amountCents ?? 0),
       hint: "collected so far",
       href: "/invoices",
-      icon: CircleDollarSign,
-      tint: "bg-status-resolved-bg text-status-resolved-fg",
+      icon: ICONS.cash,
+      tone: "success",
     },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.dashboard}
         title="Dashboard"
         description="A quick look at what's happening in your shop."
         actions={
           <Button asChild>
             <Link href="/tickets/new">
-              <Wrench />
+              <ACTIONS.add />
               New Ticket
             </Link>
           </Button>
@@ -199,41 +204,38 @@ export default async function DashboardPage() {
           <Link
             key={stat.label}
             href={stat.href}
-            className="rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            // `StatTile` is a div, so the link wraps it and owns the focus
+            // ring; the tile itself carries the shared interactive treatment.
+            className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <span
-              className={cn(
-                "flex size-12 items-center justify-center rounded-md",
-                stat.tint,
-              )}
-            >
-              <stat.icon className="size-6" strokeWidth={2.25} />
-            </span>
-            <div className="flex flex-col gap-1">
-              <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-                {stat.value}
-              </span>
-              <span className="text-[15px] font-bold text-foreground">
-                {stat.label}
-              </span>
-              <span className="text-[13px] text-muted-foreground">{stat.hint}</span>
-            </div>
+            <StatTile
+              interactive
+              icon={stat.icon}
+              tone={stat.tone}
+              value={stat.value}
+              label={stat.label}
+              hint={stat.hint}
+              className="h-full"
+            />
           </Link>
         ))}
       </div>
 
       {/* Where the work stands, as six colour-coded boxes. */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>Where the work stands</CardTitle>
-          <Link
-            href="/tickets?status=all"
-            className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-accent hover:underline"
-          >
-            All tickets
-            <ArrowRight className="size-4" />
-          </Link>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.ticket}
+          title="Where the work stands"
+          action={
+            <Link
+              href="/tickets?status=all"
+              className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              All tickets
+              <ACTIONS.next className="size-4" />
+            </Link>
+          }
+        />
         <CardContent>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {TICKET_STATUSES.map((status) => {
@@ -279,22 +281,25 @@ export default async function DashboardPage() {
           </h2>
           <Link
             href="/tickets"
-            className="inline-flex items-center gap-1 text-[13.5px] font-semibold text-accent hover:underline"
+            className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             View all
-            <ArrowRight className="size-4" />
+            <ACTIONS.next className="size-4" />
           </Link>
         </div>
 
         {recentTickets.length === 0 ? (
           <Card>
             <EmptyState
-              icon={Wrench}
+              icon={ICONS.ticket}
               title="No tickets yet"
               hint="New repair tickets will show up here as they come in."
               action={
                 <Button asChild>
-                  <Link href="/tickets/new">Create the first ticket</Link>
+                  <Link href="/tickets/new">
+                    <ACTIONS.add />
+                    New Ticket
+                  </Link>
                 </Button>
               }
             />

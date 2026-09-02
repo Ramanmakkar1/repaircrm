@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { format, isSameDay } from "date-fns";
-import { CalendarClock, MapPin, StickyNote, UserRound, Wrench } from "lucide-react";
+// StickyNote / UserRound have no concept in components/ui/icons.ts.
+import { StickyNote, UserRound } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AppointmentRowActions } from "./appointment-actions";
@@ -50,7 +53,7 @@ export function AppointmentList({
     return (
       <Card>
         <EmptyState
-          icon={CalendarClock}
+          icon={ICONS.appointment}
           title="Nothing booked"
           hint="Click any empty slot on the calendar to book something into it."
         />
@@ -62,16 +65,19 @@ export function AppointmentList({
     <div className="flex flex-col gap-5">
       {populated.map(({ day, items }) => (
         <Card key={day.toISOString()}>
-          <CardHeader className="flex-row items-center justify-between gap-3">
-            <CardTitle
-              className={cn(isSameDay(day, now) && "text-accent-soft-foreground")}
-            >
-              {format(day, "EEEE, MMMM d")}
-            </CardTitle>
-            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none tabular-nums text-muted-foreground">
-              {items.length}
-            </span>
-          </CardHeader>
+          <CardHeader
+            icon={ICONS.appointment}
+            title={
+              <span
+                className={cn(
+                  isSameDay(day, now) && "text-accent-soft-foreground",
+                )}
+              >
+                {format(day, "EEEE, MMMM d")}
+              </span>
+            }
+            action={<Chip className="tabular-nums">{items.length}</Chip>}
+          />
 
           <CardContent className="p-0">
             <ul className="divide-y divide-border">
@@ -130,23 +136,22 @@ function AppointmentRow({
             <Link
               href={editHref(appointment.id)}
               scroll={false}
+              title={appointment.title}
               className={cn(
-                "truncate text-[15px] font-bold text-foreground hover:text-accent hover:underline",
+                "truncate rounded-sm text-[15px] font-bold text-foreground hover:text-accent hover:underline",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                 canceled && "text-muted-foreground line-through",
               )}
             >
               {appointment.title}
             </Link>
-            <span
-              className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold leading-none",
-                meta.bg,
-                meta.fg,
-              )}
-            >
-              <span className={cn("size-1.5 rounded-full", meta.dot)} />
-              {meta.label}
-            </span>
+            <StatusPill
+              size="sm"
+              tone={meta.tone}
+              label={meta.label}
+              struck={meta.struck}
+              className="shrink-0"
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -164,7 +169,7 @@ function AppointmentRow({
             {appointment.ticket ? (
               <Link href={`/tickets/${appointment.ticket.id}`}>
                 <Chip
-                  icon={Wrench}
+                  icon={ICONS.ticket}
                   className="transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground"
                 >
                   #{appointment.ticket.number}
@@ -177,7 +182,7 @@ function AppointmentRow({
             </Chip>
 
             {appointment.location ? (
-              <Chip icon={MapPin}>{appointment.location.name}</Chip>
+              <Chip icon={ICONS.location}>{appointment.location.name}</Chip>
             ) : null}
           </div>
 

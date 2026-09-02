@@ -1,14 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignForm } from "@/components/marketing/campaign-form";
 import { updateCampaignAction } from "../../actions";
 
-export const metadata = { title: "Edit campaign · RepairFlow" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const campaign = await db.campaign.findFirst({
+    where: { id, shopId },
+    select: { name: true },
+  });
+  return {
+    title: campaign
+      ? `Edit ${campaign.name} · RepairFlow`
+      : "Campaign · RepairFlow",
+  };
+}
 
 export default async function EditCampaignPage({
   params,
@@ -30,11 +47,12 @@ export default async function EditCampaignPage({
         href={`/marketing/${campaign.id}`}
         className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="size-4" />
-        Back to {campaign.name}
+        <ACTIONS.back className="size-4" />
+        {campaign.name}
       </Link>
 
       <PageHeader
+        icon={ICONS.marketing}
         title="Edit campaign"
         description="Reworded copy applies to every message still queued. A change to the wait only affects events queued from here on — already-scheduled dates stay put."
       />

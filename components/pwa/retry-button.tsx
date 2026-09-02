@@ -1,8 +1,9 @@
 "use client";
 
-import { RotateCw } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
+
+const RetryIcon = ACTIONS.retry;
 
 /**
  * "Try again" on the offline page.
@@ -19,7 +20,7 @@ export function RetryButton() {
       variant="outline"
       onClick={() => window.location.reload()}
     >
-      <RotateCw />
+      <RetryIcon aria-hidden />
       Try again
     </Button>
   );

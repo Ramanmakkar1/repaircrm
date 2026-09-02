@@ -3,23 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import {
-  ArrowRight,
-  Boxes,
-  CornerDownLeft,
-  CreditCard,
-  FileText,
-  Hash,
-  Loader2,
-  Receipt,
-  Search,
-  UserPlus,
-  Users,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRight, CornerDownLeft, Loader2, type LucideIcon } from "lucide-react";
 
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { ICONS } from "@/components/ui/icons";
+import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { NAV_ITEMS } from "@/components/shell/nav-items";
 import type { SearchGroup, SearchResponse, SearchType } from "./types";
@@ -65,11 +53,11 @@ const NO_SELECTION: Selection = { rows: [], index: 0 };
  * something" menu and not only as a finder.
  */
 const QUICK_ACTIONS: Row[] = [
-  { id: "qa-ticket", title: "New ticket", subtitle: "Check a device in", href: "/tickets/new", icon: Wrench },
-  { id: "qa-customer", title: "New customer", subtitle: "Add someone to the book", href: "/customers/new", icon: UserPlus },
-  { id: "qa-invoice", title: "New invoice", subtitle: "Bill for work done", href: "/invoices/new", icon: Receipt },
-  { id: "qa-estimate", title: "New estimate", subtitle: "Quote a job first", href: "/estimates/new", icon: FileText },
-  { id: "qa-pos", title: "Take payment", subtitle: "Open the register", href: "/pos", icon: CreditCard },
+  { id: "qa-ticket", title: "New ticket", subtitle: "Check a device in", href: "/tickets/new", icon: ICONS.ticket },
+  { id: "qa-customer", title: "New customer", subtitle: "Add someone to the book", href: "/customers/new", icon: ICONS.customer },
+  { id: "qa-invoice", title: "New invoice", subtitle: "Bill for work done", href: "/invoices/new", icon: ICONS.invoice },
+  { id: "qa-estimate", title: "New estimate", subtitle: "Quote a job first", href: "/estimates/new", icon: ICONS.estimate },
+  { id: "qa-pos", title: "Take payment", subtitle: "Open the register", href: "/pos", icon: ICONS.pos },
 ];
 
 const NAV_ROWS: Row[] = NAV_ITEMS.map((item) => ({
@@ -79,15 +67,23 @@ const NAV_ROWS: Row[] = NAV_ITEMS.map((item) => ({
   icon: item.icon,
 }));
 
+/**
+ * Straight off the app-wide map, so a part found here is the same box it is on
+ * the inventory list and a lead the same figure it is on the pipeline. (It used
+ * to draw a part with the *inventory section's* glyph, which is the exact
+ * mismatch `ICONS` exists to stop.)
+ */
 const TYPE_ICON: Record<SearchType, LucideIcon> = {
-  customer: Users,
-  ticket: Wrench,
-  invoice: Receipt,
-  estimate: FileText,
-  product: Boxes,
-  serial: Hash,
-  lead: UserPlus,
+  customer: ICONS.customer,
+  ticket: ICONS.ticket,
+  invoice: ICONS.invoice,
+  estimate: ICONS.estimate,
+  product: ICONS.product,
+  serial: ICONS.serial,
+  lead: ICONS.lead,
 };
+
+const SearchIcon = ICONS.search;
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY = 2;
@@ -306,7 +302,7 @@ export function CommandPalette({
             {loading ? (
               <Loader2 className="size-[18px] shrink-0 animate-spin text-accent" />
             ) : (
-              <Search className="size-[18px] shrink-0 text-faint-foreground" />
+              <SearchIcon className="size-[18px] shrink-0 text-faint-foreground" />
             )}
             <input
               autoFocus
@@ -325,7 +321,7 @@ export function CommandPalette({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-semibold text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+              className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-semibold text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               Esc
             </button>
@@ -391,9 +387,16 @@ export function CommandPalette({
                           ) : null}
                         </span>
                         {row.badge ? (
-                          <span className="shrink-0 rounded-full bg-surface-hover px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground">
-                            {row.badge}
-                          </span>
+                          // The endpoint sends a word, not a tone, so this is
+                          // deliberately the quiet one — the row's own icon and
+                          // title are what the eye is meant to land on.
+                          <StatusPill
+                            size="sm"
+                            dot={false}
+                            tone="neutral"
+                            label={row.badge}
+                            className="shrink-0"
+                          />
                         ) : null}
                         {isActive ? (
                           <ArrowRight className="size-4 shrink-0 text-accent" />
@@ -442,7 +445,7 @@ function EmptyState({
 
   return (
     <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-      <Search className="size-6 text-faint-foreground" />
+      <SearchIcon className="size-6 text-faint-foreground" />
       <p className="text-[14px] font-medium text-muted-foreground">{message}</p>
       {!loading && !failed && query.length >= MIN_QUERY ? (
         <p className="text-[12.5px] text-faint-foreground">

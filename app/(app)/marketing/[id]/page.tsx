@@ -1,24 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  CalendarPlus,
-  Clock,
-  Eye,
-  Hash,
-  Inbox,
-  Mail,
-  MessageSquare,
-  Pencil,
-  Trash2,
-  UserPlus,
-  Zap,
-} from "lucide-react";
+import { CalendarPlus, Clock } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { StatusPill } from "@/components/ui/badge";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
@@ -47,6 +38,22 @@ import { deleteCampaignAction } from "../actions";
 
 /** The sends table is a working queue, not an archive — newest 100 is plenty. */
 const SEND_LIMIT = 100;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const campaign = await db.campaign.findFirst({
+    where: { id, shopId },
+    select: { name: true },
+  });
+  return {
+    title: campaign ? `${campaign.name} · RepairFlow` : "Campaign · RepairFlow",
+  };
+}
 
 export default async function CampaignDetailPage({
   params,
@@ -121,22 +128,10 @@ export default async function CampaignDetailPage({
                 <span className="text-3xl font-bold leading-tight tracking-tight text-foreground">
                   {campaign.name}
                 </span>
-                <span
-                  className={cn(
-                    "inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
-                    campaign.active
-                      ? "bg-status-resolved-bg text-status-resolved-fg"
-                      : "bg-surface-hover text-muted-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full",
-                      campaign.active ? "bg-status-resolved" : "bg-faint-foreground",
-                    )}
-                  />
-                  {campaign.active ? "Active" : "Paused"}
-                </span>
+                <StatusPill
+                  tone={campaign.active ? "success" : "neutral"}
+                  label={campaign.active ? "Active" : "Paused"}
+                />
               </div>
               <p className="text-[15px] leading-snug text-muted-foreground">
                 {TRIGGER_LABEL[trigger]} · {delayLabel(campaign.delayDays)} ·{" "}
@@ -148,7 +143,7 @@ export default async function CampaignDetailPage({
               <SyncCampaignButton campaignId={campaign.id} />
               <Button variant="outline" asChild>
                 <Link href={`/marketing/${campaign.id}/edit`}>
-                  <Pencil /> Edit
+                  <ACTIONS.edit /> Edit
                 </Link>
               </Button>
               <CampaignActiveButton
@@ -161,7 +156,7 @@ export default async function CampaignDetailPage({
                   action={deleteCampaignAction}
                   fields={{ id: campaign.id }}
                   triggerLabel="Delete"
-                  triggerIcon={<Trash2 />}
+                  triggerIcon={<ACTIONS.delete />}
                   title={`Delete ${campaign.name}?`}
                   description={`The campaign and its ${campaign._count.sends} send record${
                     campaign._count.sends === 1 ? "" : "s"
@@ -173,9 +168,9 @@ export default async function CampaignDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Chip icon={Zap}>{TRIGGER_LABEL[trigger]}</Chip>
+            <Chip icon={ICONS.automation}>{TRIGGER_LABEL[trigger]}</Chip>
             <Chip icon={Clock}>{delayLabel(campaign.delayDays)}</Chip>
-            <Chip icon={channel === "SMS" ? MessageSquare : Mail}>
+            <Chip icon={channel === "SMS" ? ICONS.message : ICONS.email}>
               {CHANNEL_LABEL[channel]}
             </Chip>
             <Chip icon={CalendarPlus}>Added {formatDate(campaign.createdAt)}</Chip>
@@ -193,9 +188,7 @@ export default async function CampaignDetailPage({
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         {/* ------------------------------------------------------- settings */}
         <Card>
-          <CardHeader>
-            <CardTitle>How it runs</CardTitle>
-          </CardHeader>
+          <CardHeader icon={ICONS.automation} title="How it runs" />
           <CardContent className="flex flex-col gap-3.5">
             <Row label="Trigger" value={TRIGGER_LABEL[trigger]} />
             <Row label="Wait" value={delayLabel(campaign.delayDays)} />
@@ -219,10 +212,7 @@ export default async function CampaignDetailPage({
 
         {/* -------------------------------------------------------- preview */}
         <Card>
-          <CardHeader className="flex-row items-center gap-2">
-            <Eye className="size-4 text-muted-foreground" />
-            <CardTitle>What the customer gets</CardTitle>
-          </CardHeader>
+          <CardHeader icon={ACTIONS.view} title="What the customer gets" />
           <CardContent className="flex flex-col gap-3">
             <div className="rounded-md border border-border bg-surface-hover/60 px-4 py-3.5">
               {channel === "EMAIL" && previewSubject ? (
@@ -245,13 +235,19 @@ export default async function CampaignDetailPage({
 
       {/* ------------------------------------------------------------- sends */}
       <Card>
-        <CardHeader>
-          <CardTitle>Messages</CardTitle>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.message}
+          title="Messages"
+          description={
+            campaign._count.sends === 0
+              ? "Everyone this campaign has queued or sent to."
+              : `${campaign._count.sends} in the queue and the log, newest first.`
+          }
+        />
         <CardContent className="px-0 py-0">
           {campaign.sends.length === 0 ? (
             <EmptyState
-              icon={Inbox}
+              icon={ICONS.inbound}
               title="Nothing queued yet"
               hint={
                 campaign.active
@@ -288,7 +284,7 @@ export default async function CampaignDetailPage({
                             href={`/tickets/${send.ticket.id}`}
                             className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground transition-colors hover:text-accent"
                           >
-                            <Hash className="size-3.5 text-faint-foreground" />
+                            <ICONS.serial className="size-3.5 text-faint-foreground" />
                             {send.ticket.number}
                           </Link>
                         ) : send.invoice ? (
@@ -296,12 +292,12 @@ export default async function CampaignDetailPage({
                             href={`/invoices/${send.invoice.id}`}
                             className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground transition-colors hover:text-accent"
                           >
-                            <Hash className="size-3.5 text-faint-foreground" />
+                            <ICONS.serial className="size-3.5 text-faint-foreground" />
                             {send.invoice.number}
                           </Link>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                            <UserPlus className="size-3.5 text-faint-foreground" />
+                            <ICONS.customer className="size-3.5 text-faint-foreground" />
                             New customer
                           </span>
                         )}

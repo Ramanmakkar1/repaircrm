@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { ACTIONS } from "@/components/ui/icons";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,7 +98,7 @@ export function BillingFilterBar({
         className="flex flex-wrap items-center gap-2"
       >
         <div className="relative min-w-[240px] flex-1 sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+          <ACTIONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
           <Input
             key={q}
             ref={queryRef}
@@ -110,7 +110,7 @@ export function BillingFilterBar({
         </div>
 
         <Button type="submit" variant="outline">
-          Search
+          <ACTIONS.search /> Search
         </Button>
 
         {dirty ? (
@@ -119,7 +119,7 @@ export function BillingFilterBar({
             variant="ghost"
             onClick={() => navigate("", ALL_STATUSES)}
           >
-            <X /> Clear
+            <ACTIONS.cancel /> Clear
           </Button>
         ) : null}
       </form>

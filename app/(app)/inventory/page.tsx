@@ -1,16 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import {
-  Boxes,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-  Plus,
-  Store,
-  TriangleAlert,
-  Upload,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
 
 import { plural } from "@/components/customers/format";
 import { asFilter, type InventoryFilter } from "@/components/inventory/format";
@@ -19,6 +10,7 @@ import { ProductCard } from "@/components/inventory/product-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -97,6 +89,7 @@ export default async function InventoryPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.inventory}
         title="Inventory"
         description="Every part, accessory and service the shop sells, with what's on the shelf."
         actions={
@@ -109,19 +102,19 @@ export default async function InventoryPage({
               <>
                 <Button variant="outline" asChild>
                   <Link href="/inventory/vendors">
-                    <Store />
+                    <ICONS.vendor />
                     Vendors
                   </Link>
                 </Button>
                 <Button variant="outline" asChild>
                   <Link href="/inventory/purchase-orders">
-                    <ClipboardList />
+                    <ICONS.purchaseOrder />
                     Purchase orders
                   </Link>
                 </Button>
                 <Button variant="outline" asChild>
                   <Link href="/inventory/import">
-                    <Upload />
+                    <ACTIONS.upload />
                     Import
                   </Link>
                 </Button>
@@ -129,7 +122,7 @@ export default async function InventoryPage({
             ) : null}
             <Button asChild>
               <Link href="/inventory/new">
-                <Plus />
+                <ACTIONS.add />
                 New Product
               </Link>
             </Button>
@@ -177,7 +170,7 @@ export default async function InventoryPage({
       {products.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Boxes}
+            icon={ICONS.inventory}
             title={filtered ? "Nothing matches those filters" : "No products yet"}
             hint={
               filtered
@@ -192,7 +185,7 @@ export default async function InventoryPage({
               ) : (
                 <Button asChild>
                   <Link href="/inventory/new">
-                    <Plus />
+                    <ACTIONS.add />
                     New Product
                   </Link>
                 </Button>

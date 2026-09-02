@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Check, CreditCard, Link2, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 
 /**
  * SHARE ROW — the two links staff read down the phone or paste into a chat.
@@ -122,7 +123,7 @@ export function ShareRow({
       </span>
 
       <Button variant="outline" size="sm" onClick={copyView}>
-        {copied === "view" ? <Check className="text-status-resolved-fg" /> : <Link2 />}
+        {copied === "view" ? <Check className="text-status-resolved-fg" /> : <ACTIONS.copyLink />}
         {copied === "view" ? "Copied" : viewLabel}
       </Button>
 
@@ -133,7 +134,7 @@ export function ShareRow({
           ) : copied === "pay" ? (
             <Check className="text-status-resolved-fg" />
           ) : (
-            <CreditCard />
+            <ACTIONS.pay />
           )}
           {busy
             ? "Opening…"

@@ -1,20 +1,21 @@
 import Link from "next/link";
-import { Plus, Receipt, RefreshCcw } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/components/ui/cn";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
 import { formatDate, isOverdue } from "@/components/billing/format";
 import { PAGE_SIZE, Pagination } from "@/components/billing/pagination";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import {
   INVOICE_STATUS_OPTIONS,
   INVOICE_STATUSES,
@@ -67,6 +68,11 @@ export default async function InvoicesPage({
         },
         lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         payments: { select: { amountCents: true } },
+        // Refunds are loaded here for the same reason the detail page loads
+        // them: the stored status is walked back to PARTIAL when money goes
+        // out again, so a balance computed without them would print "Paid"
+        // beside a "Partial" badge on the same card.
+        refunds: { select: { amountCents: true, status: true } },
       },
     }),
   ]);
@@ -76,18 +82,19 @@ export default async function InvoicesPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.invoice}
         title="Invoices"
         description="Bill customers and track payment status."
         actions={
           <div className="flex items-center gap-2">
             <Button asChild variant="outline">
               <Link href="/invoices/recurring">
-                <RefreshCcw /> Recurring
+                <ICONS.recurring /> Recurring
               </Link>
             </Button>
             <Button asChild>
               <Link href="/invoices/new">
-                <Plus /> New invoice
+                <ACTIONS.add /> New invoice
               </Link>
             </Button>
           </div>
@@ -105,7 +112,7 @@ export default async function InvoicesPage({
       {invoices.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Receipt}
+            icon={ICONS.invoice}
             title={filtered ? "No invoices match those filters" : "No invoices yet"}
             hint={
               filtered
@@ -120,7 +127,7 @@ export default async function InvoicesPage({
               ) : (
                 <Button asChild>
                   <Link href="/invoices/new">
-                    <Plus /> New invoice
+                    <ACTIONS.add /> New invoice
                   </Link>
                 </Button>
               )
@@ -131,10 +138,11 @@ export default async function InvoicesPage({
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {invoices.map((invoice) => {
-              const totals = invoiceTotals(
+              const totals = refundAwareTotals(
                 invoice.lines,
                 invoice.taxRateBps,
                 invoice.payments,
+                invoice.refunds,
               );
               const voided = invoice.status === "VOID";
               const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
@@ -144,83 +152,90 @@ export default async function InvoicesPage({
               const settled = !voided && totals.balanceCents <= 0;
 
               return (
-                <Link
+                // Only the two cards that need an answer wear a stripe: money
+                // that is late, and a document that is no longer in play. A
+                // grid where every card shouts is a grid where none does.
+                <Card
                   key={invoice.id}
-                  href={`/invoices/${invoice.id}`}
-                  className={cn(
-                    "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                    overdue && "border-status-overdue/55",
-                    voided && "opacity-70",
-                  )}
+                  interactive
+                  tone={overdue ? "danger" : voided ? "neutral" : undefined}
+                  className={cn("flex flex-col", voided && "opacity-70")}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span
-                      className={cn(
-                        "text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground",
-                        voided && "text-faint-foreground line-through",
-                      )}
-                    >
-                      #{invoice.number}
-                    </span>
-                    <InvoiceStatusBadge status={invoice.status} />
-                  </div>
-
-                  <span
+                  <Link
+                    href={`/invoices/${invoice.id}`}
                     className={cn(
-                      "truncate text-[15px] font-bold text-foreground",
-                      voided && "text-faint-foreground",
+                      "flex flex-1 flex-col gap-4 rounded-lg p-5",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     )}
                   >
-                    {name}
-                  </span>
-
-                  <div className="flex items-end justify-between gap-3">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Total
-                      </span>
+                    <div className="flex items-start justify-between gap-3">
                       <span
                         className={cn(
-                          "text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground",
+                          "text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground",
                           voided && "text-faint-foreground line-through",
                         )}
                       >
-                        {formatCents(totals.totalCents)}
+                        #{invoice.number}
                       </span>
+                      <InvoiceStatusBadge status={invoice.status} />
                     </div>
-                    {!voided ? (
-                      <div className="flex flex-col items-end gap-0.5">
+
+                    <span
+                      className={cn(
+                        "truncate text-[15px] font-bold text-foreground",
+                        voided && "text-faint-foreground",
+                      )}
+                    >
+                      {name}
+                    </span>
+
+                    <div className="flex items-end justify-between gap-3">
+                      <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Balance
+                          Total
                         </span>
                         <span
                           className={cn(
-                            "text-lg font-bold leading-none tabular-nums",
-                            settled ? "text-status-resolved-fg" : "text-foreground",
+                            "text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground",
+                            voided && "text-faint-foreground line-through",
                           )}
                         >
-                          {settled ? "Paid" : formatCents(totals.balanceCents)}
+                          {formatCents(totals.totalCents)}
                         </span>
                       </div>
-                    ) : null}
-                  </div>
+                      {!voided ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Balance
+                          </span>
+                          <span
+                            className={cn(
+                              "text-lg font-bold leading-none tabular-nums",
+                              settled ? "text-status-resolved-fg" : "text-foreground",
+                            )}
+                          >
+                            {settled ? "Paid" : formatCents(totals.balanceCents)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
 
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                    <Chip>Raised {formatDate(invoice.createdAt)}</Chip>
-                    {invoice.dueDate ? (
-                      <Chip
-                        className={cn(
-                          overdue &&
-                            "bg-status-overdue-bg font-bold text-status-overdue-fg",
-                        )}
-                      >
-                        {overdue ? "Overdue " : "Due "}
-                        {formatDate(invoice.dueDate)}
-                      </Chip>
-                    ) : null}
-                  </div>
-                </Link>
+                    <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                      <Chip>Raised {formatDate(invoice.createdAt)}</Chip>
+                      {invoice.dueDate ? (
+                        <Chip
+                          className={cn(
+                            overdue &&
+                              "bg-status-overdue-bg font-bold text-status-overdue-fg",
+                          )}
+                        >
+                          {overdue ? "Overdue " : "Due "}
+                          {formatDate(invoice.dueDate)}
+                        </Chip>
+                      ) : null}
+                    </div>
+                  </Link>
+                </Card>
               );
             })}
           </div>

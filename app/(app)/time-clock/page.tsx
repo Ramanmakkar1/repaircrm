@@ -1,14 +1,21 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Download, Timer } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, THead, Table, Td, Th, Tr } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ClockCard } from "./clock-card";
 import { EntryDialog } from "./entry-dialog";
 import {
@@ -155,31 +162,34 @@ export default async function TimeClockPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.timeClock}
         title="Time clock"
         description="Clock in when you start, clock out when you finish. That's it."
       />
 
       <ClockCard
         openSinceISO={openEntry ? openEntry.clockInAt.toISOString() : null}
+        // Formatted here rather than in the browser: `toLocaleTimeString` in a
+        // component that also renders on the server picks a different zone on
+        // each side and React reports the difference as a hydration mismatch.
+        openSinceLabel={openEntry ? format(openEntry.clockInAt, "h:mm a") : null}
         todaySeconds={todaySeconds}
         weekSeconds={weekSeconds}
       />
 
       {/* ------------------------------------------------------------ mine */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <div>
-            <CardTitle>Today</CardTitle>
-            <CardDescription>
-              {formatHours(weekSeconds)} logged this week
-              {isThisWeek ? "" : ` (week of ${format(start, "MMM d")})`}
-            </CardDescription>
-          </div>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.timeClock}
+          title="Today"
+          description={`${formatHours(weekSeconds)} logged this week${
+            isThisWeek ? "" : ` (week of ${format(start, "MMM d")})`
+          }`}
+        />
 
         {todayEntries.length === 0 ? (
           <EmptyState
-            icon={Timer}
+            icon={ICONS.timeClock}
             title="Nothing logged today"
             hint="Press Clock in above when you start your shift and it will show up here."
           />
@@ -201,7 +211,7 @@ export default async function TimeClockPage({
                     {entry.clockOutAt ? (
                       format(entry.clockOutAt, "h:mm a")
                     ) : (
-                      <span className="font-semibold text-accent">Running</span>
+                      <StatusPill tone="active" label="Running" size="sm" />
                     )}
                   </Td>
                   <Td className="text-right tabular-nums">
@@ -209,7 +219,10 @@ export default async function TimeClockPage({
                       secondsBetween(entry.clockInAt, entry.clockOutAt ?? now),
                     )}
                   </Td>
-                  <Td className="max-w-xs truncate text-muted-foreground">
+                  <Td
+                    className="max-w-xs truncate text-muted-foreground"
+                    title={entry.note ?? undefined}
+                  >
                     {entry.note ?? "—"}
                   </Td>
                 </Tr>
@@ -222,45 +235,55 @@ export default async function TimeClockPage({
       {/* ------------------------------------------------------------ team */}
       {isOwner ? (
         <Card>
-          <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle>
-                The team · {format(start, "MMM d")} – {format(end, "MMM d, yyyy")}
-              </CardTitle>
-              <CardDescription>
-                {formatHours(teamSeconds)} across{" "}
-                {teamRows.length === 1 ? "1 person" : `${teamRows.length} people`}
-              </CardDescription>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <Button asChild variant="outline" size="sm">
-                <Link href={weekHref(addDays(start, -7))} aria-label="Previous week">
-                  <ChevronLeft className="size-4" />
-                </Link>
-              </Button>
-              {isThisWeek ? null : (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href={weekHref(now)}>This week</Link>
+          <CardHeader
+            icon={ICONS.team}
+            title={`The team · ${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`}
+            description={`${formatHours(teamSeconds)} across ${
+              teamRows.length === 1 ? "1 person" : `${teamRows.length} people`
+            }`}
+            action={
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button asChild variant="outline" size="sm">
+                      <Link
+                        href={weekHref(addDays(start, -7))}
+                        aria-label="Previous week"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Previous week</TooltipContent>
+                </Tooltip>
+                {isThisWeek ? null : (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={weekHref(now)}>This week</Link>
+                  </Button>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={weekHref(addDays(start, 7))} aria-label="Next week">
+                        <ChevronRight className="size-4" />
+                      </Link>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Next week</TooltipContent>
+                </Tooltip>
+                <Button asChild variant="soft" size="sm">
+                  <a href={exportHref}>
+                    <ACTIONS.download className="size-4" />
+                    Export CSV
+                  </a>
                 </Button>
-              )}
-              <Button asChild variant="outline" size="sm">
-                <Link href={weekHref(addDays(start, 7))} aria-label="Next week">
-                  <ChevronRight className="size-4" />
-                </Link>
-              </Button>
-              <Button asChild variant="soft" size="sm">
-                <a href={exportHref}>
-                  <Download className="size-4" />
-                  Export CSV
-                </a>
-              </Button>
-            </div>
-          </CardHeader>
+              </>
+            }
+          />
 
           {teamRows.length === 0 ? (
             <EmptyState
-              icon={Timer}
+              icon={ICONS.timeClock}
               title="Nobody clocked in this week"
               hint="Shifts appear here as soon as somebody presses Clock in."
             />
@@ -288,7 +311,7 @@ export default async function TimeClockPage({
                             {entry.clockOutAt ? (
                               format(entry.clockOutAt, "h:mm a")
                             ) : (
-                              <span className="font-semibold text-accent">Running</span>
+                              <StatusPill tone="active" label="Running" size="sm" />
                             )}
                           </Td>
                           <Td className="text-right tabular-nums">
@@ -296,7 +319,10 @@ export default async function TimeClockPage({
                               secondsBetween(entry.clockInAt, entry.clockOutAt ?? now),
                             )}
                           </Td>
-                          <Td className="max-w-[16rem] truncate text-muted-foreground">
+                          <Td
+                            className="max-w-[16rem] truncate text-muted-foreground"
+                            title={entry.note ?? undefined}
+                          >
                             {entry.note ?? "—"}
                           </Td>
                           <Td className="w-24">

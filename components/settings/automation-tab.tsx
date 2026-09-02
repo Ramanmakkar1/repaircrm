@@ -9,21 +9,17 @@ import {
   CircleAlert,
   Clock,
   Globe,
+  Loader2,
   Play,
-  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { runJobsNowAction } from "@/app/(app)/settings/automation-actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { JOB_SOURCE_LABEL, type JobsSummary } from "@/lib/jobs/types";
 
@@ -57,6 +53,8 @@ export type AutomationConfig = {
   /** Only an owner may press the button. */
   canRun: boolean;
 };
+
+const RunIcon = Play;
 
 export function AutomationTab({ config }: { config: AutomationConfig }) {
   const router = useRouter();
@@ -100,24 +98,24 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
   return (
     <div className="flex flex-col gap-5">
       <Card>
-        <CardHeader className="flex-row items-center gap-3.5">
-          <IconChip
-            icon={RefreshCw}
-            className={
-              timerOn
-                ? "bg-status-resolved-bg text-status-resolved-fg"
-                : "bg-surface-hover text-muted-foreground"
-            }
-          />
-          <div className="flex flex-col gap-1">
-            <CardTitle>Automatic runs</CardTitle>
-            <CardDescription>
-              {timerOn
-                ? `Follow-ups and recurring invoices run themselves every ${config.intervalMin} minutes while the app is running.`
-                : "The built-in timer is switched off. Nothing runs on its own unless an outside scheduler calls the web address below."}
-            </CardDescription>
-          </div>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.automation}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Automatic runs
+              <StatusPill
+                size="sm"
+                tone={timerOn ? "success" : "neutral"}
+                label={timerOn ? `Every ${config.intervalMin} min` : "Timer off"}
+              />
+            </span>
+          }
+          description={
+            timerOn
+              ? `Follow-ups and recurring invoices run themselves every ${config.intervalMin} minutes while the app is running.`
+              : "The built-in timer is switched off. Nothing runs on its own unless an outside scheduler calls the web address below."
+          }
+        />
 
         <CardContent className="flex flex-col gap-4">
           <VarRow name="JOBS_INTERVAL_MIN" value={String(config.intervalMin)} on={timerOn} />
@@ -139,24 +137,24 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center gap-3.5">
-          <IconChip
-            icon={Globe}
-            className={
-              config.cronSecretSet
-                ? "bg-status-resolved-bg text-status-resolved-fg"
-                : "bg-surface-hover text-muted-foreground"
-            }
-          />
-          <div className="flex flex-col gap-1">
-            <CardTitle>Outside scheduler</CardTitle>
-            <CardDescription>
-              {config.cronSecretSet
-                ? "A cron service or uptime checker can trigger a run by calling this address."
-                : "Turned off. Anyone could start a run if this address had no password, so it stays closed until one is set."}
-            </CardDescription>
-          </div>
-        </CardHeader>
+        <CardHeader
+          icon={Globe}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Outside scheduler
+              <StatusPill
+                size="sm"
+                tone={config.cronSecretSet ? "success" : "neutral"}
+                label={config.cronSecretSet ? "Open" : "Closed"}
+              />
+            </span>
+          }
+          description={
+            config.cronSecretSet
+              ? "A cron service or uptime checker can trigger a run by calling this address."
+              : "Turned off. Anyone could start a run if this address had no password, so it stays closed until one is set."
+          }
+        />
 
         <CardContent className="flex flex-col gap-4">
           <code className="w-fit max-w-full overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
@@ -192,44 +190,49 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
       </Card>
 
       <Card>
-        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <IconChip icon={Clock} className="bg-surface-hover text-muted-foreground" />
-            <div className="flex flex-col gap-1">
-              <CardTitle>Last run</CardTitle>
-              <CardDescription>
-                <LastRunLabel iso={lastRunAt} source={summary?.source} />
-              </CardDescription>
-            </div>
-          </div>
-
-          {config.canRun ? (
-            <Button onClick={runNow} disabled={running}>
-              <Play /> {running ? "Running…" : "Run all jobs now"}
-            </Button>
-          ) : null}
-        </CardHeader>
+        <CardHeader
+          icon={Clock}
+          title="Last run"
+          description={<LastRunLabel iso={lastRunAt} source={summary?.source} />}
+          action={
+            config.canRun ? (
+              <Button onClick={runNow} disabled={running}>
+                {running ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <RunIcon aria-hidden />
+                )}
+                {running ? "Running…" : "Run all jobs now"}
+              </Button>
+            ) : null
+          }
+        />
 
         <CardContent className="flex flex-col gap-4">
-          {summary ? <SummaryBlock summary={summary} /> : (
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-              Nothing has run yet on this server.
-              {config.canRun ? " Use the button above to try it." : ""}
-            </p>
+          {summary ? (
+            <SummaryBlock summary={summary} />
+          ) : (
+            <EmptyState
+              icon={ICONS.automation}
+              title="Nothing has run yet"
+              hint={
+                config.canRun
+                  ? "Recurring invoices, review requests and campaign sends all happen here. Press Run all jobs now to try it."
+                  : "Recurring invoices, review requests and campaign sends all happen here. An owner can start a run by hand."
+              }
+              className="rounded-md border border-dashed border-border py-10"
+            />
           )}
         </CardContent>
       </Card>
 
       {config.recentRuns.length > 1 ? (
         <Card>
-          <CardHeader>
-            <CardTitle>Recent runs</CardTitle>
-            <CardDescription>
-              The last {config.recentRuns.length} runs since the app started.
-              This list is not saved — a restart clears it, while the “last run”
-              above is kept.
-            </CardDescription>
-          </CardHeader>
+          <CardHeader
+            icon={ACTIONS.retry}
+            title="Recent runs"
+            description={`The last ${config.recentRuns.length} runs since the app started. This list is not saved — a restart clears it, while the “last run” above is kept.`}
+          />
           <CardContent className="flex flex-col gap-2">
             {config.recentRuns.map((run, index) => (
               <div

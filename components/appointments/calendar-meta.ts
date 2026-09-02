@@ -14,6 +14,8 @@
 
 import { addDays, format, startOfDay, startOfWeek } from "date-fns";
 
+import type { StatusTone } from "@/components/ui/badge";
+
 // ---------------------------------------------------------------------------
 // The visible window
 // ---------------------------------------------------------------------------
@@ -42,34 +44,36 @@ export const HOUR_SLOTS: number[] = Array.from(
 export const APPOINTMENT_STATUSES = ["SCHEDULED", "DONE", "CANCELED"] as const;
 export type AppointmentStatusKey = (typeof APPOINTMENT_STATUSES)[number];
 
+/**
+ * Where each booking state sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`), plus the one thing a tone cannot express: how the
+ * BLOCK on the week grid is painted. A pill is 20px of chrome next to a word;
+ * a block is a coloured rectangle the eye reads from across the room, so it
+ * carries its own border/wash/hover rather than borrowing the chip classes.
+ */
 export const APPOINTMENT_STATUS_META: Record<
   AppointmentStatusKey,
-  { label: string; block: string; bg: string; fg: string; dot: string }
+  { label: string; tone: StatusTone; struck?: boolean; block: string }
 > = {
   SCHEDULED: {
     label: "Scheduled",
+    tone: "info",
     // The only loud blocks on the grid — the ones that still have to happen.
     block:
       "border-accent/40 bg-accent-soft text-accent-soft-foreground hover:bg-accent-soft/80",
-    bg: "bg-accent-soft",
-    fg: "text-accent-soft-foreground",
-    dot: "bg-accent",
   },
   DONE: {
     label: "Done",
+    tone: "success",
     block:
       "border-status-resolved/30 bg-status-resolved-bg/70 text-status-resolved-fg",
-    bg: "bg-status-resolved-bg",
-    fg: "text-status-resolved-fg",
-    dot: "bg-status-resolved",
   },
   CANCELED: {
     label: "Canceled",
+    tone: "neutral",
+    struck: true,
     block:
       "border-border bg-surface-hover text-faint-foreground line-through decoration-1",
-    bg: "bg-surface-hover",
-    fg: "text-muted-foreground",
-    dot: "bg-faint-foreground",
   },
 };
 

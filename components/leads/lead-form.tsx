@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
 import { AlertCircle } from "lucide-react";
 
 import { createLeadAction } from "@/app/(app)/leads/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -182,7 +183,10 @@ export function LeadForm() {
         <Button variant="ghost" asChild>
           <Link href="/leads">Cancel</Link>
         </Button>
-        <SubmitButton />
+        <SubmitButton pendingLabel="Saving…">
+          <ACTIONS.add />
+          Log lead
+        </SubmitButton>
       </div>
     </form>
   );
@@ -223,11 +227,3 @@ export function Field({
   );
 }
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Saving…" : "Log lead"}
-    </Button>
-  );
-}

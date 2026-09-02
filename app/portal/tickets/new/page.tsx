@@ -4,6 +4,8 @@ import { problemTypes } from "@/components/tickets/ticket-meta";
 import { NewRequestForm } from "@/components/portal/new-request-form";
 import { BackLink, PortalShell } from "../../_components/shell";
 
+export const metadata = { title: "Start a repair request · RepairFlow" };
+
 /**
  * "Something else has broken" — the customer's own way in.
  *

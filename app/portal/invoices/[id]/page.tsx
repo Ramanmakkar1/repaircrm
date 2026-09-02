@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, CheckCircle2, Clock, Printer } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
+import { ACTIONS } from "@/components/ui/icons";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { taxLabel } from "@/lib/tax";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
-import { requirePortalCustomer } from "@/lib/portal-session";
+import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import { warrantyLabel } from "@/lib/warranty";
 import { PayOnlineButton } from "../../_components/pay-online";
 import {
@@ -17,6 +18,8 @@ import {
   PortalCardHeader,
   PortalShell,
 } from "../../_components/shell";
+
+const PrintIcon = ACTIONS.print;
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Cash",
@@ -31,6 +34,27 @@ const PAYABLE = new Set(["SENT", "PARTIAL"]);
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+/** Scoped through the cookie, like the render — see the ticket page for why. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await getPortalSession();
+  if (!session) return { title: "Invoice · RepairFlow" };
+
+  const invoice = await db.invoice.findFirst({
+    where: { id, customerId: session.customerId, shopId: session.shopId },
+    select: { number: true },
+  });
+  return {
+    title: invoice
+      ? `Invoice #${invoice.number} · RepairFlow`
+      : "Invoice · RepairFlow",
+  };
 }
 
 export default async function PortalInvoicePage({
@@ -127,9 +151,9 @@ export default async function PortalInvoicePage({
         */}
         <Link
           href={`/portal/invoices/${invoice.id}/print`}
-          className="inline-flex h-11 items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-hover"
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <Printer className="size-4" />
+          <PrintIcon className="size-4" aria-hidden />
           Print or save as PDF
         </Link>
       </div>

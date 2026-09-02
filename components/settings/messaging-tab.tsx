@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, CircleAlert, Mail, MessageSquare } from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ICONS } from "@/components/ui/icons";
+import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { InboundCard } from "./inbound-card";
 import type { MessagingConfig } from "./types";
@@ -29,7 +30,7 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
   return (
     <div className="flex flex-col gap-5">
       <DriverCard
-        icon={Mail}
+        icon={ICONS.email}
         title="Email"
         driver={config.emailDriver}
         live={config.emailDriver !== "log"}
@@ -40,7 +41,7 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
       />
 
       <DriverCard
-        icon={MessageSquare}
+        icon={ICONS.message}
         title="SMS"
         driver={config.smsDriver}
         live={config.smsDriver !== "log"}
@@ -53,12 +54,11 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
       <InboundCard config={config.inbound} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Customer links</CardTitle>
-          <CardDescription>
-            The origin every portal link in an outbound message is built from.
-          </CardDescription>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.customer}
+          title="Customer links"
+          description="The origin every portal link in an outbound message is built from."
+        />
         <CardContent className="flex flex-col gap-2">
           <code className="w-fit rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
             {config.appUrl}
@@ -95,25 +95,27 @@ function DriverCard({
   const missing = vars.filter((v) => !v.set);
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center gap-3.5">
-        <IconChip
-          icon={icon}
-          className={
-            live
-              ? "bg-status-resolved-bg text-status-resolved-fg"
-              : "bg-surface-hover text-muted-foreground"
-          }
-        />
-        <div className="flex flex-col gap-1">
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>
-            {live
-              ? `Sending through ${liveName}.`
-              : "Log mode — messages are printed to the server console and filed in the outbox, but nothing leaves the building."}
-          </CardDescription>
-        </div>
-      </CardHeader>
+    // Log mode earns the amber stripe: nothing this shop "sends" is leaving the
+    // building, and that is the single most surprising thing on the screen.
+    <Card tone={live ? undefined : "active"}>
+      <CardHeader
+        icon={icon}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {title}
+            <StatusPill
+              size="sm"
+              tone={live ? "success" : "active"}
+              label={live ? `Live · ${liveName}` : "Log mode"}
+            />
+          </span>
+        }
+        description={
+          live
+            ? `Sending through ${liveName}.`
+            : "Log mode — messages are printed to the server console and filed in the outbox, but nothing leaves the building."
+        }
+      />
 
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">

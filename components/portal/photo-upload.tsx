@@ -2,10 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ACTIONS } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+
+const UploadIcon = ACTIONS.upload;
 import {
   formatBytes,
   MAX_UPLOAD_BYTES,
@@ -88,7 +91,7 @@ export function PhotoUpload({ ticketId }: { ticketId: string }) {
         disabled={busy}
         onClick={() => inputRef.current?.click()}
       >
-        <ImagePlus />
+        {busy ? <Loader2 className="animate-spin" /> : <UploadIcon aria-hidden />}
         {busy ? "Sending…" : "Add a photo"}
       </Button>
       <span className="text-[13px] text-muted-foreground">

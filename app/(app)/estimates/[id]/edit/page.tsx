@@ -2,11 +2,30 @@ import { notFound, redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { toDateInputValue } from "@/components/billing/format";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { updateEstimateAction } from "../../actions";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const estimate = await db.estimate.findFirst({
+    where: { id, shopId },
+    select: { number: true },
+  });
+  return {
+    title: estimate
+      ? `Edit estimate #${estimate.number} · RepairFlow`
+      : "Edit estimate · RepairFlow",
+  };
+}
 
 export default async function EditEstimatePage({
   params,
@@ -33,6 +52,7 @@ export default async function EditEstimatePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.estimate}
         title={`Edit estimate #${estimate.number}`}
         description="Changes replace the current line items."
       />

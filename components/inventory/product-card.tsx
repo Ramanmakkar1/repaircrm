@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { Barcode, EyeOff, Tag } from "lucide-react";
+import { Tag } from "lucide-react";
 
+import { StatusPill } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { ICONS } from "@/components/ui/icons";
 import { formatCents } from "@/lib/money";
-import { marginPct } from "./format";
+import { marginPct, STOCK_META, stockStatus } from "./format";
 import { StockBadge } from "./stock-badge";
 
 export type ProductCardData = {
@@ -28,7 +31,8 @@ export type ProductCardData = {
  * actually needs. Identifiers stay small and monospaced so a scanned SKU is
  * easy to match by eye; margin is owner-only and quietest of all.
  *
- * A plain server-rendered <Link> wraps the card: no client JS, and
+ * The shared `Card` owns the surface and the hover lift; a plain
+ * server-rendered `<Link>` fills it, so there is no client JS and
  * middle-click / open-in-new-tab / copy-link all behave.
  */
 export function ProductCard({
@@ -42,71 +46,83 @@ export function ProductCard({
   className?: string;
 }) {
   const margin = marginPct(product.priceCents, product.costCents);
+  const status = stockStatus(product);
+
+  // Only the two states a buyer has to act on wear a stripe. A fully stocked
+  // product is not news, and a retired one already says "Inactive" in words.
+  const tone =
+    product.active && (status === "low" || status === "out")
+      ? STOCK_META[status].tone
+      : undefined;
 
   return (
-    <Link
-      href={`/inventory/${product.id}`}
+    <Card
+      interactive
+      tone={tone}
       className={cn(
-        "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "flex flex-col",
         !product.active && "border-dashed bg-surface-hover/40",
         className,
       )}
     >
-      <div className="flex flex-col gap-2">
-        <span
-          className={cn(
-            "line-clamp-2 text-[17px] font-bold leading-snug text-foreground",
-            !product.active && "text-muted-foreground",
-          )}
-        >
-          {product.name}
-        </span>
+      <Link
+        href={`/inventory/${product.id}`}
+        className="flex h-full flex-col gap-4 rounded-lg p-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <div className="flex flex-col gap-2">
+          <span
+            title={product.name}
+            className={cn(
+              "line-clamp-2 text-[17px] font-bold leading-snug text-foreground",
+              !product.active && "text-muted-foreground",
+            )}
+          >
+            {product.name}
+          </span>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {product.category ? (
-            <Chip icon={Tag}>{product.category}</Chip>
-          ) : (
-            <Chip className="text-faint-foreground">Uncategorised</Chip>
-          )}
-          {!product.active ? (
-            <Chip
-              icon={EyeOff}
-              className="bg-surface-hover font-semibold text-faint-foreground"
+          <div className="flex flex-wrap items-center gap-2">
+            {product.category ? (
+              <Chip icon={Tag}>{product.category}</Chip>
+            ) : (
+              <Chip className="text-faint-foreground">Uncategorised</Chip>
+            )}
+            {!product.active ? (
+              <StatusPill tone="neutral" label="Inactive" size="sm" />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-0.5 text-[12.5px] font-medium text-faint-foreground">
+          <span className="flex items-center gap-1.5">
+            <ICONS.barcode className="size-3.5 shrink-0" />
+            <span
+              className="truncate font-mono"
+              title={`${product.sku ?? "No SKU"}${product.upc ? ` · ${product.upc}` : ""}`}
             >
-              Inactive
-            </Chip>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-0.5 text-[12.5px] font-medium text-faint-foreground">
-        <span className="flex items-center gap-1.5">
-          <Barcode className="size-3.5 shrink-0" />
-          <span className="truncate font-mono">
-            {product.sku ?? "No SKU"}
-            {product.upc ? ` · ${product.upc}` : ""}
-          </span>
-        </span>
-      </div>
-
-      <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-4">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-            {formatCents(product.priceCents)}
-          </span>
-          {showCost ? (
-            <span className="truncate text-[12.5px] font-medium text-muted-foreground tabular-nums">
-              {product.costCents == null
-                ? "No cost on file"
-                : `Cost ${formatCents(product.costCents)}${
-                    margin == null ? "" : ` · ${margin}% margin`
-                  }`}
+              {product.sku ?? "No SKU"}
+              {product.upc ? ` · ${product.upc}` : ""}
             </span>
-          ) : null}
+          </span>
         </div>
-        <StockBadge product={product} className="mb-0.5 shrink-0" />
-      </div>
-    </Link>
+
+        <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-4">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+              {formatCents(product.priceCents)}
+            </span>
+            {showCost ? (
+              <span className="truncate text-[12.5px] font-medium text-muted-foreground tabular-nums">
+                {product.costCents == null
+                  ? "No cost on file"
+                  : `Cost ${formatCents(product.costCents)}${
+                      margin == null ? "" : ` · ${margin}% margin`
+                    }`}
+              </span>
+            ) : null}
+          </div>
+          <StockBadge product={product} className="mb-0.5 shrink-0" />
+        </div>
+      </Link>
+    </Card>
   );
 }

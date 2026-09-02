@@ -5,13 +5,16 @@ import { useActionState } from "react";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 import { updateShopAction } from "@/app/(app)/settings/actions";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { TaxRateOption } from "@/lib/tax";
 import { TaxRatesCard } from "./tax-rates-card";
 import { IDLE_SETTINGS_STATE, type ShopSettingsValues } from "./types";
+
+const SaveIcon = ACTIONS.save;
 
 /** 825 -> "8.25" — what a human types into a percent box. */
 function bpsToPercentInput(bps: number): string {
@@ -64,9 +67,7 @@ export function ShopTab({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Shop identity</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.vendor} title="Shop identity" />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field label="Shop name" name="name" defaultValue={shop.name} required />
           <Field
@@ -79,9 +80,7 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Address &amp; contact</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.location} title="Address & contact" />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field
             label="Address line 1"
@@ -105,9 +104,7 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Billing defaults</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.tax} title="Billing defaults" />
         <CardContent className="flex flex-col gap-2">
           <Label htmlFor="taxRate">Sales tax rate</Label>
           <div className="flex items-center gap-2.5">
@@ -130,9 +127,7 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Labour</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.timeClock} title="Labour" />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="labourRate">Hourly labour rate</Label>
@@ -179,6 +174,7 @@ export function ShopTab({
 
       <div className="flex justify-end">
         <SubmitButton size="lg" pendingLabel="Saving…">
+          <SaveIcon aria-hidden />
           Save shop details
         </SubmitButton>
       </div>

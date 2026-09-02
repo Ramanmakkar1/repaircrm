@@ -1,5 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 
+import { Card } from "@/components/ui/card";
+
 import {
   BarcodeIcon,
   BoardIcon,
@@ -80,10 +82,7 @@ export function Features() {
 
         <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
-            <div
-              key={feature.title}
-              className="rf-lift rounded-lg border border-border bg-surface p-6 shadow-sm hover:shadow-md"
-            >
+            <Card key={feature.title} className="rf-lift p-6 hover:shadow-md">
               <span className="flex size-10 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
                 <feature.icon className="size-[22px]" />
               </span>
@@ -93,7 +92,7 @@ export function Features() {
               <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
                 {feature.body}
               </p>
-            </div>
+            </Card>
           ))}
         </div>
       </div>

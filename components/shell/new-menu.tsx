@@ -1,16 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Plus,
-  Wrench,
-  UserPlus,
-  Receipt,
-  FileText,
-  CreditCard,
-  type LucideIcon,
-} from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ICONS, type LucideIcon } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,10 +22,10 @@ interface NewItem {
 
 /** The four documents a shop creates from scratch, in workflow order. */
 const NEW_ITEMS: NewItem[] = [
-  { label: "New ticket", hint: "Check a device in", href: "/tickets/new", icon: Wrench },
-  { label: "New customer", hint: "Add someone to the book", href: "/customers/new", icon: UserPlus },
-  { label: "New estimate", hint: "Quote a job first", href: "/estimates/new", icon: FileText },
-  { label: "New invoice", hint: "Bill for work done", href: "/invoices/new", icon: Receipt },
+  { label: "New ticket", hint: "Check a device in", href: "/tickets/new", icon: ICONS.ticket },
+  { label: "New customer", hint: "Add someone to the book", href: "/customers/new", icon: ICONS.customer },
+  { label: "New estimate", hint: "Quote a job first", href: "/estimates/new", icon: ICONS.estimate },
+  { label: "New invoice", hint: "Bill for work done", href: "/invoices/new", icon: ICONS.invoice },
 ];
 
 /** Not a "new" record but the other thing counter staff reach for constantly. */
@@ -40,7 +33,7 @@ const POS_ITEM: NewItem = {
   label: "Take payment",
   hint: "Open the register",
   href: "/pos",
-  icon: CreditCard,
+  icon: ICONS.pos,
 };
 
 export function NewMenu() {

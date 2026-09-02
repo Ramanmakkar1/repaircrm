@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
+import { TONE_CLASS } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { LEAD_STATUSES, LEAD_STATUS_META } from "./lead-meta";
 
@@ -64,13 +65,21 @@ export function LeadFilters({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               active
                 ? pill.meta
-                  ? cn("border-transparent shadow-sm", pill.meta.bg, pill.meta.fg)
+                  ? cn(
+                      "border-transparent shadow-sm",
+                      TONE_CLASS[pill.meta.tone].chip,
+                    )
                   : "border-transparent bg-accent text-accent-foreground shadow-sm"
                 : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
             )}
           >
             {pill.meta ? (
-              <span className={cn("size-2 shrink-0 rounded-full", pill.meta.dot)} />
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  TONE_CLASS[pill.meta.tone].dot,
+                )}
+              />
             ) : null}
             {pill.label}
             <span

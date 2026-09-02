@@ -3,11 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Pencil, Trash2, TriangleAlert } from "lucide-react";
+// TriangleAlert is a state, not a verb; the verbs come from ACTIONS.
+import { TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { deleteCustomerAction } from "@/app/(app)/customers/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -65,13 +67,13 @@ export function CustomerActionsMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="icon" aria-label="More actions">
-            <MoreHorizontal className="size-4" />
+            <ACTIONS.more className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
             <Link href={`/customers/${customerId}/edit`}>
-              <Pencil className="size-4 text-muted-foreground" />
+              <ACTIONS.edit className="size-4 text-muted-foreground" />
               Edit customer
             </Link>
           </DropdownMenuItem>
@@ -85,7 +87,7 @@ export function CustomerActionsMenu({
                   setConfirming(true);
                 }}
               >
-                <Trash2 className="size-4" />
+                <ACTIONS.delete className="size-4" />
                 Delete customer
               </DropdownMenuItem>
             </>
@@ -122,7 +124,8 @@ export function CustomerActionsMenu({
             </Button>
             {blockedReason ? null : (
               <Button variant="destructive" disabled={busy} onClick={remove}>
-                {busy ? "Deleting…" : "Delete customer"}
+                <ACTIONS.delete />
+              {busy ? "Deleting…" : "Delete customer"}
               </Button>
             )}
           </DialogFooter>

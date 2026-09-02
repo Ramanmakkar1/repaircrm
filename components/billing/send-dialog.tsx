@@ -2,19 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  ChevronDown,
-  CreditCard,
-  Link2,
-  Loader2,
-  Mail,
-  MessageSquare,
-  Send,
-} from "lucide-react";
+import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -196,7 +188,7 @@ export function SendDocumentDialog({
               openWith({ email: !emailBlocked, sms: Boolean(emailBlocked) })
             }
           >
-            <Send />
+            <ACTIONS.send />
             {doc.alreadySent ? "Send again" : "Send"}
           </Button>
 
@@ -217,7 +209,7 @@ export function SendDocumentDialog({
                 title={emailBlocked ?? undefined}
                 onSelect={() => openWith({ email: true, sms: false })}
               >
-                <Mail className="size-4 text-muted-foreground" />
+                <ICONS.email className="size-4 text-muted-foreground" />
                 Send by email
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -225,7 +217,7 @@ export function SendDocumentDialog({
                 title={smsBlocked ?? undefined}
                 onSelect={() => openWith({ email: false, sms: true })}
               >
-                <MessageSquare className="size-4 text-muted-foreground" />
+                <ICONS.message className="size-4 text-muted-foreground" />
                 Send by SMS
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -233,7 +225,7 @@ export function SendDocumentDialog({
                 title={emailBlocked ?? smsBlocked ?? undefined}
                 onSelect={() => openWith({ email: true, sms: true })}
               >
-                <Send className="size-4 text-muted-foreground" />
+                <ACTIONS.send className="size-4 text-muted-foreground" />
                 Send both
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -278,7 +270,7 @@ export function SendDocumentDialog({
             {/* ------------------------------------------------- compose */}
             <div className="flex flex-col gap-4">
               <ChannelRow
-                icon={Mail}
+                icon={ICONS.email}
                 label="Email"
                 address={doc.email}
                 checked={channels.email}
@@ -305,7 +297,7 @@ export function SendDocumentDialog({
               ) : null}
 
               <ChannelRow
-                icon={MessageSquare}
+                icon={ICONS.message}
                 label="SMS"
                 address={doc.mobile}
                 checked={channels.sms}
@@ -381,7 +373,7 @@ export function SendDocumentDialog({
 
               {preview ? (
                 <p className="flex items-start gap-1.5 break-all text-[12px] leading-snug text-muted-foreground">
-                  <Link2 className="mt-0.5 size-3.5 shrink-0" />
+                  <ACTIONS.copyLink className="mt-0.5 size-3.5 shrink-0" />
                   <span>
                     {preview.linkUrl}
                     <span className="block text-faint-foreground">
@@ -393,7 +385,7 @@ export function SendDocumentDialog({
 
               {preview?.payOnline ? (
                 <p className="flex items-center gap-1.5 rounded-md bg-chip-accent-bg px-3 py-2 text-[12.5px] font-medium text-chip-accent-fg">
-                  <CreditCard className="size-3.5 shrink-0" />
+                  <ACTIONS.pay className="size-3.5 shrink-0" />
                   Includes a card payment button for the outstanding balance.
                 </p>
               ) : null}
@@ -419,7 +411,7 @@ export function SendDocumentDialog({
                   : undefined
               }
             >
-              {sending ? <Loader2 className="animate-spin" /> : <Send />}
+              {sending ? <Loader2 className="animate-spin" /> : <ACTIONS.send />}
               {sending
                 ? "Sending…"
                 : selectedCount === 2

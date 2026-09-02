@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, RotateCw } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -111,7 +112,7 @@ export function SummarizeTicketButton({ ticketId }: { ticketId: string }) {
         <DialogFooter>
           {state.status === "error" ? (
             <Button type="button" variant="outline" size="sm" onClick={() => void run()}>
-              <RotateCw className="size-4" />
+              <ACTIONS.retry className="size-4" />
               Try again
             </Button>
           ) : null}
@@ -122,7 +123,7 @@ export function SummarizeTicketButton({ ticketId }: { ticketId: string }) {
             disabled={state.status !== "done"}
             onClick={() => void copy()}
           >
-            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            {copied ? <Check className="size-4" /> : <ACTIONS.copy className="size-4" />}
             {copied ? "Copied" : "Copy"}
           </Button>
         </DialogFooter>

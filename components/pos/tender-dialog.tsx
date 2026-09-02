@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CreditCard, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
@@ -195,7 +196,7 @@ function TenderForm({
           className="h-14 text-[15px]"
           onClick={() => setUseReader(true)}
         >
-          <CreditCard /> Take it on the card reader
+          <ACTIONS.pay /> Take it on the card reader
         </Button>
       ) : null}
 
@@ -274,17 +275,26 @@ function TenderForm({
         </div>
       )}
 
-      <DialogFooter>
+      {/* Stacked on a phone, with the confirm on top under the thumb: at
+          390px two full-size buttons side by side put "Take $1,284.50" one
+          careless tap away from "Cancel". */}
+      <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
         <Button
           type="button"
           variant="outline"
           size="lg"
+          className="w-full sm:w-auto"
           disabled={pending}
           onClick={onClose}
         >
           Cancel
         </Button>
-        <Button type="submit" size="lg" disabled={blocked}>
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full sm:w-auto"
+          disabled={blocked}
+        >
           {pending ? (
             <>
               <Loader2 className="animate-spin" />
@@ -374,11 +384,12 @@ function ReaderTender({
         startLabel={`Charge ${formatCents(totalCents)}`}
       />
 
-      <DialogFooter>
+      <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
         <Button
           type="button"
           variant="outline"
           size="lg"
+          className="w-full sm:w-auto"
           disabled={reader.busy}
           onClick={onKeyIn}
         >
@@ -388,6 +399,7 @@ function ReaderTender({
           type="button"
           variant="outline"
           size="lg"
+          className="w-full sm:w-auto"
           disabled={reader.busy}
           onClick={onClose}
         >

@@ -2,11 +2,30 @@ import { notFound, redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { toDateInputValue } from "@/components/billing/format";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { updateInvoiceAction } from "../../actions";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const invoice = await db.invoice.findFirst({
+    where: { id, shopId },
+    select: { number: true },
+  });
+  return {
+    title: invoice
+      ? `Edit invoice #${invoice.number} · RepairFlow`
+      : "Edit invoice · RepairFlow",
+  };
+}
 
 export default async function EditInvoicePage({
   params,
@@ -34,6 +53,7 @@ export default async function EditInvoicePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.invoice}
         title={`Edit invoice #${invoice.number}`}
         description="Changes replace the current line items."
       />

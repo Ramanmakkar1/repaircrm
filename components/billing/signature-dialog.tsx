@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useActionState } from "react";
 import SignatureCanvas from "react-signature-canvas";
-import { AlertCircle, PenLine } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { ICONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -80,7 +81,7 @@ export function SignatureDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant={triggerVariant}>
-          <PenLine /> {triggerLabel}
+          <ICONS.signature /> {triggerLabel}
         </Button>
       </DialogTrigger>
 

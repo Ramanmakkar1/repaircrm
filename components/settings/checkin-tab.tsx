@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, ExternalLink, Star } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateCheckinAction, updateReviewsAction } from "@/app/(app)/settings/actions";
@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -35,6 +35,12 @@ import {
  * "can people book their own device in?" and "do we chase reviews?" — and each
  * saves on its own. Neither is destructive, so neither hides behind a confirm.
  */
+
+const CheckinIcon = ICONS.checkin;
+const ReviewIcon = ICONS.review;
+const SaveIcon = ACTIONS.save;
+const CopyIcon = ACTIONS.copy;
+const OpenIcon = ACTIONS.openExternal;
 
 export type CheckinTabConfig = {
   checkin: CheckinSettings;
@@ -86,19 +92,28 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Public check-in</CardTitle>
-        <CardDescription>
-          A page customers can fill in on their own phone, or on a tablet by the
-          door. Every submission creates a customer, a device and a ticket.
-        </CardDescription>
-      </CardHeader>
+      <CardHeader
+        icon={CheckinIcon}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Public check-in
+            {/* Follows the switch, not the server, so the header and the row
+                below never disagree while an edit is unsaved. */}
+            <StatusPill
+              size="sm"
+              tone={enabled ? "success" : "neutral"}
+              label={enabled ? "Live" : "Off"}
+            />
+          </span>
+        }
+        description="A page customers can fill in on their own phone, or on a tablet by the door. Every submission creates a customer, a device and a ticket."
+      />
 
       <CardContent className="flex flex-col gap-6">
         <label className="flex items-start justify-between gap-6">
           <span className="flex flex-col gap-1">
             <span className="text-[14.5px] font-semibold text-foreground">
-              Check-in is {enabled ? "live" : "off"}
+              Let customers book their own device in
             </span>
             <span className="text-[13.5px] leading-relaxed text-muted-foreground">
               While this is off the link below returns a 404 — the same answer a
@@ -181,6 +196,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
 
       <CardFooter className="justify-end">
         <Button onClick={save} disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
           {busy ? "Saving…" : "Save check-in"}
         </Button>
       </CardFooter>
@@ -240,17 +256,29 @@ function LinkRow({
       <span className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
         {label}
       </span>
-      <div className="flex items-center gap-2">
-        <Input readOnly value={value} className="h-9 font-mono text-[12.5px]" />
+      {/* Wraps on a phone: a 390px row cannot hold a URL and two buttons, and
+          "http://localhos" is not a link anybody can check. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          readOnly
+          value={value}
+          className="h-9 basis-full font-mono text-[12.5px] sm:min-w-0 sm:flex-1 sm:basis-auto"
+        />
         <Button type="button" variant="outline" size="sm" onClick={copy}>
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          <span className="sr-only">Copy {label}</span>
+          {copied ? (
+            <Check className="size-4" aria-hidden />
+          ) : (
+            <CopyIcon className="size-4" aria-hidden />
+          )}
+          {copied ? "Copied" : "Copy"}
+          <span className="sr-only">{label}</span>
         </Button>
         {openable ? (
           <Button asChild variant="ghost" size="sm">
             <a href={value} target="_blank" rel="noreferrer">
-              <ExternalLink className="size-4" />
-              <span className="sr-only">Open {label}</span>
+              <OpenIcon className="size-4" aria-hidden />
+              Open
+              <span className="sr-only"> {label}</span>
             </a>
           </Button>
         ) : null}
@@ -297,23 +325,26 @@ function ReviewsCard({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Star className="size-4 text-muted-foreground" />
-          Reviews
-        </CardTitle>
-        <CardDescription>
-          Asks for a review once a customer has collected their device and had a
-          little time to use it. Sent automatically by the scheduler — see
-          Settings → Automation.
-        </CardDescription>
-      </CardHeader>
+      <CardHeader
+        icon={ReviewIcon}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Reviews
+            <StatusPill
+              size="sm"
+              tone={enabled ? "success" : "neutral"}
+              label={enabled ? "On" : "Off"}
+            />
+          </span>
+        }
+        description="Asks for a review once a customer has collected their device and had a little time to use it. Sent automatically by the scheduler — see Settings → Automation."
+      />
 
       <CardContent className="flex flex-col gap-6">
         <label className="flex items-start justify-between gap-6">
           <span className="flex flex-col gap-1">
             <span className="text-[14.5px] font-semibold text-foreground">
-              Review requests are {enabled ? "on" : "off"}
+              Ask for a review after pickup
             </span>
             <span className="text-[13.5px] leading-relaxed text-muted-foreground">
               {sentThisMonth === 0
@@ -377,6 +408,7 @@ function ReviewsCard({
 
       <CardFooter className="justify-end">
         <Button onClick={save} disabled={busy}>
+          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
           {busy ? "Saving…" : "Save reviews"}
         </Button>
       </CardFooter>

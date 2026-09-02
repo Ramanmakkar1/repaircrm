@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import type { ReportPeriod } from "./period";
 
@@ -43,6 +44,7 @@ export function DateRangeForm({
         variant={active ? "default" : "outline"}
         className="h-10 rounded-full px-4"
       >
+        <ACTIONS.filter />
         Apply range
       </Button>
     </form>

@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import {
   ArrowUpRight,
-  ChevronLeft,
   Clock,
   Mail,
   MessageSquareText,
@@ -25,14 +24,29 @@ import {
 } from "@/components/leads/lead-meta";
 import type { LeadMatch } from "@/components/leads/lead-state";
 import { problemTypes } from "@/components/tickets/ticket-meta";
+import { StatusPill } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
-import { cn } from "@/components/ui/cn";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Lead · RepairFlow" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+
+  const lead = await db.lead.findFirst({
+    where: { id, shopId },
+    select: { name: true },
+  });
+
+  return { title: lead ? `${lead.name} · RepairFlow` : "Lead · RepairFlow" };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -81,39 +95,31 @@ export default async function LeadDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Link
-          href="/leads"
-          className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          Leads
-        </Link>
-
-        <PageHeader
-          title={lead.name}
-          description={`${lead.source ?? "Unknown source"} · ${leadAge(lead.createdAt)}`}
-          actions={
-            <LeadActions
-              lead={{
-                id: lead.id,
-                status: lead.status,
-                values: {
-                  name: lead.name,
-                  email: lead.email ?? "",
-                  phone: lead.phone ?? "",
-                  source: lead.source ?? "Other",
-                  message: lead.message ?? "",
-                },
-              }}
-              matches={matches}
-              problemTypes={problemTypes(shop?.settings)}
-              defaultSubject={ticketSubjectFromLead(lead)}
-              canDelete={role === "OWNER"}
-            />
-          }
-        />
-      </div>
+      <PageHeader
+        icon={ICONS.lead}
+        breadcrumbs={[{ label: "Leads", href: "/leads" }, { label: lead.name }]}
+        title={lead.name}
+        description={`${lead.source ?? "Unknown source"} · ${leadAge(lead.createdAt)}`}
+        actions={
+          <LeadActions
+            lead={{
+              id: lead.id,
+              status: lead.status,
+              values: {
+                name: lead.name,
+                email: lead.email ?? "",
+                phone: lead.phone ?? "",
+                source: lead.source ?? "Other",
+                message: lead.message ?? "",
+              },
+            }}
+            matches={matches}
+            problemTypes={problemTypes(shop?.settings)}
+            defaultSubject={ticketSubjectFromLead(lead)}
+            canDelete={role === "OWNER"}
+          />
+        }
+      />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-5">
@@ -123,16 +129,11 @@ export default async function LeadDetailPage({
                 <IconChip icon={UserRound} size="sm" />
                 <CardTitle className="truncate">Enquiry</CardTitle>
               </div>
-              <span
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                  meta.bg,
-                  meta.fg,
-                )}
-              >
-                <span className={cn("size-2 rounded-full", meta.dot)} />
-                {meta.label}
-              </span>
+              <StatusPill
+                tone={meta.tone}
+                label={meta.label}
+                className="shrink-0"
+              />
             </CardHeader>
 
             <CardContent className="flex flex-col gap-5">

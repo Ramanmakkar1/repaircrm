@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -315,7 +316,8 @@ export function TicketForm({
             <Link href="/tickets">Cancel</Link>
           </Button>
           <Button type="submit" size="sm" disabled={pending}>
-            {pending ? "Creating…" : "Create Ticket"}
+            <ACTIONS.add />
+            {pending ? "Creating…" : "Create ticket"}
           </Button>
         </CardFooter>
       </Card>

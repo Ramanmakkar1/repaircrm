@@ -1,3 +1,5 @@
+import type { StatusTone } from "@/components/ui/badge";
+
 /**
  * Presentation rules shared by every Inventory view.
  *
@@ -32,30 +34,26 @@ export function stockStatus({ stockQty, lowStockAt }: StockLevel): StockStatus {
 
 export const STOCK_META: Record<
   StockStatus,
-  { label: (qty: number) => string; chip: string; dot: string; text: string }
+  { label: (qty: number) => string; tone: StatusTone; text: string }
 > = {
   in: {
     label: (qty) => `${qty} in stock`,
-    chip: "bg-status-resolved-bg text-status-resolved-fg",
-    dot: "bg-status-resolved",
+    tone: "success",
     text: "text-status-resolved-fg",
   },
   low: {
     label: (qty) => `Low · ${qty} left`,
-    chip: "bg-status-in-progress-bg text-status-in-progress-fg",
-    dot: "bg-status-in-progress",
+    tone: "active",
     text: "text-status-in-progress-fg",
   },
   out: {
     label: () => "Out of stock",
-    chip: "bg-status-overdue-bg text-status-overdue-fg",
-    dot: "bg-status-overdue",
+    tone: "danger",
     text: "text-status-overdue-fg",
   },
   untracked: {
     label: () => "Not stocked",
-    chip: "bg-surface-hover text-muted-foreground",
-    dot: "bg-border-strong",
+    tone: "neutral",
     text: "text-muted-foreground",
   },
 };
@@ -101,6 +99,37 @@ export type StockReason = (typeof STOCK_REASONS)[number];
 
 export function isStockReason(value: string): value is StockReason {
   return (STOCK_REASONS as readonly string[]).includes(value);
+}
+
+/**
+ * The kind of move, in the app-wide tone language: stock arriving is green,
+ * stock leaving on an invoice is blue, a write-off is red, and a stock-take or
+ * anything else is grey. Same seven tones as every other status in the app, so
+ * "Received" here is the same green as a received purchase order.
+ */
+export const STOCK_REASON_META: Record<StockReason, { tone: StatusTone }> = {
+  Received: { tone: "success" },
+  Sold: { tone: "info" },
+  Damaged: { tone: "danger" },
+  Counted: { tone: "neutral" },
+  Other: { tone: "neutral" },
+};
+
+/**
+ * The inverse of `composeReason`: pulls the typed kind back off the front of a
+ * stored reason so the table can show it as a pill and the operator's own words
+ * as text. A row written before the vocabulary existed has no known kind and
+ * travels entirely as the note.
+ */
+export function splitReason(reason: string): {
+  kind: StockReason | null;
+  note: string;
+} {
+  const [head, ...rest] = reason.split(" — ");
+  if (head && isStockReason(head)) {
+    return { kind: head, note: rest.join(" — ") };
+  }
+  return { kind: null, note: reason };
 }
 
 /**

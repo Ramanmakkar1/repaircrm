@@ -1,7 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft, Printer } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -12,8 +12,10 @@ import { formatCents } from "@/lib/money";
 import { customerWarranties } from "@/lib/warranty";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/badge";
+import { StatusBadge, StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
+import { ICONS } from "@/components/ui/icons";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { SummarizeTicketButton } from "@/components/ai/summarize-dialog";
 import {
   AttachmentsCard,
@@ -50,6 +52,24 @@ import {
 } from "@/components/tickets/ticket-meta";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+
+  const ticket = await db.ticket.findFirst({
+    where: { id, shopId },
+    select: { number: true },
+  });
+
+  return {
+    title: ticket ? `Ticket #${ticket.number} · RepairFlow` : "Ticket · RepairFlow",
+  };
+}
 
 /** Deposit tenders wear the same names they do on an invoice. */
 const DEPOSIT_METHOD_LABELS: Record<string, string> = {
@@ -397,14 +417,15 @@ export default async function TicketDetailPage({
   }));
 
   return (
-    <div className="flex flex-col gap-5">
-      <Link
-        href="/tickets"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        All tickets
-      </Link>
+    // gap-6 between page sections, gap-5 inside the two card stacks below —
+    // the same rhythm the customer and lead hubs use.
+    <div className="flex flex-col gap-6">
+      <Breadcrumbs
+        items={[
+          { label: "Tickets", href: "/tickets" },
+          { label: `#${ticket.number}` },
+        ]}
+      />
 
       {/* ------------------------------------------------------------ header */}
       <Card>
@@ -421,15 +442,18 @@ export default async function TicketDetailPage({
                   warrantyClaim ? (
                     <Link
                       href={`/invoices/${warrantyClaim.invoice.id}`}
-                      className="rounded-full bg-status-ready-bg px-2.5 py-1 text-[12.5px] font-bold text-status-ready-fg hover:underline"
                       title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
+                      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     >
-                      Warranty · #{warrantyClaim.invoice.number}
+                      <StatusPill
+                        tone="ready"
+                        dot={false}
+                        label={`Warranty · #${warrantyClaim.invoice.number}`}
+                        className="hover:underline"
+                      />
                     </Link>
                   ) : (
-                    <span className="rounded-full bg-status-ready-bg px-2.5 py-1 text-[12.5px] font-bold text-status-ready-fg">
-                      Warranty
-                    </span>
+                    <StatusPill tone="ready" dot={false} label="Warranty" />
                   )
                 ) : null}
                 <span
@@ -447,7 +471,10 @@ export default async function TicketDetailPage({
               </h1>
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {/* No `shrink-0`: on a phone this row is six buttons wide, and
+                refusing to shrink pushed the whole page into a horizontal
+                scroll instead of wrapping. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {/* First in the row on purpose: this is the button the counter
                   reaches for more than any other. */}
               <PickupActions
@@ -457,7 +484,8 @@ export default async function TicketDetailPage({
               />
               <Button asChild variant="outline">
                 <Link href={`/print/tickets/${ticket.id}`}>
-                  <Printer /> Work Order
+                  <ICONS.print />
+                  Work Order
                 </Link>
               </Button>
               <SummarizeTicketButton ticketId={ticket.id} />
@@ -504,7 +532,7 @@ export default async function TicketDetailPage({
           </div>
 
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
-            <Fact label="Customer">
+            <Fact label="Customer" title={customerLabel(ticket.customer)}>
               <Link
                 href={`/customers/${ticket.customer.id}`}
                 className="text-accent hover:underline"
@@ -512,7 +540,10 @@ export default async function TicketDetailPage({
                 {customerLabel(ticket.customer)}
               </Link>
             </Fact>
-            <Fact label="Device">
+            <Fact
+              label="Device"
+              title={ticket.asset ? assetLabel(ticket.asset) : undefined}
+            >
               {ticket.asset ? assetLabel(ticket.asset) : "—"}
             </Fact>
             <Fact label="Problem">{ticket.problemType}</Fact>
@@ -606,7 +637,7 @@ export default async function TicketDetailPage({
               <CardTitle>Details</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4 text-sm">
-              <Fact label="Email">
+              <Fact label="Email" title={ticket.customer.email ?? undefined}>
                 {ticket.customer.email ? (
                   <a
                     href={`mailto:${ticket.customer.email}`}
@@ -692,9 +723,12 @@ export default async function TicketDetailPage({
 
 function Fact({
   label,
+  title,
   children,
 }: {
   label: string;
+  /** The untruncated value, for the facts long enough to lose their tail. */
+  title?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -702,7 +736,12 @@ function Fact({
       <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="truncate text-[14.5px] font-semibold text-foreground">{children}</dd>
+      <dd
+        title={title}
+        className="truncate text-[14.5px] font-semibold text-foreground"
+      >
+        {children}
+      </dd>
     </div>
   );
 }

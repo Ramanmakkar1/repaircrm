@@ -2,14 +2,16 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 
 /**
  * The repeated shell for the customer hub's related-record cards: an icon tile
- * + title + a count, an optional "view all" pill, and a quiet empty line
- * instead of a full EmptyState (these cards sit five-to-a-column and shouldn't
- * each claim 12rem of vertical space when empty).
+ * + title + a count, an optional "view all" pill, and a compact empty block.
+ *
+ * The empty block deliberately runs shorter than a full-page `EmptyState`:
+ * six of these cards sit in one column, and six 12rem voids would push the
+ * ones that DO have rows below the fold.
  */
 export function SectionCard({
   icon: Icon,
@@ -32,31 +34,35 @@ export function SectionCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <IconChip icon={Icon} size="sm" />
-          <CardTitle className="truncate">{title}</CardTitle>
-          {count ? (
-            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none text-muted-foreground tabular-nums">
-              {count}
-            </span>
-          ) : null}
-        </div>
-
-        {viewAllHref && !isEmpty ? (
-          <Link
-            href={viewAllHref}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-hover px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground"
-          >
-            {viewAllLabel}
-            <ArrowUpRight className="size-3.5" />
-          </Link>
-        ) : null}
-      </CardHeader>
+      <CardHeader
+        icon={Icon}
+        title={title}
+        action={
+          <>
+            {count ? <Chip className="tabular-nums">{count}</Chip> : null}
+            {viewAllHref && !isEmpty ? (
+              <Link
+                href={viewAllHref}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-hover px-3 py-1.5 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {viewAllLabel}
+                <ArrowUpRight className="size-3.5" />
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <CardContent className="p-0">
         {isEmpty ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">{empty}</p>
+          <div className="flex flex-col items-center gap-2.5 px-5 py-8 text-center">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-surface-hover">
+              <Icon className="size-[18px] text-faint-foreground" />
+            </span>
+            <p className="max-w-xs text-[13.5px] leading-snug text-muted-foreground">
+              {empty}
+            </p>
+          </div>
         ) : (
           children
         )}

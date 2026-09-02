@@ -1,21 +1,12 @@
 "use client";
 
 import * as React from "react";
-import {
-  Banknote,
-  CreditCard,
-  Hash,
-  Lock,
-  Minus,
-  Plus,
-  ScrollText,
-  Trash2,
-  Wallet,
-  Wrench,
-} from "lucide-react";
+import { Lock, Minus, Plus, ScrollText, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import {
   Select,
@@ -41,10 +32,12 @@ import {
 export const WALK_IN_VALUE = "__walk_in__";
 
 const TENDER_BUTTONS: { method: TenderMethod; icon: React.ComponentType<{ className?: string }> }[] = [
-  { method: "CASH", icon: Banknote },
-  { method: "CARD", icon: CreditCard },
+  { method: "CASH", icon: ICONS.cash },
+  { method: "CARD", icon: ICONS.payment },
+  // No glyph in the map means a cheque or a gift card, so the local imports
+  // stay: ScrollText is the written slip, Wallet is everything else.
   { method: "CHECK", icon: ScrollText },
-  { method: "OTHER", icon: Wallet },
+  { method: "OTHER", icon: ICONS.deposit },
 ];
 
 /**
@@ -135,7 +128,7 @@ export function CartPanel({
             type="button"
             onClick={onClear}
             disabled={disabled}
-            className="text-[13px] font-semibold text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+            className="rounded-sm px-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
           >
             Clear
           </button>
@@ -145,18 +138,19 @@ export function CartPanel({
       {/* ------------------------------------------------------------ lines */}
       <div className="max-h-[38vh] min-h-[7rem] overflow-y-auto lg:max-h-[42vh]">
         {empty ? (
-          <p className="px-5 py-10 text-center text-[14px] leading-snug text-muted-foreground">
-            Scan an item or tap a tile
-            <br />
-            to start a sale.
-          </p>
+          <EmptyState
+            className="gap-3 px-5 py-8"
+            icon={ICONS.pos}
+            title="Cart is empty"
+            hint="Scan a barcode or tap a tile to start a sale."
+          />
         ) : (
           <>
             {ticketLines.length > 0 ? (
               <section className="border-b border-border bg-accent-soft/25">
                 <div className="flex items-center justify-between gap-3 px-5 py-2.5">
                   <span className="flex items-center gap-1.5 text-[13px] font-bold text-accent-soft-foreground">
-                    <Wrench className="size-3.5" />
+                    <ICONS.ticket className="size-3.5" />
                     Ticket #{ticketNumber}
                     <Lock className="size-3 opacity-60" />
                   </span>
@@ -164,7 +158,7 @@ export function CartPanel({
                     type="button"
                     onClick={onRemoveTicket}
                     disabled={disabled}
-                    className="text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                    className="rounded-sm px-1 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
                   >
                     Remove
                   </button>
@@ -302,7 +296,7 @@ export function CartPanel({
               : "Attach a customer who has store credit to use this."
           }
         >
-          <Wallet />
+          <ICONS.credit />
           {creditReady
             ? `Store credit · ${formatCents(credit)} available`
             : "Store credit"}
@@ -382,7 +376,7 @@ function CartRow({
           onClick={() => onRemove(line.key)}
           disabled={disabled}
           aria-label={`Remove ${line.name}`}
-          className="-mr-1 shrink-0 rounded-sm p-1 text-faint-foreground transition-colors hover:text-destructive disabled:opacity-50"
+          className="-mr-1 shrink-0 rounded-sm p-1 text-faint-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
         >
           <Trash2 className="size-4" />
         </button>
@@ -390,7 +384,7 @@ function CartRow({
 
       {serialised ? (
         <span className="flex items-center gap-1.5 font-mono text-[12.5px] font-semibold text-accent-soft-foreground">
-          <Hash className="size-3.5" />
+          <ICONS.serial className="size-3.5" />
           {line.serial}
         </span>
       ) : null}

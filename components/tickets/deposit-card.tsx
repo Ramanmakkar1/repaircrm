@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { HandCoins, Mail, Printer, Undo2 } from "lucide-react";
+// HandCoins has no concept in components/ui/icons.ts.
+import { HandCoins } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,7 +13,9 @@ import {
   takeDepositAction,
 } from "@/app/(app)/tickets/deposit-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/ui/badge";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -86,17 +89,20 @@ export function DepositCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-1.5">
-          <HandCoins className="size-4 text-muted-foreground" />
-          Deposit
-        </CardTitle>
-        {held > 0 ? (
-          <span className="text-xs font-semibold tabular-nums text-status-resolved-fg">
-            {formatCents(held)} held
-          </span>
-        ) : null}
-      </CardHeader>
+      <CardHeader
+        icon={HandCoins}
+        title="Deposit"
+        action={
+          held > 0 ? (
+            <StatusPill
+              size="sm"
+              tone="success"
+              label={`${formatCents(held)} held`}
+              className="tabular-nums"
+            />
+          ) : null
+        }
+      />
 
       <CardContent className="flex flex-col gap-3">
         <TakeDepositDialog
@@ -191,7 +197,7 @@ function DepositLine({
       <div className="flex flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
           <Link href={`/print/deposits/${deposit.id}`} target="_blank">
-            <Printer className="size-3.5" />
+            <ICONS.print className="size-3.5" />
             Receipt
           </Link>
         </Button>
@@ -202,7 +208,7 @@ function DepositLine({
           disabled={busy}
           onClick={emailReceipt}
         >
-          <Mail className="size-3.5" />
+          <ICONS.email className="size-3.5" />
           Email
         </Button>
         {isOwner && unapplied ? (
@@ -218,7 +224,7 @@ function DepositLine({
                 size="sm"
                 className="h-7 px-2 text-xs text-faint-foreground hover:text-destructive"
               >
-                <Undo2 className="size-3.5" />
+                <ICONS.refund className="size-3.5" />
                 Refund
               </Button>
             </DialogTrigger>
@@ -241,7 +247,8 @@ function DepositLine({
                   Cancel
                 </Button>
                 <Button variant="destructive" disabled={busy} onClick={refund}>
-                  {busy ? "Refunding…" : "Refund deposit"}
+                  <ACTIONS.refund />
+              {busy ? "Refunding…" : "Refund deposit"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -371,6 +378,7 @@ function TakeDepositDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              <ACTIONS.pay />
               {busy ? "Saving…" : "Take deposit"}
             </Button>
           </DialogFooter>

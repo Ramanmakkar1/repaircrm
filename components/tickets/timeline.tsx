@@ -1,8 +1,11 @@
+import { format } from "date-fns";
 import { Lock, Send } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { relativeShort } from "./ticket-meta";
 
@@ -52,14 +55,15 @@ export function Timeline({
 }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Timeline</CardTitle>
-      </CardHeader>
+      <CardHeader icon={ICONS.audit} title="Timeline" />
       <CardContent className="flex flex-col gap-2.5">
         {entries.length === 0 ? (
-          <p className="py-2 text-sm text-muted-foreground">
-            Nothing logged on this ticket yet.
-          </p>
+          <EmptyState
+            className="px-2 py-10"
+            icon={ICONS.message}
+            title="Nothing logged yet"
+            hint="Every status change, note and message to the customer lands here, newest first."
+          />
         ) : (
           entries.map((entry) => (
             <article
@@ -106,7 +110,7 @@ export function Timeline({
                   )}
                   <time
                     dateTime={entry.createdAt.toISOString()}
-                    title={entry.createdAt.toLocaleString()}
+                    title={format(entry.createdAt, "EEEE d MMMM yyyy, h:mm a")}
                   >
                     {relativeShort(entry.createdAt, now)}
                   </time>

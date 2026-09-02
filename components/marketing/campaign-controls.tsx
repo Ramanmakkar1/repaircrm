@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pause, Play, RefreshCw, Send } from "lucide-react";
+import { Loader2, Pause } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,6 +12,7 @@ import {
   type SyncAndSendResult,
 } from "@/app/(app)/marketing/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
 /**
@@ -127,7 +128,7 @@ export function CampaignActiveButton({
 
   return (
     <Button variant="outline" disabled={busy} onClick={toggle}>
-      {busy ? <Loader2 className="animate-spin" /> : active ? <Pause /> : <Play />}
+      {busy ? <Loader2 className="animate-spin" /> : active ? <Pause /> : <ACTIONS.run />}
       {active ? "Pause" : "Resume"}
     </Button>
   );
@@ -155,7 +156,7 @@ export function SyncAndSendButton({ dueCount }: { dueCount: number }) {
       disabled={busy}
       onClick={run}
     >
-      {busy ? <Loader2 className="animate-spin" /> : <Send />}
+      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.send />}
       {dueCount > 0 ? `Send ${dueCount} due now` : "Sync & send due now"}
     </Button>
   );
@@ -181,7 +182,7 @@ export function SyncCampaignButton({ campaignId }: { campaignId: string }) {
 
   return (
     <Button disabled={busy} onClick={run}>
-      {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.refresh />}
       Sync
     </Button>
   );

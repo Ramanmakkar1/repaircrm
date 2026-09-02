@@ -8,6 +8,8 @@
 
 import { format } from "date-fns";
 
+import type { StatusTone } from "@/components/ui/badge";
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
@@ -21,34 +23,15 @@ export type LeadStatusKey = (typeof LEAD_STATUSES)[number];
  */
 export const OPEN_LEAD_STATUSES: LeadStatusKey[] = ["NEW", "CONTACTED"];
 
+/** The four lead states in the app-wide tone language (components/ui/badge.tsx). */
 export const LEAD_STATUS_META: Record<
   LeadStatusKey,
-  { label: string; bg: string; fg: string; dot: string }
+  { label: string; tone: StatusTone }
 > = {
-  NEW: {
-    label: "New",
-    bg: "bg-status-new-bg",
-    fg: "text-status-new-fg",
-    dot: "bg-status-new",
-  },
-  CONTACTED: {
-    label: "Contacted",
-    bg: "bg-status-in-progress-bg",
-    fg: "text-status-in-progress-fg",
-    dot: "bg-status-in-progress",
-  },
-  CONVERTED: {
-    label: "Converted",
-    bg: "bg-status-resolved-bg",
-    fg: "text-status-resolved-fg",
-    dot: "bg-status-resolved",
-  },
-  CLOSED: {
-    label: "Closed",
-    bg: "bg-surface-hover",
-    fg: "text-muted-foreground",
-    dot: "bg-faint-foreground",
-  },
+  NEW: { label: "New", tone: "info" },
+  CONTACTED: { label: "Contacted", tone: "active" },
+  CONVERTED: { label: "Converted", tone: "success" },
+  CLOSED: { label: "Closed", tone: "neutral" },
 };
 
 export function asLeadStatus(value: unknown): LeadStatusKey {

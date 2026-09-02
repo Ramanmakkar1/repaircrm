@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Boxes, ClipboardList, Pencil, Plus } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { PO_STATUS_META, asPoStatus, poTotals } from "@/components/inventory/purchasing";
 import { VendorDialog } from "@/components/inventory/vendor-dialog";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,6 +18,7 @@ import {
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
@@ -117,8 +118,10 @@ export default async function VendorPage({
                 <Chip className="font-mono">Account {vendor.accountNumber}</Chip>
               ) : null}
               <Chip>On file since {formatDate(vendor.createdAt)}</Chip>
+              {/* Active/inactive is a status, not a fact-tag — it gets the pill
+                  everything else in the app wears. */}
               {!vendor.active ? (
-                <Chip className="font-semibold text-faint-foreground">Inactive</Chip>
+                <StatusPill tone="neutral" label="Inactive" />
               ) : null}
             </div>
           </div>
@@ -128,14 +131,14 @@ export default async function VendorPage({
               vendor={vendor}
               trigger={
                 <Button variant="outline">
-                  <Pencil />
+                  <ACTIONS.edit />
                   Edit
                 </Button>
               }
             />
             <Button asChild>
               <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
-                <Plus />
+                <ACTIONS.add />
                 New Purchase Order
               </Link>
             </Button>
@@ -171,7 +174,7 @@ export default async function VendorPage({
           <CardContent className="px-0 py-0">
             {products.length === 0 ? (
               <EmptyState
-                icon={Boxes}
+                icon={ICONS.inventory}
                 title="No products yet"
                 hint="Set this vendor on a product to see it here — and to have purchase orders fill in its cost and vendor SKU."
                 action={
@@ -235,13 +238,13 @@ export default async function VendorPage({
         <CardContent className="px-0 py-0">
           {orders.length === 0 ? (
             <EmptyState
-              icon={ClipboardList}
+              icon={ICONS.purchaseOrder}
               title="Nothing ordered yet"
               hint="Raise a purchase order to record what you asked for, then receive it to move stock and update costs."
               action={
                 <Button asChild>
                   <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
-                    <Plus />
+                    <ACTIONS.add />
                     New Purchase Order
                   </Link>
                 </Button>
@@ -273,14 +276,11 @@ export default async function VendorPage({
                         </Link>
                       </Td>
                       <Td>
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                            meta.chip,
-                          )}
-                        >
-                          {meta.label}
-                        </span>
+                        <StatusPill
+                          tone={meta.tone}
+                          label={meta.label}
+                          struck={meta.struck}
+                        />
                       </Td>
                       <Td className="text-[13.5px] text-muted-foreground">
                         {formatDate(order.orderedAt ?? order.createdAt)}

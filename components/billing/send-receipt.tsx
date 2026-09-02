@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ReceiptText } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 
 /**
  * PAYMENT RECEIPT — the email a customer expects the second their card clears.
@@ -54,7 +55,7 @@ export function EmailReceiptButton({
   if (blockedReason) {
     return (
       <Button variant="outline" disabled title={blockedReason}>
-        <ReceiptText /> Email receipt
+        <ACTIONS.email /> Email receipt
       </Button>
     );
   }
@@ -70,7 +71,7 @@ export function EmailReceiptButton({
         router.refresh();
       }}
     >
-      {busy ? <Loader2 className="animate-spin" /> : <ReceiptText />}
+      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
       {busy ? "Sending…" : "Email receipt"}
     </Button>
   );

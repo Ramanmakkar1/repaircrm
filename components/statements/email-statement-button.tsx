@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { emailStatementAction } from "@/app/(app)/customers/[id]/statement/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 
 /**
  * Sends the statement the operator is currently looking at — the same `from`/
@@ -31,7 +32,7 @@ export function EmailStatementButton({
   if (disabledReason) {
     return (
       <Button variant="outline" disabled title={disabledReason}>
-        <Mail />
+        <ACTIONS.email />
         Email statement
       </Button>
     );
@@ -53,7 +54,7 @@ export function EmailStatementButton({
 
   return (
     <Button variant="outline" disabled={busy} onClick={send}>
-      {busy ? <Loader2 className="animate-spin" /> : <Mail />}
+      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
       Email statement
     </Button>
   );

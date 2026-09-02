@@ -2,8 +2,11 @@
  * Shared, dependency-free vocabulary for recurring billing schedules.
  *
  * Imported by BOTH the server actions and the client form, so this file must
- * stay pure: no `db`, no `next/*`, no "use server".
+ * stay pure: no `db`, no `next/*`, no "use server". (The tone import below is
+ * type-only, so it is erased before any of that matters.)
  */
+
+import type { StatusTone } from "@/components/ui/badge";
 
 export const FREQUENCIES = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"] as const;
 
@@ -38,6 +41,33 @@ export function asFrequency(value: unknown): Frequency {
 
 export function frequencyLabel(value: unknown): string {
   return FREQUENCY_LABEL[asFrequency(value)];
+}
+
+// ---------------------------------------------------------------------------
+// Schedule state
+// ---------------------------------------------------------------------------
+
+/**
+ * The three things a schedule can be, in the app-wide tone language.
+ *
+ * "Due" is deliberately amber rather than red: a contract whose run date has
+ * arrived is work waiting to be done, not a failure — the red on these screens
+ * is reserved for a charge that actually bounced.
+ */
+export type ScheduleState = "active" | "due" | "paused";
+
+export const SCHEDULE_STATE_META: Record<
+  ScheduleState,
+  { label: string; tone: StatusTone }
+> = {
+  active: { label: "Active", tone: "success" },
+  due: { label: "Due now", tone: "active" },
+  paused: { label: "Paused", tone: "neutral" },
+};
+
+export function scheduleState(active: boolean, due: boolean): ScheduleState {
+  if (!active) return "paused";
+  return due ? "due" : "active";
 }
 
 // ---------------------------------------------------------------------------

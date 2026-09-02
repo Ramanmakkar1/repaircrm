@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, CircleAlert, Inbox } from "lucide-react";
+import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveInboundEmailAction } from "@/app/(app)/settings/inbound-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
 import type { InboundConfig } from "./types";
 
 /**
@@ -24,30 +25,36 @@ import type { InboundConfig } from "./types";
  * Like the rest of this tab, secrets are never rendered — only whether each one
  * is populated.
  */
+const SaveIcon = ACTIONS.save;
+
 export function InboundCard({ config }: { config: InboundConfig }) {
   const live = config.resendSecretSet || config.inboundTokenSet || config.twilioTokenSet;
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center gap-3.5">
-        <IconChip
-          icon={Inbox}
-          className={
-            live
-              ? "bg-status-resolved-bg text-status-resolved-fg"
-              : "bg-surface-hover text-muted-foreground"
-          }
-        />
-        <div className="flex flex-col gap-1">
-          <CardTitle>Inbound email &amp; SMS</CardTitle>
-          <CardDescription>
+    // Red stripe when no secret is set: both endpoints reject every request, so
+    // customer replies are being dropped on the floor right now.
+    <Card tone={live ? undefined : "danger"}>
+      <CardHeader
+        icon={ICONS.inbound}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            Inbound email &amp; SMS
+            <StatusPill
+              size="sm"
+              tone={live ? "success" : "danger"}
+              label={live ? "Receiving" : "Rejecting everything"}
+            />
+          </span>
+        }
+        description={
+          <>
             Replies from customers land on their ticket as a public update, and
             the ticket is flagged <strong>Needs reply</strong> until someone
             answers. A message from a number or address we don&rsquo;t know
             becomes a lead.
-          </CardDescription>
-        </div>
-      </CardHeader>
+          </>
+        }
+      />
 
       <CardContent className="flex flex-col gap-6">
         <InboundAddress config={config} />
@@ -147,6 +154,7 @@ function InboundAddress({ config }: { config: InboundConfig }) {
         />
         {config.canEdit ? (
           <Button type="submit" variant="outline" disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
             {busy ? "Saving…" : "Save"}
           </Button>
         ) : null}

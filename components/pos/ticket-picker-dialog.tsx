@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Search, Wrench } from "lucide-react";
+
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -75,7 +76,7 @@ export function TicketPickerDialog({
                 : undefined
           }
         >
-          <Wrench />
+          <ICONS.ticket />
           Add from ticket
         </Button>
       </DialogTrigger>
@@ -91,7 +92,7 @@ export function TicketPickerDialog({
 
         <div className="flex flex-col gap-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+            <ACTIONS.search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}

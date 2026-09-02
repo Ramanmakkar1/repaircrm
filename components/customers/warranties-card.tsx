@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
 
+import { ICONS } from "@/components/ui/icons";
 import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { warrantyLabel } from "@/lib/warranty";
@@ -36,7 +36,7 @@ export function WarrantiesCard({ warranties }: { warranties: WarrantyRow[] }) {
 
   return (
     <SectionCard
-      icon={ShieldCheck}
+      icon={ICONS.warranty}
       title="Warranties"
       count={active}
       empty="Nothing sold to this customer carries a warranty."

@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { toDateInputValue } from "@/components/billing/format";
@@ -33,6 +34,7 @@ export default async function NewSchedulePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.recurring}
         title="New recurring schedule"
         description="Every run raises a draft invoice you can review before it goes out."
       />

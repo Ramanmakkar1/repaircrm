@@ -59,7 +59,7 @@ export function Faq() {
           <div className="divide-y divide-border border-y border-border">
             {FAQS.map((faq) => (
               <details key={faq.q} className="group py-1">
-                <summary className="flex cursor-pointer list-none items-center gap-4 py-4 text-[15.5px] font-semibold tracking-tight text-foreground transition-colors hover:text-accent [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-4 rounded-sm py-4 text-[15.5px] font-semibold tracking-tight text-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
                   <span className="min-w-0 flex-1">{faq.q}</span>
                   <ChevronIcon className="size-[18px] shrink-0 text-faint-foreground transition-transform duration-200 group-open:-rotate-180" />
                 </summary>

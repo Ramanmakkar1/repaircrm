@@ -177,19 +177,6 @@ export const STALENESS_CLASS: Record<StalenessLevel, string> = {
   critical: "bg-status-overdue-bg text-status-overdue-fg",
 };
 
-/**
- * The same heat, expressed as a card border + wash instead of a chip — used by
- * the ticket card grid, where the whole box carries the signal. Same thresholds
- * as STALENESS_CLASS; only the presentation differs.
- */
-export const STALENESS_CARD: Record<StalenessLevel, string> = {
-  none: "border-border",
-  fresh: "border-border",
-  warm: "border-status-in-progress/45",
-  stale: "border-[light-dark(#efb489,#5c3b1d)] bg-[light-dark(#fffaf6,#221a12)]",
-  critical: "border-status-overdue/55 bg-[light-dark(#fffafa,#231715)]",
-};
-
 export const STALENESS_LABEL: Record<StalenessLevel, string> = {
   none: "Closed out",
   fresh: "Touched today",

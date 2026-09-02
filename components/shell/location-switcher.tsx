@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Store } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { setLocationCookie } from "@/lib/location-actions";
@@ -14,7 +14,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
+
+/** MapPin, not a storefront — a storefront is this app's *vendor* glyph. */
+const LocationIcon = ICONS.location;
 
 export type SwitcherLocation = { id: string; name: string };
 
@@ -69,7 +73,7 @@ export function LocationSwitcher({
           )}
           aria-label={`Location: ${label}`}
         >
-          <Store className="size-4 shrink-0 text-muted-foreground" />
+          <LocationIcon className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate">{label}</span>
           <ChevronDown className="size-4 shrink-0 text-faint-foreground" />
         </button>

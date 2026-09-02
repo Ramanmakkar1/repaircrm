@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Loader2, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 
 /** What the server tells the browser about a saved card. Never a card number. */
 export type SavedCard = {
@@ -108,7 +109,7 @@ export function CardOnFileCard({
     <Card>
       <CardHeader className="flex-row items-center gap-3.5">
         <IconChip
-          icon={CreditCard}
+          icon={ICONS.payment}
           className={
             card
               ? "bg-status-resolved-bg text-status-resolved-fg"
@@ -165,7 +166,7 @@ export function CardOnFileCard({
                   {pending ? (
                     <Loader2 className="animate-spin" />
                   ) : (
-                    <Trash2 />
+                    <ACTIONS.delete />
                   )}
                 </Button>
               ) : null}
@@ -183,7 +184,7 @@ export function CardOnFileCard({
 
             {canManage ? (
               <Button variant="outline" disabled={pending} onClick={save}>
-                <Plus /> Replace with a different card
+                <ACTIONS.add /> Replace with a different card
               </Button>
             ) : null}
           </>
@@ -206,7 +207,7 @@ export function CardOnFileCard({
                   </>
                 ) : (
                   <>
-                    <Plus /> Save a card
+                    <ACTIONS.add /> Save a card
                   </>
                 )}
               </Button>

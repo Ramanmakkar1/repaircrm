@@ -5,27 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   CircleAlert,
-  CreditCard,
-  Link2Off,
   Loader2,
-  Plus,
-  Repeat,
   Smartphone,
   TriangleAlert,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Chip, IconChip } from "@/components/ui/chip";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { formatDate } from "@/components/billing/format";
+import { StatusPill } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/components/ui/cn";
 import {
   Dialog,
@@ -59,6 +51,11 @@ import type { PaymentsTabConfig, ReaderItem } from "./types";
  * anywhere, while a missing STRIPE_WEBHOOK_SECRET means customers CAN pay and
  * the invoice never updates. The second is the dangerous one.
  */
+
+const CardIcon = ICONS.payment;
+const ConnectIcon = ACTIONS.connect;
+const DisconnectIcon = ACTIONS.disconnect;
+const AddIcon = ACTIONS.add;
 
 /** Reason codes the OAuth routes redirect back with. */
 const FLASH: Record<string, { ok: boolean; message: string }> = {
@@ -145,15 +142,11 @@ function useConnectFlash(): void {
 function NotConfiguredCard({ env }: { env: PaymentsTabConfig["env"] }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-center gap-3.5">
-        <IconChip icon={CreditCard} className="bg-surface-hover text-muted-foreground" />
-        <div className="flex flex-col gap-1">
-          <CardTitle>Card payments</CardTitle>
-          <CardDescription>
-            Not available on this server yet.
-          </CardDescription>
-        </div>
-      </CardHeader>
+      <CardHeader
+        icon={CardIcon}
+        title="Card payments"
+        description="Not available on this server yet."
+      />
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
           Online payments aren&rsquo;t set up on this server yet — the
@@ -187,12 +180,17 @@ function ConnectionCard({
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+  const [confirming, setConfirming] = React.useState(false);
 
   const disconnect = () => {
     startTransition(async () => {
       const result = await disconnectAction();
-      if (result.ok) toast.success(result.message);
-      else toast.error(result.error);
+      if (result.ok) {
+        setConfirming(false);
+        toast.success(result.message);
+      } else {
+        toast.error(result.error);
+      }
       router.refresh();
     });
   };
@@ -201,63 +199,58 @@ function ConnectionCard({
   const blocked = account !== null && !account.chargesEnabled;
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <IconChip
-            icon={CreditCard}
-            className={
-              config.connected
-                ? "bg-status-resolved-bg text-status-resolved-fg"
-                : "bg-surface-hover text-muted-foreground"
-            }
-          />
-          <div className="flex flex-col gap-1">
-            <CardTitle>Stripe account</CardTitle>
-            <CardDescription>
-              {config.connected
-                ? "Card payments land in this shop's own Stripe account and pay out to its bank."
-                : "Connect your Stripe account to take card payments. No API keys to copy — Stripe asks you to approve it and sends you straight back."}
-            </CardDescription>
-          </div>
-        </div>
-
-        {config.connected ? (
-          <Button variant="outline" disabled={pending} onClick={disconnect}>
-            {pending ? <Loader2 className="animate-spin" /> : <Link2Off />}
-            Disconnect
-          </Button>
-        ) : (
-          // A plain anchor, not a Server Action: the next stop is Stripe's own
-          // domain and a link is the honest way to say the browser is leaving.
-          <Button asChild>
-            <a href="/api/payments/stripe/connect">
-              <CreditCard /> Connect with Stripe
-            </a>
-          </Button>
-        )}
-      </CardHeader>
+    // Red stripe only when Stripe is refusing to charge: "not connected" is a
+    // starting point, "connected but blocked" is a shop losing money today.
+    <Card tone={blocked ? "danger" : undefined}>
+      <CardHeader
+        icon={CardIcon}
+        title="Stripe account"
+        description={
+          config.connected
+            ? "Card payments land in this shop's own Stripe account and pay out to its bank."
+            : "Connect your Stripe account to take card payments. No API keys to copy — Stripe asks you to approve it and sends you straight back."
+        }
+        action={
+          config.connected ? (
+            // Disconnecting stops every card payment this shop can take, so it
+            // reads destructive and asks first rather than firing on one click.
+            <Button
+              variant="outline"
+              className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+              disabled={pending}
+              onClick={() => setConfirming(true)}
+            >
+              <DisconnectIcon aria-hidden />
+              Disconnect
+            </Button>
+          ) : (
+            // A plain anchor, not a Server Action: the next stop is Stripe's own
+            // domain and a link is the honest way to say the browser is leaving.
+            <Button asChild>
+              <a href="/api/payments/stripe/connect">
+                <ConnectIcon aria-hidden /> Connect with Stripe
+              </a>
+            </Button>
+          )
+        }
+      />
 
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Chip
-            className={
-              config.connected
-                ? "bg-status-resolved-bg font-bold text-status-resolved-fg"
-                : "bg-surface-hover font-bold"
-            }
-          >
-            {config.connected ? "Connected" : "Not connected"}
-          </Chip>
-          <Chip
-            className={
-              config.testMode
-                ? "bg-status-waiting-bg font-bold text-status-waiting-fg"
-                : "bg-chip-accent-bg font-bold text-chip-accent-fg"
-            }
-          >
-            {config.testMode ? "Test mode" : "Live mode"}
-          </Chip>
+          {/*
+            Two facts, one renderer: whether Stripe is attached at all, and
+            whether the keys behind it move real money. Test mode is violet
+            rather than green because "connected" and "actually charging
+            people" are not the same thing and must not look the same.
+          */}
+          <StatusPill
+            tone={config.connected ? "success" : "neutral"}
+            label={config.connected ? "Connected" : "Not connected"}
+          />
+          <StatusPill
+            tone={config.testMode ? "waiting" : "info"}
+            label={config.testMode ? "Test mode" : "Live mode"}
+          />
           <Chip>Currency: {config.currency.toUpperCase()}</Chip>
           {config.accountId ? (
             <Chip className="font-mono">{config.accountId}</Chip>
@@ -316,6 +309,43 @@ function ConnectionCard({
           </p>
         )}
       </CardContent>
+
+      <Dialog
+        open={confirming}
+        onOpenChange={(next) => {
+          if (!next && !pending) setConfirming(false);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Disconnect this Stripe account?</DialogTitle>
+            <DialogDescription>
+              Customers immediately lose the pay button on their invoices and in
+              the portal, saved cards can no longer be charged, and any paired
+              card reader stops taking payments. Payments already taken are
+              unaffected and stay in Stripe. You can reconnect the same account
+              later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={pending}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={pending} onClick={disconnect}>
+              {pending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <DisconnectIcon aria-hidden />
+              )}
+              {pending ? "Disconnecting…" : "Disconnect Stripe"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
@@ -344,22 +374,21 @@ function HowCustomersPayCard({ config }: { config: PaymentsTabConfig }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>How customers can pay</CardTitle>
-        <CardDescription>
-          What is switched on right now, and where each one appears.
-        </CardDescription>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.cash}
+        title="How customers can pay"
+        description="What is switched on right now, and where each one appears."
+      />
       <CardContent className="flex flex-col gap-3">
         <Method
-          icon={CreditCard}
+          icon={ICONS.payment}
           on={live}
           title="Online payment link"
           where="A pay button on emailed invoices and in the customer portal."
           off="Needs the Stripe key and webhook secret below."
         />
         <Method
-          icon={Wallet}
+          icon={ICONS.deposit}
           on={config.cardOnFileReady}
           title="Card on file"
           where="Save a card from a customer's page, then charge an invoice in one click."
@@ -373,7 +402,7 @@ function HowCustomersPayCard({ config }: { config: PaymentsTabConfig }) {
           off="Register a reader below to switch this on."
         />
         <Method
-          icon={Repeat}
+          icon={ICONS.recurring}
           on={config.cardOnFileReady}
           title="Automatic recurring charges"
           where="Recurring schedules can charge the card on file the moment they raise an invoice."
@@ -414,9 +443,7 @@ function Method({
         <span className="flex items-center gap-2 text-[14.5px] font-bold text-foreground">
           {title}
           {on ? null : (
-            <span className="rounded-full bg-surface px-2 py-0.5 text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Off
-            </span>
+            <StatusPill size="sm" dot={false} tone="neutral" label="Off" />
           )}
         </span>
         <span className="text-[13.5px] leading-relaxed text-muted-foreground">
@@ -447,15 +474,12 @@ function ReadersCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <CardTitle>Card readers</CardTitle>
-          <CardDescription>
-            Stripe Terminal readers paired with this shop.
-          </CardDescription>
-        </div>
-        <RegisterReaderDialog action={registerReaderAction} />
-      </CardHeader>
+      <CardHeader
+        icon={Smartphone}
+        title="Card readers"
+        description="Stripe Terminal readers paired with this shop."
+        action={<RegisterReaderDialog action={registerReaderAction} />}
+      />
 
       <CardContent className="flex flex-col gap-3">
         {error ? (
@@ -463,11 +487,16 @@ function ReadersCard({
             {error}
           </p>
         ) : readers.length === 0 ? (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-            {hasLocation
-              ? "No readers are paired yet. Put a reader into pairing mode, read the code off its screen, and register it here."
-              : "No reader has ever been paired. Register one and RepairFlow will create the Stripe Terminal location from this shop's address automatically."}
-          </p>
+          <EmptyState
+            icon={Smartphone}
+            title="No readers paired"
+            hint={
+              hasLocation
+                ? "Put a reader into pairing mode, read the three-word code off its screen, and register it here."
+                : "Register your first one and RepairFlow will create the Stripe Terminal location from this shop's address automatically."
+            }
+            className="rounded-lg border border-dashed border-border py-10"
+          />
         ) : (
           readers.map((reader) => (
             <div
@@ -483,15 +512,10 @@ function ReadersCard({
                   {reader.serialNumber ? ` · ${reader.serialNumber}` : ""}
                 </span>
               </div>
-              <Chip
-                className={
-                  reader.status === "online"
-                    ? "bg-status-resolved-bg font-bold text-status-resolved-fg"
-                    : "bg-surface font-bold"
-                }
-              >
-                {reader.status}
-              </Chip>
+              <StatusPill
+                tone={reader.status === "online" ? "success" : "neutral"}
+                label={reader.status === "online" ? "Online" : "Offline"}
+              />
             </div>
           ))
         )}
@@ -539,7 +563,7 @@ function RegisterReaderDialog({
     >
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Plus /> Register reader
+          <AddIcon aria-hidden /> Register reader
         </Button>
       </DialogTrigger>
 
@@ -594,7 +618,9 @@ function RegisterReaderDialog({
                   <Loader2 className="animate-spin" /> Pairing…
                 </>
               ) : (
-                "Register"
+                <>
+                  <AddIcon aria-hidden /> Register
+                </>
               )}
             </Button>
           </DialogFooter>
@@ -619,13 +645,11 @@ function ServerCard({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Server setup</CardTitle>
-        <CardDescription>
-          Set by whoever runs this RepairFlow server, not from this screen.
-          Only whether each value is present is shown — never the value.
-        </CardDescription>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.settings}
+        title="Server setup"
+        description="Set by whoever runs this RepairFlow server, not from this screen. Only whether each value is present is shown — never the value."
+      />
 
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">

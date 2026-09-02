@@ -1,8 +1,8 @@
 "use client";
 
-import { LogOut, Settings, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, getInitials } from "@/components/ui/avatar";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InstallAppItem } from "@/components/pwa/install-app-item";
+
+const SettingsIcon = ICONS.settings;
+const ProfileIcon = ICONS.profile;
 
 export interface CurrentUser {
   name: string;
@@ -42,13 +45,13 @@ export function UserMenu({ user }: { user: CurrentUser }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/settings">
-            <Settings className="size-4 text-muted-foreground" />
+            <SettingsIcon className="size-4 text-muted-foreground" />
             Settings
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings">
-            <UserIcon className="size-4 text-muted-foreground" />
+            <ProfileIcon className="size-4 text-muted-foreground" />
             Profile
           </Link>
         </DropdownMenuItem>
@@ -59,7 +62,7 @@ export function UserMenu({ user }: { user: CurrentUser }) {
         <DropdownMenuItem asChild className="text-destructive focus:text-destructive">
           <form action="/logout" method="post" className="contents">
             <button type="submit" className="flex w-full items-center gap-2.5">
-              <LogOut className="size-4" />
+              <ACTIONS.signOut className="size-4" />
               Log out
             </button>
           </form>

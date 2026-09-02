@@ -1,17 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowRightLeft,
-  CalendarClock,
-  CalendarDays,
-  Check,
-  CheckCircle2,
-  Pencil,
-  Printer,
-  Receipt,
-  ThumbsDown,
-  Wrench,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { estimateTokenPath, portalUrl } from "@/lib/comms";
@@ -30,9 +19,10 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ActionForm } from "@/components/billing/action-form";
@@ -54,6 +44,24 @@ import {
 /** Chips that link somewhere get a gentle accent tint on hover. */
 const LINK_CHIP =
   "transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const estimate = await db.estimate.findFirst({
+    where: { id, shopId },
+    select: { number: true },
+  });
+  return {
+    title: estimate
+      ? `Estimate #${estimate.number} · RepairFlow`
+      : "Estimate · RepairFlow",
+  };
+}
 
 export default async function EstimateDetailPage({
   params,
@@ -177,14 +185,14 @@ export default async function EstimateDetailPage({
             <div className="flex flex-wrap items-center gap-2.5">
               <Button variant="outline" asChild>
                 <Link href={`/print/estimates/${estimate.id}`} target="_blank">
-                  <Printer /> Print
+                  <ACTIONS.print /> Print
                 </Link>
               </Button>
 
               {canEdit ? (
                 <Button variant="outline" asChild>
                   <Link href={`/estimates/${estimate.id}/edit`}>
-                    <Pencil /> Edit
+                    <ACTIONS.edit /> Edit
                   </Link>
                 </Button>
               ) : null}
@@ -197,7 +205,7 @@ export default async function EstimateDetailPage({
                     variant="outline"
                     pendingLabel="Approving…"
                   >
-                    <Check /> Approve
+                    <ACTIONS.approve /> Approve
                   </ActionForm>
                   <SignatureDialog
                     action={approveWithSignatureAction}
@@ -216,7 +224,7 @@ export default async function EstimateDetailPage({
                   variant="outline"
                   pendingLabel="Saving…"
                 >
-                  <ThumbsDown /> Decline
+                  <ACTIONS.decline /> Decline
                 </ActionForm>
               ) : null}
 
@@ -227,7 +235,7 @@ export default async function EstimateDetailPage({
                   variant="outline"
                   pendingLabel="Converting…"
                 >
-                  <ArrowRightLeft /> Convert to invoice
+                  <ACTIONS.convert /> Convert to invoice
                 </ActionForm>
               ) : null}
 
@@ -245,10 +253,10 @@ export default async function EstimateDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Chip icon={CalendarDays}>Quoted {formatDate(estimate.createdAt)}</Chip>
+            <Chip icon={ICONS.estimate}>Quoted {formatDate(estimate.createdAt)}</Chip>
 
             <Chip
-              icon={CalendarClock}
+              icon={ICONS.dueDate}
               className={cn(expired && "bg-status-overdue-bg text-status-overdue-fg")}
             >
               {estimate.expiresAt
@@ -269,7 +277,7 @@ export default async function EstimateDetailPage({
 
             {estimate.ticket ? (
               <Link href={`/tickets/${estimate.ticket.id}`}>
-                <Chip icon={Wrench} className={LINK_CHIP}>
+                <Chip icon={ICONS.ticket} className={LINK_CHIP}>
                   Ticket #{estimate.ticket.number}
                 </Chip>
               </Link>
@@ -277,7 +285,7 @@ export default async function EstimateDetailPage({
 
             {estimate.invoices.map((invoice) => (
               <Link key={invoice.id} href={`/invoices/${invoice.id}`}>
-                <Chip icon={Receipt} className={LINK_CHIP}>
+                <Chip icon={ICONS.invoice} className={LINK_CHIP}>
                   Invoice #{invoice.number}
                 </Chip>
               </Link>
@@ -297,82 +305,89 @@ export default async function EstimateDetailPage({
         <div className="flex flex-col gap-5 lg:col-span-2">
           {/* ------------------------------------------------------ line items */}
           <Card>
-            <CardHeader>
-              <CardTitle>Line items</CardTitle>
-            </CardHeader>
+            <CardHeader icon={ICONS.checklist} title="Line items" />
 
             <CardContent className="px-0 py-0">
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th>Description</Th>
-                    <Th className="w-[70px] text-right">Qty</Th>
-                    <Th className="w-[120px] text-right">Rate</Th>
-                    <Th className="w-[70px] text-center">Tax</Th>
-                    <Th className="w-[130px] text-right">Amount</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {estimate.lines.map((line) => (
-                    <Tr key={line.id}>
-                      <Td className="whitespace-normal py-4 font-medium text-foreground">
-                        {line.description}
-                      </Td>
-                      <Td className="py-4 text-right tabular-nums text-muted-foreground">
-                        {line.quantity}
-                      </Td>
-                      <Td className="py-4 text-right tabular-nums text-muted-foreground">
-                        {formatCents(line.unitPriceCents)}
-                      </Td>
-                      <Td className="py-4 text-center text-[13.5px] text-muted-foreground">
-                        {line.taxable ? "Yes" : "No"}
-                      </Td>
-                      <Td className="py-4 text-right font-semibold tabular-nums text-foreground">
-                        {formatCents(line.quantity * line.unitPriceCents)}
-                      </Td>
+              {estimate.lines.length === 0 ? (
+                // A quote with nothing on it is unfinished, not empty — so the
+                // way out is the edit screen, not a shrug in the table body.
+                <EmptyState
+                  icon={ICONS.estimate}
+                  title="Nothing quoted yet"
+                  hint="Add the parts and labour this job needs and the customer gets a number to approve."
+                  action={
+                    canEdit ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/estimates/${estimate.id}/edit`}>
+                          <ACTIONS.add /> Add line items
+                        </Link>
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Description</Th>
+                      <Th className="w-[70px] text-right">Qty</Th>
+                      <Th className="w-[120px] text-right">Rate</Th>
+                      <Th className="w-[70px] text-center">Tax</Th>
+                      <Th className="w-[130px] text-right">Amount</Th>
                     </Tr>
-                  ))}
-                  {estimate.lines.length === 0 ? (
-                    <Tr className="hover:bg-transparent">
-                      <Td
-                        colSpan={5}
-                        className="py-10 text-center text-sm text-muted-foreground"
-                      >
-                        No line items on this estimate yet.
-                      </Td>
-                    </Tr>
-                  ) : null}
-                </TBody>
-              </Table>
+                  </THead>
+                  <TBody>
+                    {estimate.lines.map((line) => (
+                      <Tr key={line.id}>
+                        <Td className="whitespace-normal py-4 font-medium text-foreground">
+                          {line.description}
+                        </Td>
+                        <Td className="py-4 text-right tabular-nums text-muted-foreground">
+                          {line.quantity}
+                        </Td>
+                        <Td className="py-4 text-right tabular-nums text-muted-foreground">
+                          {formatCents(line.unitPriceCents)}
+                        </Td>
+                        <Td className="py-4 text-center text-[13.5px] text-muted-foreground">
+                          {line.taxable ? "Yes" : "No"}
+                        </Td>
+                        <Td className="py-4 text-right font-semibold tabular-nums text-foreground">
+                          {formatCents(line.quantity * line.unitPriceCents)}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </TBody>
+                </Table>
+              )}
             </CardContent>
 
-            <CardFooter className="justify-end bg-surface-hover py-5">
-              <div className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">
-                <TotalsRow
-                  label="Subtotal"
-                  value={formatCents(totals.subtotalCents)}
-                />
-                <TotalsRow
-                  label={taxLabel(estimate.taxRate?.name, estimate.taxRateBps)}
-                  value={formatCents(totals.taxCents)}
-                />
-                <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Estimated total
-                  </span>
-                  <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-                    {formatCents(totals.totalCents)}
-                  </span>
+            {estimate.lines.length > 0 ? (
+              <CardFooter className="justify-end bg-surface-hover py-5">
+                <div className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">
+                  <TotalsRow
+                    label="Subtotal"
+                    value={formatCents(totals.subtotalCents)}
+                  />
+                  <TotalsRow
+                    label={taxLabel(estimate.taxRate?.name, estimate.taxRateBps)}
+                    value={formatCents(totals.taxCents)}
+                  />
+                  <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Estimated total
+                    </span>
+                    <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+                      {formatCents(totals.totalCents)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </CardFooter>
+              </CardFooter>
+            ) : null}
           </Card>
 
           {estimate.notes ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
-              </CardHeader>
+              <CardHeader icon={ICONS.message} title="Notes" />
               <CardContent>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
                   {estimate.notes}
@@ -385,9 +400,7 @@ export default async function EstimateDetailPage({
         {/* ------------------------------------------------------------ aside */}
         <aside className="flex flex-col gap-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
+            <CardHeader icon={ICONS.estimate} title="Details" />
             <CardContent className="flex flex-col gap-4 text-sm">
               <Fact label="Customer">
                 <Link
@@ -432,7 +445,7 @@ export default async function EstimateDetailPage({
                     href={`/tickets/${estimate.ticket.id}`}
                     className="inline-flex items-center gap-1.5 text-accent hover:underline"
                   >
-                    <Wrench className="size-4" />#{estimate.ticket.number}
+                    <ICONS.ticket className="size-4" />#{estimate.ticket.number}
                   </Link>
                 </Fact>
               ) : null}
@@ -441,9 +454,7 @@ export default async function EstimateDetailPage({
 
           {estimate.approvalSignatureDataUrl ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Approval signature</CardTitle>
-              </CardHeader>
+              <CardHeader icon={ICONS.signature} title="Approval signature" />
               <CardContent>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

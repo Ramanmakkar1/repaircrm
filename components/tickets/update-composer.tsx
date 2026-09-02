@@ -6,11 +6,12 @@ import { Lock, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -60,7 +61,7 @@ export function UpdateComposer({
         setBody("");
         setSubject("");
         setCannedValue("none");
-        toast.success("Update posted");
+        toast.success("Update posted.");
       }
       return result;
     },
@@ -92,26 +93,29 @@ export function UpdateComposer({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle>Post an update</CardTitle>
-        <div className="flex items-center gap-2">
-          <Label
-            htmlFor="isPublic"
-            className={cn(
-              "text-xs font-medium",
-              isPublic ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {isPublic ? "Public update" : "Private note"}
-          </Label>
-          <Switch
-            id="isPublic"
-            checked={isPublic}
-            onCheckedChange={setIsPublic}
-            aria-label="Send this update to the customer"
-          />
-        </div>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.message}
+        title="Post an update"
+        action={
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="isPublic"
+              className={cn(
+                "text-xs font-medium",
+                isPublic ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {isPublic ? "Public update" : "Private note"}
+            </Label>
+            <Switch
+              id="isPublic"
+              checked={isPublic}
+              onCheckedChange={setIsPublic}
+              aria-label="Send this update to the customer"
+            />
+          </div>
+        }
+      />
 
       <CardContent>
         <form action={formAction} className="flex flex-col gap-3">
@@ -230,6 +234,7 @@ export function UpdateComposer({
               )}
             </p>
             <Button type="submit" size="sm" disabled={pending}>
+              {isPublic ? <ACTIONS.send /> : <ACTIONS.save />}
               {pending
                 ? "Posting…"
                 : statusChanged

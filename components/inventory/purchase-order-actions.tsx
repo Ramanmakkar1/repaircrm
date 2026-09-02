@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Ban, Mail, PackageCheck, Truck } from "lucide-react";
+import { Loader2, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -21,8 +21,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { ReceivePoDialog, type ReceivableLine } from "./receive-po-dialog";
 import { CANCELABLE_PO_STATUSES, RECEIVABLE_PO_STATUSES, asPoStatus } from "./purchasing";
 
@@ -53,6 +55,7 @@ export function PurchaseOrderActions({
 }) {
   const current = asPoStatus(status);
   const [busy, startTransition] = React.useTransition();
+  const [confirmingCancel, setConfirmingCancel] = React.useState(false);
 
   const canReceive =
     RECEIVABLE_PO_STATUSES.includes(current) &&
@@ -63,14 +66,15 @@ export function PurchaseOrderActions({
     startTransition(async () => {
       const result = await emailPurchaseOrderAction(purchaseOrderId);
       if (result.error) toast.error(result.error);
-      else toast.success(`Sent to ${vendorEmail}`);
+      else toast.success(`Purchase order sent to ${vendorEmail}.`);
     });
 
   const cancel = () =>
     startTransition(async () => {
       const result = await cancelPurchaseOrderAction(purchaseOrderId);
+      setConfirmingCancel(false);
       if (result.error) toast.error(result.error);
-      else toast.success("Purchase order canceled");
+      else toast.success("Purchase order canceled.");
     });
 
   return (
@@ -84,7 +88,7 @@ export function PurchaseOrderActions({
 
       {vendorEmail ? (
         <Button variant="outline" disabled={busy} onClick={email}>
-          <Mail />
+          {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
           Email to Vendor
         </Button>
       ) : null}
@@ -95,23 +99,53 @@ export function PurchaseOrderActions({
           lines={lines}
           trigger={
             <Button>
-              <PackageCheck />
+              <ACTIONS.receive />
               Receive
             </Button>
           }
         />
       ) : null}
 
+      {/* Calling off an order is not undoable from the UI, so it asks first —
+          and the confirm button wears the destructive colour, not the
+          quiet ghost the trigger does. */}
       {canCancel ? (
-        <Button
-          variant="ghost"
-          disabled={busy}
-          onClick={cancel}
-          className="text-faint-foreground hover:text-destructive"
-        >
-          <Ban />
-          Cancel
-        </Button>
+        <Dialog open={confirmingCancel} onOpenChange={setConfirmingCancel}>
+          <DialogTrigger asChild>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              className="text-faint-foreground hover:text-destructive"
+            >
+              <ACTIONS.void />
+              Cancel order
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cancel this purchase order?</DialogTitle>
+              <DialogDescription>
+                It stays on file as a canceled order — nothing is deleted and no
+                stock moves — but it can&rsquo;t be received or reopened
+                afterwards.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setConfirmingCancel(false)}
+              >
+                Keep it
+              </Button>
+              <Button variant="destructive" disabled={busy} onClick={cancel}>
+                {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.void />}
+                {busy ? "Canceling…" : "Cancel order"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </>
   );
@@ -133,7 +167,7 @@ function MarkOrderedDialog({
   const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState(expectedAt);
 
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction] = useActionState(
     async (previous: PoActionState, formData: FormData): Promise<PoActionState> => {
       const result = await markPurchaseOrderedAction(
         purchaseOrderId,
@@ -142,7 +176,7 @@ function MarkOrderedDialog({
       );
       if (result.ok) {
         setOpen(false);
-        toast.success("Marked as ordered");
+        toast.success("Marked as ordered.");
       }
       return result;
     },
@@ -191,9 +225,7 @@ function MarkOrderedDialog({
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Mark ordered"}
-            </Button>
+            <SubmitButton pendingLabel="Saving…">Mark ordered</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

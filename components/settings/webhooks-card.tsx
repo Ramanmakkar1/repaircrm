@@ -2,15 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  Check,
-  Copy,
-  Radio,
-  RotateCw,
-  Send,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -21,7 +13,7 @@ import {
   setWebhookActiveAction,
 } from "@/app/(app)/settings/webhook-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -32,15 +24,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/components/ui/cn";
 import {
+  DELIVERY_STATUS_META,
   WEBHOOK_EVENT_LABEL,
   WEBHOOK_EVENTS,
   WILDCARD_EVENT,
+  asDeliveryStatus,
 } from "./webhook-meta";
 import type { WebhookDeliveryItem, WebhookItem } from "./types";
 
@@ -55,6 +52,15 @@ import type { WebhookDeliveryItem, WebhookItem } from "./types";
  * endpoint — same rule as an API key, for the same reason: a value that is on
  * screen twice is a value in two people's screenshots.
  */
+
+const WebhookIcon = ICONS.webhook;
+const AddIcon = ACTIONS.add;
+const SendIcon = ACTIONS.send;
+const RetryIcon = ACTIONS.retry;
+const DeleteIcon = ACTIONS.delete;
+const CopyIcon = ACTIONS.copy;
+const SavedIcon = ACTIONS.save;
+
 export function WebhooksCard({
   webhooks,
   deliveries,
@@ -70,29 +76,27 @@ export function WebhooksCard({
   return (
     <>
       <Card>
-        <CardHeader className="flex-row items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <CardTitle>Webhooks</CardTitle>
-            <CardDescription>
-              Send an HTTP POST to your own system the moment something happens
-              here — a ticket is created, an invoice is paid.
-            </CardDescription>
-          </div>
-          <Button variant="outline" onClick={() => setAdding(true)}>
-            <Radio /> Add endpoint
-          </Button>
-        </CardHeader>
+        <CardHeader
+          icon={WebhookIcon}
+          title="Webhooks"
+          description="Send an HTTP POST to your own system the moment something happens here — a ticket is created, an invoice is paid."
+          action={
+            <Button variant="outline" onClick={() => setAdding(true)}>
+              <AddIcon aria-hidden /> Add endpoint
+            </Button>
+          }
+        />
 
         <CardContent className="flex flex-col gap-5 px-0 pb-0">
           {webhooks.length === 0 ? (
             <div className="px-6 pb-6">
               <EmptyState
-                icon={Radio}
+                icon={WebhookIcon}
                 title="No endpoints yet"
                 hint="Add a URL and pick the events you care about. Deliveries are signed, retried, and listed here."
                 action={
                   <Button variant="outline" onClick={() => setAdding(true)}>
-                    Add endpoint
+                    <AddIcon aria-hidden /> Add endpoint
                   </Button>
                 }
               />
@@ -142,6 +146,8 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
   const router = useRouter();
   const [active, setActive] = React.useState(hook.active);
   const [busy, setBusy] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
 
   // Follows the server once router.refresh() brings a new value down. Adjusting
   // during render is React's own recommendation for state that has to track a
@@ -168,8 +174,10 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
 
   async function test() {
     setBusy(true);
+    setTesting(true);
     const result = await sendTestWebhookAction(hook.id);
     setBusy(false);
+    setTesting(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -186,6 +194,7 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
       toast.error(result.error);
       return;
     }
+    setConfirming(false);
     toast.success("Endpoint deleted.");
     router.refresh();
   }
@@ -223,7 +232,8 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
             disabled={busy}
             onClick={test}
           >
-            <Send /> Test
+            {testing ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
+            {testing ? "Sending…" : "Test"}
           </Button>
           <Switch
             checked={active}
@@ -231,17 +241,61 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
             onCheckedChange={toggle}
             aria-label={`${active ? "Disable" : "Enable"} ${hook.url}`}
           />
-          <button
-            type="button"
-            aria-label={`Delete ${hook.url}`}
-            disabled={busy}
-            onClick={remove}
-            className="rounded-sm p-1.5 text-faint-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
+          {/*
+            Icon-only because it repeats on every row — so it carries both an
+            aria-label and a tooltip, and it asks before it fires: an endpoint
+            is somebody's integration, and there is no undo.
+          */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Delete ${hook.url}`}
+                disabled={busy}
+                onClick={() => setConfirming(true)}
+                className="rounded-sm p-1.5 text-faint-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <DeleteIcon className="size-3.5" aria-hidden />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Delete endpoint</TooltipContent>
+          </Tooltip>
         </div>
       </Td>
+
+      <Dialog
+        open={confirming}
+        onOpenChange={(next) => {
+          if (!next && !busy) setConfirming(false);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this endpoint?</DialogTitle>
+            <DialogDescription>
+              RepairFlow will stop posting events to{" "}
+              <span className="break-all font-mono text-foreground">
+                {hook.url}
+              </span>
+              . Its signing secret is destroyed with it, so re-adding the URL
+              means re-configuring the receiving end.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={remove}>
+              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
+              {busy ? "Deleting…" : "Delete endpoint"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tr>
   );
 }
@@ -251,10 +305,14 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
 function DeliveriesTable({ deliveries }: { deliveries: WebhookDeliveryItem[] }) {
   if (deliveries.length === 0) {
     return (
-      <p className="px-6 pb-6 text-[13.5px] text-muted-foreground">
-        No deliveries yet. Press <strong>Test</strong> to send a signed{" "}
-        <code className="font-mono">ping</code>.
-      </p>
+      <div className="px-6 pb-6">
+        <EmptyState
+          icon={SendIcon}
+          title="No deliveries yet"
+          hint="Nothing has been posted to your endpoints. Press Test on one of them to send a signed ping and it will appear here."
+          className="rounded-lg border border-dashed border-border py-10"
+        />
+      </div>
     );
   }
 
@@ -285,15 +343,10 @@ function DeliveriesTable({ deliveries }: { deliveries: WebhookDeliveryItem[] }) 
   );
 }
 
-const STATUS_CLASS: Record<string, string> = {
-  delivered: "bg-status-resolved-bg text-status-resolved-fg",
-  pending: "bg-status-in-progress-bg text-status-in-progress-fg",
-  failed: "bg-status-overdue-bg text-status-overdue-fg",
-};
-
 function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const status = DELIVERY_STATUS_META[asDeliveryStatus(delivery.status)];
 
   async function retry() {
     setBusy(true);
@@ -316,15 +369,16 @@ function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
       </Td>
       <Td>
         <span className="flex items-center gap-2">
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[12px] font-semibold",
-              STATUS_CLASS[delivery.status] ?? "bg-surface-hover text-muted-foreground",
-            )}
-          >
-            {delivery.status}
-            {delivery.responseCode ? ` · ${delivery.responseCode}` : ""}
-          </span>
+          {/* The HTTP code rides inside the pill: it is the same fact. */}
+          <StatusPill
+            size="sm"
+            tone={status.tone}
+            label={
+              delivery.responseCode
+                ? `${status.label} · ${delivery.responseCode}`
+                : status.label
+            }
+          />
           {delivery.lastError ? (
             <span
               className="max-w-[200px] truncate text-[12px] text-muted-foreground"
@@ -342,7 +396,8 @@ function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
       <Td className="text-right">
         {delivery.status === "delivered" ? null : (
           <Button variant="ghost" size="sm" disabled={busy} onClick={retry}>
-            <RotateCw /> Retry
+            {busy ? <Loader2 className="animate-spin" /> : <RetryIcon aria-hidden />}
+            {busy ? "Retrying…" : "Retry"}
           </Button>
         )}
       </Td>
@@ -540,6 +595,7 @@ function AddDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <AddIcon aria-hidden />}
               {busy ? "Adding…" : "Add endpoint"}
             </Button>
           </DialogFooter>
@@ -613,7 +669,7 @@ function CopyableSecret({ value }: { value: string }) {
         onClick={copy}
         aria-label="Copy signing secret"
       >
-        {copied ? <Check /> : <Copy />}
+        {copied ? <SavedIcon aria-hidden /> : <CopyIcon aria-hidden />}
         {copied ? "Copied" : "Copy"}
       </Button>
     </div>

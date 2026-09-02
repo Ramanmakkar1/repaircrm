@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 
 import { ImportWizard } from "@/components/import/import-wizard";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import {
@@ -20,13 +20,14 @@ export default async function ImportProductsPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-1">
       <Link
         href="/inventory"
-        className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="size-4" />
-        Inventory
+        <ACTIONS.back className="size-4" />
+        All inventory
       </Link>
 
       <PageHeader
+        icon={ICONS.importData}
         title="Import products"
         description="Load a parts catalogue from a spreadsheet. Vendors named in the file are created as you go."
         className="mb-4"

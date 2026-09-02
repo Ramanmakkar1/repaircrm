@@ -3,7 +3,10 @@
  *
  * Pure — imported by the server actions and by the client dialogs, so no `db`,
  * no `next/*`, no "use server". (Same contract as components/pos/types.ts.)
+ * The tone import below is type-only and erased before any of that matters.
  */
+
+import type { StatusTone } from "@/components/ui/badge";
 
 /** What the till should hold, and where each part of it came from. */
 export type DrawerSummary = {
@@ -18,10 +21,19 @@ export type DrawerSummary = {
   expectedCents: number;
 };
 
-/** The open session as the POS strip sees it. */
+/**
+ * The open session as the POS strip sees it.
+ *
+ * `openedAtLabel` is already formatted, deliberately. The strip is a client
+ * component inside a server-rendered page, and turning an instant into "9:14 AM"
+ * in the browser gives a different string from the one the server printed the
+ * moment the till and the server disagree about the timezone — which is a
+ * hydration mismatch, and on a tablet at the counter it is the common case.
+ * The server formats it once, in the shop's own zone, and hands over the words.
+ */
 export type OpenDrawer = {
   id: string;
-  openedAtISO: string;
+  openedAtLabel: string;
   openedByName: string;
   openingCents: number;
 };
@@ -57,8 +69,18 @@ export function drawerVerdict(differenceCents: number): DrawerVerdict {
   return differenceCents > 0 ? "over" : "short";
 }
 
-export const DRAWER_VERDICT_CLASS: Record<DrawerVerdict, string> = {
-  balanced: "bg-surface-hover text-muted-foreground",
-  over: "bg-status-resolved-bg text-status-resolved-fg",
-  short: "bg-status-overdue-bg text-status-overdue-fg",
+/**
+ * The verdict in the app-wide tone language (see `components/ui/badge.tsx`).
+ *
+ * Nought is the outcome the count is FOR, so balanced is the green one. A
+ * surplus is still a discrepancy — somebody was given the wrong change — so it
+ * gets amber rather than the green it used to wear, and short keeps the red.
+ */
+export const DRAWER_VERDICT_META: Record<
+  DrawerVerdict,
+  { label: string; tone: StatusTone }
+> = {
+  balanced: { label: "Balanced", tone: "success" },
+  over: { label: "Over", tone: "active" },
+  short: { label: "Short", tone: "danger" },
 };

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignForm } from "@/components/marketing/campaign-form";
 import { findTemplate } from "@/components/marketing/meta";
@@ -34,11 +34,12 @@ export default async function NewCampaignPage({
         href="/marketing"
         className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="size-4" />
+        <ACTIONS.back className="size-4" />
         All campaigns
       </Link>
 
       <PageHeader
+        icon={ICONS.marketing}
         title="New campaign"
         description="Pick the moment, the wait, and the words. Nothing sends until you run it."
       />

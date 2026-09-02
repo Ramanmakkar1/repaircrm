@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { FileText, Plus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/components/ui/cn";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
@@ -75,12 +75,13 @@ export default async function EstimatesPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.estimate}
         title="Estimates"
         description="Draft and send repair estimates for approval."
         actions={
           <Button asChild>
             <Link href="/estimates/new">
-              <Plus /> New estimate
+              <ACTIONS.add /> New estimate
             </Link>
           </Button>
         }
@@ -97,7 +98,7 @@ export default async function EstimatesPage({
       {estimates.length === 0 ? (
         <Card>
           <EmptyState
-            icon={FileText}
+            icon={ICONS.estimate}
             title={filtered ? "No estimates match those filters" : "No estimates yet"}
             hint={
               filtered
@@ -112,7 +113,7 @@ export default async function EstimatesPage({
               ) : (
                 <Button asChild>
                   <Link href="/estimates/new">
-                    <Plus /> New estimate
+                    <ACTIONS.add /> New estimate
                   </Link>
                 </Button>
               )
@@ -135,50 +136,60 @@ export default async function EstimatesPage({
                 (estimate.status === "DRAFT" || estimate.status === "SENT");
 
               return (
-                <Link
+                // The stripe is reserved for the quote that needs chasing:
+                // expired, or turned down. Everything else is a white card and
+                // the pill carries the state on its own.
+                <Card
                   key={estimate.id}
-                  href={`/estimates/${estimate.id}`}
-                  className={cn(
-                    "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                    expired && "border-status-overdue/55",
-                  )}
+                  interactive
+                  tone={
+                    expired || estimate.status === "DECLINED" ? "danger" : undefined
+                  }
+                  className="flex flex-col"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
-                      #{estimate.number}
-                    </span>
-                    <EstimateStatusBadge status={estimate.status} />
-                  </div>
+                  <Link
+                    href={`/estimates/${estimate.id}`}
+                    className={cn(
+                      "flex flex-1 flex-col gap-4 rounded-lg p-5",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
+                        #{estimate.number}
+                      </span>
+                      <EstimateStatusBadge status={estimate.status} />
+                    </div>
 
-                  <span className="truncate text-[15px] font-bold text-foreground">
-                    {name}
-                  </span>
-
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Quoted
+                    <span className="truncate text-[15px] font-bold text-foreground">
+                      {name}
                     </span>
-                    <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-                      {formatCents(totals.totalCents)}
-                    </span>
-                  </div>
 
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                    <Chip>Written {formatDate(estimate.createdAt)}</Chip>
-                    {estimate.expiresAt ? (
-                      <Chip
-                        className={cn(
-                          expired &&
-                            "bg-status-overdue-bg font-bold text-status-overdue-fg",
-                        )}
-                      >
-                        {expired ? "Expired " : "Expires "}
-                        {formatDate(estimate.expiresAt)}
-                      </Chip>
-                    ) : null}
-                  </div>
-                </Link>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Quoted
+                      </span>
+                      <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+                        {formatCents(totals.totalCents)}
+                      </span>
+                    </div>
+
+                    <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                      <Chip>Written {formatDate(estimate.createdAt)}</Chip>
+                      {estimate.expiresAt ? (
+                        <Chip
+                          className={cn(
+                            expired &&
+                              "bg-status-overdue-bg font-bold text-status-overdue-fg",
+                          )}
+                        >
+                          {expired ? "Expired " : "Expires "}
+                          {formatDate(estimate.expiresAt)}
+                        </Chip>
+                      ) : null}
+                    </div>
+                  </Link>
+                </Card>
               );
             })}
           </div>

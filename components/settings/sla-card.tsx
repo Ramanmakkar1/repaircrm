@@ -2,17 +2,18 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateSlaAction } from "@/app/(app)/settings/sla-actions";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ import { PRIORITIES, PRIORITY_META } from "@/components/tickets/ticket-meta";
  * calendar hours — a customer waiting overnight is still waiting — and the
  * card says so rather than letting anyone assume business hours.
  */
+const SaveIcon = ACTIONS.save;
+
 export function SlaCard({ sla }: { sla: SlaHours }) {
   const router = useRouter();
   const [values, setValues] = React.useState<Record<string, string>>(() =>
@@ -61,14 +64,11 @@ export function SlaCard({ sla }: { sla: SlaHours }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Response targets</CardTitle>
-        <CardDescription>
-          How long a job of each priority may take. A new ticket with no due date
-          of its own gets one this far ahead, and anything that runs past it is
-          flagged as overdue.
-        </CardDescription>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.dueDate}
+        title="Response targets"
+        description="How long a job of each priority may take. A new ticket with no due date of its own gets one this far ahead, and anything that runs past it is flagged as overdue."
+      />
 
       <CardContent className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -108,7 +108,23 @@ export function SlaCard({ sla }: { sla: SlaHours }) {
         </p>
       </CardContent>
 
-      <CardFooter className="justify-end gap-3">
+      <CardFooter className="flex-wrap justify-end gap-3">
+        {/*
+          The state of the form is a status, so it is said with the app's one
+          status renderer rather than by quietly relabelling the button "Saved"
+          — a disabled button that says "Saved" cannot also say "these hours are
+          out of range", which is the case an operator actually gets stuck on.
+        */}
+        {invalid ? (
+          <StatusPill
+            tone="danger"
+            label={`Hours must be ${MIN_SLA_HOURS}–${MAX_SLA_HOURS}`}
+            className="mr-auto"
+          />
+        ) : dirty ? (
+          <StatusPill tone="active" label="Unsaved changes" className="mr-auto" />
+        ) : null}
+
         {dirty ? (
           <Button
             variant="ghost"
@@ -123,7 +139,8 @@ export function SlaCard({ sla }: { sla: SlaHours }) {
           </Button>
         ) : null}
         <Button disabled={busy || !dirty || invalid} onClick={save}>
-          {busy ? "Saving…" : dirty ? "Save targets" : "Saved"}
+          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
+          {busy ? "Saving…" : "Save targets"}
         </Button>
       </CardFooter>
     </Card>

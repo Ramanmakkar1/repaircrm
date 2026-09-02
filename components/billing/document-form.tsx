@@ -6,7 +6,8 @@ import { useActionState } from "react";
 import { AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -121,9 +122,10 @@ export function DocumentForm({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{isInvoice ? "Invoice details" : "Estimate details"}</CardTitle>
-        </CardHeader>
+        <CardHeader
+          icon={isInvoice ? ICONS.invoice : ICONS.estimate}
+          title={isInvoice ? "Invoice details" : "Estimate details"}
+        />
         <CardContent className="grid gap-5 sm:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="customerId">Customer</Label>
@@ -184,9 +186,7 @@ export function DocumentForm({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Line items</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.checklist} title="Line items" />
         <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}
@@ -199,10 +199,12 @@ export function DocumentForm({
 
       <div className="flex items-center justify-end gap-3">
         <Button variant="outline" size="lg" asChild>
-          <Link href={cancelHref}>Cancel</Link>
+          <Link href={cancelHref}>
+            <ACTIONS.cancel /> Cancel
+          </Link>
         </Button>
         <SubmitButton size="lg" pendingLabel="Saving…">
-          {submitLabel}
+          <ACTIONS.save /> {submitLabel}
         </SubmitButton>
       </div>
     </form>

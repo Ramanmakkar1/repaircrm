@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Calculator, LockKeyhole } from "lucide-react";
+import { Calculator, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { TONE_CLASS } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import {
   Dialog,
@@ -25,7 +27,7 @@ import {
 } from "@/app/(app)/pos/drawers/actions";
 import {
   DRAWER_DENOMINATIONS,
-  DRAWER_VERDICT_CLASS,
+  DRAWER_VERDICT_META,
   drawerVerdict,
   type DrawerSummary,
 } from "./drawer-types";
@@ -85,7 +87,7 @@ export function DrawerCloseDialog({
 
   const expected = summary?.expectedCents ?? 0;
   const difference = countedCents - expected;
-  const verdict = drawerVerdict(difference);
+  const verdict = DRAWER_VERDICT_META[drawerVerdict(difference)];
 
   async function submit() {
     setBusy(true);
@@ -104,7 +106,7 @@ export function DrawerCloseDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline" onClick={openDialog}>
-          <LockKeyhole className="size-4" />
+          <ACTIONS.close className="size-4" />
           Close drawer
         </Button>
       </DialogTrigger>
@@ -197,19 +199,16 @@ export function DrawerCloseDialog({
             </div>
 
             {/* ------------------------------------------------ difference -- */}
+            {/* The verdict banner borrows the pill's own tint, so the strip
+                here and the pill on the drawer history are the same colour for
+                the same outcome. */}
             <div
               className={cn(
                 "flex items-center justify-between rounded-lg px-4 py-3",
-                DRAWER_VERDICT_CLASS[verdict],
+                TONE_CLASS[verdict.tone].chip,
               )}
             >
-              <span className="text-[14px] font-bold">
-                {verdict === "balanced"
-                  ? "Balanced"
-                  : verdict === "over"
-                    ? "Over"
-                    : "Short"}
-              </span>
+              <span className="text-[14px] font-bold">{verdict.label}</span>
               <span className="font-mono text-[17px] font-bold tabular-nums">
                 {difference > 0 ? "+" : ""}
                 {formatCents(difference)}
@@ -235,6 +234,7 @@ export function DrawerCloseDialog({
             Cancel
           </Button>
           <Button onClick={submit} disabled={busy || summary === null}>
+            {busy ? <Loader2 className="animate-spin" /> : null}
             {busy ? "Closing…" : "Close drawer"}
           </Button>
         </DialogFooter>

@@ -250,27 +250,39 @@
   }
 }
 
-* {
-  border-color: var(--color-border);
-}
+/*
+ * These MUST stay inside `@layer base`.
+ *
+ * An unlayered rule beats every rule in a cascade layer no matter its
+ * specificity, so a bare `* { border-color: … }` here silently kills every
+ * Tailwind border-colour utility in the app — `border-l-status-new`,
+ * `border-accent/40`, all of them. It hid for a long time because the default
+ * it paints is the same grey `border-border` resolves to, so only the
+ * *coloured* borders were dead. Keep the layer.
+ */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
 
-html {
-  color-scheme: light dark;
-}
+  html {
+    color-scheme: light dark;
+  }
 
-body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
 
-::selection {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-soft-foreground);
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-accent-soft-foreground);
+  }
 }
 
 /* soft, easy-to-grab scrollbars */

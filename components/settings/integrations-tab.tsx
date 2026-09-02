@@ -4,19 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight,
   Building2,
   CheckCircle2,
   CircleAlert,
-  CreditCard,
-  Download,
-  KeyRound,
   Link2,
-  MessageSquare,
-  Plug,
-  RefreshCw,
-  Unplug,
-  type LucideIcon,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,12 +21,9 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -43,8 +32,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ACTIONS, ICONS, type LucideIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill, type StatusTone } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import {
   ENTITY_LABEL,
@@ -82,18 +73,69 @@ export type IntegrationsConfig = {
   notice: { tone: "ok" | "bad"; text: string } | null;
 };
 
+/**
+ * Where each connection state sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`). Declared here rather than in
+ * `lib/integrations/types.ts` because this tab is the only screen that shows a
+ * connection as a chip — and only `StatusPill` knows what a tone looks like, so
+ * "Connected" here is the same green as a paid invoice.
+ *
+ * `none` and `disconnected` are both grey: neither is a fault, they are just
+ * two ways of not being plugged in.
+ */
+const CONNECTION_META: Record<
+  IntegrationCard["status"],
+  { label: string; tone: StatusTone }
+> = {
+  connected: { label: "Connected", tone: "success" },
+  pending: { label: "Needs an answer", tone: "waiting" },
+  error: { label: "Sync failing", tone: "danger" },
+  disconnected: { label: "Disconnected", tone: "neutral" },
+  none: { label: "Not connected", tone: "neutral" },
+};
+
+/** An unconfigured server outranks whatever a stored connection claims. */
+function connectionMeta(card: IntegrationCard) {
+  if (!card.configured) return { label: "Not available", tone: "neutral" as const };
+  return CONNECTION_META[card.status] ?? CONNECTION_META.none;
+}
+
+/**
+ * The left stripe is for the card that needs something *doing*, not for every
+ * card on the hub: a wall of stripes says nothing. Connected and
+ * not-yet-connected are both fine, so neither gets one.
+ */
+function cardTone(tone: StatusTone): StatusTone | undefined {
+  return tone === "danger" || tone === "waiting" || tone === "active"
+    ? tone
+    : undefined;
+}
+
+const SyncIcon = ACTIONS.refresh;
+const ConnectIcon = ACTIONS.connect;
+const DisconnectIcon = ACTIONS.disconnect;
+const NextIcon = ACTIONS.next;
+const DownloadIcon = ACTIONS.download;
+const SaveIcon = ACTIONS.save;
+
 export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
   return (
     <div className="flex flex-col gap-6">
       {config.notice ? (
         <p
+          role="status"
           className={cn(
-            "rounded-md px-4 py-3 text-[13.5px] font-medium leading-relaxed",
+            "flex items-start gap-2.5 rounded-md px-4 py-3 text-[13.5px] font-medium leading-relaxed",
             config.notice.tone === "ok"
               ? "bg-status-resolved-bg text-status-resolved-fg"
               : "bg-status-overdue-bg text-status-overdue-fg",
           )}
         >
+          {config.notice.tone === "ok" ? (
+            <CheckCircle2 className="mt-px size-4 shrink-0" />
+          ) : (
+            <CircleAlert className="mt-px size-4 shrink-0" />
+          )}
           {config.notice.text}
         </p>
       ) : null}
@@ -111,9 +153,9 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
         <SectionLabel>Elsewhere in RepairFlow</SectionLabel>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <QuickCard
-            icon={CreditCard}
+            icon={ICONS.payment}
             title="Online payments"
-            live={config.stripeConnected}
+            tone={config.stripeConnected ? "success" : "neutral"}
             status={
               config.stripeConnected
                 ? "Connected"
@@ -131,9 +173,13 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
           />
 
           <QuickCard
-            icon={MessageSquare}
+            icon={ICONS.message}
             title="Email & SMS"
-            live={config.emailDriver !== "log" || config.smsDriver !== "log"}
+            tone={
+              config.emailDriver !== "log" || config.smsDriver !== "log"
+                ? "success"
+                : "neutral"
+            }
             status={`Email: ${config.emailDriver} · SMS: ${config.smsDriver}`}
             body={
               config.emailDriver === "log" && config.smsDriver === "log"
@@ -145,9 +191,9 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
           />
 
           <QuickCard
-            icon={KeyRound}
+            icon={ICONS.apiKey}
             title="API & webhooks"
-            live={config.apiKeyCount > 0}
+            tone={config.apiKeyCount > 0 ? "success" : "neutral"}
             status={
               config.apiKeyCount === 0
                 ? "No keys yet"
@@ -159,9 +205,9 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
           />
 
           <QuickCard
-            icon={Download}
+            icon={ICONS.exportData}
             title="CSV exports"
-            live
+            tone="success"
             status="Always available"
             body="Download customers, invoices and payments as spreadsheets — the format every accountant already knows how to open."
             href={`${config.appUrl}/api/exports/invoices.csv`}
@@ -192,6 +238,7 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
   const [confirming, setConfirming] = React.useState(false);
 
   const connected = card.status === "connected" || card.status === "error";
+  const status = connectionMeta(card);
   const missing = card.envVars.filter(
     (variable) => !variable.set && variable.name !== "QBO_ENVIRONMENT",
   );
@@ -222,28 +269,19 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
   }
 
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex-row items-center gap-3.5">
-        <IconChip
-          icon={Building2}
-          className={
-            // An unconfigured server outranks whatever a stored connection
-            // says: green next to "not configured on this server" reads as a
-            // working integration, and it is not one.
-            !card.configured
-              ? "bg-surface-hover text-muted-foreground"
-              : card.status === "connected"
-                ? "bg-status-resolved-bg text-status-resolved-fg"
-                : card.status === "error"
-                  ? "bg-status-overdue-bg text-status-overdue-fg"
-                  : "bg-surface-hover text-muted-foreground"
-          }
-        />
-        <div className="flex min-w-0 flex-col gap-1">
-          <CardTitle>{card.label}</CardTitle>
-          <CardDescription>{describeStatus(card)}</CardDescription>
-        </div>
-      </CardHeader>
+    // The state lives in a 3px stripe down the left edge and in the pill beside
+    // the title; the card itself stays white, so a hub of six reads as a hub.
+    <Card className="flex flex-col" tone={cardTone(status.tone)}>
+      <CardHeader
+        icon={Building2}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {card.label}
+            <StatusPill size="sm" tone={status.tone} label={status.label} />
+          </span>
+        }
+        description={describeStatus(card)}
+      />
 
       <CardContent className="flex flex-1 flex-col gap-4">
         {!card.configured ? (
@@ -273,14 +311,17 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
         ) : card.status === "pending" ? (
           <Button asChild size="sm">
             <Link href="/settings/integrations/xero-tenant">
-              Pick an organisation <ArrowRight />
+              Pick an organisation <NextIcon aria-hidden />
             </Link>
           </Button>
         ) : connected ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={sync} disabled={busy !== null}>
-                <RefreshCw className={busy === "sync" ? "animate-spin" : ""} />
+                <SyncIcon
+                  aria-hidden
+                  className={busy === "sync" ? "animate-spin" : ""}
+                />
                 {busy === "sync" ? "Syncing…" : "Sync now"}
               </Button>
               <Button
@@ -290,23 +331,25 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
                 aria-label={`Reconnect ${card.label}`}
               >
                 <a href={`/api/integrations/${card.provider}/connect`}>
-                  <Plug /> Reconnect
+                  <ConnectIcon aria-hidden /> Reconnect
                 </a>
               </Button>
             </div>
+            {/* Reads as what it is: the one button here that takes something away. */}
             <Button
               size="sm"
               variant="ghost"
+              className="text-destructive hover:bg-destructive-soft hover:text-destructive"
               disabled={busy !== null}
               onClick={() => setConfirming(true)}
             >
-              <Unplug /> Disconnect
+              <DisconnectIcon aria-hidden /> Disconnect
             </Button>
           </>
         ) : (
           <Button asChild size="sm">
             <a href={`/api/integrations/${card.provider}/connect`}>
-              <Plug /> Connect {card.label}
+              <ConnectIcon aria-hidden /> Connect {card.label}
             </a>
           </Button>
         )}
@@ -338,6 +381,11 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
               disabled={busy !== null}
               onClick={disconnect}
             >
+              {busy === "disconnect" ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <DisconnectIcon aria-hidden />
+              )}
               {busy === "disconnect" ? "Disconnecting…" : "Disconnect"}
             </Button>
           </DialogFooter>
@@ -521,6 +569,7 @@ function AccountCodes({ card }: { card: IntegrationCard }) {
           the bank code.
         </p>
         <Button type="submit" size="sm" variant="outline" disabled={busy || !dirty}>
+          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
           {busy ? "Saving…" : "Save"}
         </Button>
       </div>
@@ -535,7 +584,7 @@ function AccountCodes({ card }: { card: IntegrationCard }) {
 function QuickCard({
   icon,
   title,
-  live,
+  tone,
   status,
   body,
   href,
@@ -544,7 +593,8 @@ function QuickCard({
 }: {
   icon: LucideIcon;
   title: string;
-  live: boolean;
+  /** The tone this signpost is in — green when it is actually plugged in. */
+  tone: StatusTone;
   status: string;
   body: string;
   href: string;
@@ -552,21 +602,16 @@ function QuickCard({
   external?: boolean;
 }) {
   return (
-    <Card className="flex flex-col">
-      <CardHeader className="flex-row items-center gap-3.5">
-        <IconChip
-          icon={icon}
-          className={
-            live
-              ? "bg-status-resolved-bg text-status-resolved-fg"
-              : "bg-surface-hover text-muted-foreground"
-          }
-        />
-        <div className="flex min-w-0 flex-col gap-1">
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{status}</CardDescription>
-        </div>
-      </CardHeader>
+    <Card className="flex flex-col" tone={cardTone(tone)}>
+      <CardHeader
+        icon={icon}
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {title}
+            <StatusPill size="sm" tone={tone} label={status} />
+          </span>
+        }
+      />
       <CardContent className="flex-1">
         <p className="text-[14px] leading-relaxed text-muted-foreground">{body}</p>
       </CardContent>
@@ -574,11 +619,11 @@ function QuickCard({
         <Button asChild variant="outline" size="sm">
           {external ? (
             <a href={href}>
-              {cta} <ArrowRight />
+              <DownloadIcon aria-hidden /> {cta}
             </a>
           ) : (
             <Link href={href}>
-              {cta} <ArrowRight />
+              {cta} <NextIcon aria-hidden />
             </Link>
           )}
         </Button>

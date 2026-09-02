@@ -2,10 +2,13 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Trash2, Settings2 } from "lucide-react";
+// Settings2 is "manage the list", which is not one of the shared verbs.
+import { Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -43,7 +46,7 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
       const result = await createCannedResponseAction(previous, formData);
       if (result.ok) {
         formRef.current?.reset();
-        toast.success("Canned response saved");
+        toast.success("Canned response saved.");
       }
       return result;
     },
@@ -86,15 +89,17 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
                   </p>
                 </div>
                 <form action={deleteCannedResponseAction.bind(null, response.id)}>
-                  <Button
-                    type="submit"
+                  {/* Empty pendingLabel so the spinner REPLACES the bin rather
+                      than crowding in beside it in a 36px icon button. */}
+                  <SubmitButton
                     variant="ghost"
                     size="icon"
+                    pendingLabel=""
                     aria-label={`Delete ${response.title}`}
                     className="text-faint-foreground hover:text-destructive"
                   >
-                    <Trash2 className="size-4" />
-                  </Button>
+                    <ACTIONS.delete className="size-4" />
+                  </SubmitButton>
                 </form>
               </div>
             ))
@@ -131,6 +136,7 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
           </div>
           <div className="flex justify-end">
             <Button type="submit" size="sm" disabled={pending}>
+              <ACTIONS.add />
               {pending ? "Saving…" : "Add response"}
             </Button>
           </div>

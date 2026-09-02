@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { startOfDay, endOfDay } from "date-fns";
 
 import { requireUser } from "@/lib/auth";
@@ -14,6 +15,10 @@ import { TicketTile } from "@/components/display/ticket-tile";
 import { LiveClock } from "@/components/display/live-clock";
 import { AutoRefresh } from "@/components/display/auto-refresh";
 import { FullscreenToggle } from "@/components/display/fullscreen-toggle";
+
+// The tab title is what a shop names the browser window it leaves running on
+// the wall TV, so it says what the screen is rather than inheriting the shell.
+export const metadata: Metadata = { title: "Shop floor board · RepairFlow" };
 
 // This board is meant to be read live off a shop-floor TV, so every request
 // (including each 30s auto-refresh) must hit the DB fresh — never serve a

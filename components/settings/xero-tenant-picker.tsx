@@ -2,12 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check } from "lucide-react";
+import { Building2, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { chooseXeroTenantAction } from "@/app/(app)/settings/integration-actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
+
+const ConnectIcon = ACTIONS.connect;
 
 /**
  * "Which organisation?" — the one question a Xero grant can leave open.
@@ -86,6 +89,7 @@ export function XeroTenantPicker({
 
       <div className="flex items-center gap-3">
         <Button onClick={confirm} disabled={busy || !selected}>
+          {busy ? <Loader2 className="animate-spin" /> : <ConnectIcon aria-hidden />}
           {busy ? "Connecting…" : "Use this organisation"}
         </Button>
         <span className="text-[13px] text-muted-foreground">

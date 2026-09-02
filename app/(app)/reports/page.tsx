@@ -1,21 +1,16 @@
 import Link from "next/link";
 import {
-  BarChart3,
   CalendarCheck,
+  CircleCheckBig,
   CircleDollarSign,
   Clock,
-  Download,
   FileSpreadsheet,
-  Receipt,
   HandCoins,
   Timer,
   TrendingUp,
-  Undo2,
-  Users,
-  Wallet,
-  Wrench,
 } from "lucide-react";
 
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -35,7 +30,7 @@ import {
   resolveReportPeriod,
 } from "@/components/reports/period";
 import { loadReport } from "@/components/reports/query";
-import { BigStat, CardLink, ReportCard } from "@/components/reports/stat-card";
+import { CardLink, KpiTile, ReportCard } from "@/components/reports/stat-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ALL_LOCATIONS, currentLocationId } from "@/lib/location";
@@ -112,6 +107,7 @@ export default async function ReportsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.reports}
         title="Reports"
         description={`${period.label} · ${period.rangeLabel}${
           location ? ` · ${location.name}` : ""
@@ -119,8 +115,8 @@ export default async function ReportsPage({
         actions={
           canExport ? (
             <Button variant="outline" asChild>
-              <a href={`/api/exports/customers.csv`}>
-                <Download />
+              <a href="/api/exports/customers.csv">
+                <ACTIONS.download />
                 Customers CSV
               </a>
             </Button>
@@ -133,74 +129,76 @@ export default async function ReportsPage({
         <DateRangeForm period={period} location={location?.id} />
       </div>
 
-      {/* Seven tiles for a money-viewer, one for a technician — the column
-          count follows so neither ends up with a lonely tile on its own row. */}
+      {/* Seven tiles for a money-viewer, four for a technician. A report whose
+          headline row is a single stat floating in a four-column grid reads as
+          a broken page, so the work figures — which are nobody's commercial
+          secret — carry the row when the money ones are withheld. */}
       <div
         className={cn(
           "grid grid-cols-1 gap-4 sm:grid-cols-2",
-          money ? "lg:grid-cols-3 xl:grid-cols-4" : "xl:grid-cols-4",
+          money ? "lg:grid-cols-3 xl:grid-cols-4" : "lg:grid-cols-4",
         )}
       >
         {money ? (
           <>
-          <BigStat
+          <KpiTile
             label="Net revenue"
             value={formatCents(money.netRevenueCents)}
             hint={`${formatCents(money.revenueCents)} collected · ${formatCents(
               money.refundCents,
             )} refunded`}
             icon={CircleDollarSign}
-            tint="bg-status-resolved-bg text-status-resolved-fg"
+            tone="success"
           />
-          <BigStat
+          <KpiTile
             label="Refunds"
             value={formatCents(money.refundCents)}
             hint={`${money.refundCount} refund${
               money.refundCount === 1 ? "" : "s"
             } issued`}
-            icon={Undo2}
-            tint="bg-status-overdue-bg text-status-overdue-fg"
+            icon={ACTIONS.refund}
+            tone="danger"
           />
-          <BigStat
+          <KpiTile
             label="Deposits held"
             value={formatCents(money.depositsHeldCents)}
             hint={`${money.depositsHeldCount} deposit${
               money.depositsHeldCount === 1 ? "" : "s"
             } owed back · all time`}
             icon={HandCoins}
-            tint="bg-status-new-bg text-status-new-fg"
+            tone="info"
           />
-          <BigStat
+          <KpiTile
             label="Invoices raised"
             value={String(money.invoices.raised)}
             hint={`${formatCents(money.invoices.raisedCents)} billed`}
-            icon={Receipt}
-            tint="bg-status-new-bg text-status-new-fg"
+            icon={ICONS.invoice}
+            tone="info"
             href="/invoices"
           />
-          <BigStat
+          <KpiTile
             label="Invoices paid"
             value={String(money.invoices.paid)}
             hint={`${formatCents(money.invoices.paidCents)} settled`}
-            icon={Wallet}
-            tint="bg-status-ready-bg text-status-ready-fg"
+            icon={ICONS.deposit}
+            tone="ready"
             href="/invoices?status=PAID"
           />
-          <BigStat
+          <KpiTile
             label="Outstanding A/R"
             value={formatCents(money.ar.totalCents)}
             hint={`${money.ar.count} unpaid invoice${
               money.ar.count === 1 ? "" : "s"
             } · all time`}
             icon={TrendingUp}
-            tint="bg-status-overdue-bg text-status-overdue-fg"
+            tone="danger"
             href="/invoices?status=SENT"
           />
           </>
         ) : null}
 
         {/* Shown to every role: keeping a promise is not a money question. */}
-        <BigStat
+        <KpiTile
           label="On-time %"
           value={onTime.pct === null ? "—" : `${onTime.pct}%`}
           hint={
@@ -209,9 +207,51 @@ export default async function ReportsPage({
               : `${onTime.onTime} of ${onTime.withDue} met their due date`
           }
           icon={CalendarCheck}
-          tint="bg-status-ready-bg text-status-ready-fg"
+          tone="ready"
           href="/tickets?due=overdue"
         />
+
+        {/* The work figures fill the headline row for a technician. They are
+            already computed for the charts below, so this costs no queries. */}
+        {money ? null : (
+          <>
+            <KpiTile
+              label="Tickets created"
+              value={String(throughput.created)}
+              hint={`taken in over ${period.rangeLabel}`}
+              icon={ICONS.ticket}
+              tone="info"
+              href="/tickets?status=all"
+            />
+            <KpiTile
+              label="Tickets resolved"
+              value={String(throughput.resolved)}
+              hint={
+                throughput.created - throughput.resolved > 0
+                  ? `${throughput.created - throughput.resolved} more came in than went back out`
+                  : "the bench kept up with the counter"
+              }
+              icon={CircleCheckBig}
+              tone="success"
+              href="/tickets?status=Resolved"
+            />
+            <KpiTile
+              label="Median turnaround"
+              value={
+                resolveTime.count === 0 ? "—" : formatDuration(resolveTime.medianMs)
+              }
+              hint={
+                resolveTime.count === 0
+                  ? "nothing resolved in this period"
+                  : `across ${resolveTime.count} resolved ticket${
+                      resolveTime.count === 1 ? "" : "s"
+                    }`
+              }
+              icon={Timer}
+              tone="active"
+            />
+          </>
+        )}
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
@@ -224,7 +264,7 @@ export default async function ReportsPage({
               action={
                 canExport ? (
                   <CardLink href={`/api/exports/reports-revenue.csv${range}`} download>
-                    <Download className="size-4" />
+                    <ACTIONS.download className="size-4" />
                     Export CSV
                   </CardLink>
                 ) : undefined
@@ -259,7 +299,7 @@ export default async function ReportsPage({
             >
               {money.byMethod.length === 0 ? (
                 <EmptyState
-                  icon={Wallet}
+                  icon={ICONS.deposit}
                   title="No payments yet"
                   hint="Nothing was collected in this period."
                 />
@@ -320,7 +360,7 @@ export default async function ReportsPage({
           action={
             canExport ? (
               <CardLink href={`/api/exports/reports-tickets.csv${range}`} download>
-                <Download className="size-4" />
+                <ACTIONS.download className="size-4" />
                 Export CSV
               </CardLink>
             ) : (
@@ -406,7 +446,7 @@ export default async function ReportsPage({
             action={
               canExport ? (
                 <CardLink href={`/api/exports/reports-products.csv${range}`} download>
-                  <Download className="size-4" />
+                  <ACTIONS.download className="size-4" />
                   Export CSV
                 </CardLink>
               ) : undefined
@@ -414,7 +454,7 @@ export default async function ReportsPage({
           >
             {money.topProducts.length === 0 ? (
               <EmptyState
-                icon={BarChart3}
+                icon={ICONS.reports}
                 title="No product lines yet"
                 hint="Invoice a catalogue product and it will rank here."
               />
@@ -438,7 +478,7 @@ export default async function ReportsPage({
           >
             {money.refunds.length === 0 ? (
               <EmptyState
-                icon={Undo2}
+                icon={ACTIONS.refund}
                 title="No refunds"
                 hint="Nothing went back out of the till in this period."
               />
@@ -478,7 +518,7 @@ export default async function ReportsPage({
           action={
             canExport ? (
               <CardLink href={`/api/exports/reports-tech.csv${range}`} download>
-                <Download className="size-4" />
+                <ACTIONS.download className="size-4" />
                 Export CSV
               </CardLink>
             ) : undefined
@@ -486,7 +526,7 @@ export default async function ReportsPage({
         >
           {leaderboard.length === 0 ? (
             <EmptyState
-              icon={Users}
+              icon={ICONS.team}
               title="No activity yet"
               hint="Resolved tickets and stopped timers show up here."
             />
@@ -511,7 +551,7 @@ export default async function ReportsPage({
                     {row.name}
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5 text-[13.5px] font-semibold tabular-nums text-muted-foreground">
-                    <Wrench className="size-4" />
+                    <ICONS.ticket className="size-4" />
                     {row.resolved}
                   </span>
                   <span className="flex w-16 shrink-0 items-center justify-end gap-1.5 text-[13.5px] font-semibold tabular-nums text-muted-foreground">

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { AppointmentList } from "@/components/appointments/appointment-list";
 import {
@@ -27,6 +27,7 @@ import { TodayStrip } from "@/components/appointments/today-strip";
 import { WeekGrid } from "@/components/appointments/week-grid";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -198,6 +199,7 @@ export default async function AppointmentsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.appointment}
         title="Appointments"
         description="Drop-offs, pickups, callbacks and on-site jobs — who's booked in and when."
         actions={<NewAppointmentButton pickers={pickers} defaults={defaults} />}
@@ -231,7 +233,7 @@ export default async function AppointmentsPage({
             </Link>
           </Button>
           <span className="ml-1 flex items-center gap-2 text-[15px] font-bold text-foreground">
-            <CalendarDays className="size-4 text-muted-foreground" />
+            <ICONS.appointment className="size-4 text-muted-foreground" />
             {title}
           </span>
         </div>
@@ -360,6 +362,7 @@ function ViewTab({
       scroll={false}
       className={cn(
         "rounded-full px-4 py-1.5 text-[13.5px] font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "bg-accent text-accent-foreground shadow-xs"
           : "text-muted-foreground hover:text-foreground",

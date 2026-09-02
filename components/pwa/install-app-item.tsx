@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Download } from "lucide-react";
-
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { ACTIONS } from "@/components/ui/icons";
+
+const InstallIcon = ACTIONS.install;
 
 /**
  * "Install app" in the user menu — shown ONLY when it will actually work.
@@ -61,7 +62,7 @@ export function InstallAppItem() {
         void prompt.prompt().finally(() => setPrompt(null));
       }}
     >
-      <Download className="size-4 text-muted-foreground" />
+      <InstallIcon className="size-4 text-muted-foreground" aria-hidden />
       Install app
     </DropdownMenuItem>
   );

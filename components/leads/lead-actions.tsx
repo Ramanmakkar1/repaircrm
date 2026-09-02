@@ -3,15 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useActionState } from "react";
-import {
-  AlertCircle,
-  Archive,
-  PhoneCall,
-  RotateCcw,
-  Sparkles,
-  SquarePen,
-  Trash2,
-} from "lucide-react";
+// AlertCircle is an error state, Sparkles is the AI-assisted convert flow,
+// PhoneCall has no entry in the shared concept map; the verbs come from ACTIONS.
+import { AlertCircle, PhoneCall, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -22,6 +16,7 @@ import {
   updateLeadAction,
 } from "@/app/(app)/leads/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -116,14 +111,14 @@ export function LeadActions({
 
         {!isConverted ? (
           <Button variant="outline" onClick={() => setEditing(true)} disabled={busy}>
-            <SquarePen />
+            <ACTIONS.edit />
             Edit
           </Button>
         ) : null}
 
         {isOpen ? (
           <Button variant="ghost" onClick={() => setClosing(true)} disabled={busy}>
-            <Archive />
+            <ACTIONS.archive />
             Close
           </Button>
         ) : null}
@@ -134,7 +129,7 @@ export function LeadActions({
             disabled={busy}
             onClick={() => run(() => reopenLeadAction(lead.id), "Lead reopened.")}
           >
-            <RotateCcw />
+            <ACTIONS.reopen />
             Reopen
           </Button>
         ) : null}
@@ -146,7 +141,7 @@ export function LeadActions({
             onClick={() => setDeleting(true)}
             disabled={busy}
           >
-            <Trash2 />
+            <ACTIONS.delete />
             Delete
           </Button>
         ) : null}
@@ -207,7 +202,7 @@ export function LeadActions({
                 router.push("/leads");
               }}
             >
-              <Trash2 />
+              <ACTIONS.delete />
               Delete lead
             </Button>
           </DialogFooter>
@@ -294,7 +289,8 @@ function EditLeadDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save changes"}
+              <ACTIONS.save />
+            {pending ? "Saving…" : "Save changes"}
             </Button>
           </DialogFooter>
         </form>
@@ -340,7 +336,7 @@ function CloseLeadDialog({
             Cancel
           </Button>
           <Button onClick={() => onConfirm(reason)} disabled={busy}>
-            <Archive />
+            <ACTIONS.archive />
             {busy ? "Closing…" : "Close lead"}
           </Button>
         </DialogFooter>

@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Ban, CheckCheck, ClipboardList, Package, Plus, Truck } from "lucide-react";
+// Truck is "on its way from the supplier", which is not one of the shared
+// verbs; everything else on this card comes from ACTIONS / ICONS.
+import { Loader2, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatCents } from "@/lib/money";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
@@ -90,7 +95,9 @@ export function PartsCard({
   canPurchase: boolean;
 }) {
   const [pendingId, setPendingId] = React.useState<string | null>(null);
-  const [, startTransition] = React.useTransition();
+  // `resuming` is read: the footer button must not be pressable twice while
+  // the status change is in flight.
+  const [resuming, startTransition] = React.useTransition();
 
   const outstanding = parts.filter(
     (part) => !isTerminalPartStatus(part.status),
@@ -104,7 +111,7 @@ export function PartsCard({
    * Declining is simply not tapping it — nothing is forced, which is the point.
    */
   const offerResume = () => {
-    toast.success("Part received — stock updated", {
+    toast.success("Part received — stock updated.", {
       duration: 10_000,
       description: "This ticket is still parked on “Waiting for Parts”.",
       action: {
@@ -113,7 +120,7 @@ export function PartsCard({
           startTransition(async () => {
             const result = await resumeTicketFromPartsAction(ticketId);
             if (result.error) toast.error(result.error);
-            else toast.success("Ticket moved to In Progress");
+            else toast.success("Ticket moved to In Progress.");
           });
         },
       },
@@ -145,7 +152,7 @@ export function PartsCard({
           <CardTitle>Parts</CardTitle>
           {outstanding > 0 ? (
             <Chip
-              icon={Package}
+              icon={ICONS.part}
               className="bg-status-in-progress-bg font-semibold text-status-in-progress-fg"
             >
               {outstanding} outstanding
@@ -158,7 +165,7 @@ export function PartsCard({
           vendors={vendors}
           trigger={
             <Button variant="outline" size="sm">
-              <Plus className="size-4" />
+              <ACTIONS.add className="size-4" />
               Order Part
             </Button>
           }
@@ -167,9 +174,12 @@ export function PartsCard({
 
       <CardContent className="px-0 py-0">
         {parts.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            No parts on order for this repair.
-          </p>
+          <EmptyState
+            className="px-5 py-10"
+            icon={ICONS.part}
+            title="No parts on order"
+            hint="Order one and the ticket shows what it is waiting for, on the board and here."
+          />
         ) : (
           <ul className="divide-y divide-border">
             {parts.map((part) => (
@@ -206,15 +216,19 @@ export function PartsCard({
           <Button
             variant="soft"
             size="sm"
+            disabled={resuming}
             onClick={() =>
               startTransition(async () => {
                 const result = await resumeTicketFromPartsAction(ticketId);
                 if (result.error) toast.error(result.error);
-                else toast.success("Ticket moved to In Progress");
+                else toast.success("Ticket moved to In Progress.");
               })
             }
           >
-            Move to In Progress
+            {resuming ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : null}
+            {resuming ? "Moving…" : "Move to In Progress"}
           </Button>
         </div>
       ) : null}
@@ -254,7 +268,7 @@ function PartRow({
     startAttach(async () => {
       const result = await addPartOrderToPoAction(part.id, vendorId);
       if (result.error) toast.error(result.error);
-      else toast.success(`Added to PO #${result.number}`);
+      else toast.success(`Added to PO #${result.number}.`);
     });
 
   const canAttach =
@@ -268,20 +282,13 @@ function PartRow({
             <span className="text-sm font-semibold text-foreground">
               {part.quantity} × {part.description}
             </span>
-            <span
-              className={cn(
-                "rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                meta.chip,
-              )}
-            >
-              {meta.label}
-            </span>
+            <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {part.supplier ? <Chip icon={Truck}>{part.supplier}</Chip> : null}
+            {part.supplier ? <Chip icon={ICONS.vendor}>{part.supplier}</Chip> : null}
             {part.productName ? (
-              <Chip icon={Package}>{part.productName}</Chip>
+              <Chip icon={ICONS.part}>{part.productName}</Chip>
             ) : null}
             {part.expectedLabel ? (
               <Chip
@@ -301,7 +308,7 @@ function PartRow({
                 href={`/inventory/purchase-orders/${part.poId}`}
                 className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[12.5px] font-semibold leading-none text-accent-soft-foreground transition-colors hover:brightness-95"
               >
-                <ClipboardList className="size-3.5" />
+                <ICONS.purchaseOrder className="size-3.5" />
                 PO #{part.poNumber}
               </a>
             ) : null}
@@ -327,7 +334,7 @@ function PartRow({
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" disabled={attaching}>
-                      <ClipboardList className="size-4" />
+                      <ICONS.purchaseOrder className="size-4" />
                       Add to PO
                     </Button>
                   </DropdownMenuTrigger>
@@ -356,7 +363,7 @@ function PartRow({
                 </Button>
               ) : null}
               <Button variant="soft" size="sm" disabled={busy} onClick={onReceived}>
-                <CheckCheck className="size-4" />
+                <ACTIONS.receive className="size-4" />
                 Mark Received
               </Button>
               <Button
@@ -366,7 +373,7 @@ function PartRow({
                 onClick={onCancel}
                 className="text-faint-foreground hover:text-destructive"
               >
-                <Ban className="size-4" />
+                <ACTIONS.void className="size-4" />
                 Cancel
               </Button>
             </div>

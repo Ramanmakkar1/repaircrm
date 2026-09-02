@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { AlertCircle, Info, TriangleAlert } from "lucide-react";
 
 import {
@@ -22,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { WARRANTY_PRESETS } from "@/lib/warranty";
@@ -205,18 +205,25 @@ export function ProductForm({
             <Input {...field("category")} placeholder="Parts / Displays" />
           </Field>
 
+          {/* SKU and UPC are the two code fields on this form. Each sits in a
+              row of its own with the input on `flex-1`, which is the slot the
+              camera-scan control drops into on the right — these shops have no
+              laser guns, so scanning has to be a full-height button beside the
+              field, not a glyph inside it. */}
           <Field
             label="SKU"
             htmlFor="sku"
             error={errors.sku}
             hint="Your own part number. Printed as the label barcode."
           >
-            <Input
-              {...field("sku")}
-              className="font-mono uppercase"
-              placeholder="SCR-IP14"
-              aria-invalid={Boolean(errors.sku)}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                {...field("sku")}
+                className="flex-1 font-mono uppercase"
+                placeholder="SCR-IP14"
+                aria-invalid={Boolean(errors.sku)}
+              />
+            </div>
           </Field>
 
           <Field
@@ -225,12 +232,14 @@ export function ProductForm({
             error={errors.upc}
             hint="The manufacturer's barcode, if the part carries one."
           >
-            <Input
-              {...field("upc")}
-              className="font-mono"
-              inputMode="numeric"
-              placeholder="0810001100011"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                {...field("upc")}
+                className="flex-1 font-mono"
+                inputMode="numeric"
+                placeholder="0810001100011"
+              />
+            </div>
           </Field>
 
           <Field
@@ -546,7 +555,10 @@ export function ProductForm({
         <Button variant="ghost" asChild>
           <Link href={cancelHref}>Cancel</Link>
         </Button>
-        <SubmitButton disabled={needsSerialConfirm && !confirmed}>
+        <SubmitButton
+          disabled={needsSerialConfirm && !confirmed}
+          pendingLabel="Saving…"
+        >
           {isEdit ? "Save changes" : "Create product"}
         </SubmitButton>
       </div>
@@ -606,20 +618,5 @@ function Field({
         <p className="text-[13px] text-muted-foreground">{hint}</p>
       ) : null}
     </div>
-  );
-}
-
-function SubmitButton({
-  children,
-  disabled,
-}: {
-  children: React.ReactNode;
-  disabled?: boolean;
-}) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending || disabled}>
-      {pending ? "Saving…" : children}
-    </Button>
   );
 }

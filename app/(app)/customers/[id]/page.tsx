@@ -2,17 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-import {
-  Building2,
-  CalendarDays,
-  FileText,
-  Mail,
-  Pencil,
-  Phone,
-  Receipt,
-  ScrollText,
-  Wrench,
-} from "lucide-react";
+// Building2 / Pencil / ScrollText have no concept in components/ui/icons.ts;
+// everything else on this screen comes from the shared map.
+import { Building2, Mail, Pencil, Phone, ScrollText } from "lucide-react";
 
 import {
   CommunicationsCard,
@@ -38,9 +30,11 @@ import { NotesCard } from "@/components/customers/notes-card";
 import { StatsRow } from "@/components/customers/stats-row";
 import { WarrantiesCard } from "@/components/customers/warranties-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { ICONS } from "@/components/ui/icons";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
@@ -298,7 +292,13 @@ export default async function CustomerHubPage({
           items={[{ label: "Customers", href: "/customers" }, { label: name }]}
         />
 
-        <div className="flex flex-col gap-5 rounded-lg border border-border bg-surface p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        {/*
+          Seven actions live in this hero, and side-by-side they squeezed the
+          customer's own name down to "Priscill…". The identity gets the full
+          width and the actions wrap under it — the name is the one thing on
+          this page that must never truncate.
+        */}
+        <Card className="flex flex-col gap-5 p-5">
           <div className="flex min-w-0 items-center gap-4">
             <Avatar className="size-16">
               <AvatarFallback className="text-xl font-bold">
@@ -306,7 +306,7 @@ export default async function CustomerHubPage({
               </AvatarFallback>
             </Avatar>
             <div className="flex min-w-0 flex-col gap-2">
-              <h1 className="truncate text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {name}
               </h1>
               <div className="flex flex-wrap items-center gap-2">
@@ -317,29 +317,29 @@ export default async function CustomerHubPage({
                   <Chip icon={Phone}>{customer.phone ?? customer.mobile}</Chip>
                 ) : null}
                 {customer.email ? <Chip icon={Mail}>{customer.email}</Chip> : null}
-                <Chip icon={CalendarDays}>
+                <Chip icon={ICONS.appointment}>
                   Since {formatDate(customer.createdAt)}
                 </Chip>
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
             <Button asChild>
               <Link href={`/tickets/new?customerId=${customer.id}`}>
-                <Wrench />
+                <ICONS.ticket />
                 New Ticket
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/invoices/new?customerId=${customer.id}`}>
-                <Receipt />
+                <ICONS.invoice />
                 New Invoice
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/estimates/new?customerId=${customer.id}`}>
-                <FileText />
+                <ICONS.estimate />
                 New Estimate
               </Link>
             </Button>
@@ -376,7 +376,7 @@ export default async function CustomerHubPage({
               blockedReason={blockedReason}
             />
           </div>
-        </div>
+        </Card>
       </div>
 
       <StatsRow

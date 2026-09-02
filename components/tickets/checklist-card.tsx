@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ListChecks } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,7 +10,9 @@ import {
   toggleChecklistItemAction,
 } from "@/app/(app)/tickets/checklist-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusPill } from "@/components/ui/badge";
+import { ICONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -118,21 +119,21 @@ export function ChecklistCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <CardTitle>Checklist</CardTitle>
-        {rows.length > 0 ? (
-          <span
-            className={cn(
-              "shrink-0 rounded-full px-2.5 py-1 text-[12.5px] font-semibold tabular-nums",
-              complete
-                ? "bg-status-resolved-bg text-status-resolved-fg"
-                : "bg-surface-hover text-muted-foreground",
-            )}
-          >
-            {progressLabel(progress)}
-          </span>
-        ) : null}
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.checklist}
+        title="Checklist"
+        action={
+          rows.length > 0 ? (
+            <StatusPill
+              size="sm"
+              dot={false}
+              tone={complete ? "success" : "neutral"}
+              label={progressLabel(progress)}
+              className="tabular-nums"
+            />
+          ) : null
+        }
+      />
 
       <CardContent className="flex flex-col gap-4">
         {rows.length === 0 ? (
@@ -158,7 +159,7 @@ export function ChecklistCard({
                 </SelectContent>
               </Select>
               <Button size="sm" onClick={attach} disabled={busy || !picked}>
-                <ListChecks className="size-4" />
+                <ICONS.checklist className="size-4" />
                 Add checklist
               </Button>
             </div>

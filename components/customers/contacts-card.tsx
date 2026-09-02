@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Pencil, Phone, Plus, Trash2, UserRound } from "lucide-react";
+// Mail / Phone / UserRound are contact details; the verbs come from ACTIONS.
+import { Mail, Phone, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,8 +13,10 @@ import {
 } from "@/app/(app)/customers/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { ACTIONS } from "@/components/ui/icons";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -86,27 +89,34 @@ export function ContactsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <IconChip icon={UserRound} size="sm" />
-          <CardTitle className="truncate">Contacts</CardTitle>
-          {contacts.length > 0 ? (
-            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none tabular-nums text-muted-foreground">
-              {contacts.length}
-            </span>
-          ) : null}
-        </div>
-        <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
-          <Plus />
-          Add
-        </Button>
-      </CardHeader>
+      <CardHeader
+        icon={UserRound}
+        title="Contacts"
+        action={
+          <>
+            {contacts.length > 0 ? <Chip>{contacts.length}</Chip> : null}
+            <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+              <ACTIONS.add />
+              Add
+            </Button>
+          </>
+        }
+      />
 
       <CardContent className="p-0">
         {contacts.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            No additional contacts yet.
-          </p>
+          <EmptyState
+            className="px-5 py-10"
+            icon={UserRound}
+            title="No extra contacts"
+            hint="Add the office manager, a spouse, whoever else the shop actually rings."
+            action={
+              <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+                <ACTIONS.add />
+                Add a contact
+              </Button>
+            }
+          />
         ) : (
           <ul className="divide-y divide-border">
             {contacts.map((contact) => (
@@ -154,7 +164,7 @@ export function ContactsCard({
                     aria-label={`Edit ${contact.name}`}
                     onClick={() => setEditing(contact)}
                   >
-                    <Pencil />
+                    <ACTIONS.edit />
                   </Button>
                   <Button
                     size="icon"
@@ -163,7 +173,7 @@ export function ContactsCard({
                     onClick={() => setRemoving(contact)}
                     className="size-9 text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 />
+                    <ACTIONS.delete />
                   </Button>
                 </div>
               </li>
@@ -249,6 +259,7 @@ export function ContactsCard({
                 Cancel
               </Button>
               <Button type="submit" disabled={busy}>
+                {editing ? <ACTIONS.save /> : <ACTIONS.add />}
                 {busy ? "Saving…" : editing ? "Save contact" : "Add contact"}
               </Button>
             </DialogFooter>
@@ -276,6 +287,7 @@ export function ContactsCard({
               Cancel
             </Button>
             <Button variant="destructive" disabled={busy} onClick={remove}>
+              <ACTIONS.delete />
               {busy ? "Removing…" : "Remove"}
             </Button>
           </DialogFooter>

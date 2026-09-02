@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ACTIONS } from "@/components/ui/icons";
 
 /**
  * The only interactive chrome on a print route. It carries `.rf-toolbar`, which
@@ -30,7 +30,7 @@ export function PrintToolbar({
   return (
     <div className="rf-toolbar no-print">
       <Link href={backHref} className="rf-toolbar-back">
-        <ArrowLeft className="size-4" />
+        <ACTIONS.back className="size-4" />
         {backLabel}
       </Link>
 
@@ -43,7 +43,7 @@ export function PrintToolbar({
           className="rf-toolbar-print"
           onClick={() => window.print()}
         >
-          <Printer className="size-4" />
+          <ACTIONS.print className="size-4" />
           Print / Save as PDF
         </button>
       </div>

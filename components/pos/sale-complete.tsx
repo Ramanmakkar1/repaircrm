@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, Printer, Receipt, RotateCcw, Wrench } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { formatCents } from "@/lib/money";
 import { METHOD_LABELS, type TenderMethod } from "./types";
 
@@ -85,20 +86,20 @@ export function SaleComplete({
 
         <div className="flex flex-col gap-2.5 border-t border-border px-6 py-5">
           <Button ref={newSaleRef} size="lg" className="h-14" onClick={onNewSale}>
-            <RotateCcw />
+            <ACTIONS.add />
             New sale
           </Button>
 
           <div className="grid grid-cols-2 gap-2.5">
             <Button asChild variant="soft" size="lg" className="h-14">
               <Link href={receiptHref}>
-                <Printer />
+                <ACTIONS.print />
                 Print receipt
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14">
               <Link href={`/invoices/${sale.invoiceId}`}>
-                <Receipt />
+                <ICONS.invoice />
                 View invoice
               </Link>
             </Button>
@@ -109,7 +110,7 @@ export function SaleComplete({
           {sale.ticketId ? (
             <Button asChild variant="ghost" size="lg" className="h-12">
               <Link href={`/tickets/${sale.ticketId}`}>
-                <Wrench />
+                <ICONS.ticket />
                 Back to ticket #{sale.ticketNumber}
               </Link>
             </Button>

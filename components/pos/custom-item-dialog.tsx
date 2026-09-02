@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { ACTIONS } from "@/components/ui/icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +69,7 @@ export function CustomItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" className="h-12 w-full justify-start">
-          <Plus />
+          <ACTIONS.add />
           One-off item
         </Button>
       </DialogTrigger>

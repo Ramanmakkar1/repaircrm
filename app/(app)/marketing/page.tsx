@@ -1,18 +1,13 @@
 import Link from "next/link";
-import {
-  CalendarPlus,
-  Clock,
-  Mail,
-  MessageSquare,
-  Plus,
-  Send,
-  Zap,
-} from "lucide-react";
+import { CalendarPlus, Clock } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/components/ui/cn";
 import { formatDate } from "@/components/billing/format";
@@ -77,6 +72,7 @@ export default async function MarketingPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.marketing}
         title="Marketing"
         description={
           empty
@@ -88,7 +84,7 @@ export default async function MarketingPage() {
             {!empty ? <SyncAndSendButton dueCount={dueCount} /> : null}
             <Button variant={empty ? "default" : "outline"} asChild>
               <Link href="/marketing/new">
-                <Plus /> New campaign
+                <ACTIONS.add /> New campaign
               </Link>
             </Button>
           </>
@@ -115,7 +111,7 @@ export default async function MarketingPage() {
 
           {dueCount > 0 ? (
             <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-status-waiting/40 bg-status-waiting-bg px-5 py-3.5">
-              <Send className="size-4 text-status-waiting-fg" />
+              <ACTIONS.send className="size-4 text-status-waiting-fg" />
               <span className="text-[14.5px] font-semibold text-status-waiting-fg">
                 {dueCount} message{dueCount === 1 ? "" : "s"} due to go out.
               </span>
@@ -133,10 +129,12 @@ export default async function MarketingPage() {
               const counts = stats.get(campaign.id) ?? { scheduled: 0, sent: 0 };
 
               return (
-                <div
+                <Card
                   key={campaign.id}
+                  interactive
+                  tone={campaign.active ? undefined : "neutral"}
                   className={cn(
-                    "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
+                    "flex flex-col gap-4 p-5",
                     !campaign.active && "opacity-70",
                   )}
                 >
@@ -155,9 +153,9 @@ export default async function MarketingPage() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <Chip icon={Zap}>{TRIGGER_LABEL[trigger]}</Chip>
+                    <Chip icon={ICONS.automation}>{TRIGGER_LABEL[trigger]}</Chip>
                     <Chip icon={Clock}>{delayLabel(campaign.delayDays)}</Chip>
-                    <Chip icon={channel === "SMS" ? MessageSquare : Mail}>
+                    <Chip icon={channel === "SMS" ? ICONS.message : ICONS.email}>
                       {channel === "SMS" ? "Text" : "Email"}
                     </Chip>
                   </div>
@@ -171,11 +169,13 @@ export default async function MarketingPage() {
                     <Chip icon={CalendarPlus}>
                       Added {formatDate(campaign.createdAt)}
                     </Chip>
+                    {/* Live/paused is the card's status, so it wears the pill
+                        rather than passing as another grey fact-tag. */}
                     {!campaign.active ? (
-                      <Chip className="bg-surface-hover font-bold">Paused</Chip>
+                      <StatusPill tone="neutral" label="Paused" size="sm" />
                     ) : null}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

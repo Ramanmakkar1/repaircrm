@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Timer } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { addTimeToInvoiceAction } from "@/app/(app)/invoices/time-actions";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 
 /**
  * "There is time on this repair that is not on this bill."
@@ -44,9 +46,13 @@ export function UnbilledTimeBanner({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-hover px-4 py-3">
+    // Amber, because it is money the shop has earned and not yet asked for.
+    <Card
+      tone="active"
+      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+    >
       <span className="flex items-center gap-2 text-[14px] text-foreground">
-        <Timer className="size-4 shrink-0 text-muted-foreground" />
+        <ICONS.timeClock className="size-4 shrink-0 text-muted-foreground" />
         <span>
           <strong className="font-semibold">
             {entryCount} unbilled time {entryCount === 1 ? "entry" : "entries"}
@@ -57,8 +63,9 @@ export function UnbilledTimeBanner({
         </span>
       </span>
       <Button variant="outline" size="sm" disabled={busy} onClick={add}>
+        {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.add />}
         {busy ? "Adding…" : "Add to invoice"}
       </Button>
-    </div>
+    </Card>
   );
 }

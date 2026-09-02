@@ -6,14 +6,14 @@ import {
   FileArchive,
   FileText,
   File as FileIcon,
-  Paperclip,
   Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import {
   Dialog,
@@ -138,15 +138,11 @@ export function AttachmentsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-2">
-          <Paperclip className="size-4 text-muted-foreground" />
-          Attachments
-        </CardTitle>
-        {attachments.length > 0 ? (
-          <Chip>{attachments.length}</Chip>
-        ) : null}
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.attachment}
+        title="Attachments"
+        action={attachments.length > 0 ? <Chip>{attachments.length}</Chip> : null}
+      />
 
       <CardContent
         // The whole card body is the drop target, so a dragged photo doesn't
@@ -205,7 +201,8 @@ export function AttachmentsCard({
               disabled={uploading}
               onClick={() => inputRef.current?.click()}
             >
-              {uploading ? "Uploading…" : "Add files"}
+              <ACTIONS.upload />
+          {uploading ? "Uploading…" : "Add files"}
             </Button>
             <PhotoCaptureDialog
               disabled={uploading}
@@ -311,7 +308,7 @@ function DeleteAttachmentButton({ attachment }: { attachment: AttachmentRow }) {
         return;
       }
       setOpen(false);
-      toast.success("File deleted");
+      toast.success("File deleted.");
       router.refresh();
     });
   }
@@ -351,6 +348,7 @@ function DeleteAttachmentButton({ attachment }: { attachment: AttachmentRow }) {
             disabled={pending}
             onClick={remove}
           >
+            <ACTIONS.delete />
             {pending ? "Deleting…" : "Delete file"}
           </Button>
         </DialogFooter>

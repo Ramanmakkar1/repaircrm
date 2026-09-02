@@ -9,19 +9,17 @@ import {
   Clock,
   HeartHandshake,
   Loader2,
-  Mail,
-  MessageSquare,
-  Plus,
   ShieldCheck,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { enableTemplateAction } from "@/app/(app)/marketing/actions";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Chip, IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   CAMPAIGN_TEMPLATES,
   CHANNEL_LABEL,
@@ -40,10 +38,15 @@ import {
  * collapses to a quiet strip above the list ("row").
  *
  * Icons cannot cross the RSC boundary as values, so templates carry an icon
- * *key* and this component owns the mapping.
+ * *key* and this component owns the mapping. These three are the templates'
+ * own illustrations, not app concepts — everything else here comes from
+ * `components/ui/icons.ts`.
  */
 
-const ICONS: Record<CampaignTemplate["icon"], React.ComponentType<{ className?: string }>> = {
+const TEMPLATE_ICONS: Record<
+  CampaignTemplate["icon"],
+  React.ComponentType<{ className?: string }>
+> = {
   "shield-check": ShieldCheck,
   "calendar-clock": CalendarClock,
   "heart-handshake": HeartHandshake,
@@ -87,15 +90,12 @@ export function TemplateGallery({ enabledNames }: { enabledNames: string[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {CAMPAIGN_TEMPLATES.map((template) => {
-        const Icon = ICONS[template.icon];
+        const Icon = TEMPLATE_ICONS[template.icon];
         const already = taken.has(template.name);
         const busy = pendingId === template.id;
 
         return (
-          <div
-            key={template.id}
-            className="rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md"
-          >
+          <Card key={template.id} interactive className="flex flex-col gap-4 p-5">
             <IconChip icon={Icon} size="lg" />
 
             <div className="flex flex-col gap-1.5">
@@ -109,9 +109,9 @@ export function TemplateGallery({ enabledNames }: { enabledNames: string[] }) {
 
             <div className="mt-auto flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Chip icon={Zap}>{TRIGGER_LABEL[template.trigger]}</Chip>
+                <Chip icon={ICONS.automation}>{TRIGGER_LABEL[template.trigger]}</Chip>
                 <Chip icon={Clock}>{delayLabel(template.delayDays)}</Chip>
-                <Chip icon={template.channel === "SMS" ? MessageSquare : Mail}>
+                <Chip icon={template.channel === "SMS" ? ICONS.message : ICONS.email}>
                   {CHANNEL_LABEL[template.channel]}
                 </Chip>
               </div>
@@ -132,14 +132,14 @@ export function TemplateGallery({ enabledNames }: { enabledNames: string[] }) {
                 {already ? "Already added" : "Enable"}
               </Button>
             </div>
-          </div>
+          </Card>
         );
       })}
 
       {/* The escape hatch, deliberately quieter than the three presets. */}
-      <div className="flex flex-col gap-4 rounded-lg border border-dashed border-border-strong bg-surface-hover/50 p-5">
+      <Card className="flex flex-col gap-4 border-dashed border-border-strong bg-surface-hover/50 p-5 shadow-none">
         <IconChip
-          icon={Plus}
+          icon={ACTIONS.add}
           size="lg"
           className="bg-surface text-muted-foreground"
         />
@@ -154,10 +154,10 @@ export function TemplateGallery({ enabledNames }: { enabledNames: string[] }) {
         </div>
         <Button variant="outline" className="mt-auto w-full" asChild>
           <Link href="/marketing/new">
-            <Plus /> Start from blank
+            <ACTIONS.add /> Start from blank
           </Link>
         </Button>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -184,7 +184,7 @@ export function TemplateRow({ enabledNames }: { enabledNames: string[] }) {
 
       <div className="flex flex-wrap items-center gap-2.5">
         {remaining.map((template) => {
-          const Icon = ICONS[template.icon];
+          const Icon = TEMPLATE_ICONS[template.icon];
           const busy = pendingId === template.id;
 
           return (

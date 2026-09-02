@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeaderSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 /**
  * The report runs a dozen aggregates, so the shell is painted immediately and
@@ -8,20 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function ReportsLoading() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-40" />
-        <Skeleton className="h-5 w-64" />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {[0, 1, 2, 3].map((index) => (
-          <Skeleton key={index} className="h-10 w-32 rounded-full" />
-        ))}
-      </div>
+      <PageHeaderSkeleton filters={4} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
-          <Skeleton key={index} className="h-[152px] rounded-lg" />
+          <Skeleton key={index} className="h-[170px] rounded-lg" />
         ))}
       </div>
 

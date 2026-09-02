@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Copy, ShieldCheck, UserPlus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -32,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ACTIONS } from "@/components/ui/icons";
+import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
@@ -45,6 +47,11 @@ import { ROLE_BLURB, ROLE_OPTIONS, type TeamMember } from "./types";
  * closes the door (`login()` refuses an inactive account) while leaving the
  * record intact.
  */
+const AddIcon = ACTIONS.add;
+const SendIcon = ACTIONS.send;
+const DeactivateIcon = ACTIONS.void;
+const CopyIcon = ACTIONS.copy;
+
 export function TeamTab({
   members,
   currentUserId,
@@ -63,7 +70,7 @@ export function TeamTab({
     <div className="flex flex-col gap-5">
       <div className="flex justify-end">
         <Button onClick={() => setInviting(true)}>
-          <UserPlus /> Add team member
+          <AddIcon aria-hidden /> Add team member
         </Button>
       </div>
 
@@ -140,6 +147,8 @@ function MemberRow({
   const [role, setRole] = React.useState(member.role);
   const [active, setActive] = React.useState(member.active);
   const [busy, setBusy] = React.useState(false);
+  const [pending, setPending] = React.useState<"invite" | "totp" | null>(null);
+  const [deactivating, setDeactivating] = React.useState(false);
 
   // Follow the server when the page re-renders with new values. Adjusted
   // during render rather than from an effect: React re-runs the row before it
@@ -169,8 +178,10 @@ function MemberRow({
 
   async function resendInvite() {
     setBusy(true);
+    setPending("invite");
     const result = await resendInviteAction(member.id);
     setBusy(false);
+    setPending(null);
 
     if (!result.ok) {
       toast.error(result.error);
@@ -186,8 +197,10 @@ function MemberRow({
 
   async function resetTotp() {
     setBusy(true);
+    setPending("totp");
     const result = await resetUserTotpAction(member.id);
     setBusy(false);
+    setPending(null);
 
     if (!result.ok) {
       toast.error(result.error);
@@ -208,7 +221,12 @@ function MemberRow({
       toast.error(result.error);
       return;
     }
-    toast.success(`${member.name} ${next ? "reactivated" : "deactivated"}.`);
+    setDeactivating(false);
+    toast.success(
+      next
+        ? `${member.name} can sign in again.`
+        : `${member.name} deactivated — they can no longer sign in.`,
+    );
     router.refresh();
   }
 
@@ -231,13 +249,18 @@ function MemberRow({
               </span>
             ) : null}
             {member.twoFactorOn ? (
-              <span
+              // No dot: the row is dense and the word is already the signal.
+              <StatusPill
+                size="sm"
+                dot={false}
+                tone="success"
+                label="2FA on"
                 title="Two-step verification is on"
-                className="inline-flex items-center gap-1 rounded-full bg-status-resolved-bg px-2 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-status-resolved-fg"
-              >
-                <ShieldCheck className="size-3" /> 2FA
-              </span>
+              />
             ) : null}
+            {active ? null : (
+              <StatusPill size="sm" dot={false} tone="neutral" label="Deactivated" />
+            )}
           </div>
           <span className="text-[12.5px] text-muted-foreground">
             {member.lastLoginAt
@@ -263,10 +286,16 @@ function MemberRow({
       </Td>
       <Td className="text-right">
         <div className="flex justify-end">
+          {/*
+            Reactivating is harmless; deactivating locks a colleague out mid-
+            shift, so it asks first. Neither is ever offered for yourself.
+          */}
           <Switch
             checked={active}
             disabled={busy || isSelf}
-            onCheckedChange={changeActive}
+            onCheckedChange={(next) =>
+              next ? changeActive(true) : setDeactivating(true)
+            }
             aria-label={`${active ? "Deactivate" : "Activate"} ${member.name}`}
           />
         </div>
@@ -280,7 +309,12 @@ function MemberRow({
               disabled={busy || !active}
               onClick={resendInvite}
             >
-              Resend invite
+              {pending === "invite" ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <SendIcon aria-hidden />
+              )}
+              {pending === "invite" ? "Sending…" : "Resend invite"}
             </Button>
           ) : null}
           {member.twoFactorOn ? (
@@ -290,11 +324,52 @@ function MemberRow({
               disabled={busy}
               onClick={resetTotp}
             >
-              Reset 2FA
+              {pending === "totp" ? <Loader2 className="animate-spin" /> : null}
+              {pending === "totp" ? "Clearing…" : "Reset 2FA"}
             </Button>
           ) : null}
         </div>
       </Td>
+
+      <Dialog
+        open={deactivating}
+        onOpenChange={(next) => {
+          if (!next && !busy) setDeactivating(false);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Deactivate {member.name}?</DialogTitle>
+            <DialogDescription>
+              They will not be able to sign in, and any session they have open
+              ends at its next request. Nothing they have already done is
+              touched — their name stays on every ticket, payment and time entry
+              — and you can turn this back on here at any time.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setDeactivating(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => changeActive(false)}
+            >
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <DeactivateIcon aria-hidden />
+              )}
+              {busy ? "Deactivating…" : "Deactivate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tr>
   );
 }
@@ -420,6 +495,7 @@ function InviteDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
               {busy ? "Sending…" : "Send invite"}
             </Button>
           </DialogFooter>
@@ -485,7 +561,7 @@ function InviteLinkBody({ url, onClose }: { url: string; onClose: () => void }) 
             }
           }}
         >
-          <Copy /> {copied ? "Copied" : "Copy link"}
+          <CopyIcon aria-hidden /> {copied ? "Copied" : "Copy link"}
         </Button>
         <Button onClick={onClose}>Done</Button>
       </DialogFooter>

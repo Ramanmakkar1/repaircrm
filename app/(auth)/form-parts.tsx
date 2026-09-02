@@ -1,10 +1,10 @@
 "use client";
 
-import { useFormStatus } from "react-dom";
+import { AlertCircle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton as UiSubmitButton } from "@/components/ui/submit-button";
 
 /**
  * Small shared bits for the auth forms.
@@ -95,13 +95,19 @@ export function ErrorBanner({ message }: { message?: string }) {
   return (
     <p
       role="alert"
-      className="rounded-md border border-destructive/30 bg-destructive-soft px-4 py-3 text-[14.5px] font-medium text-destructive"
+      className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive-soft px-4 py-3 text-[14.5px] font-medium text-destructive"
     >
-      {message}
+      <AlertCircle className="mt-0.5 size-4 shrink-0" />
+      <span>{message}</span>
     </p>
   );
 }
 
+/**
+ * The house submit button at auth size. It wraps the shared one rather than
+ * re-reading `useFormStatus` here, so these forms get the same spinner as every
+ * other form in the app instead of a silently disabled button.
+ */
 export function SubmitButton({
   children,
   pendingLabel,
@@ -109,10 +115,9 @@ export function SubmitButton({
   children: React.ReactNode;
   pendingLabel: string;
 }) {
-  const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" disabled={pending} className="w-full">
-      {pending ? pendingLabel : children}
-    </Button>
+    <UiSubmitButton size="lg" pendingLabel={pendingLabel} className="w-full">
+      {children}
+    </UiSubmitButton>
   );
 }

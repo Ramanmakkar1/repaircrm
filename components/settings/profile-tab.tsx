@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, Copy, ShieldCheck, ShieldOff } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -13,9 +13,10 @@ import {
   startTotpSetupAction,
   updateProfileNameAction,
 } from "@/app/(app)/settings/profile-actions";
-import { Badge } from "@/components/ui/badge";
+import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,15 @@ import type { ProfileValues, TotpSetup } from "./profile-types";
  * change and a 2FA switch have nothing to do with each other, and bundling them
  * would mean typing your password to correct a typo in your name.
  */
+const SaveIcon = ACTIONS.save;
+const CopyIcon = ACTIONS.copy;
+const CancelIcon = ACTIONS.cancel;
+/**
+ * Two-factor is a security concept, not a warranty — `ICONS.security` is the
+ * padlock, deliberately not the shield the warranty card wears.
+ */
+const ShieldIcon = ICONS.security;
+
 export function ProfileTab({ profile }: { profile: ProfileValues }) {
   return (
     <div className="flex flex-col gap-5">
@@ -94,9 +104,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
       <Banners state={state} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Your details</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.profile} title="Your details" />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="profile-name">Display name</Label>
@@ -137,7 +145,10 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
       </Card>
 
       <div className="flex justify-end">
-        <SubmitButton pendingLabel="Saving…">Save name</SubmitButton>
+        <SubmitButton pendingLabel="Saving…">
+          <SaveIcon aria-hidden />
+          Save name
+        </SubmitButton>
       </div>
     </form>
   );
@@ -165,9 +176,7 @@ function PasswordCard() {
       <Banners state={state} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Password</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.apiKey} title="Password" />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2 sm:col-span-2">
             <Label htmlFor="current-password">Current password</Label>
@@ -213,7 +222,10 @@ function PasswordCard() {
       </Card>
 
       <div className="flex justify-end">
-        <SubmitButton pendingLabel="Updating…">Update password</SubmitButton>
+        <SubmitButton pendingLabel="Updating…">
+          <SaveIcon aria-hidden />
+          Update password
+        </SubmitButton>
       </div>
     </form>
   );
@@ -246,20 +258,13 @@ function TwoFactorCard({ profile }: { profile: ProfileValues }) {
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Two-step verification</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ShieldIcon} title="Two-step verification" />
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            {enabled ? (
-              <Badge className="bg-status-resolved-bg text-status-resolved-fg">
-                <ShieldCheck className="size-3.5" /> On
-              </Badge>
-            ) : (
-              <Badge variant="secondary">
-                <ShieldOff className="size-3.5" /> Off
-              </Badge>
-            )}
+            <StatusPill
+              tone={enabled ? "success" : "neutral"}
+              label={enabled ? "On" : "Off"}
+            />
             <span className="text-[14px] text-muted-foreground">
               {enabled
                 ? `Turned on ${formatDateTime(profile.totpEnabledAt)} · ${profile.recoveryCodesLeft} recovery ${profile.recoveryCodesLeft === 1 ? "code" : "codes"} left`
@@ -275,11 +280,20 @@ function TwoFactorCard({ profile }: { profile: ProfileValues }) {
 
           <div className="flex justify-start">
             {enabled ? (
-              <Button variant="outline" onClick={() => setDisabling(true)}>
-                Turn off
+              <Button
+                variant="outline"
+                className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+                onClick={() => setDisabling(true)}
+              >
+                <CancelIcon aria-hidden /> Turn off
               </Button>
             ) : (
               <Button onClick={start} disabled={starting}>
+                {starting ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <ShieldIcon aria-hidden />
+                )}
                 {starting ? "Preparing…" : "Turn on"}
               </Button>
             )}
@@ -434,6 +448,11 @@ function SetupForm({
           Cancel
         </Button>
         <Button type="submit" disabled={busy || code.length < 6}>
+          {busy ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <ShieldIcon aria-hidden />
+          )}
           {busy ? "Checking…" : "Turn on"}
         </Button>
       </DialogFooter>
@@ -610,6 +629,7 @@ function DisableForm({
           variant="destructive"
           disabled={busy || password.length === 0}
         >
+          {busy ? <Loader2 className="animate-spin" /> : <CancelIcon aria-hidden />}
           {busy ? "Turning off…" : "Turn off"}
         </Button>
       </DialogFooter>
@@ -635,7 +655,7 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
         }
       }}
     >
-      <Copy /> {copied ? "Copied" : (label ?? "Copy")}
+      <CopyIcon aria-hidden /> {copied ? "Copied" : (label ?? "Copy")}
     </Button>
   );
 }

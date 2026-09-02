@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 
 import { ProductForm } from "@/components/inventory/product-form";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -22,13 +22,14 @@ export default async function NewProductPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
       <Link
         href="/inventory"
-        className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="size-4" />
-        Inventory
+        <ACTIONS.back className="size-4" />
+        All inventory
       </Link>
 
       <PageHeader
+        icon={ICONS.product}
         title="New product"
         description="Only a name and a price are required — the rest can come later."
       />

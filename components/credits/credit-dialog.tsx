@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Plus, Wallet } from "lucide-react";
+import { Loader2, Minus } from "lucide-react";
 import { toast } from "sonner";
 
 import { adjustCustomerCreditAction } from "@/app/(app)/customers/credit-actions";
@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
@@ -98,7 +99,7 @@ export function CreditDialog({
     >
       <DialogTrigger asChild>
         <Button variant="outline">
-          <Wallet />
+          <ICONS.credit />
           Add Credit
         </Button>
       </DialogTrigger>
@@ -139,7 +140,7 @@ export function CreditDialog({
                   )}
                 >
                   {option === "add" ? (
-                    <Plus className="size-4" />
+                    <ACTIONS.add className="size-4" />
                   ) : (
                     <Minus className="size-4" />
                   )}
@@ -183,6 +184,7 @@ export function CreditDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : null}
               {busy ? "Saving…" : direction === "add" ? "Add credit" : "Remove credit"}
             </Button>
           </DialogFooter>

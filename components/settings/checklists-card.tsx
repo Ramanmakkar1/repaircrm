@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ListChecks, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,13 +10,7 @@ import {
   saveChecklistTemplateAction,
 } from "@/app/(app)/settings/checklist-actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -44,6 +41,11 @@ export type ChecklistTemplateItem = {
   problemType: string | null;
   items: string[];
 };
+
+const AddIcon = ACTIONS.add;
+const EditIcon = ACTIONS.edit;
+const DeleteIcon = ACTIONS.delete;
+const SaveIcon = ACTIONS.save;
 
 /** Radix Select cannot hold an empty string, so this is the "no type" value. */
 const NONE = "none";
@@ -69,34 +71,30 @@ export function ChecklistsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-3">
-        <div className="flex flex-col gap-1.5">
-          <CardTitle>Checklists</CardTitle>
-          <CardDescription>
-            Steps a tech ticks off on the ticket. Give one a problem type and it
-            attaches itself to every new ticket of that type.
-          </CardDescription>
-        </div>
-        <Button variant="soft" onClick={() => setCreating(true)}>
-          <Plus /> New checklist
-        </Button>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.checklist}
+        title="Checklists"
+        description="Steps a tech ticks off on the ticket. Give one a problem type and it attaches itself to every new ticket of that type."
+        action={
+          <Button variant="soft" onClick={() => setCreating(true)}>
+            <AddIcon aria-hidden /> New checklist
+          </Button>
+        }
+      />
 
       <CardContent className="flex flex-col gap-3">
         {templates.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 rounded-md border border-dashed border-border-strong px-4 py-5">
-            <span className="flex items-center gap-2 text-[14px] font-semibold text-foreground">
-              <ListChecks className="size-4 text-muted-foreground" />
-              No checklists yet
-            </span>
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-              Write down the steps your techs should never skip, and every ticket
-              of that problem type gets them automatically.
-            </p>
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus /> Create the first checklist
-            </Button>
-          </div>
+          <EmptyState
+            icon={ICONS.checklist}
+            title="No checklists yet"
+            hint="Write down the steps your techs should never skip, and every ticket of that problem type gets them automatically."
+            action={
+              <Button onClick={() => setCreating(true)}>
+                <AddIcon aria-hidden /> Create the first checklist
+              </Button>
+            }
+            className="rounded-md border border-dashed border-border-strong py-10"
+          />
         ) : (
           templates.map((template) => (
             <TemplateRow
@@ -164,7 +162,7 @@ function TemplateRow({
 
       <div className="flex shrink-0 items-center gap-2">
         <Button variant="outline" size="sm" onClick={onEdit} disabled={busy}>
-          Edit
+          <EditIcon aria-hidden /> Edit
         </Button>
         {confirming ? (
           <>
@@ -172,18 +170,25 @@ function TemplateRow({
               Cancel
             </Button>
             <Button variant="destructive" size="sm" onClick={remove} disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
               {busy ? "Deleting…" : "Delete"}
             </Button>
           </>
         ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label={`Delete ${template.name}`}
-            onClick={() => setConfirming(true)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Delete ${template.name}`}
+                className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
+                onClick={() => setConfirming(true)}
+              >
+                <DeleteIcon className="size-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete checklist</TooltipContent>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -371,7 +376,7 @@ function TemplateDialog({
                 onClick={addItem}
                 disabled={!draft.trim() || items.length >= MAX_CHECKLIST_ITEMS}
               >
-                <Plus /> Add
+                <AddIcon aria-hidden /> Add
               </Button>
             </div>
           </div>
@@ -384,6 +389,13 @@ function TemplateDialog({
               type="submit"
               disabled={busy || name.trim() === "" || items.length === 0}
             >
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : template ? (
+                <SaveIcon aria-hidden />
+              ) : (
+                <AddIcon aria-hidden />
+              )}
               {busy ? "Saving…" : template ? "Save checklist" : "Create checklist"}
             </Button>
           </DialogFooter>

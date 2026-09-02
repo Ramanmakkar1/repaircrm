@@ -1,9 +1,12 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { CreditCard, Loader2, Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
+import { ACTIONS } from "@/components/ui/icons";
 import { startInvoiceCheckoutAction } from "../invoices/[id]/actions";
+
+const PayIcon = ACTIONS.pay;
 
 /**
  * The pay button, as the customer sees it.
@@ -42,7 +45,7 @@ function PaySubmit({ amountLabel }: { amountLabel: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-[15px] font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-60 sm:w-auto"
+      className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-[15px] font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-60 sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {pending ? (
         <>
@@ -51,7 +54,7 @@ function PaySubmit({ amountLabel }: { amountLabel: string }) {
         </>
       ) : (
         <>
-          <CreditCard className="size-4" />
+          <PayIcon className="size-4" aria-hidden />
           Pay {amountLabel} online
         </>
       )}

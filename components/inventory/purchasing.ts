@@ -6,6 +6,8 @@
  * it. (Same rule as components/tickets/part-meta.ts.)
  */
 
+import type { StatusTone } from "@/components/ui/badge";
+
 // ---------------------------------------------------------------------------
 // Purchase order status
 // ---------------------------------------------------------------------------
@@ -25,37 +27,41 @@ export function asPoStatus(value: unknown): PoStatus {
 }
 
 /**
- * Chip colours, from the same status token set the rest of the app uses: grey
- * while it is only a plan, blue once money is committed, amber part-way in,
- * green when the boxes are all on the shelf, struck through when called off.
+ * Where each PO state sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`): grey while it is only a plan, blue once money is
+ * committed, amber part-way in, green when the boxes are all on the shelf,
+ * struck through when called off. Only `StatusPill` knows what a tone looks
+ * like, which is what keeps "Ordered" the same colour here, on the vendor
+ * page and on the parts card.
  */
 export const PO_STATUS_META: Record<
   PoStatus,
-  { label: string; chip: string; hint: string }
+  { label: string; tone: StatusTone; struck?: boolean; hint: string }
 > = {
   DRAFT: {
     label: "Draft",
-    chip: "bg-surface-hover text-muted-foreground",
+    tone: "neutral",
     hint: "Not sent to the vendor yet.",
   },
   ORDERED: {
     label: "Ordered",
-    chip: "bg-accent-soft text-accent-soft-foreground",
+    tone: "info",
     hint: "Placed with the vendor, nothing received.",
   },
   PARTIAL: {
     label: "Partial",
-    chip: "bg-status-in-progress-bg text-status-in-progress-fg",
+    tone: "active",
     hint: "Some of it has arrived.",
   },
   RECEIVED: {
     label: "Received",
-    chip: "bg-status-resolved-bg text-status-resolved-fg",
+    tone: "success",
     hint: "Everything on the order is on the shelf.",
   },
   CANCELED: {
     label: "Canceled",
-    chip: "bg-surface-hover text-faint-foreground line-through",
+    tone: "neutral",
+    struck: true,
     hint: "Called off before it arrived.",
   },
 };
@@ -195,24 +201,12 @@ export function suggestedReorderQty(product: {
 
 export const SERIAL_STATUS_META: Record<
   string,
-  { label: string; chip: string }
+  { label: string; tone: StatusTone }
 > = {
-  IN_STOCK: {
-    label: "In stock",
-    chip: "bg-status-resolved-bg text-status-resolved-fg",
-  },
-  SOLD: {
-    label: "Sold",
-    chip: "bg-accent-soft text-accent-soft-foreground",
-  },
-  RETURNED: {
-    label: "Returned",
-    chip: "bg-status-in-progress-bg text-status-in-progress-fg",
-  },
-  DEFECTIVE: {
-    label: "Defective",
-    chip: "bg-status-overdue-bg text-status-overdue-fg",
-  },
+  IN_STOCK: { label: "In stock", tone: "success" },
+  SOLD: { label: "Sold", tone: "info" },
+  RETURNED: { label: "Returned", tone: "active" },
+  DEFECTIVE: { label: "Defective", tone: "danger" },
 };
 
 export function serialStatusLabel(status: string): string {

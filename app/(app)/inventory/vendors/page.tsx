@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardList, Plus, Store } from "lucide-react";
 
 import { VendorCard, type VendorCardData } from "@/components/inventory/vendor-card";
 import { VendorDialog } from "@/components/inventory/vendor-dialog";
@@ -8,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -68,22 +68,30 @@ export default async function VendorsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <Link
+        href="/inventory"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ACTIONS.back className="size-4" />
+        All inventory
+      </Link>
+
       <PageHeader
-        breadcrumbs={[{ label: "Inventory", href: "/inventory" }, { label: "Vendors" }]}
+        icon={ICONS.vendor}
         title="Vendors"
         description="Everyone the shop buys parts from, and what's on order with them."
         actions={
           <>
             <Button variant="outline" asChild>
               <Link href="/inventory/purchase-orders">
-                <ClipboardList />
+                <ICONS.purchaseOrder />
                 Purchase orders
               </Link>
             </Button>
             <VendorDialog
               trigger={
                 <Button>
-                  <Plus />
+                  <ACTIONS.add />
                   New Vendor
                 </Button>
               }
@@ -106,18 +114,34 @@ export default async function VendorsPage({
       {cards.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Store}
-            title={includeInactive ? "No vendors yet" : "No active vendors"}
-            hint="Add the suppliers you order parts from so purchase orders, costs and reorder points all point somewhere real."
+            icon={ICONS.vendor}
+            title={
+              !includeInactive && inactiveCount > 0
+                ? "No active vendors"
+                : "No vendors yet"
+            }
+            hint={
+              // Telling somebody with twelve retired vendors to add their first
+              // one is the wrong sentence — point them at the other pill.
+              !includeInactive && inactiveCount > 0
+                ? `Every vendor on file has been deactivated. Show the ${inactiveCount} inactive ${inactiveCount === 1 ? "one" : "ones"}, or add a new supplier.`
+                : "Add the suppliers you order parts from so purchase orders, costs and reorder points all point somewhere real."
+            }
             action={
-              <VendorDialog
-                trigger={
-                  <Button>
-                    <Plus />
-                    New Vendor
-                  </Button>
-                }
-              />
+              !includeInactive && inactiveCount > 0 ? (
+                <Button variant="outline" asChild>
+                  <Link href="/inventory/vendors?show=all">Include inactive</Link>
+                </Button>
+              ) : (
+                <VendorDialog
+                  trigger={
+                    <Button>
+                      <ACTIONS.add />
+                      New Vendor
+                    </Button>
+                  }
+                />
+              )
             }
           />
         </Card>
@@ -144,8 +168,10 @@ function Pill({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "border-transparent bg-accent text-accent-foreground shadow-sm"
           : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",

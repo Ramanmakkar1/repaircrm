@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { Inbox, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { EmbedSnippet } from "@/components/leads/embed-snippet";
 import { LeadCard } from "@/components/leads/lead-card";
@@ -10,6 +10,7 @@ import { LEAD_STATUSES, OPEN_LEAD_STATUSES } from "@/components/leads/lead-meta"
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/comms";
@@ -88,6 +89,7 @@ export default async function LeadsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.lead}
         title="Leads"
         description="Every enquiry that hasn't become a customer yet — web forms, phone calls and walk-ins."
         actions={
@@ -105,7 +107,7 @@ export default async function LeadsPage({
       {leads.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Inbox}
+            icon={ICONS.inbound}
             title={nothingAtAll ? "No leads yet" : "Nothing in this view"}
             hint={
               nothingAtAll
@@ -148,7 +150,7 @@ export default async function LeadsPage({
         />
       ) : (
         <details className="group">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full bg-surface-hover px-4 py-2 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-full bg-surface-hover px-4 py-2 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             Website form snippet
           </summary>
           <div className="pt-4">

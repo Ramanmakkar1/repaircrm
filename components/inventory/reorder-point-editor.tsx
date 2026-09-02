@@ -3,14 +3,20 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { toast } from "sonner";
-import { Check, Pencil, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import {
   setLowStockAction,
   type InventoryActionState,
 } from "@/app/(app)/inventory/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const EMPTY: InventoryActionState = {};
 
@@ -49,7 +55,7 @@ export function ReorderPointEditor({
       const result = await setLowStockAction(productId, previous, formData);
       if (result.ok) {
         setEditing(false);
-        toast.success("Reorder point updated");
+        toast.success("Reorder point updated.");
       }
       return result;
     },
@@ -73,7 +79,7 @@ export function ReorderPointEditor({
           size="sm"
           onClick={() => setEditing(true)}
         >
-          <Pencil />
+          <ACTIONS.edit />
           Edit
         </Button>
       </div>
@@ -102,21 +108,39 @@ export function ReorderPointEditor({
           placeholder="Blank = not tracked"
           className="tabular-nums"
         />
-        <Button type="submit" size="icon" disabled={pending} aria-label="Save">
-          <Check />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => {
-            setValue(lowStockAt == null ? "" : String(lowStockAt));
-            setEditing(false);
-          }}
-          aria-label="Cancel"
-        >
-          <X />
-        </Button>
+        {/* Two icon buttons rather than two words, because they sit inline
+            beside a narrow number field — each carries its label and tip. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="submit"
+              size="icon"
+              disabled={pending}
+              aria-label="Save reorder point"
+            >
+              {pending ? <Loader2 className="animate-spin" /> : <ACTIONS.save />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Save reorder point</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={pending}
+              onClick={() => {
+                setValue(lowStockAt == null ? "" : String(lowStockAt));
+                setEditing(false);
+              }}
+              aria-label="Cancel"
+            >
+              <ACTIONS.cancel />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Cancel</TooltipContent>
+        </Tooltip>
       </div>
       {state.error ? (
         <p role="alert" className="text-[13px] font-medium text-destructive">

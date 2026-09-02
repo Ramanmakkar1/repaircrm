@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Pencil, Plus, X } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -51,7 +52,7 @@ export function CustomFieldsCard({
       const result = await saveCustomFieldsAction(ticketId, previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success("Fields saved");
+        toast.success("Fields saved.");
       }
       return result;
     },
@@ -78,7 +79,7 @@ export function CustomFieldsCard({
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm">
-              <Pencil className="size-4" />
+              <ACTIONS.edit className="size-4" />
               Edit fields
             </Button>
           </DialogTrigger>
@@ -136,7 +137,7 @@ export function CustomFieldsCard({
                         setRows((current) => current.filter((_, i) => i !== index))
                       }
                     >
-                      <X className="size-4" />
+                      <ACTIONS.cancel className="size-4" />
                     </Button>
                   </div>
                 ))}
@@ -151,7 +152,7 @@ export function CustomFieldsCard({
                   setRows((current) => [...current, { key: "", value: "" }])
                 }
               >
-                <Plus className="size-4" />
+                <ACTIONS.add className="size-4" />
                 Add field
               </Button>
 
@@ -165,6 +166,7 @@ export function CustomFieldsCard({
                   Cancel
                 </Button>
                 <Button type="submit" size="sm" disabled={pending}>
+                  <ACTIONS.save />
                   {pending ? "Saving…" : "Save fields"}
                 </Button>
               </DialogFooter>

@@ -4,6 +4,7 @@ import { CheckCircle2, Mail, ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { getPortalSession, safeNextPath } from "@/lib/portal-session";
 import { PortalCard } from "./_components/shell";
+import { PortalSubmit } from "./_components/portal-submit";
 import { requestPortalLinkAction } from "./actions";
 
 /**
@@ -20,6 +21,8 @@ import { requestPortalLinkAction } from "./actions";
  * customer already proved who they are by handing over a laptop and an email
  * address at the counter.
  */
+
+export const metadata = { title: "Sign in to your repair portal · RepairFlow" };
 
 const ERRORS: Record<string, string> = {
   email: "That doesn't look like a valid email address — try again?",
@@ -153,12 +156,9 @@ export default async function PortalEntryPage({
                 </p>
               </div>
 
-              <button
-                type="submit"
-                className="h-12 w-full rounded-xl bg-accent text-[15px] font-semibold text-accent-foreground shadow-sm transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
+              <PortalSubmit pendingLabel="Sending your link…">
                 Email me a sign-in link
-              </button>
+              </PortalSubmit>
             </form>
           </PortalCard>
         )}

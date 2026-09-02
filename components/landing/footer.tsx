@@ -37,25 +37,25 @@ export function LandingFooter() {
           <nav aria-label="Footer" className="flex flex-col gap-3 sm:items-end">
             <a
               href="#features"
-              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Features
             </a>
             <a
               href="#pricing"
-              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Pricing
             </a>
             <a
               href="#faq"
-              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               FAQ
             </a>
             <Link
               href="/login"
-              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Sign in
             </Link>
@@ -66,13 +66,13 @@ export function LandingFooter() {
             */}
             <Link
               href="/portal"
-              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Customer portal
             </Link>
             <Link
               href="/signup"
-              className="text-[14px] font-semibold text-accent transition-colors hover:text-accent-hover"
+              className="rounded-sm text-[14px] font-semibold text-accent transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Start free
             </Link>

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { AlertCircle, Plus, TriangleAlert, Trash2 } from "lucide-react";
 
 import {
@@ -21,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCents, parseCents } from "@/lib/money";
 import { suggestedReorderQty } from "./purchasing";
@@ -427,7 +427,12 @@ export function PurchaseOrderForm({
         <Button variant="ghost" asChild>
           <Link href="/inventory/purchase-orders">Cancel</Link>
         </Button>
-        <Submit disabled={vendorId === "" || payload.length === 0} />
+        <SubmitButton
+          disabled={vendorId === "" || payload.length === 0}
+          pendingLabel="Creating…"
+        >
+          Create purchase order
+        </SubmitButton>
       </div>
     </form>
   );
@@ -485,14 +490,5 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="font-semibold tabular-nums text-foreground">{value}</dd>
     </div>
-  );
-}
-
-function Submit({ disabled }: { disabled: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending || disabled}>
-      {pending ? "Saving…" : "Create purchase order"}
-    </Button>
   );
 }

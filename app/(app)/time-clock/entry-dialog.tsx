@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   deleteTimeClockEntryAction,
   updateTimeClockEntryAction,
@@ -90,24 +96,37 @@ export function EntryDialog({
 
   return (
     <>
+      {/* Icon-only because this pair repeats on every shift row; each one
+          carries its own label and a tooltip so the glyph is never the only
+          thing telling you what it does. */}
       <div className="flex items-center justify-end gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={openEditor}
-          aria-label={`Edit ${userName}'s entry`}
-        >
-          <Pencil className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:bg-destructive-soft hover:text-destructive"
-          onClick={() => setConfirming(true)}
-          aria-label={`Delete ${userName}'s entry`}
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={openEditor}
+              aria-label={`Edit ${userName}'s entry`}
+            >
+              <ACTIONS.edit className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit this shift</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+              onClick={() => setConfirming(true)}
+              aria-label={`Delete ${userName}'s entry`}
+            >
+              <ACTIONS.delete className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete this shift</TooltipContent>
+        </Tooltip>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -167,6 +186,7 @@ export function EntryDialog({
               Cancel
             </Button>
             <Button onClick={save} disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.save />}
               {busy ? "Saving…" : "Save changes"}
             </Button>
           </DialogFooter>
@@ -187,8 +207,8 @@ export function EntryDialog({
               Keep it
             </Button>
             <Button variant="destructive" onClick={remove} disabled={busy}>
-              <Trash2 />
-              Delete entry
+              {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.delete />}
+              {busy ? "Deleting…" : "Delete entry"}
             </Button>
           </DialogFooter>
         </DialogContent>

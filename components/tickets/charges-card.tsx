@@ -1,10 +1,11 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
-
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
 import { deleteChargeAction } from "@/app/(app)/tickets/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TBody, THead, Th, Td } from "@/components/ui/table";
 import { ChargeDialog, type ProductOption } from "./charge-dialog";
 
@@ -45,26 +46,32 @@ export function ChargesCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle>Charges</CardTitle>
-        <ChargeDialog
-          ticketId={ticketId}
-          products={products}
-          warranty={warranty}
-          trigger={
-            <Button variant="outline" size="sm">
-              <Plus className="size-4" />
-              Add Charge
-            </Button>
-          }
-        />
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.invoice}
+        title="Charges"
+        action={
+          <ChargeDialog
+            ticketId={ticketId}
+            products={products}
+            warranty={warranty}
+            trigger={
+              <Button variant="outline" size="sm">
+                <ACTIONS.add className="size-4" />
+                Add charge
+              </Button>
+            }
+          />
+        }
+      />
 
       <CardContent className="px-0 py-0">
         {charges.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            No parts or labour on this ticket yet.
-          </p>
+          <EmptyState
+            className="px-5 py-10"
+            icon={ICONS.invoice}
+            title="No charges yet"
+            hint="Parts and labour added here become the lines on this ticket's invoice."
+          />
         ) : (
           <Table>
             <THead>
@@ -114,20 +121,20 @@ export function ChargesCard({
                               size="icon"
                               aria-label={`Edit ${charge.description}`}
                             >
-                              <Pencil className="size-4" />
+                              <ACTIONS.edit className="size-4" />
                             </Button>
                           }
                         />
                         <form action={deleteChargeAction.bind(null, charge.id)}>
-                          <Button
-                            type="submit"
+                          <SubmitButton
                             variant="ghost"
                             size="icon"
+                            pendingLabel=""
                             aria-label={`Remove ${charge.description}`}
                             className="text-faint-foreground hover:text-destructive"
                           >
-                            <Trash2 className="size-4" />
-                          </Button>
+                            <ACTIONS.delete className="size-4" />
+                          </SubmitButton>
                         </form>
                       </div>
                     ) : (

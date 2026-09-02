@@ -2,11 +2,30 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { toDateInputValue } from "@/components/billing/format";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { ScheduleForm } from "@/components/recurring/schedule-form";
 import { updateScheduleAction } from "../../actions";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const schedule = await db.recurringInvoice.findFirst({
+    where: { id, shopId },
+    select: { name: true },
+  });
+  return {
+    title: schedule
+      ? `Edit ${schedule.name} · RepairFlow`
+      : "Edit schedule · RepairFlow",
+  };
+}
 
 export default async function EditSchedulePage({
   params,
@@ -28,6 +47,7 @@ export default async function EditSchedulePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.recurring}
         title={`Edit ${schedule.name}`}
         description="Changes apply to the next invoice this schedule raises — invoices already generated are untouched."
       />

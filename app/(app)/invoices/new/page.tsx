@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
@@ -43,6 +44,7 @@ export default async function NewInvoicePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.invoice}
         title="New invoice"
         description="Add line items, then save as a draft you can review before sending."
       />

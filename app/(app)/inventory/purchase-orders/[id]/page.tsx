@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Printer, Wrench } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import { PurchaseOrderActions } from "@/components/inventory/purchase-order-actions";
@@ -10,6 +9,7 @@ import {
   asPoStatus,
   poTotals,
 } from "@/components/inventory/purchasing";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
@@ -115,14 +116,7 @@ export default async function PurchaseOrderPage({
               Purchase order #{order.number}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                  meta.chip,
-                )}
-              >
-                {meta.label}
-              </span>
+              <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
               <Link
                 href={`/inventory/vendors/${order.vendor.id}`}
                 className="text-[13.5px] font-semibold text-accent-soft-foreground hover:underline"
@@ -138,7 +132,7 @@ export default async function PurchaseOrderPage({
           <div className="flex shrink-0 flex-wrap items-center gap-2.5">
             <Button variant="outline" asChild>
               <Link href={`/print/purchase-orders/${order.id}`}>
-                <Printer />
+                <ICONS.print />
                 Print
               </Link>
             </Button>
@@ -238,9 +232,9 @@ export default async function PurchaseOrderPage({
                           </span>
                         )}
                         {line.product?.serialized ? (
-                          <span className="ml-2 rounded-full bg-surface-hover px-2 py-0.5 text-[11.5px] font-semibold text-muted-foreground">
+                          <Chip icon={ICONS.serial} className="ml-2 align-middle">
                             Serialized
-                          </span>
+                          </Chip>
                         ) : null}
                       </Td>
                       <Td className="font-mono text-[13px] text-muted-foreground">
@@ -303,7 +297,7 @@ export default async function PurchaseOrderPage({
                 href={`/tickets/${part.ticket.id}`}
                 className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-hover"
               >
-                <Wrench className="size-3.5 text-faint-foreground" />
+                <ICONS.ticket className="size-3.5 text-faint-foreground" />
                 <span className="tabular-nums">#{part.ticket.number}</span>
                 <span className="text-muted-foreground">
                   {part.quantity} × {part.description}

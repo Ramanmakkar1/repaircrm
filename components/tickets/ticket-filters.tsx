@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, SlidersHorizontal, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { STATUS_META, normalizeStatus } from "@/components/ui/badge";
 import {
@@ -180,7 +180,7 @@ export function TicketFilters({
             push({ q: queryRef.current?.value.trim() ?? "" });
           }}
         >
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+          <ICONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
           <Input
             ref={queryRef}
             name="q"
@@ -194,7 +194,7 @@ export function TicketFilters({
         <Dialog open={advancedOpen} onOpenChange={setAdvancedOpen}>
           <DialogTrigger asChild>
             <Button variant="outline">
-              <SlidersHorizontal />
+              <ACTIONS.filter />
               Filters
               {advancedCount > 0 ? (
                 <span className="ml-0.5 flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
@@ -219,7 +219,7 @@ export function TicketFilters({
             variant="ghost"
             onClick={() => startTransition(() => router.push("/tickets"))}
           >
-            <X />
+            <ACTIONS.cancel />
             Clear all
           </Button>
         ) : null}
@@ -344,6 +344,7 @@ function AdvancedFilters({
           type="button"
           onClick={() => onApply({ tech, problemType, sort })}
         >
+          <ACTIONS.filter />
           Show tickets
         </Button>
       </DialogFooter>

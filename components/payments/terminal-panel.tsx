@@ -3,7 +3,6 @@
 import * as React from "react";
 import {
   CheckCircle2,
-  CreditCard,
   Loader2,
   RefreshCw,
   Smartphone,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
 import type { TerminalStep, UseStripeTerminal } from "./use-stripe-terminal";
@@ -90,7 +90,7 @@ export function TerminalPanel({
             </>
           ) : (
             <>
-              <CreditCard /> {startLabel}
+              <ACTIONS.pay /> {startLabel}
             </>
           )}
         </Button>
@@ -124,7 +124,7 @@ function StepIcon({ step }: { step: TerminalStep }) {
   if (step === "idle") {
     return (
       <span className="flex size-14 items-center justify-center rounded-full bg-surface text-muted-foreground">
-        <CreditCard className="size-7" strokeWidth={2.25} />
+        <ACTIONS.pay className="size-7" strokeWidth={2.25} />
       </span>
     );
   }

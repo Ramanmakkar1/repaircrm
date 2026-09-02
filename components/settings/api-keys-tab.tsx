@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, KeyRound, TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -20,11 +20,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
-import { cn } from "@/components/ui/cn";
 import { WebhooksCard } from "./webhooks-card";
 import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
 
@@ -39,6 +40,12 @@ import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
  * Revoking deactivates rather than deletes, so `last used` survives as
  * evidence of what a compromised integration was doing.
  */
+const KeyIcon = ICONS.apiKey;
+const AddIcon = ACTIONS.add;
+const RevokeIcon = ACTIONS.void;
+const CopyIcon = ACTIONS.copy;
+const SavedIcon = ACTIONS.save;
+
 export function ApiKeysTab({
   keys,
   appUrl,
@@ -59,7 +66,7 @@ export function ApiKeysTab({
     <div className="flex flex-col gap-5">
       <div className="flex justify-end">
         <Button onClick={() => setCreating(true)}>
-          <KeyRound /> Create key
+          <AddIcon aria-hidden /> Create key
         </Button>
       </div>
 
@@ -70,12 +77,12 @@ export function ApiKeysTab({
         <CardContent className="px-0 py-0">
           {keys.length === 0 ? (
             <EmptyState
-              icon={KeyRound}
+              icon={KeyIcon}
               title="No API keys yet"
               hint="Create a key to let another system read your customers, tickets and invoices."
               action={
                 <Button variant="outline" onClick={() => setCreating(true)}>
-                  Create key
+                  <AddIcon aria-hidden /> Create key
                 </Button>
               }
             />
@@ -86,9 +93,10 @@ export function ApiKeysTab({
                   <Tr>
                     <Th>Name</Th>
                     <Th>Key</Th>
+                    <Th>Status</Th>
                     <Th>Created</Th>
                     <Th>Last used</Th>
-                    <Th className="w-[120px] text-right">Active</Th>
+                    <Th className="w-[110px] text-right">Actions</Th>
                   </Tr>
                 </THead>
                 <TBody>
@@ -121,6 +129,7 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
   const router = useRouter();
   const [active, setActive] = React.useState(item.active);
   const [busy, setBusy] = React.useState(false);
+  const [confirming, setConfirming] = React.useState(false);
 
   // The switch flips optimistically, then follows the server once
   // `router.refresh()` brings a new value down. Adjusting during render (rather
@@ -143,26 +152,33 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
       toast.error(result.error);
       return;
     }
-    toast.success(next ? `${item.name} reactivated.` : `${item.name} revoked.`);
+    setConfirming(false);
+    toast.success(
+      next
+        ? `${item.name} reactivated — it can read this shop again.`
+        : `${item.name} revoked. Anything using it will start getting 401s.`,
+    );
     router.refresh();
   }
 
   return (
     <Tr>
       <Td>
-        <span
-          className={cn(
-            "font-semibold text-foreground",
-            !active && "text-muted-foreground line-through",
-          )}
-        >
-          {item.name}
-        </span>
+        <span className="font-semibold text-foreground">{item.name}</span>
       </Td>
       <Td>
-        <code className="rounded-xs bg-surface-hover px-2 py-1 text-[12.5px] tabular-nums text-muted-foreground">
+        <code className="rounded-xs bg-surface-hover px-2 py-1 font-mono text-[12.5px] text-muted-foreground">
           rfk_{item.prefix}…
         </code>
+      </Td>
+      <Td>
+        {/* Struck rather than red: a revoked key is called off, not broken. */}
+        <StatusPill
+          size="sm"
+          tone={active ? "success" : "neutral"}
+          label={active ? "Active" : "Revoked"}
+          struck={!active}
+        />
       </Td>
       <Td className="text-muted-foreground">{formatDay(item.createdAt)}</Td>
       <Td className="text-muted-foreground">
@@ -173,11 +189,53 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
           <Switch
             checked={active}
             disabled={busy}
-            onCheckedChange={toggle}
+            // Reactivating is harmless and fires straight away; revoking breaks
+            // somebody's live integration, so it has to be asked about first.
+            onCheckedChange={(next) =>
+              next ? toggle(true) : setConfirming(true)
+            }
             aria-label={`${active ? "Revoke" : "Reactivate"} ${item.name}`}
           />
         </div>
       </Td>
+
+      <Dialog
+        open={confirming}
+        onOpenChange={(next) => {
+          if (!next && !busy) setConfirming(false);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Revoke {item.name}?</DialogTitle>
+            <DialogDescription>
+              Every request signed with{" "}
+              <span className="font-mono text-foreground">
+                rfk_{item.prefix}…
+              </span>{" "}
+              starts failing immediately. The key stays listed so you can see
+              what it was doing, and you can turn it back on here.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={() => toggle(false)}
+            >
+              {busy ? <Loader2 className="animate-spin" /> : <RevokeIcon aria-hidden />}
+              {busy ? "Revoking…" : "Revoke key"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tr>
   );
 }
@@ -257,6 +315,7 @@ function CreateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : <AddIcon aria-hidden />}
               {busy ? "Creating…" : "Create key"}
             </Button>
           </DialogFooter>
@@ -331,7 +390,7 @@ function CopyableKey({ value }: { value: string }) {
         onClick={copy}
         aria-label="Copy API key"
       >
-        {copied ? <Check /> : <Copy />}
+        {copied ? <SavedIcon aria-hidden /> : <CopyIcon aria-hidden />}
         {copied ? "Copied" : "Copy"}
       </Button>
     </div>

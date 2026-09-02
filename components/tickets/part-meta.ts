@@ -6,6 +6,7 @@
  * "use server".
  */
 
+import type { StatusTone } from "@/components/ui/badge";
 import type { ActionState } from "./action-state";
 
 export const PART_STATUSES = [
@@ -35,30 +36,18 @@ export function isTerminalPartStatus(status: string): boolean {
 export const OPEN_PART_STATUSES: readonly PartStatus[] = ["NEEDED", "ORDERED"];
 
 /**
- * Chip colours, drawn from the same status token set the rest of the app uses:
- * grey while it is only a wish, blue once money is committed, green when it is
- * on the shelf, muted+struck when it was called off.
+ * Where each part-order state sits in the app-wide tone language (see
+ * `components/ui/badge.tsx`): grey while it is only a wish, amber once money
+ * is committed, green when it is on the shelf, struck when it was called off.
  */
 export const PART_STATUS_META: Record<
   PartStatus,
-  { label: string; chip: string }
+  { label: string; tone: StatusTone; struck?: boolean }
 > = {
-  NEEDED: {
-    label: "Needed",
-    chip: "bg-surface-hover text-muted-foreground",
-  },
-  ORDERED: {
-    label: "Ordered",
-    chip: "bg-status-in-progress-bg text-status-in-progress-fg",
-  },
-  RECEIVED: {
-    label: "Received",
-    chip: "bg-status-resolved-bg text-status-resolved-fg",
-  },
-  CANCELED: {
-    label: "Canceled",
-    chip: "bg-surface-hover text-faint-foreground line-through",
-  },
+  NEEDED: { label: "Needed", tone: "neutral" },
+  ORDERED: { label: "Ordered", tone: "active" },
+  RECEIVED: { label: "Received", tone: "success" },
+  CANCELED: { label: "Canceled", tone: "neutral", struck: true },
 };
 
 export function asPartStatus(value: unknown): PartStatus {

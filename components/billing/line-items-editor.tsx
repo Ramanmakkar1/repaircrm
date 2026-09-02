@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ACTIONS } from "@/components/ui/icons";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -355,7 +355,7 @@ export function LineItemsEditor({
                       onClick={() => remove(draft.key)}
                       aria-label="Remove line"
                     >
-                      <Trash2 />
+                      <ACTIONS.delete />
                     </Button>
                   </Cell>
                 </tr>
@@ -367,7 +367,7 @@ export function LineItemsEditor({
             <tr>
               <td colSpan={colCount - 1} className="px-3 py-3">
                 <Button type="button" variant="soft" size="sm" onClick={addRow}>
-                  <Plus /> Add line
+                  <ACTIONS.add /> Add line
                 </Button>
               </td>
               <td colSpan={2} />

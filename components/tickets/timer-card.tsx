@@ -2,13 +2,16 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Play, Square, Timer, Trash2 } from "lucide-react";
+// Play / Square are transport controls and Timer is the concept; the bin
+// comes from ACTIONS.
+import { Play, Square, Timer } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import {
   deleteTimeEntryAction,
@@ -66,15 +69,15 @@ export function TimerCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-1.5">
-          <Timer className="size-4 text-muted-foreground" />
-          Time
-        </CardTitle>
-        <span className="text-xs font-medium tabular-nums text-muted-foreground">
-          {formatDuration(completedSeconds)} logged
-        </span>
-      </CardHeader>
+      <CardHeader
+        icon={Timer}
+        title="Time"
+        action={
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+            {formatDuration(completedSeconds)} logged
+          </span>
+        }
+      />
 
       <CardContent className="flex flex-col gap-3">
         {myRunningEntry ? (
@@ -92,17 +95,22 @@ export function TimerCard({
               className="h-9 min-w-[10rem] flex-1 bg-surface"
               aria-label="Note for this time entry"
             />
-            <Button type="submit" size="sm" variant="outline">
+            <SubmitButton size="sm" variant="outline" pendingLabel="Stopping…">
               <Square className="size-3.5" />
               Stop
-            </Button>
+            </SubmitButton>
           </form>
         ) : (
           <form action={startTimerAction.bind(null, ticketId)}>
-            <Button type="submit" size="sm" variant="outline" className="w-full">
+            <SubmitButton
+              size="sm"
+              variant="outline"
+              className="w-full"
+              pendingLabel="Starting…"
+            >
               <Play className="size-4" />
               Start timer
-            </Button>
+            </SubmitButton>
           </form>
         )}
 
@@ -206,15 +214,15 @@ function TimeRow({ entry }: { entry: TimeEntryRow }) {
           <span className="size-6" aria-hidden />
         ) : (
           <form action={deleteTimeEntryAction.bind(null, entry.id)}>
-            <Button
-              type="submit"
+            <SubmitButton
               variant="ghost"
               size="icon"
+              pendingLabel=""
               aria-label="Delete time entry"
               className="size-6 text-faint-foreground hover:text-destructive"
             >
-              <Trash2 className="size-3.5" />
-            </Button>
+              <ACTIONS.delete className="size-3.5" />
+            </SubmitButton>
           </form>
         )}
       </div>

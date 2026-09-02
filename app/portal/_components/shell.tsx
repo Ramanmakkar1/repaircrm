@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, LogOut } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
+import { ACTIONS } from "@/components/ui/icons";
+
+const BackIcon = ACTIONS.back;
 
 /**
  * Chrome for the customer portal.
@@ -50,9 +52,9 @@ export function PortalShell({
               </span>
               <Link
                 href="/portal/logout"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border-strong bg-surface px-3 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border-strong bg-surface px-3 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <LogOut className="size-4" />
+                <ACTIONS.signOut className="size-4" aria-hidden />
                 Sign out
               </Link>
             </div>
@@ -125,9 +127,9 @@ export function BackLink({
   return (
     <Link
       href={href}
-      className="mb-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+      className="mb-5 inline-flex items-center gap-1.5 rounded-sm text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
-      <ArrowLeft className="size-4" />
+      <BackIcon className="size-4" aria-hidden />
       {children}
     </Link>
   );

@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
-import { Hash, MoreHorizontal, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,15 +10,9 @@ import {
   setSerialStatusAction,
   type InventoryActionState,
 } from "@/app/(app)/inventory/actions";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { cn } from "@/components/ui/cn";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -36,8 +29,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { parseSerialList } from "@/lib/serials";
@@ -96,22 +91,21 @@ export function SerialsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <CardTitle>Serial numbers</CardTitle>
-          <CardDescription className="tabular-nums">
-            {serials.length === 0
-              ? "Every unit of this product, tracked individually."
-              : `${inStock} of ${serials.length} unit${serials.length === 1 ? "" : "s"} in stock.`}
-          </CardDescription>
-        </div>
-        <AddSerialsDialog productId={productId} />
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.serial}
+        title="Serial numbers"
+        description={
+          serials.length === 0
+            ? "Every unit of this product, tracked individually."
+            : `${inStock} of ${serials.length} unit${serials.length === 1 ? "" : "s"} in stock.`
+        }
+        action={<AddSerialsDialog productId={productId} />}
+      />
 
       <CardContent className="px-0 py-0">
         {serials.length === 0 ? (
           <EmptyState
-            icon={Hash}
+            icon={ICONS.serial}
             title="No units yet"
             hint="Add the serial numbers on the shelf, or receive a purchase order — either way each unit gets its own record."
             action={<AddSerialsDialog productId={productId} />}
@@ -129,9 +123,11 @@ export function SerialsCard({
             </THead>
             <TBody>
               {sorted.map((unit) => {
+                // A status the vocabulary doesn't know about still gets a pill,
+                // in grey, showing whatever the database actually holds.
                 const meta = SERIAL_STATUS_META[unit.status] ?? {
                   label: unit.status,
-                  chip: "bg-surface-hover text-muted-foreground",
+                  tone: "neutral" as const,
                 };
                 return (
                   <Tr key={unit.id}>
@@ -144,14 +140,7 @@ export function SerialsCard({
                       ) : null}
                     </Td>
                     <Td>
-                      <span
-                        className={cn(
-                          "rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                          meta.chip,
-                        )}
-                      >
-                        {meta.label}
-                      </span>
+                      <StatusPill tone={meta.tone} label={meta.label} size="sm" />
                     </Td>
                     <Td className="text-[13.5px] text-muted-foreground">
                       {unit.receivedLabel}
@@ -178,14 +167,14 @@ export function SerialsCard({
                               disabled={busy}
                               aria-label={`Actions for ${unit.serial}`}
                             >
-                              <MoreHorizontal />
+                              <ACTIONS.more />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {unit.status !== "IN_STOCK" ? (
                               <DropdownMenuItem
                                 onSelect={() =>
-                                  setStatus(unit.id, "IN_STOCK", "Back in stock")
+                                  setStatus(unit.id, "IN_STOCK", "Put back in stock.")
                                 }
                               >
                                 Back in stock
@@ -194,7 +183,7 @@ export function SerialsCard({
                             {unit.status !== "DEFECTIVE" ? (
                               <DropdownMenuItem
                                 onSelect={() =>
-                                  setStatus(unit.id, "DEFECTIVE", "Marked defective")
+                                  setStatus(unit.id, "DEFECTIVE", "Marked defective.")
                                 }
                               >
                                 Mark defective
@@ -203,7 +192,7 @@ export function SerialsCard({
                             {unit.status !== "RETURNED" ? (
                               <DropdownMenuItem
                                 onSelect={() =>
-                                  setStatus(unit.id, "RETURNED", "Marked returned")
+                                  setStatus(unit.id, "RETURNED", "Marked returned.")
                                 }
                               >
                                 Mark returned
@@ -232,7 +221,7 @@ function AddSerialsDialog({ productId }: { productId: string }) {
   const [pasted, setPasted] = React.useState("");
   const [note, setNote] = React.useState("");
 
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction] = useActionState(
     async (
       previous: InventoryActionState,
       formData: FormData,
@@ -242,7 +231,7 @@ function AddSerialsDialog({ productId }: { productId: string }) {
         setOpen(false);
         setPasted("");
         setNote("");
-        toast.success("Units added to stock");
+        toast.success("Units added to stock.");
       }
       return result;
     },
@@ -261,7 +250,7 @@ function AddSerialsDialog({ productId }: { productId: string }) {
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Plus className="size-4" />
+          <ACTIONS.add className="size-4" />
           Add Serials
         </Button>
       </DialogTrigger>
@@ -282,7 +271,12 @@ function AddSerialsDialog({ productId }: { productId: string }) {
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="add-serials">Serial numbers</Label>
+            {/* The label row carries the scan control: each camera read appends
+                one more line to the box below, which is how a batch of units
+                gets captured without a laser gun. */}
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="add-serials">Serial numbers</Label>
+            </div>
             <Textarea
               id="add-serials"
               name="serials"
@@ -314,9 +308,9 @@ function AddSerialsDialog({ productId }: { productId: string }) {
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || count === 0}>
-              {pending ? "Saving…" : `Add ${count || ""} unit${count === 1 ? "" : "s"}`}
-            </Button>
+            <SubmitButton disabled={count === 0} pendingLabel="Saving…">
+              {`Add ${count || ""} unit${count === 1 ? "" : "s"}`}
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

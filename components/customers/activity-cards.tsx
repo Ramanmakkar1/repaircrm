@@ -1,17 +1,9 @@
 import * as React from "react";
 import Link from "next/link";
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  CreditCard,
-  FileText,
-  Mail,
-  MessageSquare,
-  Receipt,
-  Wrench,
-} from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
 import { IconChip } from "@/components/ui/chip";
+import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
 import { calcTotals, formatCents, invoiceTotals } from "@/lib/money";
@@ -45,7 +37,7 @@ export function TicketsCard({
 }) {
   return (
     <SectionCard
-      icon={Wrench}
+      icon={ICONS.ticket}
       title="Tickets"
       count={total}
       viewAllHref={`/tickets?customerId=${customerId}`}
@@ -115,7 +107,7 @@ export function InvoicesCard({
 }) {
   return (
     <SectionCard
-      icon={Receipt}
+      icon={ICONS.invoice}
       title="Invoices"
       count={total}
       viewAllHref={`/invoices?customerId=${customerId}`}
@@ -202,7 +194,7 @@ export function EstimatesCard({
 }) {
   return (
     <SectionCard
-      icon={FileText}
+      icon={ICONS.estimate}
       title="Estimates"
       count={total}
       viewAllHref={`/estimates?customerId=${customerId}`}
@@ -272,7 +264,7 @@ export function PaymentsCard({
 }) {
   return (
     <SectionCard
-      icon={CreditCard}
+      icon={ICONS.payment}
       title="Payments"
       count={total}
       empty="No payments taken yet."
@@ -294,7 +286,7 @@ export function PaymentsCard({
                 <Td className="font-medium text-foreground">
                   {humanizeEnum(payment.method)}
                   {payment.reference ? (
-                    <span className="ml-2 font-normal text-[13px] text-faint-foreground">
+                    <span className="ml-2 font-mono text-[12.5px] font-normal text-faint-foreground">
                       {payment.reference}
                     </span>
                   ) : null}
@@ -342,7 +334,7 @@ export function CommunicationsCard({
 }) {
   return (
     <SectionCard
-      icon={Mail}
+      icon={ICONS.email}
       title="Communication"
       count={total}
       empty="Nothing sent to this customer yet."
@@ -351,7 +343,7 @@ export function CommunicationsCard({
         <ul className="divide-y divide-border">
           {entries.map((entry) => {
             const outbound = entry.direction === "OUT";
-            const TypeIcon = entry.type === "SMS" ? MessageSquare : Mail;
+            const TypeIcon = entry.type === "SMS" ? ICONS.message : ICONS.email;
             const DirectionIcon = outbound ? ArrowUpRight : ArrowDownLeft;
 
             return (

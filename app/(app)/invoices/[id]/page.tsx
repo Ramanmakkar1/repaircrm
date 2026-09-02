@@ -1,21 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  Ban,
-  CalendarClock,
-  CalendarDays,
-  CheckCircle2,
-  CreditCard,
-  FileText,
-  Hash,
-  Pencil,
-  Printer,
-  Undo2,
-  User,
-  Wallet,
-  Wrench,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { invoiceTokenPath, portalUrl } from "@/lib/comms";
@@ -54,9 +39,11 @@ import {
   CardContent,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { Breadcrumbs } from "@/components/ui/page-header";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ConfirmActionDialog } from "@/components/billing/action-form";
@@ -64,7 +51,10 @@ import { formatDate, formatDateTime, isOverdue } from "@/components/billing/form
 import { ChargeCardButton } from "@/components/billing/charge-card-button";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
 import { SignatureDialog } from "@/components/billing/signature-dialog";
-import { InvoiceStatusBadge } from "@/components/billing/status-badge";
+import {
+  InvoiceStatusBadge,
+  RefundStatusBadge,
+} from "@/components/billing/status-badge";
 import {
   chargeCardOnFileAction,
   emailInvoiceReceiptAction,
@@ -107,6 +97,24 @@ function paymentLabel(
 /** Chips that link somewhere get a gentle accent tint on hover. */
 const LINK_CHIP =
   "transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const invoice = await db.invoice.findFirst({
+    where: { id, shopId },
+    select: { number: true },
+  });
+  return {
+    title: invoice
+      ? `Invoice #${invoice.number} · RepairFlow`
+      : "Invoice · RepairFlow",
+  };
+}
 
 export default async function InvoiceDetailPage({
   params,
@@ -289,13 +297,12 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        href="/invoices"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        All invoices
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Invoices", href: "/invoices" },
+          { label: `#${invoice.number} · ${customerName}` },
+        ]}
+      />
 
       {/* ------------------------------------------------------------ header */}
       <Card>
@@ -319,14 +326,14 @@ export default async function InvoiceDetailPage({
             <div className="flex flex-wrap items-center gap-2.5">
               <Button variant="outline" asChild>
                 <Link href={`/print/invoices/${invoice.id}`} target="_blank">
-                  <Printer /> Print
+                  <ACTIONS.print /> Print
                 </Link>
               </Button>
 
               {canEdit ? (
                 <Button variant="outline" asChild>
                   <Link href={`/invoices/${invoice.id}/edit`}>
-                    <Pencil /> Edit
+                    <ACTIONS.edit /> Edit
                   </Link>
                 </Button>
               ) : null}
@@ -356,7 +363,7 @@ export default async function InvoiceDetailPage({
                   action={voidInvoiceAction}
                   fields={{ id: invoice.id }}
                   triggerLabel="Void"
-                  triggerIcon={<Ban />}
+                  triggerIcon={<ACTIONS.void />}
                   title={`Void invoice #${invoice.number}?`}
                   description="The invoice stays on record but stops counting as money owed. This cannot be undone."
                   confirmLabel="Void invoice"
@@ -421,17 +428,17 @@ export default async function InvoiceDetailPage({
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             {onlinePayments ? (
               <Chip
-                icon={CreditCard}
+                icon={ICONS.payment}
                 className="bg-chip-accent-bg text-chip-accent-fg"
               >
                 Online payments live
               </Chip>
             ) : null}
 
-            <Chip icon={CalendarDays}>Raised {formatDate(invoice.createdAt)}</Chip>
+            <Chip icon={ICONS.invoice}>Raised {formatDate(invoice.createdAt)}</Chip>
 
             <Chip
-              icon={CalendarClock}
+              icon={ICONS.dueDate}
               className={cn(
                 overdue && "bg-status-overdue-bg text-status-overdue-fg",
               )}
@@ -454,7 +461,7 @@ export default async function InvoiceDetailPage({
 
             {invoice.ticket ? (
               <Link href={`/tickets/${invoice.ticket.id}`}>
-                <Chip icon={Wrench} className={LINK_CHIP}>
+                <Chip icon={ICONS.ticket} className={LINK_CHIP}>
                   Ticket #{invoice.ticket.number}
                 </Chip>
               </Link>
@@ -462,7 +469,7 @@ export default async function InvoiceDetailPage({
 
             {invoice.estimate ? (
               <Link href={`/estimates/${invoice.estimate.id}`}>
-                <Chip icon={FileText} className={LINK_CHIP}>
+                <Chip icon={ICONS.estimate} className={LINK_CHIP}>
                   From estimate #{invoice.estimate.number}
                 </Chip>
               </Link>
@@ -504,102 +511,120 @@ export default async function InvoiceDetailPage({
 
           {/* ------------------------------------------------------ line items */}
           <Card>
-            <CardHeader>
-              <CardTitle>Line items</CardTitle>
-            </CardHeader>
+            <CardHeader icon={ICONS.checklist} title="Line items" />
 
             <CardContent className="px-0 py-0">
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th>Description</Th>
-                    <Th className="w-[140px]">Serial</Th>
-                    <Th className="w-[70px] text-right">Qty</Th>
-                    <Th className="w-[110px] text-right">Rate</Th>
-                    <Th className="w-[70px] text-center">Tax</Th>
-                    <Th className="w-[120px] text-right">Amount</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {invoice.lines.map((line) => (
-                    <Tr key={line.id}>
-                      <Td className="whitespace-normal py-4 font-medium text-foreground">
-                        {line.description}
-                      </Td>
-                      <Td className="py-4 font-mono text-[13.5px] text-muted-foreground">
-                        {line.serial || "—"}
-                      </Td>
-                      <Td className="py-4 text-right tabular-nums text-muted-foreground">
-                        {line.quantity}
-                      </Td>
-                      <Td className="py-4 text-right tabular-nums text-muted-foreground">
-                        {formatCents(line.unitPriceCents)}
-                      </Td>
-                      <Td className="py-4 text-center text-[13.5px] text-muted-foreground">
-                        {line.taxable ? "Yes" : "No"}
-                      </Td>
-                      <Td className="py-4 text-right font-semibold tabular-nums text-foreground">
-                        {formatCents(line.quantity * line.unitPriceCents)}
-                      </Td>
+              {invoice.lines.length === 0 ? (
+                // A bill with nothing on it cannot be sent or paid, so the way
+                // out is the edit screen rather than a shrug in the table body.
+                <EmptyState
+                  icon={ICONS.invoice}
+                  title="Nothing billed yet"
+                  hint="Add the parts, labour and products this invoice covers before you send it."
+                  action={
+                    canEdit ? (
+                      <Button variant="outline" asChild>
+                        <Link href={`/invoices/${invoice.id}/edit`}>
+                          <ACTIONS.add /> Add line items
+                        </Link>
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ) : (
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Description</Th>
+                      <Th className="w-[140px]">Serial</Th>
+                      <Th className="w-[70px] text-right">Qty</Th>
+                      <Th className="w-[110px] text-right">Rate</Th>
+                      <Th className="w-[70px] text-center">Tax</Th>
+                      <Th className="w-[120px] text-right">Amount</Th>
                     </Tr>
-                  ))}
-                  {invoice.lines.length === 0 ? (
-                    <Tr className="hover:bg-transparent">
-                      <Td
-                        colSpan={6}
-                        className="py-10 text-center text-sm text-muted-foreground"
-                      >
-                        No line items on this invoice yet.
-                      </Td>
-                    </Tr>
-                  ) : null}
-                </TBody>
-              </Table>
+                  </THead>
+                  <TBody>
+                    {invoice.lines.map((line) => (
+                      <Tr key={line.id}>
+                        <Td className="whitespace-normal py-4 font-medium text-foreground">
+                          {line.description}
+                        </Td>
+                        <Td className="py-4 font-mono text-[13.5px] text-muted-foreground">
+                          {line.serial || "—"}
+                        </Td>
+                        <Td className="py-4 text-right tabular-nums text-muted-foreground">
+                          {line.quantity}
+                        </Td>
+                        <Td className="py-4 text-right tabular-nums text-muted-foreground">
+                          {formatCents(line.unitPriceCents)}
+                        </Td>
+                        <Td className="py-4 text-center text-[13.5px] text-muted-foreground">
+                          {line.taxable ? "Yes" : "No"}
+                        </Td>
+                        <Td className="py-4 text-right font-semibold tabular-nums text-foreground">
+                          {formatCents(line.quantity * line.unitPriceCents)}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </TBody>
+                </Table>
+              )}
             </CardContent>
 
-            <CardFooter className="justify-end bg-surface-hover py-5">
-              <div className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">
-                <TotalsRow
-                  label="Subtotal"
-                  value={formatCents(totals.subtotalCents)}
-                />
-                <TotalsRow
-                  label={taxLabel(invoice.taxRate?.name, invoice.taxRateBps)}
-                  value={formatCents(totals.taxCents)}
-                />
-                <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Total
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground",
-                      isVoid && "text-faint-foreground line-through",
-                    )}
-                  >
-                    {formatCents(totals.totalCents)}
-                  </span>
+            {invoice.lines.length > 0 ? (
+              <CardFooter className="justify-end bg-surface-hover py-5">
+                <div className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">
+                  <TotalsRow
+                    label="Subtotal"
+                    value={formatCents(totals.subtotalCents)}
+                  />
+                  <TotalsRow
+                    label={taxLabel(invoice.taxRate?.name, invoice.taxRateBps)}
+                    value={formatCents(totals.taxCents)}
+                  />
+                  <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Total
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground",
+                        isVoid && "text-faint-foreground line-through",
+                      )}
+                    >
+                      {formatCents(totals.totalCents)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </CardFooter>
+              </CardFooter>
+            ) : null}
           </Card>
 
           {/* -------------------------------------------------------- payments */}
           <Card>
-            <CardHeader className="flex-row items-center justify-between gap-3">
-              <CardTitle>Payments</CardTitle>
-              {hasPayments ? (
-                <Chip icon={Wallet}>
-                  {formatCents(totals.paidCents)} collected
-                </Chip>
-              ) : null}
-            </CardHeader>
+            <CardHeader
+              icon={ICONS.payment}
+              title="Payments"
+              action={
+                hasPayments ? (
+                  <Chip icon={ICONS.deposit}>
+                    {formatCents(totals.paidCents)} collected
+                  </Chip>
+                ) : null
+              }
+            />
 
             <CardContent className="px-0 py-0">
               {invoice.payments.length === 0 ? (
-                <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-                  Nothing collected yet.
-                </p>
+                <EmptyState
+                  icon={ICONS.payment}
+                  title="Nothing collected yet"
+                  hint={
+                    isVoid
+                      ? "This invoice was voided before any money came in."
+                      : "Every payment taken against this invoice is listed here, with who took it and when."
+                  }
+                />
               ) : (
                 <ul className="divide-y divide-border">
                   {invoice.payments.map((payment) => (
@@ -616,14 +641,23 @@ export default async function InvoiceDetailPage({
                           )}
                         </span>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Chip icon={CalendarDays}>
+                          <Chip icon={ICONS.dueDate}>
                             {formatDateTime(payment.createdAt)}
                           </Chip>
+                          {/* An auth code or a Stripe session id is read out
+                              character by character down a phone — monospaced
+                              so a 0 is never an O. */}
                           {payment.reference ? (
-                            <Chip icon={Hash}>{payment.reference}</Chip>
+                            <Chip
+                              icon={ICONS.serial}
+                              className="font-mono"
+                              title={payment.reference}
+                            >
+                              {payment.reference}
+                            </Chip>
                           ) : null}
                           {payment.takenBy?.name ? (
-                            <Chip icon={User}>{payment.takenBy.name}</Chip>
+                            <Chip icon={ICONS.profile}>{payment.takenBy.name}</Chip>
                           ) : null}
                         </div>
                       </div>
@@ -643,15 +677,18 @@ export default async function InvoiceDetailPage({
               Refund button in the header is already the affordance. */}
           {hasRefunds ? (
             <Card>
-              <CardHeader className="flex-row items-center justify-between gap-3">
-                <CardTitle>Refunds</CardTitle>
-                <Chip
-                  icon={Undo2}
-                  className="bg-destructive-soft text-destructive"
-                >
-                  {formatCents(totals.refundedCents)} returned
-                </Chip>
-              </CardHeader>
+              <CardHeader
+                icon={ICONS.refund}
+                title="Refunds"
+                action={
+                  <Chip
+                    icon={ICONS.refund}
+                    className="bg-destructive-soft text-destructive"
+                  >
+                    {formatCents(totals.refundedCents)} returned
+                  </Chip>
+                }
+              />
 
               <CardContent className="px-0 py-0">
                 <ul className="divide-y divide-border">
@@ -677,31 +714,18 @@ export default async function InvoiceDetailPage({
                           </span>
                         ) : null}
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <Chip icon={CalendarDays}>
+                          <Chip icon={ICONS.dueDate}>
                             {formatDateTime(refund.createdAt)}
                           </Chip>
                           {refund.refundedBy?.name ? (
-                            <Chip icon={User}>{refund.refundedBy.name}</Chip>
+                            <Chip icon={ICONS.profile}>
+                              {refund.refundedBy.name}
+                            </Chip>
                           ) : null}
                           {/* A Stripe refund is not money back until Stripe
                               says so. "Completed" is the silent default; the
-                              two that need chasing say so. */}
-                          {refund.status === "pending" ? (
-                            <Chip
-                              icon={CalendarClock}
-                              className="bg-status-waiting-bg text-status-waiting-fg"
-                            >
-                              Waiting on Stripe
-                            </Chip>
-                          ) : null}
-                          {refund.status === "failed" ? (
-                            <Chip
-                              icon={Ban}
-                              className="bg-destructive-soft text-destructive"
-                            >
-                              Failed — nothing was returned
-                            </Chip>
-                          ) : null}
+                              two that need chasing wear a pill. */}
+                          <RefundStatusBadge status={refund.status} />
                         </div>
                       </div>
                       {/* Negative-styled: money leaving reads red and signed,
@@ -723,9 +747,7 @@ export default async function InvoiceDetailPage({
 
           {invoice.notes ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Notes</CardTitle>
-              </CardHeader>
+              <CardHeader icon={ICONS.message} title="Notes" />
               <CardContent>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
                   {invoice.notes}
@@ -738,9 +760,7 @@ export default async function InvoiceDetailPage({
         {/* ------------------------------------------------------------ aside */}
         <aside className="flex flex-col gap-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Balance</CardTitle>
-            </CardHeader>
+            <CardHeader icon={ICONS.deposit} title="Balance" />
 
             <CardContent className="flex flex-col gap-3 text-sm">
               <TotalsRow label="Invoice total" value={formatCents(totals.totalCents)} />
@@ -796,9 +816,7 @@ export default async function InvoiceDetailPage({
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
+            <CardHeader icon={ICONS.invoice} title="Details" />
             <CardContent className="flex flex-col gap-4 text-sm">
               <Fact label="Customer">
                 <Link
@@ -844,7 +862,7 @@ export default async function InvoiceDetailPage({
                     href={`/tickets/${invoice.ticket.id}`}
                     className="inline-flex items-center gap-1.5 text-accent hover:underline"
                   >
-                    <Wrench className="size-4" />#{invoice.ticket.number}
+                    <ICONS.ticket className="size-4" />#{invoice.ticket.number}
                   </Link>
                 </Fact>
               ) : null}
@@ -853,9 +871,7 @@ export default async function InvoiceDetailPage({
 
           {invoice.signatureDataUrl ? (
             <Card>
-              <CardHeader>
-                <CardTitle>Customer signature</CardTitle>
-              </CardHeader>
+              <CardHeader icon={ICONS.signature} title="Customer signature" />
               <CardContent>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

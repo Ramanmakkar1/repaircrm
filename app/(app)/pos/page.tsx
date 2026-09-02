@@ -1,3 +1,5 @@
+import { format } from "date-fns";
+
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newRecordLocationId } from "@/lib/location";
@@ -8,6 +10,8 @@ import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosProduct, PosTicket } from "@/components/pos/types";
 import { resolveTaxRate } from "@/lib/tax";
+
+export const metadata = { title: "POS · RepairFlow" };
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -197,7 +201,8 @@ export default async function PosPage() {
             drawer
               ? {
                   id: drawer.id,
-                  openedAtISO: drawer.openedAt.toISOString(),
+                  // Formatted here rather than in the strip: see OpenDrawer.
+                  openedAtLabel: format(drawer.openedAt, "h:mm a"),
                   openedByName: drawer.openedBy.name,
                   openingCents: drawer.openingCents,
                 }

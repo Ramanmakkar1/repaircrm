@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, PackageCheck } from "lucide-react";
+// BellRing is "tell the customer", which is not one of the shared verbs.
+import { BellRing } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   markPickedUpAction,
   notifyReadyForPickupAction,
@@ -40,7 +42,7 @@ export function PickupActions({
   if (pickedUp) {
     return (
       <span className="inline-flex items-center gap-2 rounded-md bg-status-resolved-bg px-3 py-2 text-[13.5px] font-semibold text-status-resolved-fg">
-        <PackageCheck className="size-4" />
+        <ACTIONS.receive className="size-4" />
         Picked up
       </span>
     );
@@ -73,7 +75,7 @@ export function PickupActions({
   if (isReady) {
     return (
       <Button size="sm" variant="soft" disabled={busy !== null} onClick={collect}>
-        <PackageCheck className="size-4" />
+        <ACTIONS.receive className="size-4" />
         {busy === "pickup" ? "Closing…" : "Mark picked up"}
       </Button>
     );

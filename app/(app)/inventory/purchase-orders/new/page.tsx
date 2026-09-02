@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, Store } from "lucide-react";
 
 import {
   PurchaseOrderForm,
@@ -10,6 +9,7 @@ import { stockStatus } from "@/components/inventory/format";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -58,13 +58,14 @@ export default async function NewPurchaseOrderPage({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-1">
       <Link
         href="/inventory/purchase-orders"
-        className="inline-flex w-fit items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ChevronLeft className="size-4" />
-        Purchase orders
+        <ACTIONS.back className="size-4" />
+        All purchase orders
       </Link>
 
       <PageHeader
+        icon={ICONS.purchaseOrder}
         title="New purchase order"
         description="Pick a vendor, then add lines by hand or pull in everything that's running low."
       />
@@ -72,12 +73,15 @@ export default async function NewPurchaseOrderPage({
       {vendors.length === 0 ? (
         <Card className="mt-4">
           <EmptyState
-            icon={Store}
+            icon={ICONS.vendor}
             title="No active vendors"
             hint="A purchase order has to be addressed to someone. Add the supplier first, then come back."
             action={
               <Button asChild>
-                <Link href="/inventory/vendors">Add a vendor</Link>
+                <Link href="/inventory/vendors">
+                  <ICONS.vendor />
+                  Add a vendor
+                </Link>
               </Button>
             }
           />

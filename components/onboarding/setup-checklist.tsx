@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, Check, Rocket } from "lucide-react";
+// Rocket is the checklist's own mark; Check is the tick on a done row.
+import { Check, Rocket } from "lucide-react";
 
 import { getSession } from "@/lib/auth";
 import { emailDriverName } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { stripeSecretKey } from "@/lib/payments";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
@@ -117,7 +119,7 @@ export async function SetupChecklist() {
         <div className="flex items-center gap-1.5">
           <Button variant="outline" size="sm" asChild>
             <Link href="/setup">
-              Open the guide <ArrowRight />
+              Open the guide <ACTIONS.next />
             </Link>
           </Button>
           <DismissSetup />
@@ -163,7 +165,7 @@ export async function SetupChecklist() {
               {!row.done ? (
                 <Button variant="ghost" size="sm" asChild>
                   <Link href={row.href}>
-                    {row.cta} <ArrowRight />
+                    {row.cta} <ACTIONS.next />
                   </Link>
                 </Button>
               ) : null}

@@ -1,10 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { format } from "date-fns";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { activeLocations, newRecordLocationId } from "@/lib/location";
 import { readSla } from "@/lib/sla";
 import { activeWarrantiesByCustomer } from "@/lib/warranty";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   TicketForm,
@@ -16,6 +19,8 @@ import {
   customerLabel,
   problemTypes,
 } from "@/components/tickets/ticket-meta";
+
+export const metadata: Metadata = { title: "New ticket · RepairFlow" };
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +100,7 @@ export default async function NewTicketPage({
     warrantiesByCustomer[customerId] = rows.map((row) => ({
       value: row.id,
       label: row.description,
-      hint: `Invoice #${row.invoiceNumber} · expires ${row.expiresAt.toLocaleDateString()}`,
+      hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
     }));
   }
 
@@ -109,7 +114,9 @@ export default async function NewTicketPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        title="New Ticket"
+        icon={ICONS.ticket}
+        breadcrumbs={[{ label: "Tickets", href: "/tickets" }, { label: "New ticket" }]}
+        title="New ticket"
         description="Check a device in and start the repair clock."
       />
       <TicketForm

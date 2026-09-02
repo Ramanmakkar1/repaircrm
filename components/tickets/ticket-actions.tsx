@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Pencil, Receipt, Trash2 } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,7 +76,7 @@ export function EditTicketDialog({
       const result = await updateTicketAction(ticketId, previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success("Ticket updated");
+        toast.success("Ticket updated.");
       }
       return result;
     },
@@ -91,7 +93,7 @@ export function EditTicketDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Pencil className="size-4" />
+          <ACTIONS.edit className="size-4" />
           Edit
         </Button>
       </DialogTrigger>
@@ -255,6 +257,7 @@ export function EditTicketDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={pending}>
+              <ACTIONS.save />
               {pending ? "Saving…" : "Save changes"}
             </Button>
           </DialogFooter>
@@ -278,7 +281,7 @@ export function DeleteTicketDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" aria-label="Delete ticket">
-          <Trash2 className="size-4 text-faint-foreground" />
+          <ACTIONS.delete className="size-4 text-faint-foreground" />
         </Button>
       </DialogTrigger>
       <DialogContent>
@@ -291,9 +294,10 @@ export function DeleteTicketDialog({
         </DialogHeader>
         <DialogFooter>
           <form action={deleteTicketAction.bind(null, ticketId)}>
-            <Button type="submit" variant="destructive" size="sm">
+            <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting…">
+              <ACTIONS.delete />
               Delete ticket
-            </Button>
+            </SubmitButton>
           </form>
         </DialogFooter>
       </DialogContent>
@@ -349,7 +353,7 @@ export function MakeInvoiceButton({
     <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
       <DialogTrigger asChild>
         <Button type="button" size="sm" disabled={nothingToBill}>
-          <Receipt className="size-4" />
+          <ICONS.invoice className="size-4" />
           {nothingToBill ? "Make Invoice" : `Make Invoice (${chargeCount + unbilledTimeCount})`}
         </Button>
       </DialogTrigger>
@@ -408,6 +412,7 @@ export function MakeInvoiceButton({
           </Button>
           <form action={formAction}>
             <Button type="submit" size="sm" disabled={pending || billable === 0}>
+              <ICONS.invoice />
               {pending ? "Creating…" : "Create invoice"}
             </Button>
           </form>

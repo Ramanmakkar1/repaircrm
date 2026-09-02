@@ -2,64 +2,56 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, type LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, StatTile } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
+import type { StatusTone } from "@/components/ui/badge";
 
 /**
  * The two boxes this page is built from.
  *
- * `BigStat` is the dashboard's stat tile with the number turned up — a report
- * exists to be read across a room by an owner who wants one figure.
+ * `KpiTile` is the shared `StatTile`, optionally made a link — the report's
+ * headline row is the same metric tile the rest of the app uses, so a number
+ * here and the same number on the dashboard are the same object.
  * `ReportCard` is the titled panel every chart sits in, with an optional
  * right-hand action (an export link, a jump to the matching list screen).
  */
 
-export function BigStat({
+export function KpiTile({
   label,
   value,
   hint,
-  icon: Icon,
-  tint = "bg-accent-soft text-accent-soft-foreground",
+  icon,
+  tone,
   href,
 }: {
   label: string;
   value: string;
   hint?: string;
   icon: LucideIcon;
-  tint?: string;
+  tone?: StatusTone;
+  /** When the figure has a list behind it, the whole tile opens it. */
   href?: string;
 }) {
-  const body = (
-    <>
-      <span className={cn("flex size-12 items-center justify-center rounded-md", tint)}>
-        <Icon className="size-6" strokeWidth={2.25} />
-      </span>
-      <div className="flex flex-col gap-1">
-        <span className="text-[34px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-          {value}
-        </span>
-        <span className="text-[15px] font-bold text-foreground">{label}</span>
-        {hint ? (
-          <span className="text-[13px] text-muted-foreground">{hint}</span>
-        ) : null}
-      </div>
-    </>
+  const tile = (
+    <StatTile
+      icon={icon}
+      tone={tone}
+      value={value}
+      label={label}
+      hint={hint}
+      // `interactive` is the shared hover/focus treatment; it reacts to the
+      // link's focus through `focus-within`, so the anchor only has to be the
+      // hit target.
+      interactive={Boolean(href)}
+      className="h-full"
+    />
   );
 
-  const shell =
-    "flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm";
-
-  if (!href) return <div className={shell}>{body}</div>;
+  if (!href) return tile;
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        shell,
-        "rf-lift hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-      )}
-    >
-      {body}
+    <Link href={href} className="rounded-lg focus-visible:outline-none">
+      {tile}
     </Link>
   );
 }

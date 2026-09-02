@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ChevronRight, FileText, Plus, Receipt, Wrench } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   EstimateStatusBadge,
   InvoiceStatusBadge,
@@ -18,6 +19,15 @@ import {
   PortalCardHeader,
   PortalShell,
 } from "../_components/shell";
+
+export const metadata = { title: "Your repairs · RepairFlow" };
+
+// The same three glyphs the shop's own screens use for these records, so a
+// customer who is also a walk-in never sees a repair drawn two ways.
+const AddIcon = ACTIONS.add;
+const TicketIcon = ICONS.ticket;
+const EstimateIcon = ICONS.estimate;
+const InvoiceIcon = ICONS.invoice;
 
 /**
  * The customer's hub.
@@ -116,9 +126,9 @@ export default async function PortalHomePage() {
         </div>
         <Link
           href="/portal/tickets/new"
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-[14px] font-semibold text-accent-foreground shadow-xs transition-colors hover:bg-accent-hover"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-[14px] font-semibold text-accent-foreground shadow-xs transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <Plus className="size-4" />
+          <AddIcon className="size-4" aria-hidden />
           New request
         </Link>
       </div>
@@ -130,7 +140,7 @@ export default async function PortalHomePage() {
             title={
               <span className="inline-flex items-center gap-2">
                 <Chip>
-                  <Wrench className="size-3.5" />
+                  <TicketIcon className="size-3.5" />
                 </Chip>
                 Your repairs
               </span>
@@ -141,12 +151,14 @@ export default async function PortalHomePage() {
           />
           {tickets.length === 0 ? (
             <EmptyState
-              icon={Wrench}
+              icon={TicketIcon}
               title="No repairs yet"
               hint={`A repair appears here the moment ${customer.shop.name} books your device in — or you can tell them what's wrong yourself.`}
               action={
                 <Button asChild>
-                  <Link href="/portal/tickets/new">Start a repair request</Link>
+                  <Link href="/portal/tickets/new">
+                    <AddIcon aria-hidden /> Start a repair request
+                  </Link>
                 </Button>
               }
             />
@@ -191,7 +203,7 @@ export default async function PortalHomePage() {
             title={
               <span className="inline-flex items-center gap-2">
                 <Chip>
-                  <FileText className="size-3.5" />
+                  <EstimateIcon className="size-3.5" />
                 </Chip>
                 Estimates
               </span>
@@ -204,7 +216,7 @@ export default async function PortalHomePage() {
           />
           {estimates.length === 0 ? (
             <EmptyState
-              icon={FileText}
+              icon={EstimateIcon}
               title="No estimates yet"
               hint="When the shop quotes for work before starting it, the quote lands here for you to approve or decline."
             />
@@ -255,7 +267,7 @@ export default async function PortalHomePage() {
             title={
               <span className="inline-flex items-center gap-2">
                 <Chip>
-                  <Receipt className="size-3.5" />
+                  <InvoiceIcon className="size-3.5" />
                 </Chip>
                 Invoices
               </span>
@@ -268,7 +280,7 @@ export default async function PortalHomePage() {
           />
           {invoices.length === 0 ? (
             <EmptyState
-              icon={Receipt}
+              icon={InvoiceIcon}
               title="No invoices yet"
               hint="Bills for finished work show up here, with what's been paid and anything still outstanding."
             />

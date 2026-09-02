@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,7 +93,7 @@ export function ChargeDialog({
         : await addChargeAction(ticketId, previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success(isEdit ? "Charge updated" : "Charge added");
+        toast.success(isEdit ? "Charge updated." : "Charge added.");
         if (!isEdit) {
           setProductId("none");
           setDescription("");
@@ -220,6 +221,7 @@ export function ChargeDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={pending}>
+              {isEdit ? <ACTIONS.save /> : <ACTIONS.add />}
               {pending ? "Saving…" : isEdit ? "Save changes" : "Add charge"}
             </Button>
           </DialogFooter>

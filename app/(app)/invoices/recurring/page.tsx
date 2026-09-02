@@ -1,28 +1,25 @@
 import Link from "next/link";
-import {
-  ArrowLeft,
-  CalendarSync,
-  CreditCard,
-  Mail,
-  Plus,
-  Repeat,
-  TriangleAlert,
-  Users,
-} from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { cn } from "@/components/ui/cn";
 import { formatDate } from "@/components/billing/format";
 import { customerLabel } from "@/components/billing/queries";
-import { frequencyLabel, isDue } from "@/components/recurring/meta";
+import {
+  SCHEDULE_STATE_META,
+  frequencyLabel,
+  isDue,
+  scheduleState,
+} from "@/components/recurring/meta";
 import {
   GenerateDueButton,
   ScheduleActiveSwitch,
@@ -55,11 +52,12 @@ export default async function RecurringSchedulesPage() {
         href="/invoices"
         className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
-        <ArrowLeft className="size-4" />
+        <ACTIONS.back className="size-4" />
         All invoices
       </Link>
 
       <PageHeader
+        icon={ICONS.recurring}
         title="Recurring billing"
         description="Contracts and retainers that stamp out a draft invoice on a cadence."
         actions={
@@ -67,7 +65,7 @@ export default async function RecurringSchedulesPage() {
             {dueCount > 0 ? <GenerateDueButton dueCount={dueCount} /> : null}
             <Button variant={dueCount > 0 ? "outline" : "default"} asChild>
               <Link href="/invoices/recurring/new">
-                <Plus /> New schedule
+                <ACTIONS.add /> New schedule
               </Link>
             </Button>
           </>
@@ -77,13 +75,13 @@ export default async function RecurringSchedulesPage() {
       {schedules.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Repeat}
+            icon={ICONS.recurring}
             title="No recurring schedules yet"
             hint="Set one up for a managed-service retainer or a monthly support contract, and RepairFlow will draft the invoice for you."
             action={
               <Button asChild>
                 <Link href="/invoices/recurring/new">
-                  <Plus /> New schedule
+                  <ACTIONS.add /> New schedule
                 </Link>
               </Button>
             }
@@ -94,14 +92,23 @@ export default async function RecurringSchedulesPage() {
           {schedules.map((schedule) => {
             const totals = calcTotals(schedule.lines, schedule.taxRateBps);
             const due = isDue(schedule.nextRunAt, schedule.active, now);
+            const state = SCHEDULE_STATE_META[scheduleState(schedule.active, due)];
             const name = customerLabel(schedule.customer);
 
             return (
-              <div
+              // Amber for a run that has come due, red for a charge that
+              // bounced — a paused schedule is simply quiet, not a problem.
+              <Card
                 key={schedule.id}
+                tone={
+                  schedule.lastChargeError
+                    ? "danger"
+                    : due
+                      ? "active"
+                      : undefined
+                }
                 className={cn(
-                  "rf-lift flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 shadow-sm hover:shadow-md",
-                  due && "border-status-overdue/55",
+                  "flex flex-col gap-4 p-5",
                   !schedule.active && "opacity-70",
                 )}
               >
@@ -112,18 +119,21 @@ export default async function RecurringSchedulesPage() {
                   >
                     {schedule.name}
                   </Link>
-                  <ScheduleActiveSwitch
-                    scheduleId={schedule.id}
-                    active={schedule.active}
-                    scheduleName={schedule.name}
-                  />
+                  <span className="flex shrink-0 items-center gap-2.5">
+                    <StatusPill size="sm" tone={state.tone} label={state.label} />
+                    <ScheduleActiveSwitch
+                      scheduleId={schedule.id}
+                      active={schedule.active}
+                      scheduleName={schedule.name}
+                    />
+                  </span>
                 </div>
 
                 <Link
                   href={`/customers/${schedule.customer.id}`}
                   className="flex w-fit min-w-0 items-center gap-1.5 text-[15px] font-semibold text-muted-foreground transition-colors hover:text-accent"
                 >
-                  <Users className="size-4 shrink-0" />
+                  <ICONS.customer className="size-4 shrink-0" />
                   <span className="truncate">{name}</span>
                 </Link>
 
@@ -152,38 +162,36 @@ export default async function RecurringSchedulesPage() {
                 </div>
 
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                  <Chip icon={CalendarSync}>{frequencyLabel(schedule.frequency)}</Chip>
-                  <Chip>
+                  <Chip icon={ICONS.recurring}>{frequencyLabel(schedule.frequency)}</Chip>
+                  <Chip icon={ICONS.invoice}>
                     {schedule._count.invoices} generated
                   </Chip>
                   {schedule.lastRunAt ? (
                     <Chip>Last {formatDate(schedule.lastRunAt)}</Chip>
                   ) : null}
-                  {schedule.autoSend ? <Chip icon={Mail}>Auto-send</Chip> : null}
+                  {schedule.autoSend ? (
+                    <Chip icon={ICONS.email}>Auto-send</Chip>
+                  ) : null}
                   {schedule.autoCharge ? (
                     <Chip
-                      icon={CreditCard}
+                      icon={ICONS.payment}
                       className="bg-chip-accent-bg text-chip-accent-fg"
                     >
                       Auto-charge
                     </Chip>
                   ) : null}
                   {/* Cleared automatically on the next successful charge, so
-                      this chip only ever describes the situation right now. */}
+                      this pill only ever describes the situation right now. */}
                   {schedule.lastChargeError ? (
-                    <Chip
-                      icon={TriangleAlert}
-                      className="bg-destructive-soft font-bold text-destructive"
+                    <StatusPill
+                      size="sm"
+                      tone="danger"
+                      label="Last charge failed"
                       title={schedule.lastChargeError}
-                    >
-                      Last charge failed
-                    </Chip>
-                  ) : null}
-                  {!schedule.active ? (
-                    <Chip className="bg-surface-hover font-bold">Paused</Chip>
+                    />
                   ) : null}
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

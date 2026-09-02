@@ -7,7 +7,7 @@ import { PrintSheet, type PrintTotalRow } from "@/components/billing/print-sheet
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { taxLabel } from "@/lib/tax";
-import { requirePortalCustomer } from "@/lib/portal-session";
+import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import { PortalPrintRoot, addressLines } from "../../../_components/print-root";
 
 const METHOD_LABELS: Record<string, string> = {
@@ -28,6 +28,31 @@ const METHOD_LABELS: Record<string, string> = {
  * lives outside the /print segment: that segment's layout runs `requireUser()`,
  * and a customer has no staff session to satisfy it with.
  */
+
+/**
+ * The title matters more here than on a screen: it is what the browser's print
+ * dialog offers as the PDF filename, so "Invoice #1042" beats "Your repairs".
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await getPortalSession();
+  if (!session) return { title: "Invoice · RepairFlow" };
+
+  const invoice = await db.invoice.findFirst({
+    where: { id, customerId: session.customerId, shopId: session.shopId },
+    select: { number: true },
+  });
+  return {
+    title: invoice
+      ? `Invoice #${invoice.number} · RepairFlow`
+      : "Invoice · RepairFlow",
+  };
+}
+
 export default async function PortalInvoicePrintPage({
   params,
 }: {

@@ -6,7 +6,7 @@ import { EstimateStatusBadge } from "@/components/billing/status-badge";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { taxLabel } from "@/lib/tax";
-import { requirePortalCustomer } from "@/lib/portal-session";
+import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import { EstimateDecision } from "../../_components/estimate-decision";
 import {
   BackLink,
@@ -14,6 +14,27 @@ import {
   PortalCardHeader,
   PortalShell,
 } from "../../_components/shell";
+
+/** Scoped through the cookie, like the render — see the ticket page for why. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const session = await getPortalSession();
+  if (!session) return { title: "Estimate · RepairFlow" };
+
+  const estimate = await db.estimate.findFirst({
+    where: { id, customerId: session.customerId, shopId: session.shopId },
+    select: { number: true },
+  });
+  return {
+    title: estimate
+      ? `Estimate #${estimate.number} · RepairFlow`
+      : "Estimate · RepairFlow",
+  };
+}
 
 export default async function PortalEstimatePage({
   params,

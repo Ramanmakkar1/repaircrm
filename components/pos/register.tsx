@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AlertCircle } from "lucide-react";
 
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { calcTotals } from "@/lib/money";
 import { checkoutAction, posTerminalIntentAction } from "@/app/(app)/pos/actions";
@@ -46,6 +47,7 @@ export function Register({
   taxRateBps,
   cardReader,
   drawer,
+  scanSlot,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
@@ -63,6 +65,12 @@ export function Register({
    * ignorant of the till: the register rings sales, the drawer holds money.
    */
   drawer?: React.ReactNode;
+  /**
+   * The camera scan button, rendered beside the search box. Passed down rather
+   * than imported so the register keeps no opinion about how a code is read —
+   * see `ProductGrid`'s `scanSlot` for the slot itself.
+   */
+  scanSlot?: React.ReactNode;
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
@@ -363,7 +371,11 @@ export function Register({
   if (sale) {
     return (
       <div className="flex flex-col gap-5">
-        <PageHeader title="POS" description="Ring up walk-in sales at the counter." />
+        <PageHeader
+          icon={ICONS.pos}
+          title="POS"
+          description="Ring up walk-in sales at the counter."
+        />
         {drawer}
         <SaleComplete sale={sale} onNewSale={startNewSale} />
       </div>
@@ -372,7 +384,11 @@ export function Register({
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="POS" description="Ring up walk-in sales at the counter." />
+      <PageHeader
+        icon={ICONS.pos}
+        title="POS"
+        description="Ring up walk-in sales at the counter."
+      />
 
       {drawer}
 
@@ -388,7 +404,12 @@ export function Register({
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <ProductGrid products={products} onAdd={addProduct} inputRef={scanRef} />
+          <ProductGrid
+            products={products}
+            onAdd={addProduct}
+            inputRef={scanRef}
+            scanSlot={scanSlot}
+          />
         </div>
 
         <CartPanel

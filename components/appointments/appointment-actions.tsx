@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, CheckCircle2, RotateCcw, Trash2, XCircle } from "lucide-react";
+// CalendarPlus is "book something"; it has no entry in the shared concept map.
+// the shared verb map.
+import { CalendarPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,6 +12,7 @@ import {
   setAppointmentStatusAction,
 } from "@/app/(app)/appointments/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -130,7 +133,7 @@ export function AppointmentRowActions({
               disabled={busy}
               onClick={() => move("DONE", "Marked done.")}
             >
-              <CheckCircle2 />
+              <ACTIONS.approve />
               Done
             </Button>
             <Button
@@ -139,7 +142,7 @@ export function AppointmentRowActions({
               disabled={busy}
               onClick={() => move("CANCELED", "Appointment canceled.")}
             >
-              <XCircle />
+              <ACTIONS.decline />
               Cancel
             </Button>
           </>
@@ -150,7 +153,7 @@ export function AppointmentRowActions({
             disabled={busy}
             onClick={() => move("SCHEDULED", "Back on the calendar.")}
           >
-            <RotateCcw />
+            <ACTIONS.reopen />
             Reopen
           </Button>
         )}
@@ -163,7 +166,7 @@ export function AppointmentRowActions({
             disabled={busy}
             onClick={() => setConfirming(true)}
           >
-            <Trash2 />
+            <ACTIONS.delete />
             <span className="sr-only">Delete appointment</span>
           </Button>
         ) : null}
@@ -198,7 +201,7 @@ export function AppointmentRowActions({
                 router.refresh();
               }}
             >
-              <Trash2 />
+              <ACTIONS.delete />
               Delete
             </Button>
           </DialogFooter>

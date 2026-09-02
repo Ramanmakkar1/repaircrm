@@ -7,8 +7,8 @@ import { toast } from "sonner";
 
 import { saveCustomerNotesAction } from "@/app/(app)/customers/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { ACTIONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 
 /**
@@ -53,27 +53,28 @@ export function NotesCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <IconChip icon={StickyNote} size="sm" />
-          <CardTitle className="truncate">Notes</CardTitle>
-        </div>
-        {dirty ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setValue(initial)}
-              disabled={saving}
-            >
-              Revert
-            </Button>
-            <Button size="sm" onClick={save} disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        ) : null}
-      </CardHeader>
+      <CardHeader
+        icon={StickyNote}
+        title="Notes"
+        action={
+          dirty ? (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setValue(initial)}
+                disabled={saving}
+              >
+                Revert
+              </Button>
+              <Button size="sm" onClick={save} disabled={saving}>
+                <ACTIONS.save />
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </>
+          ) : null
+        }
+      />
       <CardContent>
         <Textarea
           value={value}

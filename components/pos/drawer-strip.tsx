@@ -3,10 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, History } from "lucide-react";
+
 import { toast } from "sonner";
 
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { formatCents } from "@/lib/money";
 import { DrawerCloseDialog } from "./drawer-close-dialog";
 import { DrawerOpenDialog } from "./drawer-open-dialog";
@@ -15,10 +18,17 @@ import type { OpenDrawer } from "./drawer-types";
 /**
  * The one-line drawer state above the register.
  *
- * A strip rather than a card: the counter's eye belongs on the product grid,
+ * One line rather than a panel: the counter's eye belongs on the product grid,
  * and this only has to answer "is the till open, and who opened it" at a
  * glance. It is the first thing on the page because opening the drawer is the
  * first thing that happens in a shift.
+ *
+ * It is a `Card` with a `tone` stripe rather than the filled accent band it
+ * used to be. An open drawer is the NORMAL state of a shop that is trading, and
+ * a saturated band on the normal state means the one moment the strip has
+ * something urgent to say has nothing louder left to say it with. The state is
+ * carried by a `StatusPill` and a 3px edge on a white card, like every other
+ * state in the app.
  */
 export function DrawerStrip({
   drawer,
@@ -40,42 +50,46 @@ export function DrawerStrip({
 
   if (!drawer) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-5 py-3.5 shadow-sm">
-        <span className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-surface-hover">
-            <Banknote className="size-4 text-muted-foreground" />
+      <Card
+        tone="neutral"
+        className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-hover">
+            <ICONS.cash className="size-4 text-muted-foreground" />
           </span>
-          <span className="text-[14.5px] font-semibold text-foreground">
-            Drawer closed
-          </span>
-          <span className="text-[13.5px] text-muted-foreground">
-            Open it with the float in the till before taking cash.
+          {/* Stacked on a phone: side by side these two wrapped mid-phrase. */}
+          <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+            <StatusPill size="sm" tone="neutral" label="Drawer closed" />
+            <span className="text-[13.5px] text-muted-foreground">
+              Open it with the float in the till before taking cash.
+            </span>
           </span>
         </span>
 
         <span className="flex items-center gap-2">
           {isOwner ? <HistoryLink /> : null}
-          <DrawerOpenDialog onOpened={() => refresh("Drawer open.")} />
+          <DrawerOpenDialog onOpened={() => refresh("Drawer opened.")} />
         </span>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent-soft px-5 py-3.5 shadow-sm">
-      <span className="flex flex-wrap items-center gap-2.5">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-surface">
-          <Banknote className="size-4 text-accent" />
+    <Card
+      tone="success"
+      className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+    >
+      <span className="flex min-w-0 items-center gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-status-resolved-bg">
+          <ICONS.cash className="size-4 text-status-resolved-fg" />
         </span>
-        <span className="text-[14.5px] font-semibold text-accent-soft-foreground">
-          Drawer open since{" "}
-          {new Date(drawer.openedAtISO).toLocaleTimeString("en-US", {
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-        </span>
-        <span className="text-[13.5px] text-accent-soft-foreground/80">
-          {formatCents(drawer.openingCents)} float · {drawer.openedByName}
+        <span className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2.5">
+          <StatusPill size="sm" tone="success" label="Drawer open" />
+          <span className="text-[13.5px] text-muted-foreground">
+            Since {drawer.openedAtLabel} · {formatCents(drawer.openingCents)}{" "}
+            float · {drawer.openedByName}
+          </span>
         </span>
       </span>
 
@@ -86,7 +100,7 @@ export function DrawerStrip({
           onClosed={() => refresh("Drawer closed.")}
         />
       </span>
-    </div>
+    </Card>
   );
 }
 
@@ -94,7 +108,7 @@ function HistoryLink() {
   return (
     <Button asChild variant="ghost" size="sm">
       <Link href="/pos/drawers">
-        <History className="size-4" />
+        <ACTIONS.view className="size-4" />
         Drawer history
       </Link>
     </Button>

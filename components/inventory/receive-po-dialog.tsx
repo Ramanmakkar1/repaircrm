@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { PackageCheck } from "lucide-react";
+import { ACTIONS } from "@/components/ui/icons";
 import { toast } from "sonner";
 
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
 import { parseSerialList } from "@/lib/serials";
@@ -62,7 +63,7 @@ export function ReceivePoDialog({
   );
   const [serials, setSerials] = React.useState<Record<string, string>>({});
 
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction] = useActionState(
     async (previous: PoActionState, formData: FormData): Promise<PoActionState> => {
       const result = await receivePurchaseOrderAction(
         purchaseOrderId,
@@ -72,7 +73,7 @@ export function ReceivePoDialog({
       if (result.ok) {
         setOpen(false);
         setSerials({});
-        toast.success("Received — stock and costs updated");
+        toast.success("Received — stock and costs updated.");
       }
       return result;
     },
@@ -164,9 +165,15 @@ export function ReceivePoDialog({
 
                   {line.serialized ? (
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`serials-${line.id}`}>
-                        Serial numbers — one per line
-                      </Label>
+                      {/* One scan control per line sits on this row, appending
+                          a line to the box below per camera read — receiving a
+                          box of serialized units is the heaviest typing job in
+                          the app and the one a phone camera actually fixes. */}
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor={`serials-${line.id}`}>
+                          Serial numbers — one per line
+                        </Label>
+                      </div>
                       <Textarea
                         id={`serials-${line.id}`}
                         name={`serials-${line.id}`}
@@ -201,10 +208,10 @@ export function ReceivePoDialog({
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || Boolean(mismatch)}>
-              <PackageCheck className="size-4" />
-              {pending ? "Receiving…" : "Receive"}
-            </Button>
+            <SubmitButton disabled={Boolean(mismatch)} pendingLabel="Receiving…">
+              <ACTIONS.receive className="size-4" />
+              Receive
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

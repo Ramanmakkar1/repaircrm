@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Banknote } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +54,7 @@ export function DrawerOpenDialog({ onOpened }: { onOpened: () => void }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
-          <Banknote className="size-4" />
+          <ACTIONS.open className="size-4" />
           Open drawer
         </Button>
       </DialogTrigger>
@@ -105,6 +106,7 @@ export function DrawerOpenDialog({ onOpened }: { onOpened: () => void }) {
             Cancel
           </Button>
           <Button onClick={submit} disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : null}
             {busy ? "Opening…" : "Open drawer"}
           </Button>
         </DialogFooter>

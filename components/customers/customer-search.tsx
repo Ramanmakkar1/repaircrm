@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Search, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
+import { ICONS } from "@/components/ui/icons";
 
 /**
  * Debounced search that keeps the URL as the source of truth (?q=…), so the
@@ -46,7 +47,7 @@ export function CustomerSearch({ query }: { query: string }) {
       className="relative w-full sm:max-w-sm"
       role="search"
     >
-      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+      <ICONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
       <Input
         name="q"
         value={value}

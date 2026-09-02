@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, LogOut } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ACTIONS } from "@/components/ui/icons";
 import { clockInAction, clockOutAction } from "./actions";
 import { formatClock, formatHours } from "./meta";
 
@@ -20,11 +22,18 @@ import { formatClock, formatHours } from "./meta";
  */
 export function ClockCard({
   openSinceISO,
+  openSinceLabel,
   todaySeconds,
   weekSeconds,
 }: {
   /** ISO start of the running shift, or null when clocked out. */
   openSinceISO: string | null;
+  /**
+   * "9:14 AM", already formatted against the shop's clock on the server. The
+   * browser must not format it itself: the two sides can sit in different time
+   * zones, and React reports the difference as a hydration mismatch.
+   */
+  openSinceLabel: string | null;
   /** Completed + running seconds today, as of the render. */
   todaySeconds: number;
   weekSeconds: number;
@@ -69,7 +78,12 @@ export function ClockCard({
   const running = openSinceISO !== null;
 
   return (
-    <div className="flex flex-col gap-6 rounded-lg border border-border bg-surface px-6 py-7 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <Card
+      // Amber down the edge while the clock is running: the one card on the
+      // page that is reporting a live state.
+      tone={running ? "active" : undefined}
+      className="flex flex-col gap-6 px-6 py-7 sm:flex-row sm:items-center sm:justify-between"
+    >
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
           {running ? "On the clock" : "Clocked out"}
@@ -79,7 +93,7 @@ export function ClockCard({
         </span>
         <span className="text-[13.5px] text-muted-foreground">
           {running
-            ? `Since ${new Date(openSinceISO).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · ${formatHours(todaySeconds + seconds)} today`
+            ? `Since ${openSinceLabel} · ${formatHours(todaySeconds + seconds)} today`
             : `${formatHours(todaySeconds)} today · ${formatHours(weekSeconds)} this week`}
         </span>
       </div>
@@ -91,9 +105,15 @@ export function ClockCard({
         onClick={toggle}
         className="h-16 w-full px-8 text-lg sm:w-auto"
       >
-        {running ? <LogOut /> : <LogIn />}
-        {busy ? "Saving…" : running ? "Clock out" : "Clock in"}
+        {busy ? (
+          <Loader2 className="animate-spin" />
+        ) : running ? (
+          <ACTIONS.clockOut />
+        ) : (
+          <ACTIONS.clockIn />
+        )}
+        {busy ? (running ? "Clocking out…" : "Clocking in…") : running ? "Clock out" : "Clock in"}
       </Button>
-    </div>
+    </Card>
   );
 }

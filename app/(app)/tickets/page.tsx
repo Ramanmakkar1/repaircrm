@@ -1,6 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
@@ -10,6 +11,7 @@ import { locationWhere } from "@/lib/location";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TicketFilters } from "@/components/tickets/ticket-filters";
 import { TicketCard } from "@/components/tickets/ticket-card";
@@ -20,6 +22,8 @@ import {
 } from "@/components/tickets/ticket-meta";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
+
+export const metadata: Metadata = { title: "Tickets · RepairFlow" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -195,6 +199,7 @@ export default async function TicketsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.ticket}
         title="Tickets"
         description="Track repair jobs from intake to pickup."
         actions={
@@ -217,7 +222,7 @@ export default async function TicketsPage({
       {tickets.length === 0 ? (
         <Card>
           <EmptyState
-            icon={Wrench}
+            icon={ICONS.ticket}
             title={
               status === NEEDS_REPLY_FILTER
                 ? "Nobody is waiting on you"

@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { parseSerialList } from "@/lib/serials";
 import { STOCK_REASONS, signedQty } from "./format";
@@ -88,7 +89,7 @@ export function AdjustStockDialog({
 
   // Closing/resetting happens as part of the submit rather than in an effect
   // watching `state`, so it fires exactly once per successful save.
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction] = useActionState(
     async (
       previous: InventoryActionState,
       formData: FormData,
@@ -96,7 +97,7 @@ export function AdjustStockDialog({
       const result = await adjustStockAction(productId, previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success("Stock adjusted");
+        toast.success("Stock adjusted.");
         reset();
       }
       return result;
@@ -178,6 +179,7 @@ export function AdjustStockDialog({
                   aria-pressed={active}
                   className={cn(
                     "h-9 rounded-sm text-[13.5px] font-semibold transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     active
                       ? "bg-surface text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -345,9 +347,12 @@ export function AdjustStockDialog({
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || (serialized && !serialReady)}>
-              {pending ? "Saving…" : "Save adjustment"}
-            </Button>
+            <SubmitButton
+              disabled={serialized && !serialReady}
+              pendingLabel="Saving…"
+            >
+              Save adjustment
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

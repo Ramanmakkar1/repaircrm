@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
@@ -41,6 +42,7 @@ export default async function NewEstimatePage({
   return (
     <div className="flex flex-col">
       <PageHeader
+        icon={ICONS.estimate}
         title="New estimate"
         description="Quote the job first — an approved estimate becomes an invoice in one click."
       />

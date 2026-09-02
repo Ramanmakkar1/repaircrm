@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Plus, Star, Users } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -29,10 +29,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/components/ui/cn";
+
+const LocationIcon = ICONS.location;
+const TeamIcon = ICONS.team;
+const AddIcon = ACTIONS.add;
+const EditIcon = ACTIONS.edit;
+const SaveIcon = ACTIONS.save;
+const AssignIcon = ACTIONS.assign;
 
 /**
  * One branch as the settings screen sees it. Declared here rather than in
@@ -92,17 +101,21 @@ export function LocationsTab({
           one of them.
         </p>
         <Button onClick={() => setCreating(true)}>
-          <Plus /> Add location
+          <AddIcon aria-hidden /> Add location
         </Button>
       </div>
 
       {locations.length === 0 ? (
         <Card>
           <EmptyState
-            icon={MapPin}
+            icon={LocationIcon}
             title="No locations yet"
             hint="Add the shop's address so new tickets and invoices have somewhere to belong."
-            action={<Button onClick={() => setCreating(true)}>Add location</Button>}
+            action={
+              <Button onClick={() => setCreating(true)}>
+                <AddIcon aria-hidden /> Add location
+              </Button>
+            }
           />
         </Card>
       ) : (
@@ -198,9 +211,7 @@ function LocationCard({
               </span>
             ) : null}
             {!location.active ? (
-              <span className="rounded-full bg-surface-hover px-2.5 py-0.5 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
-                Closed
-              </span>
+              <StatusPill size="sm" tone="neutral" label="Closed" />
             ) : null}
           </div>
           <CardDescription>
@@ -220,7 +231,7 @@ function LocationCard({
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-medium text-muted-foreground">
-            <Users className="size-3.5" />
+            <TeamIcon className="size-3.5" />
             {based.length === 0
               ? "Nobody based here"
               : `${based.length} based here · ${based
@@ -231,7 +242,7 @@ function LocationCard({
 
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onEdit} disabled={busy}>
-            Edit details
+            <EditIcon aria-hidden /> Edit details
           </Button>
           <Button
             variant="outline"
@@ -239,7 +250,7 @@ function LocationCard({
             onClick={() => setStaffOpen(true)}
             disabled={busy || !location.active}
           >
-            Staff based here
+            <AssignIcon aria-hidden /> Staff based here
           </Button>
           {!location.isDefault && location.active ? (
             <Button variant="ghost" size="sm" onClick={makeDefault} disabled={busy}>
@@ -423,6 +434,13 @@ function LocationDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy || values.name.trim() === ""}>
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : location ? (
+                <SaveIcon aria-hidden />
+              ) : (
+                <AddIcon aria-hidden />
+              )}
               {busy ? "Saving…" : location ? "Save location" : "Add location"}
             </Button>
           </DialogFooter>
@@ -499,9 +517,12 @@ function StaffDialog({
 
         <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
           {members.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-muted-foreground">
-              Nobody on the team yet — add people under Settings → Team.
-            </p>
+            <EmptyState
+              icon={TeamIcon}
+              title="Nobody on the team yet"
+              hint="Add people under Settings → Team, then come back to base them here."
+              className="py-8"
+            />
           ) : (
             members.map((member) => {
               const checked = picked.includes(member.id);
@@ -539,6 +560,7 @@ function StaffDialog({
             Cancel
           </Button>
           <Button type="button" onClick={save} disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
             {busy ? "Saving…" : "Save staff"}
           </Button>
         </DialogFooter>

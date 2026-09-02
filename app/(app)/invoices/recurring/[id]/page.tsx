@@ -1,39 +1,32 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  CalendarClock,
-  CalendarSync,
-  CreditCard,
-  Hash,
-  Mail,
-  Pencil,
-  Receipt,
-  Trash2,
-  TriangleAlert,
-  User,
-  Wallet,
-} from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { calcTotals, formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { StatusPill } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ConfirmActionDialog } from "@/components/billing/action-form";
 import { formatDate } from "@/components/billing/format";
 import { customerLabel } from "@/components/billing/queries";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
 import {
   FREQUENCY_CADENCE,
+  SCHEDULE_STATE_META,
   advanceRunDate,
   asFrequency,
   frequencyLabel,
   isDue,
+  scheduleState,
 } from "@/components/recurring/meta";
 import {
   RunNowButton,
@@ -43,6 +36,24 @@ import { deleteScheduleAction } from "../actions";
 
 const LINK_CHIP =
   "transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+  const schedule = await db.recurringInvoice.findFirst({
+    where: { id, shopId },
+    select: { name: true },
+  });
+  return {
+    title: schedule
+      ? `${schedule.name} · RepairFlow`
+      : "Recurring schedule · RepairFlow",
+  };
+}
 
 export default async function ScheduleDetailPage({
   params,
@@ -62,6 +73,10 @@ export default async function ScheduleDetailPage({
         include: {
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
           payments: { select: { amountCents: true } },
+          // Same reason as the invoice list: a refund walks the stored status
+          // back to PARTIAL, so a balance that ignored refunds would print
+          // "Paid" in the row beside a "Partial" badge.
+          refunds: { select: { amountCents: true, status: true } },
         },
       },
     },
@@ -71,6 +86,7 @@ export default async function ScheduleDetailPage({
   const totals = calcTotals(schedule.lines, schedule.taxRateBps);
   const frequency = asFrequency(schedule.frequency);
   const due = isDue(schedule.nextRunAt, schedule.active);
+  const state = SCHEDULE_STATE_META[scheduleState(schedule.active, due)];
   const name = customerLabel(schedule.customer);
   const generatedCount = schedule.invoices.length;
   const canDelete = role === "OWNER" && generatedCount === 0;
@@ -94,22 +110,7 @@ export default async function ScheduleDetailPage({
                 <span className="text-3xl font-bold leading-tight tracking-tight text-foreground">
                   {schedule.name}
                 </span>
-                <span
-                  className={cn(
-                    "inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
-                    schedule.active
-                      ? "bg-status-resolved-bg text-status-resolved-fg"
-                      : "bg-surface-hover text-muted-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "size-1.5 shrink-0 rounded-full",
-                      schedule.active ? "bg-status-resolved" : "bg-faint-foreground",
-                    )}
-                  />
-                  {schedule.active ? "Active" : "Paused"}
-                </span>
+                <StatusPill tone={state.tone} label={state.label} />
               </div>
               <Link
                 href={`/customers/${schedule.customer.id}`}
@@ -123,7 +124,7 @@ export default async function ScheduleDetailPage({
               <RunNowButton scheduleId={schedule.id} />
               <Button variant="outline" asChild>
                 <Link href={`/invoices/recurring/${schedule.id}/edit`}>
-                  <Pencil /> Edit
+                  <ACTIONS.edit /> Edit
                 </Link>
               </Button>
               <ScheduleActiveButton
@@ -136,7 +137,7 @@ export default async function ScheduleDetailPage({
                   action={deleteScheduleAction}
                   fields={{ id: schedule.id }}
                   triggerLabel="Delete"
-                  triggerIcon={<Trash2 />}
+                  triggerIcon={<ACTIONS.delete />}
                   title={`Delete ${schedule.name}?`}
                   description="The schedule and its line items go for good. This can't be undone."
                   confirmLabel="Delete schedule"
@@ -154,11 +155,11 @@ export default async function ScheduleDetailPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Chip icon={CalendarSync}>
+            <Chip icon={ICONS.recurring}>
               {frequencyLabel(frequency)} · {FREQUENCY_CADENCE[frequency]}
             </Chip>
             <Chip
-              icon={CalendarClock}
+              icon={ICONS.dueDate}
               className={cn(
                 due && "bg-status-overdue-bg font-bold text-status-overdue-fg",
               )}
@@ -166,25 +167,25 @@ export default async function ScheduleDetailPage({
               {due ? "Due " : "Next run "}
               {formatDate(schedule.nextRunAt)}
             </Chip>
-            <Chip icon={Wallet}>
+            <Chip icon={ICONS.deposit}>
               {schedule.dueInDays === 0
                 ? "Due on receipt"
                 : `Net ${schedule.dueInDays} days`}
             </Chip>
-            <Chip icon={Receipt}>
+            <Chip icon={ICONS.invoice}>
               {generatedCount} invoice{generatedCount === 1 ? "" : "s"} generated
             </Chip>
-            {schedule.autoSend ? <Chip icon={Mail}>Auto-send</Chip> : null}
+            {schedule.autoSend ? <Chip icon={ICONS.email}>Auto-send</Chip> : null}
             {schedule.autoCharge ? (
               <Chip
-                icon={CreditCard}
+                icon={ICONS.payment}
                 className="bg-chip-accent-bg text-chip-accent-fg"
               >
                 Auto-charge
               </Chip>
             ) : null}
             <Link href={`/customers/${schedule.customer.id}`}>
-              <Chip icon={User} className={LINK_CHIP}>
+              <Chip icon={ICONS.customer} className={LINK_CHIP}>
                 {name}
               </Chip>
             </Link>
@@ -208,19 +209,17 @@ export default async function ScheduleDetailPage({
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         {/* --------------------------------------------------------- lines */}
         <Card>
-          <CardHeader>
-            <CardTitle>What gets billed each run</CardTitle>
-          </CardHeader>
+          <CardHeader icon={ICONS.checklist} title="What gets billed each run" />
           <CardContent className="px-0 py-0">
             {schedule.lines.length === 0 ? (
               <EmptyState
-                icon={Receipt}
+                icon={ICONS.invoice}
                 title="No line items"
                 hint="This schedule cannot run until it has something to bill."
                 action={
                   <Button variant="outline" asChild>
                     <Link href={`/invoices/recurring/${schedule.id}/edit`}>
-                      <Pencil /> Add lines
+                      <ACTIONS.add /> Add lines
                     </Link>
                   </Button>
                 }
@@ -264,9 +263,7 @@ export default async function ScheduleDetailPage({
 
         {/* -------------------------------------------------------- totals */}
         <Card>
-          <CardHeader>
-            <CardTitle>Per-run total</CardTitle>
-          </CardHeader>
+          <CardHeader icon={ICONS.cash} title="Per-run total" />
           <CardContent className="flex flex-col gap-3">
             <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
             <TotalRow
@@ -295,13 +292,11 @@ export default async function ScheduleDetailPage({
 
       {/* --------------------------------------------------- generated list */}
       <Card>
-        <CardHeader>
-          <CardTitle>Generated invoices</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.invoice} title="Generated invoices" />
         <CardContent className="px-0 py-0">
           {schedule.invoices.length === 0 ? (
             <EmptyState
-              icon={Receipt}
+              icon={ICONS.invoice}
               title="Nothing raised yet"
               hint={`The first draft appears here on ${formatDate(schedule.nextRunAt)} — or press "Run now" to bill this period early.`}
             />
@@ -320,10 +315,11 @@ export default async function ScheduleDetailPage({
                 </THead>
                 <TBody>
                   {schedule.invoices.map((invoice) => {
-                    const invTotals = invoiceTotals(
+                    const invTotals = refundAwareTotals(
                       invoice.lines,
                       invoice.taxRateBps,
                       invoice.payments,
+                      invoice.refunds,
                     );
                     const settled =
                       invoice.status !== "VOID" && invTotals.balanceCents <= 0;
@@ -334,7 +330,7 @@ export default async function ScheduleDetailPage({
                             href={`/invoices/${invoice.id}`}
                             className="inline-flex items-center gap-1 font-semibold tabular-nums text-foreground transition-colors hover:text-accent"
                           >
-                            <Hash className="size-3.5 text-faint-foreground" />
+                            <ICONS.serial className="size-3.5 text-faint-foreground" />
                             {invoice.number}
                           </Link>
                         </Td>

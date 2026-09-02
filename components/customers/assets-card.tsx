@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Laptop, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,8 +11,10 @@ import {
 } from "@/app/(app)/customers/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import {
   Dialog,
   DialogContent,
@@ -89,27 +90,34 @@ export function AssetsCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <IconChip icon={Laptop} size="sm" />
-          <CardTitle className="truncate">Devices</CardTitle>
-          {assets.length > 0 ? (
-            <span className="shrink-0 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-semibold leading-none tabular-nums text-muted-foreground">
-              {assets.length}
-            </span>
-          ) : null}
-        </div>
-        <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
-          <Plus />
-          Add
-        </Button>
-      </CardHeader>
+      <CardHeader
+        icon={ICONS.device}
+        title="Devices"
+        action={
+          <>
+            {assets.length > 0 ? <Chip>{assets.length}</Chip> : null}
+            <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+              <ACTIONS.add />
+              Add
+            </Button>
+          </>
+        }
+      />
 
       <CardContent className="p-0">
         {assets.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            No devices on file yet.
-          </p>
+          <EmptyState
+            className="px-5 py-10"
+            icon={ICONS.device}
+            title="No devices on file"
+            hint="Devices saved here become one-tap choices when you write the next ticket."
+            action={
+              <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
+                <ACTIONS.add />
+                Add a device
+              </Button>
+            }
+          />
         ) : (
           <ul className="divide-y divide-border">
             {assets.map((asset) => (
@@ -144,7 +152,7 @@ export function AssetsCard({
                     aria-label={`Edit ${assetLabel(asset)}`}
                     onClick={() => setEditing(asset)}
                   >
-                    <Pencil />
+                    <ACTIONS.edit />
                   </Button>
                   <Button
                     size="icon"
@@ -153,7 +161,7 @@ export function AssetsCard({
                     onClick={() => setRemoving(asset)}
                     className="size-9 text-muted-foreground hover:text-destructive"
                   >
-                    <Trash2 />
+                    <ACTIONS.delete />
                   </Button>
                 </div>
               </li>
@@ -221,12 +229,26 @@ export function AssetsCard({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="asset-serial">Serial</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="asset-serial">Serial</Label>
+                  {/*
+                    Reserved for the camera scanner (components/scan/, landing
+                    separately): a `<Button variant="soft" size="sm">` with
+                    `ACTIONS.scan` goes here and writes the decoded code into
+                    #asset-serial. It sits ON the label row, at full tap size,
+                    because these shops have no laser gun — the phone camera is
+                    the only scanner, and typing a 17-character serial off the
+                    back of a laptop is where this form actually loses people.
+                  */}
+                </div>
                 <Input
                   id="asset-serial"
                   name="serial"
                   defaultValue={editing?.serial ?? ""}
                   className="font-mono"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -264,6 +286,7 @@ export function AssetsCard({
                 Cancel
               </Button>
               <Button type="submit" disabled={busy}>
+                {editing ? <ACTIONS.save /> : <ACTIONS.add />}
                 {busy ? "Saving…" : editing ? "Save device" : "Add device"}
               </Button>
             </DialogFooter>
@@ -291,6 +314,7 @@ export function AssetsCard({
               Cancel
             </Button>
             <Button variant="destructive" disabled={busy} onClick={remove}>
+              <ACTIONS.delete />
               {busy ? "Removing…" : "Remove"}
             </Button>
           </DialogFooter>

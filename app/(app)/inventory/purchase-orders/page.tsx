@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ClipboardList, Plus, Store } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import {
@@ -13,10 +12,12 @@ import {
   poTotals,
   type PoFilter,
 } from "@/components/inventory/purchasing";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
@@ -74,24 +75,29 @@ export default async function PurchaseOrdersPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <Link
+        href="/inventory"
+        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ACTIONS.back className="size-4" />
+        All inventory
+      </Link>
+
       <PageHeader
-        breadcrumbs={[
-          { label: "Inventory", href: "/inventory" },
-          { label: "Purchase orders" },
-        ]}
+        icon={ICONS.purchaseOrder}
         title="Purchase orders"
         description="What the shop has asked its vendors for, and how much of it has landed."
         actions={
           <>
             <Button variant="outline" asChild>
               <Link href="/inventory/vendors">
-                <Store />
+                <ICONS.vendor />
                 Vendors
               </Link>
             </Button>
             <Button asChild>
               <Link href="/inventory/purchase-orders/new">
-                <Plus />
+                <ACTIONS.add />
                 New Purchase Order
               </Link>
             </Button>
@@ -139,7 +145,7 @@ export default async function PurchaseOrdersPage({
         <CardContent className="px-0 py-0">
           {orders.length === 0 ? (
             <EmptyState
-              icon={ClipboardList}
+              icon={ICONS.purchaseOrder}
               title={filtered ? "Nothing matches those filters" : "No purchase orders yet"}
               hint={
                 filtered
@@ -154,14 +160,14 @@ export default async function PurchaseOrdersPage({
                 ) : vendors.length === 0 ? (
                   <Button asChild>
                     <Link href="/inventory/vendors">
-                      <Store />
+                      <ICONS.vendor />
                       Add a vendor first
                     </Link>
                   </Button>
                 ) : (
                   <Button asChild>
                     <Link href="/inventory/purchase-orders/new">
-                      <Plus />
+                      <ACTIONS.add />
                       New Purchase Order
                     </Link>
                   </Button>
@@ -204,14 +210,11 @@ export default async function PurchaseOrdersPage({
                         </Link>
                       </Td>
                       <Td>
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
-                            meta.chip,
-                          )}
-                        >
-                          {meta.label}
-                        </span>
+                        <StatusPill
+                          tone={meta.tone}
+                          label={meta.label}
+                          struck={meta.struck}
+                        />
                       </Td>
                       <Td className="text-[13.5px] text-muted-foreground">
                         {formatDate(order.orderedAt ?? order.createdAt)}
@@ -261,8 +264,10 @@ function Pill({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "inline-flex items-center rounded-full border font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         small ? "h-8 px-3 text-[12.5px]" : "h-10 px-4 text-[13.5px]",
         active
           ? "border-transparent bg-accent text-accent-foreground shadow-sm"

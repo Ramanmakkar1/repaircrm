@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  Hash,
-  Printer,
-  Receipt,
-  Wallet,
-} from "lucide-react";
+import { Hash } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  StatTile,
+} from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
@@ -29,7 +30,25 @@ import {
   statementCustomerName,
 } from "@/components/statements/query";
 
-export const metadata: Metadata = { title: "Statement · RepairFlow" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { shopId } = await requireUser();
+  const { id } = await params;
+
+  const customer = await db.customer.findFirst({
+    where: { id, shopId },
+    select: { firstName: true, lastName: true, businessName: true },
+  });
+
+  return {
+    title: customer
+      ? `Statement · ${statementCustomerName(customer)} · RepairFlow`
+      : "Statement · RepairFlow",
+  };
+}
 
 export default async function CustomerStatementPage({
   params,
@@ -51,15 +70,13 @@ export default async function CustomerStatementPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={`/customers/${customer.id}`}
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Back to {name}
-      </Link>
-
       <PageHeader
+        icon={ICONS.invoice}
+        breadcrumbs={[
+          { label: "Customers", href: "/customers" },
+          { label: name, href: `/customers/${customer.id}` },
+          { label: "Statement" },
+        ]}
         title="Statement"
         description={`${name} · ${formatDate(period.from)} – ${formatDate(period.to)}`}
         actions={
@@ -74,7 +91,8 @@ export default async function CustomerStatementPage({
             />
             <Button variant="outline" asChild>
               <Link href={printHref} target="_blank">
-                <Printer /> Print
+                <ICONS.print />
+                Print
               </Link>
             </Button>
           </>
@@ -90,31 +108,45 @@ export default async function CustomerStatementPage({
 
       {/* ------------------------------------------------------- the numbers */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Total invoiced" value={formatCents(totals.invoicedCents)} />
-        <SummaryCard label="Total paid" value={formatCents(totals.paidCents)} />
-        <SummaryCard
+        <StatTile
+          icon={ICONS.invoice}
+          label="Total invoiced"
+          value={formatCents(totals.invoicedCents)}
+        />
+        <StatTile
+          icon={ICONS.cash}
+          label="Total paid"
+          value={formatCents(totals.paidCents)}
+        />
+        <StatTile
+          icon={ICONS.payment}
+          tone={totals.outstandingCents > 0 ? "danger" : "success"}
           label="Balance outstanding"
           value={formatCents(totals.outstandingCents)}
-          tone={totals.outstandingCents > 0 ? "owing" : "settled"}
+          hint={
+            totals.outstandingCents > 0 ? "still owed" : "settled in full"
+          }
         />
-        <SummaryCard
+        <StatTile
+          icon={ICONS.credit}
+          tone={totals.creditBalanceCents > 0 ? "success" : "neutral"}
           label="Store credit held"
           value={formatCents(totals.creditBalanceCents)}
-          tone={totals.creditBalanceCents > 0 ? "credit" : undefined}
           hint="Spendable at checkout"
         />
       </div>
 
       {/* ---------------------------------------------------------- invoices */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>Invoices in this period</CardTitle>
-          <Chip>{invoices.length}</Chip>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.invoice}
+          title="Invoices in this period"
+          action={<Chip>{invoices.length}</Chip>}
+        />
         <CardContent className="px-0 py-0">
           {invoices.length === 0 ? (
             <EmptyState
-              icon={Receipt}
+              icon={ICONS.invoice}
               title="No invoices in this period"
               hint="Widen the date range, or check the customer's full history on their hub."
             />
@@ -198,14 +230,15 @@ export default async function CustomerStatementPage({
 
       {/* ---------------------------------------------------------- payments */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>Payments received</CardTitle>
-          <Chip>{formatCents(totals.paidCents)}</Chip>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.payment}
+          title="Payments received"
+          action={<Chip className="tabular-nums">{formatCents(totals.paidCents)}</Chip>}
+        />
         <CardContent className="px-0 py-0">
           {payments.length === 0 ? (
             <EmptyState
-              icon={Wallet}
+              icon={ICONS.payment}
               title="No payments in this period"
               hint="Payments show here on the date they were taken, whichever invoice they landed on."
             />
@@ -239,7 +272,13 @@ export default async function CustomerStatementPage({
                         {PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}
                       </Td>
                       <Td className="text-muted-foreground">
-                        {payment.reference || "—"}
+                        {payment.reference ? (
+                          <span className="font-mono text-[12.5px]">
+                            {payment.reference}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </Td>
                       <Td className="text-right font-semibold tabular-nums text-foreground">
                         {formatCents(payment.amountCents)}
@@ -256,35 +295,3 @@ export default async function CustomerStatementPage({
   );
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: string;
-  tone?: "owing" | "settled" | "credit";
-  hint?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-5 shadow-sm">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span
-        className={cn(
-          "text-[30px] font-bold leading-none tabular-nums tracking-tight text-foreground",
-          tone === "owing" && "text-status-overdue-fg",
-          tone === "settled" && "text-status-resolved-fg",
-          tone === "credit" && "text-accent",
-        )}
-      >
-        {value}
-      </span>
-      {hint ? (
-        <span className="text-[13px] text-muted-foreground">{hint}</span>
-      ) : null}
-    </div>
-  );
-}

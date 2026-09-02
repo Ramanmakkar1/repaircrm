@@ -29,7 +29,19 @@ export function StatusProgress({
   const allDone = isResolved(current);
 
   return (
-    <ol className={cn("flex w-full items-start", className)}>
+    /*
+      On a phone six steps share ~350px, which crushed "Waiting on Customer"
+      down to "Waiting on…" — a tracker whose labels you cannot read is not a
+      tracker. Below `sm` each step keeps enough width for its own words and
+      the row scrolls sideways instead; from `sm` up they all fit and it goes
+      back to filling the width.
+    */
+    <ol
+      className={cn(
+        "flex w-full items-start overflow-x-auto pb-1 sm:overflow-x-visible sm:pb-0",
+        className,
+      )}
+    >
       {statuses.map((status, i) => {
         const done = allDone || (index >= 0 && i < index);
         const active = !allDone && i === index;
@@ -38,7 +50,7 @@ export function StatusProgress({
         return (
           <li
             key={status}
-            className="flex min-w-0 flex-1 flex-col items-center gap-2"
+            className="flex min-w-[86px] flex-1 flex-col items-center gap-2 sm:min-w-0"
           >
             <div className="flex w-full items-center">
               <Track filled={done || (active && i > 0)} hidden={i === 0} />

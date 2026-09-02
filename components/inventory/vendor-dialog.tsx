@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
 
@@ -62,7 +63,7 @@ export function VendorDialog({
   const set = (key: keyof ReturnType<typeof initial>, value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction] = useActionState(
     async (
       previous: VendorActionState,
       formData: FormData,
@@ -72,7 +73,7 @@ export function VendorDialog({
         : await createVendorAction(previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success(isEdit ? "Vendor updated" : "Vendor added");
+        toast.success(isEdit ? "Vendor updated." : "Vendor added.");
         if (!isEdit) setValues(initial(null));
       }
       return result;
@@ -196,9 +197,9 @@ export function VendorDialog({
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : isEdit ? "Save vendor" : "Add vendor"}
-            </Button>
+            <SubmitButton pendingLabel="Saving…">
+              {isEdit ? "Save vendor" : "Add vendor"}
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

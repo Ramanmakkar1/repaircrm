@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { AlertCircle, CreditCard } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -132,7 +133,7 @@ export function PaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button>
-          <CreditCard /> Take payment
+          <ACTIONS.pay /> Take payment
         </Button>
       </DialogTrigger>
 
@@ -164,7 +165,7 @@ export function PaymentDialog({
               className="h-13"
               onClick={() => setReaderMode(true)}
             >
-              <CreditCard /> Take it on the card reader
+              <ACTIONS.pay /> Take it on the card reader
             </Button>
           ) : null}
 

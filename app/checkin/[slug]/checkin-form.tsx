@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import SignatureCanvas from "react-signature-canvas";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import type { CheckinFieldKey } from "@/components/settings/checkin-meta";
 import { CHECKIN_FIELD_HINT, CHECKIN_FIELD_LABEL } from "@/components/settings/checkin-meta";
 import { submitCheckinAction } from "./actions";
+
+const SendIcon = ACTIONS.send;
 
 /**
  * The form a walk-in fills in on their own phone, or on the tablet by the door.
@@ -400,6 +403,7 @@ export function CheckinForm({
           disabled={busy || !accepted || signature === ""}
           className={kiosk ? "h-16 text-lg" : undefined}
         >
+          {busy ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
           {busy ? "Checking in…" : "Check in my device"}
         </Button>
       </form>

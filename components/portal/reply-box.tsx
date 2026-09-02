@@ -2,9 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Send } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
+import { ACTIONS } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+
+const SendIcon = ACTIONS.send;
 import { Textarea } from "@/components/ui/textarea";
 import { replyToTicketAction } from "@/app/portal/tickets/[id]/actions";
 
@@ -67,7 +70,7 @@ export function ReplyBox({ ticketId }: { ticketId: string }) {
             : "The shop sees this on the repair straight away."}
         </span>
         <Button type="submit" disabled={busy}>
-          <Send />
+          {busy ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
           {busy ? "Sending…" : "Send message"}
         </Button>
       </div>

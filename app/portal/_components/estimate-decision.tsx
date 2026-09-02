@@ -4,9 +4,10 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import SignatureCanvas from "react-signature-canvas";
-import { AlertCircle, Check, Loader2, PenLine, X } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { IDLE_FORM_STATE } from "@/components/billing/types";
 import { respondToEstimateAction } from "../actions";
 
@@ -23,6 +24,10 @@ import { respondToEstimateAction } from "../actions";
  * The pad always paints dark-on-white regardless of theme, because the image is
  * embedded in a printed document later.
  */
+
+const ApproveIcon = ACTIONS.approve;
+const DeclineIcon = ACTIONS.decline;
+const SignatureIcon = ICONS.signature;
 
 export function EstimateDecision({
   estimateId,
@@ -106,9 +111,9 @@ export function EstimateDecision({
           <button
             type="button"
             onClick={() => setSigning(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground transition-colors hover:bg-surface-hover"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            <PenLine className="size-4" />
+            <SignatureIcon className="size-4" aria-hidden />
             Add a signature
           </button>
         ) : null}
@@ -117,7 +122,7 @@ export function EstimateDecision({
           decision="approve"
           className="bg-status-resolved text-white hover:brightness-95"
         >
-          <Check className="size-4" />
+          <ApproveIcon className="size-4" aria-hidden />
           Approve this estimate
         </DecisionButton>
 
@@ -125,7 +130,7 @@ export function EstimateDecision({
           decision="decline"
           className="border border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground"
         >
-          <X className="size-4" />
+          <DeclineIcon className="size-4" aria-hidden />
           Decline
         </DecisionButton>
       </div>
@@ -154,7 +159,7 @@ function DecisionButton({
       value={decision}
       disabled={pending}
       className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-semibold shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-60",
+        "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-semibold shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-60" +' focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         className,
       )}
     >

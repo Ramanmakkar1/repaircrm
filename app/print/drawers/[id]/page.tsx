@@ -1,7 +1,8 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 
-import { requireUser } from "@/lib/auth";
+import { getSession, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import {
@@ -29,6 +30,32 @@ export const dynamic = "force-dynamic";
  * Scoped by shopId like every other print route, so a drawer id from another
  * tenant 404s rather than printing.
  */
+
+/**
+ * The document title is the filename the browser's print dialog proposes, so it
+ * carries the day this drawer was opened. Scoped like the render; `getSession`
+ * rather than `requireUser` because metadata must not redirect.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const session = await getSession();
+  if (!session) return { title: "Cash drawer Z-report · RepairFlow" };
+
+  const drawer = await db.cashDrawerSession.findFirst({
+    where: { id, shopId: session.shopId },
+    select: { openedAt: true },
+  });
+  return {
+    title: drawer
+      ? `Z-report ${format(drawer.openedAt, "d MMM yyyy")} · RepairFlow`
+      : "Cash drawer Z-report · RepairFlow",
+  };
+}
+
 export default async function DrawerZReportPage({
   params,
 }: {

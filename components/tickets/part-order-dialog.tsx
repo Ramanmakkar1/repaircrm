@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,7 +100,7 @@ export function PartOrderDialog({
       if (result.ok) {
         setOpen(false);
         reset();
-        toast.success("Part added to the order list");
+        toast.success("Part added to the order list.");
       }
       return result;
     },
@@ -262,6 +263,7 @@ export function PartOrderDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={pending}>
+              <ACTIONS.add />
               {pending ? "Saving…" : "Order part"}
             </Button>
           </DialogFooter>

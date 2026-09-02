@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pause, Play, PlayCircle, Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -11,6 +11,7 @@ import {
   setScheduleActiveAction,
 } from "@/app/(app)/invoices/recurring/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
 /**
@@ -99,7 +100,13 @@ export function ScheduleActiveButton({
 
   return (
     <Button variant="outline" disabled={busy} onClick={toggle}>
-      {busy ? <Loader2 className="animate-spin" /> : active ? <Pause /> : <Play />}
+      {busy ? (
+        <Loader2 className="animate-spin" />
+      ) : active ? (
+        <ACTIONS.pause />
+      ) : (
+        <ACTIONS.resume />
+      )}
       {active ? "Pause" : "Resume"}
     </Button>
   );
@@ -130,7 +137,7 @@ export function RunNowButton({ scheduleId }: { scheduleId: string }) {
 
   return (
     <Button disabled={busy} onClick={run}>
-      {busy ? <Loader2 className="animate-spin" /> : <PlayCircle />}
+      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.run />}
       Run now
     </Button>
   );
@@ -162,7 +169,7 @@ export function GenerateDueButton({ dueCount }: { dueCount: number }) {
 
   return (
     <Button disabled={busy} onClick={run}>
-      {busy ? <Loader2 className="animate-spin" /> : <Zap />}
+      {busy ? <Loader2 className="animate-spin" /> : <ICONS.automation />}
       Generate {dueCount} due now
     </Button>
   );

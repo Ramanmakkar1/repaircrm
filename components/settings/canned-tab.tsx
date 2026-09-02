@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquareText, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -20,9 +20,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CannedResponseItem } from "./types";
 
 /**
@@ -33,6 +35,11 @@ import type { CannedResponseItem } from "./types";
  * like); only OWNER and FRONT_DESK can change them, which `canManage` mirrors
  * from the server-side check in the actions.
  */
+const AddIcon = ACTIONS.add;
+const EditIcon = ACTIONS.edit;
+const DeleteIcon = ACTIONS.delete;
+const SaveIcon = ACTIONS.save;
+
 export function CannedTab({
   responses,
   canManage,
@@ -65,7 +72,7 @@ export function CannedTab({
       {canManage ? (
         <div className="flex justify-end">
           <Button onClick={() => setCreating(true)}>
-            <Plus /> New response
+            <AddIcon aria-hidden /> New response
           </Button>
         </div>
       ) : null}
@@ -73,7 +80,7 @@ export function CannedTab({
       {responses.length === 0 ? (
         <Card>
           <EmptyState
-            icon={MessageSquareText}
+            icon={ICONS.message}
             title="No canned responses yet"
             hint={
               canManage
@@ -83,7 +90,7 @@ export function CannedTab({
             action={
               canManage ? (
                 <Button onClick={() => setCreating(true)}>
-                  <Plus /> New response
+                  <AddIcon aria-hidden /> New response
                 </Button>
               ) : undefined
             }
@@ -100,23 +107,35 @@ export function CannedTab({
                   </h3>
                   {canManage ? (
                     <div className="flex shrink-0 items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Edit ${item.title}`}
-                        onClick={() => setEditing(item)}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${item.title}`}
-                        className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                        onClick={() => setRemoving(item)}
-                      >
-                        <Trash2 />
-                      </Button>
+                      {/* Icon-only because they repeat on every card — so both
+                          carry an aria-label and a tooltip. */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${item.title}`}
+                            onClick={() => setEditing(item)}
+                          >
+                            <EditIcon aria-hidden />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Edit response</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${item.title}`}
+                            className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
+                            onClick={() => setRemoving(item)}
+                          >
+                            <DeleteIcon aria-hidden />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Delete response</TooltipContent>
+                      </Tooltip>
                     </div>
                   ) : null}
                 </div>
@@ -164,6 +183,7 @@ export function CannedTab({
               disabled={busy}
               onClick={() => removing && remove(removing)}
             >
+              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
               {busy ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
@@ -250,6 +270,13 @@ function CannedDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : item ? (
+                <SaveIcon aria-hidden />
+              ) : (
+                <AddIcon aria-hidden />
+              )}
               {busy ? "Saving…" : item ? "Save changes" : "Add response"}
             </Button>
           </DialogFooter>

@@ -1,7 +1,8 @@
 import * as React from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { getSession, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
 import { Barcode } from "@/components/billing/barcode";
@@ -27,6 +28,32 @@ import { METHOD_LABELS, type TenderMethod } from "@/components/pos/types";
  */
 
 export const dynamic = "force-dynamic";
+
+/**
+ * A counter receipt is reprinted far more often than it is filed, so the title
+ * names the invoice it belongs to — that is the string the print dialog offers
+ * as a filename. `getSession` rather than `requireUser`: metadata must not
+ * redirect, and the page below does the guarding.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ invoiceId: string }>;
+}): Promise<Metadata> {
+  const { invoiceId } = await params;
+  const session = await getSession();
+  if (!session) return { title: "Receipt · RepairFlow" };
+
+  const invoice = await db.invoice.findFirst({
+    where: { id: invoiceId, shopId: session.shopId },
+    select: { number: true },
+  });
+  return {
+    title: invoice
+      ? `Receipt · Invoice #${invoice.number} · RepairFlow`
+      : "Receipt · RepairFlow",
+  };
+}
 
 export default async function ReceiptPage({
   params,

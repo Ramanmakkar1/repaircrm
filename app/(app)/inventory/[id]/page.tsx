@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeftRight,
-  Barcode,
-  EyeOff,
-  Hash,
-  History,
-  Pencil,
-  Receipt,
-  Store,
-  Tag,
-  Tags,
-} from "lucide-react";
+import { History, Tag } from "lucide-react";
 
 import { formatDateTime, initials } from "@/components/customers/format";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
@@ -21,12 +10,16 @@ import {
   deltaClass,
   marginPct,
   signedQty,
+  splitReason,
   STOCK_META,
+  STOCK_REASON_META,
   stockStatus,
 } from "@/components/inventory/format";
 import { ReorderPointEditor } from "@/components/inventory/reorder-point-editor";
 import { SerialsCard, type SerialRow } from "@/components/inventory/serials-card";
 import { StockBadge } from "@/components/inventory/stock-badge";
+import { StatusPill } from "@/components/ui/badge";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -189,14 +182,16 @@ export default async function ProductPage({
             <div className="flex flex-wrap items-center gap-2">
               <StockBadge product={product} />
               {product.category ? <Chip icon={Tag}>{product.category}</Chip> : null}
+              {/* Retired-from-the-catalogue is a status, so it gets the pill
+                  rather than blending in with the grey fact-tags beside it. */}
               {!product.active ? (
-                <Chip icon={EyeOff} className="font-semibold text-faint-foreground">
-                  Inactive
-                </Chip>
+                <StatusPill tone="neutral" label="Inactive" />
               ) : null}
-              {product.serialized ? <Chip icon={Hash}>Serialized</Chip> : null}
+              {product.serialized ? (
+                <Chip icon={ICONS.serial}>Serialized</Chip>
+              ) : null}
               {product.vendor ? (
-                <Chip icon={Store}>{product.vendor.name}</Chip>
+                <Chip icon={ICONS.vendor}>{product.vendor.name}</Chip>
               ) : null}
               {!product.taxable ? <Chip>Non-taxable</Chip> : null}
             </div>
@@ -205,13 +200,13 @@ export default async function ProductPage({
           <div className="flex shrink-0 flex-wrap items-center gap-2.5">
             <Button variant="outline" asChild>
               <Link href={`/print/labels/${product.id}`}>
-                <Tags />
+                <ACTIONS.print />
                 Print Labels
               </Link>
             </Button>
             <Button variant="outline" asChild>
               <Link href={`/inventory/${product.id}/edit`}>
-                <Pencil />
+                <ACTIONS.edit />
                 Edit
               </Link>
             </Button>
@@ -222,7 +217,7 @@ export default async function ProductPage({
               serials={inStockSerials}
               trigger={
                 <Button>
-                  <ArrowLeftRight />
+                  <ICONS.stockMove />
                   Adjust Stock
                 </Button>
               }
@@ -260,7 +255,7 @@ export default async function ProductPage({
               serials={inStockSerials}
               trigger={
                 <Button variant="soft" size="lg" className="w-full">
-                  <ArrowLeftRight />
+                  <ICONS.stockMove />
                   Adjust Stock
                 </Button>
               }
@@ -368,7 +363,10 @@ export default async function ProductPage({
                             <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent-soft-foreground">
                               {initials(row.user.name)}
                             </span>
-                            <span className="text-[13.5px] font-medium text-muted-foreground">
+                            <span
+                              className="max-w-[7rem] truncate text-[13.5px] font-medium text-muted-foreground"
+                              title={row.user.name}
+                            >
                               {row.user.name}
                             </span>
                           </span>
@@ -386,8 +384,8 @@ export default async function ProductPage({
                       >
                         {signedQty(row.delta)}
                       </Td>
-                      <Td className="max-w-[16rem] truncate text-[13.5px] text-foreground">
-                        {row.reason}
+                      <Td>
+                        <ReasonCell reason={row.reason} />
                       </Td>
                     </Tr>
                   ))}
@@ -412,7 +410,7 @@ export default async function ProductPage({
           <CardContent className="px-0 py-0">
             {sales.length === 0 ? (
               <EmptyState
-                icon={Receipt}
+                icon={ICONS.invoice}
                 title="Not sold yet"
                 hint="Once this product lands on an invoice it'll be listed here."
               />
@@ -459,7 +457,7 @@ export default async function ProductPage({
         <CardContent className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
-              <Barcode className="size-5" strokeWidth={2.25} />
+              <ICONS.barcode className="size-5" strokeWidth={2.25} />
             </span>
             <div className="flex flex-col">
               <span className="text-[15px] font-bold text-foreground">
@@ -476,7 +474,7 @@ export default async function ProductPage({
           </div>
           <Button variant="outline" asChild>
             <Link href={`/print/labels/${product.id}`}>
-              <Tags />
+              <ACTIONS.print />
               Print Labels
             </Link>
           </Button>
@@ -487,6 +485,47 @@ export default async function ProductPage({
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * "Received — 2 boxes from Mobilesentrix" reads as a pill plus the note that
+ * came with it: the kind is scannable down the column, and the operator's own
+ * words stay in their own voice rather than being swallowed by a chip.
+ */
+function ReasonCell({ reason }: { reason: string }) {
+  const { kind, note } = splitReason(reason);
+
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {kind ? (
+        <StatusPill
+          tone={STOCK_REASON_META[kind].tone}
+          label={kind}
+          size="sm"
+          className="shrink-0"
+        />
+      ) : null}
+      {note ? (
+        <span
+          // With a pill beside it the note is the aside; on its own — a reason
+          // written before the vocabulary existed — it is the whole cell.
+          className={cn(
+            // A max width rather than `min-w-0`: a table cell is sized by its
+            // content, so only a hard cap stops one long note from widening
+            // the column without limit. The four columns together are still
+            // wider than this half-width card, so the table scrolls inside its
+            // own container — the cap keeps that scroll short rather than
+            // unbounded.
+            "truncate text-[13.5px]",
+            kind ? "max-w-[12rem] text-muted-foreground" : "max-w-[14rem] text-foreground",
+          )}
+          title={note}
+        >
+          {note}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function Stat({
   label,

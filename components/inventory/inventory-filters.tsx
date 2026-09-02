@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Search, SlidersHorizontal, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
   DialogContent,
@@ -122,6 +123,11 @@ export function InventoryFilters({
         })}
       </div>
 
+      {/* The search box, then the slot the camera-scan button occupies, then
+          the filter controls. A scanned SKU lands in this box, so the scan
+          control belongs immediately to its right at full field height — these
+          shops have no laser guns and a small grey glyph inside the input is
+          not something a counter hand will find. */}
       <div className="flex flex-wrap items-center gap-2">
         <form
           onSubmit={(event) => {
@@ -131,7 +137,7 @@ export function InventoryFilters({
           className="relative min-w-[240px] flex-1 sm:max-w-sm"
           role="search"
         >
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+          <ACTIONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
           <Input
             name="q"
             value={value}
@@ -150,7 +156,7 @@ export function InventoryFilters({
                 aria-label="Clear search"
                 className="flex size-5 items-center justify-center rounded-full text-faint-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               >
-                <X className="size-[18px]" />
+                <ACTIONS.cancel className="size-[18px]" />
               </button>
             ) : null}
           </div>
@@ -167,7 +173,7 @@ export function InventoryFilters({
         >
           <DialogTrigger asChild>
             <Button variant={category ? "soft" : "outline"}>
-              <SlidersHorizontal />
+              <ACTIONS.filter />
               Filters
               {category ? (
                 <span className="rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-foreground">
@@ -242,7 +248,7 @@ export function InventoryFilters({
               go({ filter: "all", q: "", category: "" });
             }}
           >
-            <X /> Clear all
+            <ACTIONS.cancel /> Clear all
           </Button>
         ) : null}
       </div>
@@ -252,10 +258,11 @@ export function InventoryFilters({
           <button
             type="button"
             onClick={() => go({ category: "" })}
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent-soft-foreground transition-colors hover:brightness-95"
+            aria-label={`Remove the ${category} category filter`}
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent-soft-foreground transition-colors hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {category}
-            <X className="size-3.5" />
+            <ACTIONS.cancel className="size-3.5" />
           </button>
         </div>
       ) : null}

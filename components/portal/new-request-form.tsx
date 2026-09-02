@@ -4,7 +4,12 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
+import { Loader2 } from "lucide-react";
+
+import { ACTIONS } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
+
+const SendIcon = ACTIONS.send;
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -164,6 +169,7 @@ export function NewRequestForm({
       </div>
 
       <Button type="submit" size="lg" disabled={busy}>
+        {busy ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
         {busy ? "Sending…" : "Send request"}
       </Button>
     </form>

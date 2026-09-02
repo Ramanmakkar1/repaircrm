@@ -6,7 +6,8 @@ import { useActionState } from "react";
 import { AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -147,9 +148,7 @@ export function ScheduleForm({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Schedule details</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.recurring} title="Schedule details" />
         <CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Schedule name</Label>
@@ -269,9 +268,7 @@ export function ScheduleForm({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>What happens on each run</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.automation} title="What happens on each run" />
         <CardContent className="flex flex-col gap-4">
           <ToggleRow
             id="autoSend"
@@ -296,9 +293,7 @@ export function ScheduleForm({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>What gets billed each time</CardTitle>
-        </CardHeader>
+        <CardHeader icon={ICONS.checklist} title="What gets billed each time" />
         <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}
@@ -311,10 +306,12 @@ export function ScheduleForm({
 
       <div className="flex items-center justify-end gap-3">
         <Button variant="outline" size="lg" asChild>
-          <Link href={cancelHref}>Cancel</Link>
+          <Link href={cancelHref}>
+            <ACTIONS.cancel /> Cancel
+          </Link>
         </Button>
         <SubmitButton size="lg" pendingLabel="Saving…">
-          {submitLabel}
+          <ACTIONS.save /> {submitLabel}
         </SubmitButton>
       </div>
     </form>

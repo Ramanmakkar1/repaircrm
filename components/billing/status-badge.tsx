@@ -1,118 +1,40 @@
 import * as React from "react";
-import { cn } from "@/components/ui/cn";
+
+import { StatusPill, type StatusTone } from "@/components/ui/badge";
 
 /**
- * Billing documents have their own status vocabularies that do not map cleanly
- * onto the six canonical ticket statuses in components/ui/badge.tsx (an invoice
- * DRAFT is neutral, not "new"; VOID is muted, not "overdue"). So they get their
- * own badge, built from the same design tokens.
+ * Billing documents have their own status vocabularies that do not map onto
+ * the six canonical ticket statuses (an invoice DRAFT is neutral, not "new";
+ * VOID is muted, not "overdue"). What they do share is the app-wide tone
+ * language — so this file owns the *vocabulary* and `StatusPill` owns the
+ * *look*, which is why a PAID invoice and a RECEIVED purchase order are the
+ * same green everywhere.
  */
 
-type Tone = {
-  bg: string;
-  fg: string;
-  dot: string;
+type DocStatusMeta = {
   label: string;
-  /** VOID reads as cancelled — struck through and dimmed. */
-  strike?: boolean;
+  tone: StatusTone;
+  /** VOID reads as called-off — struck through, not shouted about in red. */
+  struck?: boolean;
 };
 
-const INVOICE_TONES: Record<string, Tone> = {
-  DRAFT: {
-    label: "Draft",
-    bg: "bg-surface-hover",
-    fg: "text-muted-foreground",
-    dot: "bg-faint-foreground",
-  },
-  SENT: {
-    label: "Sent",
-    bg: "bg-status-new-bg",
-    fg: "text-status-new-fg",
-    dot: "bg-status-new",
-  },
-  PARTIAL: {
-    label: "Partial",
-    bg: "bg-status-in-progress-bg",
-    fg: "text-status-in-progress-fg",
-    dot: "bg-status-in-progress",
-  },
-  PAID: {
-    label: "Paid",
-    bg: "bg-status-resolved-bg",
-    fg: "text-status-resolved-fg",
-    dot: "bg-status-resolved",
-  },
-  VOID: {
-    label: "Void",
-    bg: "bg-transparent border border-border-strong",
-    fg: "text-faint-foreground",
-    dot: "bg-faint-foreground",
-    strike: true,
-  },
+const INVOICE_TONES: Record<string, DocStatusMeta> = {
+  DRAFT: { label: "Draft", tone: "neutral" },
+  SENT: { label: "Sent", tone: "info" },
+  PARTIAL: { label: "Partial", tone: "active" },
+  PAID: { label: "Paid", tone: "success" },
+  VOID: { label: "Void", tone: "neutral", struck: true },
 };
 
-const ESTIMATE_TONES: Record<string, Tone> = {
-  DRAFT: {
-    label: "Draft",
-    bg: "bg-surface-hover",
-    fg: "text-muted-foreground",
-    dot: "bg-faint-foreground",
-  },
-  SENT: {
-    label: "Sent",
-    bg: "bg-status-new-bg",
-    fg: "text-status-new-fg",
-    dot: "bg-status-new",
-  },
-  APPROVED: {
-    label: "Approved",
-    bg: "bg-status-resolved-bg",
-    fg: "text-status-resolved-fg",
-    dot: "bg-status-resolved",
-  },
-  DECLINED: {
-    label: "Declined",
-    bg: "bg-status-overdue-bg",
-    fg: "text-status-overdue-fg",
-    dot: "bg-status-overdue",
-  },
-  CONVERTED: {
-    label: "Converted",
-    bg: "bg-status-waiting-bg",
-    fg: "text-status-waiting-fg",
-    dot: "bg-status-waiting",
-  },
+const ESTIMATE_TONES: Record<string, DocStatusMeta> = {
+  DRAFT: { label: "Draft", tone: "neutral" },
+  SENT: { label: "Sent", tone: "info" },
+  APPROVED: { label: "Approved", tone: "success" },
+  DECLINED: { label: "Declined", tone: "danger" },
+  CONVERTED: { label: "Converted", tone: "waiting" },
 };
 
-const FALLBACK: Tone = {
-  label: "Unknown",
-  bg: "bg-surface-hover",
-  fg: "text-muted-foreground",
-  dot: "bg-faint-foreground",
-};
-
-function DocBadge({
-  tone,
-  className,
-}: {
-  tone: Tone;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium leading-none",
-        tone.bg,
-        tone.fg,
-        tone.strike && "line-through decoration-1",
-        className,
-      )}
-    >
-      <span className={cn("size-1.5 shrink-0 rounded-full", tone.dot)} />
-      {tone.label}
-    </span>
-  );
-}
+const FALLBACK: DocStatusMeta = { label: "Unknown", tone: "neutral" };
 
 export function InvoiceStatusBadge({
   status,
@@ -121,7 +43,16 @@ export function InvoiceStatusBadge({
   status: string;
   className?: string;
 }) {
-  return <DocBadge tone={INVOICE_TONES[status] ?? FALLBACK} className={className} />;
+  const meta = INVOICE_TONES[status] ?? FALLBACK;
+  return (
+    <StatusPill
+      size="sm"
+      tone={meta.tone}
+      label={meta.label}
+      struck={meta.struck}
+      className={className}
+    />
+  );
 }
 
 export function EstimateStatusBadge({
@@ -131,7 +62,48 @@ export function EstimateStatusBadge({
   status: string;
   className?: string;
 }) {
-  return <DocBadge tone={ESTIMATE_TONES[status] ?? FALLBACK} className={className} />;
+  const meta = ESTIMATE_TONES[status] ?? FALLBACK;
+  return (
+    <StatusPill
+      size="sm"
+      tone={meta.tone}
+      label={meta.label}
+      struck={meta.struck}
+      className={className}
+    />
+  );
+}
+
+/**
+ * A refund's own life cycle, which is Stripe's rather than the shop's.
+ *
+ * "Completed" renders nothing at all: it is the silent default, and a green
+ * pill on every historical refund would out-shout the two states that actually
+ * need chasing. A failed refund is red because the customer has NOT been paid
+ * back — see `sumRefunds` in refund-math.ts, which excludes it from the money.
+ */
+const REFUND_TONES: Record<string, DocStatusMeta> = {
+  pending: { label: "Waiting on Stripe", tone: "waiting" },
+  failed: { label: "Failed — nothing was returned", tone: "danger" },
+};
+
+export function RefundStatusBadge({
+  status,
+  className,
+}: {
+  status: string | null | undefined;
+  className?: string;
+}) {
+  const meta = status ? REFUND_TONES[status] : undefined;
+  if (!meta) return null;
+  return (
+    <StatusPill
+      size="sm"
+      tone={meta.tone}
+      label={meta.label}
+      className={className}
+    />
+  );
 }
 
 export const INVOICE_STATUSES = ["DRAFT", "SENT", "PARTIAL", "PAID", "VOID"] as const;
@@ -149,6 +121,15 @@ export function invoiceStatusLabel(status: string): string {
 
 export function estimateStatusLabel(status: string): string {
   return (ESTIMATE_TONES[status] ?? FALLBACK).label;
+}
+
+/** The tone a billing status carries, for callers rendering their own chrome. */
+export function invoiceStatusTone(status: string): StatusTone {
+  return (INVOICE_TONES[status] ?? FALLBACK).tone;
+}
+
+export function estimateStatusTone(status: string): StatusTone {
+  return (ESTIMATE_TONES[status] ?? FALLBACK).tone;
 }
 
 /**

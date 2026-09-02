@@ -1,14 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ScrollText } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { loadAuditPageAction } from "@/app/(app)/settings/audit-actions";
 import { formatDateTime } from "@/components/billing/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import {
   AUDIT_ACTION_LABEL,
@@ -26,6 +28,9 @@ import type { TeamMember } from "./types";
  * a legend — who, what, when — with the raw detail folded away behind the row
  * for the rare occasion someone needs it. Fifty at a time, newest first.
  */
+const MoreIcon = ACTIONS.more;
+const FilterIcon = ACTIONS.filter;
+
 export function AuditTab({
   initial,
   members,
@@ -79,7 +84,17 @@ export function AuditTab({
     <div className="flex flex-col gap-5">
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle>Activity</CardTitle>
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden
+              className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-hover text-muted-foreground"
+            >
+              <ICONS.audit className="size-4" />
+            </span>
+            <h3 className="text-base font-bold tracking-tight text-foreground">
+              Activity
+            </h3>
+          </div>
           <div className="flex flex-col gap-3">
             <FilterRow label="Show">
               <Pill
@@ -124,7 +139,7 @@ export function AuditTab({
         <CardContent className="px-0 py-0">
           {rows.length === 0 ? (
             <EmptyState
-              icon={ScrollText}
+              icon={ICONS.audit}
               title={filtered ? "Nothing matches those filters" : "Nothing recorded yet"}
               hint={
                 filtered
@@ -134,7 +149,7 @@ export function AuditTab({
               action={
                 filtered ? (
                   <Button variant="outline" onClick={() => applyFilters("", "")}>
-                    Clear filters
+                    <FilterIcon aria-hidden /> Clear filters
                   </Button>
                 ) : undefined
               }
@@ -152,6 +167,7 @@ export function AuditTab({
       {cursor ? (
         <div className="flex justify-center">
           <Button variant="outline" onClick={loadMore} disabled={busy}>
+            {busy ? <Loader2 className="animate-spin" /> : <MoreIcon aria-hidden />}
             {busy ? "Loading…" : "Load more"}
           </Button>
         </div>
@@ -196,7 +212,7 @@ function Pill({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors",
+        "rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         active
           ? "bg-accent text-accent-foreground shadow-xs"
           : "bg-surface-hover text-muted-foreground hover:text-foreground",
@@ -217,16 +233,16 @@ function AuditEntry({ row }: { row: AuditRow }) {
         <span className="text-[14.5px] font-semibold text-foreground">
           {row.actorName ?? "System"}
         </span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-[12px] font-semibold leading-none",
-            isNotableAction(row.action)
-              ? "bg-destructive-soft text-destructive"
-              : "bg-surface-hover text-muted-foreground",
-          )}
-        >
-          {AUDIT_ACTION_LABEL[row.action] ?? row.action}
-        </span>
+        {/*
+          No dot: a feed of fifty of these reads as one column of bullets
+          otherwise, and the word already carries the whole meaning.
+        */}
+        <StatusPill
+          size="sm"
+          dot={false}
+          tone={isNotableAction(row.action) ? "danger" : "neutral"}
+          label={AUDIT_ACTION_LABEL[row.action] ?? row.action}
+        />
         <span className="ml-auto text-[13px] tabular-nums text-muted-foreground">
           {formatDateTime(row.createdAt)}
         </span>
@@ -241,7 +257,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
-            className="mt-1.5 inline-flex items-center gap-1 text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <ChevronDown
               className={cn("size-3.5 transition-transform", open && "rotate-180")}
@@ -254,13 +270,13 @@ function AuditEntry({ row }: { row: AuditRow }) {
               {row.ip ? (
                 <p>
                   <span className="font-semibold text-foreground">From </span>
-                  {row.ip}
+                  <span className="font-mono">{row.ip}</span>
                 </p>
               ) : null}
               {row.entityId ? (
                 <p className="break-all">
                   <span className="font-semibold text-foreground">Record </span>
-                  {row.entityId}
+                  <span className="font-mono">{row.entityId}</span>
                 </p>
               ) : null}
               {row.meta ? (

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Percent, Plus, Star, Trash2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,7 +10,7 @@ import {
   saveTaxRateAction,
 } from "@/app/(app)/settings/tax-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -21,8 +21,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/components/ui/cn";
 import { formatBps } from "@/lib/money";
 import type { TaxRateOption } from "@/lib/tax";
@@ -39,6 +42,10 @@ import type { TaxRateOption } from "@/lib/tax";
  * HTML, and these rows save one at a time rather than with the rest of the
  * page.
  */
+const AddIcon = ACTIONS.add;
+const DeleteIcon = ACTIONS.delete;
+const SaveIcon = ACTIONS.save;
+
 export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<TaxRateOption | null>(null);
@@ -63,20 +70,36 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
   return (
     <>
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
-          <CardTitle>Tax rates</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={() => setCreating(true)}>
-            <Plus className="size-4" />
-            Add rate
-          </Button>
-        </CardHeader>
+        <CardHeader
+          icon={ICONS.tax}
+          title="Tax rates"
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCreating(true)}
+            >
+              <AddIcon aria-hidden /> Add rate
+            </Button>
+          }
+        />
 
         <CardContent className="flex flex-col gap-4">
           {rates.length === 0 ? (
             <EmptyState
-              icon={Percent}
+              icon={ICONS.tax}
               title="One rate for the whole shop"
               hint="Add a named rate — GST, PST, out-of-state — when different customers are taxed differently. The rate above keeps applying until you do."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreating(true)}
+                >
+                  <AddIcon aria-hidden /> Add rate
+                </Button>
+              }
             />
           ) : (
             <ul className="flex flex-col divide-y divide-border">
@@ -113,24 +136,35 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
                       </span>
                     ) : null}
                     {!rate.active ? (
-                      <span className="shrink-0 rounded-full bg-surface-hover px-2 py-0.5 text-[12px] font-semibold text-muted-foreground">
-                        Inactive
-                      </span>
+                      <StatusPill
+                        size="sm"
+                        dot={false}
+                        tone="neutral"
+                        label="Inactive"
+                        className="shrink-0"
+                      />
                     ) : null}
                   </button>
                   <span className="shrink-0 text-[14.5px] font-semibold tabular-nums text-muted-foreground">
                     {formatBps(rate.rateBps)}
                   </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${rate.name}`}
-                    className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                    onClick={() => setRemoving(rate)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  {/* Icon-only, because it repeats down the list — so it
+                      carries an aria-label and a tooltip both. */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${rate.name}`}
+                        className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
+                        onClick={() => setRemoving(rate)}
+                      >
+                        <DeleteIcon className="size-4" aria-hidden />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete rate</TooltipContent>
+                  </Tooltip>
                 </li>
               ))}
             </ul>
@@ -179,6 +213,7 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
               disabled={busy}
               onClick={() => removing && remove(removing)}
             >
+              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
               {busy ? "Deleting…" : "Delete"}
             </Button>
           </DialogFooter>
@@ -319,6 +354,13 @@ function TaxRateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={busy}>
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : rate ? (
+                <SaveIcon aria-hidden />
+              ) : (
+                <AddIcon aria-hidden />
+              )}
               {busy ? "Saving…" : rate ? "Save changes" : "Add rate"}
             </Button>
           </DialogFooter>

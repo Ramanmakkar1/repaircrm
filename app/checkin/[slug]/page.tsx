@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { db } from "@/lib/db";
@@ -24,10 +25,26 @@ export const dynamic = "force-dynamic";
  * `?kiosk=1` is the counter-tablet mode: bigger targets, no links off the page,
  * and the confirmation clears itself for the next person in the queue.
  */
-export const metadata = {
-  title: "Check in a device",
-  robots: { index: false, follow: false },
-};
+/**
+ * The shop's own name in the tab, because this page is the shop's front
+ * counter, not RepairFlow's. `noindex` stays whatever the slug turns out to be
+ * — an unknown one must not look different from a disabled one.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const shop = await db.shop.findUnique({
+    where: { slug: slug.toLowerCase() },
+    select: { name: true },
+  });
+  return {
+    title: shop ? `Check in a device · ${shop.name}` : "Check in a device",
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function CheckinPage({
   params,

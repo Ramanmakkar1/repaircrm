@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
 import { AlertCircle } from "lucide-react";
 
 import {
@@ -11,6 +10,8 @@ import {
   type CustomerFormState,
 } from "@/app/(app)/customers/actions";
 import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
@@ -327,7 +328,10 @@ export function CustomerForm({
         <Button variant="ghost" asChild>
           <Link href={cancelHref}>Cancel</Link>
         </Button>
-        <SubmitButton>{isEdit ? "Save changes" : "Create customer"}</SubmitButton>
+        <SubmitButton pendingLabel="Saving…">
+          {isEdit ? <ACTIONS.save /> : <ACTIONS.add />}
+          {isEdit ? "Save changes" : "Create customer"}
+        </SubmitButton>
       </div>
     </form>
   );
@@ -392,11 +396,3 @@ function OptIn({
   );
 }
 
-function SubmitButton({ children }: { children: React.ReactNode }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Saving…" : children}
-    </Button>
-  );
-}

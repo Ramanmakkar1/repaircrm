@@ -18,7 +18,10 @@ export function SubmitButton({
 }: ButtonProps & { pendingLabel?: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending || props.disabled} {...props}>
+    // `disabled` after the spread, not before: a caller passing an explicit
+    // `disabled={false}` would otherwise re-enable the button mid-flight and
+    // hand the user a second submit.
+    <Button type="submit" {...props} disabled={pending || props.disabled}>
       {pending ? <Loader2 className="animate-spin" /> : null}
       {pending ? (pendingLabel ?? children) : children}
     </Button>

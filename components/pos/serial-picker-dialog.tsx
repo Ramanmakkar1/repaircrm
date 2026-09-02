@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "lucide-react";
+
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/components/ui/cn";
-import { Hash } from "lucide-react";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import type { PosProduct } from "./types";
 
 /**
@@ -71,14 +71,14 @@ export function SerialPickerDialog({
 
         {available.length === 0 ? (
           <EmptyState
-            icon={Hash}
+            icon={ICONS.serial}
             title="No units available"
             hint="Everything in stock is already in this cart, or there is nothing on the shelf. Receive a purchase order to add more."
           />
         ) : (
           <div className="flex flex-col gap-3">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+              <ACTIONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}

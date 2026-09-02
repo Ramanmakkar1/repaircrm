@@ -22,6 +22,7 @@ import {
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
+import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
@@ -400,6 +401,7 @@ export default async function SettingsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
+        icon={ICONS.settings}
         title="Settings"
         description="Your shop, your team, how you get paid, and everything RepairFlow connects to."
       />
