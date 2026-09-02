@@ -63,6 +63,8 @@ export type TeamMember = {
   lastLoginAt: string | null;
   /** True when the member has an authenticator on their account. */
   twoFactorOn: boolean;
+  /** True when the member signs in with Google. */
+  googleLinked: boolean;
 };
 
 /**

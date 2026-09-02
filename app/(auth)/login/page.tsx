@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { getSession } from "@/lib/auth";
+import { googleConfigured } from "@/lib/google/config";
+import { googleNotice, offersSignup } from "@/lib/google/messages";
+import {
+  AuthDivider,
+  GoogleButton,
+  GoogleNoticeBanner,
+} from "@/components/auth/google-button";
 
 import { LoginForm } from "./login-form";
 
@@ -24,14 +31,15 @@ const NOTICES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; notice?: string }>;
+  searchParams: Promise<{ next?: string; notice?: string; google?: string }>;
 }) {
   const session = await getSession();
   if (session) redirect("/");
 
-  const { next, notice } = await searchParams;
+  const { next, notice, google } = await searchParams;
   const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
   const noticeText = notice ? NOTICES[notice] : undefined;
+  const googleOn = googleConfigured();
 
   return (
     <>
@@ -48,6 +56,31 @@ export default async function LoginPage({
         <p className="mb-5 rounded-md border border-border-strong bg-surface-hover px-4 py-3 text-[14.5px] font-medium text-foreground">
           {noticeText}
         </p>
+      ) : null}
+
+      {/* Whatever the last Google round trip ended as, in one sentence. */}
+      <GoogleNoticeBanner notice={googleNotice(google)}>
+        {offersSignup(google) ? (
+          <>
+            {" "}
+            <Link
+              href="/signup"
+              className="font-semibold underline underline-offset-4"
+            >
+              Create a shop
+            </Link>
+            .
+          </>
+        ) : null}
+      </GoogleNoticeBanner>
+
+      {/* Absent entirely when GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are
+          unset — a button that can only fail is worse than no button. */}
+      {googleOn ? (
+        <>
+          <GoogleButton intent="signin" next={redirectTo} />
+          <AuthDivider />
+        </>
       ) : null}
 
       <LoginForm redirectTo={redirectTo} />

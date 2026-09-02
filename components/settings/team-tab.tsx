@@ -33,10 +33,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ACTIONS } from "@/components/ui/icons";
-import { StatusPill } from "@/components/ui/badge";
+import { Badge, StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
+import { GoogleMark } from "@/components/auth/google-button";
 import { ROLE_BLURB, ROLE_OPTIONS, type TeamMember } from "./types";
 
 /**
@@ -261,6 +262,18 @@ function MemberRow({
             {active ? null : (
               <StatusPill size="sm" dot={false} tone="neutral" label="Deactivated" />
             )}
+            {/* So an owner can see at a glance who signs in with Google. This
+                is provenance, not a status, so it wears the plain Badge rather
+                than a toned StatusPill. */}
+            {member.googleLinked ? (
+              <Badge
+                variant="outline"
+                title="Signs in with Google"
+                className="gap-1 px-2 py-0.5 text-[11.5px] uppercase tracking-wide text-muted-foreground"
+              >
+                <GoogleMark className="size-3" /> Google
+              </Badge>
+            ) : null}
           </div>
           <span className="text-[12.5px] text-muted-foreground">
             {member.lastLoginAt
