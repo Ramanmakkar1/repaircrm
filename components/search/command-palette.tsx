@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ArrowRight, CornerDownLeft, Loader2, type LucideIcon } from "lucide-react";
 
+import { ScanButton } from "@/components/scan/scan-button";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import { ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { NAV_ITEMS } from "@/components/shell/nav-items";
+import { resolveScanAction } from "@/app/(app)/scan/actions";
+import type { ScanResult } from "@/lib/scan/types";
 import type { SearchGroup, SearchResponse, SearchType } from "./types";
 
 /* -------------------------------------------------------------------------- */
@@ -318,6 +321,27 @@ export function CommandPalette({
               aria-activedescendant={rows[active] ? `rf-cmd-${active}` : undefined}
               className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-foreground placeholder:text-faint-foreground outline-none"
             />
+            {/* Scanning anything the shop has printed or stocked — a serial on
+                a handset, a shelf label, the work order stapled to a device —
+                opens that record directly. A code with no exact match falls
+                into the box as a search, which is what ⌘K is for anyway. */}
+            <ScanButton
+              variant="ghost"
+              size="icon"
+              className="size-9"
+              label="Scan a barcode"
+              title="Scan to open a record"
+              description="A serial, a shelf label, or a printed work order."
+              onScan={async (hit) => {
+                const result = await resolveScanAction(hit.value);
+                if (result.kind === "none") {
+                  setQuery(result.value);
+                  return `No exact match — searching for ${result.value}`;
+                }
+                go(result.href);
+                return openedLabel(result);
+              }}
+            />
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -425,6 +449,15 @@ export function CommandPalette({
 }
 
 /* -------------------------------------------------------------------------- */
+
+/** "Opening iPhone 14 Case" — what the scanner shows before it steps aside. */
+function openedLabel(result: Exclude<ScanResult, { kind: "none" }>): string {
+  if (result.kind === "product") return `Opening ${result.product.name}`;
+  if (result.kind === "serial") {
+    return `Opening ${result.serial.productName} · ${result.serial.serial}`;
+  }
+  return `Opening ${result.label}`;
+}
 
 function EmptyState({
   query,

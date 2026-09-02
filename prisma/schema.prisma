@@ -108,6 +108,7 @@ model Shop {
   deposits               Deposit[]
   timeClockEntries       TimeClockEntry[]
   cashDrawerSessions     CashDrawerSession[]
+  scanSessions           ScanSession[]
   id                     String                  @id @default(cuid())
   name                   String
   slug                   String                  @unique
@@ -203,6 +204,7 @@ model User {
   timeClockEntries   TimeClockEntry[]
   drawersOpened      CashDrawerSession[]  @relation("DrawerOpenedBy")
   drawersClosed      CashDrawerSession[]  @relation("DrawerClosedBy")
+  scanSessions       ScanSession[]
   id                 String               @id @default(cuid())
   shopId             String
   email              String               @unique
@@ -1384,4 +1386,65 @@ model CashDrawerSession {
   closedBy      User?     @relation("DrawerClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
 
   @@index([shopId, openedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phone-as-scanner
+// ---------------------------------------------------------------------------
+
+/// A till that has asked a phone to scan on its behalf.
+///
+/// The desktop register creates one of these, prints its `code` as a QR, and
+/// then polls for the events the phone posts into it. The pairing is scoped to
+/// ONE shop and ONE user: the phone must be signed in as the same person who
+/// opened the dialog, so a scan can never cross a tenant or land on a
+/// colleague's till (see lib/db.ts).
+///
+/// `code` is the short pairing string. It is single-use — `pairedAt` is stamped
+/// the first time a phone claims it — and the whole row dies at `expiresAt`,
+/// about half an hour after it was made. Housekeeping sweeps the corpses.
+model ScanSession {
+  id        String    @id @default(cuid())
+  shopId    String
+  userId    String
+  /// Short, unambiguous pairing code (Crockford-ish alphabet, no O/0/I/1).
+  code      String    @unique
+  /// What the phone is feeding, e.g. "Register" — shown on both ends.
+  label     String    @default("Register")
+  /// Stamped when a phone claims the code. A second claim is refused.
+  pairedAt  DateTime?
+  /// Stamped when either end disconnects. An ended session accepts nothing.
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+
+  shop   Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events ScanEvent[]
+
+  @@index([shopId, expiresAt])
+  @@index([userId, createdAt])
+}
+
+/// One barcode the paired phone read.
+///
+/// `seq` is the poll cursor: the till asks for everything after the last `seq`
+/// it consumed, which makes the transport exactly-once without the till having
+/// to acknowledge each row individually. `consumedAt` records that it did.
+model ScanEvent {
+  id         String    @id @default(cuid())
+  seq        Int       @unique @default(autoincrement())
+  sessionId  String
+  /// Denormalised from the session so the tenant filter never needs a join.
+  shopId     String
+  value      String
+  /// The symbology the phone decoded, e.g. "EAN-13". Informational.
+  format     String?
+  createdAt  DateTime  @default(now())
+  consumedAt DateTime?
+
+  session ScanSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, seq])
+  @@index([shopId, createdAt])
 }

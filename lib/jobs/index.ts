@@ -3,7 +3,10 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/engine";
 import { runDueAppointmentRemindersForShop } from "./appointments";
-import { purgeExpiredPortalTokens } from "./housekeeping";
+import {
+  purgeExpiredPortalTokens,
+  purgeExpiredScanSessions,
+} from "./housekeeping";
 import { runIntegrationSyncForShop } from "./integrations";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import { runSlaChecksForShop } from "./sla";
@@ -44,7 +47,8 @@ export { summaryLine };
  *                          the next 24h (lib/jobs/appointments.ts)
  *   7. reviews             the post-pickup review ask, once the shop's delay
  *                          has elapsed (lib/jobs/reviews.ts)
- *   8. housekeeping        drop portal tokens expired for over a week
+ *   8. housekeeping        drop portal tokens expired for over a week, and
+ *                          phone-scanner pairings dead for over a day
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -417,6 +421,7 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
 
   try {
     summary.tokensPurged += await purgeExpiredPortalTokens(shopId);
+    summary.scanSessionsPurged += await purgeExpiredScanSessions(shopId);
   } catch (error) {
     summary.errors.push(`housekeeping: ${message(error)}`);
   }

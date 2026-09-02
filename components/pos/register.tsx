@@ -3,9 +3,14 @@
 import * as React from "react";
 import { AlertCircle } from "lucide-react";
 
-import { ICONS } from "@/components/ui/icons";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { PhoneScanDialog } from "@/components/scan/phone-scan-dialog";
+import { ScanButton } from "@/components/scan/scan-button";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { calcTotals } from "@/lib/money";
+import { normalizeScan, scanCodeVariants } from "@/lib/scan/codes";
+import { resolveScanAction } from "@/app/(app)/scan/actions";
 import { checkoutAction, posTerminalIntentAction } from "@/app/(app)/pos/actions";
 import { CartPanel } from "./cart-panel";
 import { ProductGrid } from "./product-grid";
@@ -47,7 +52,6 @@ export function Register({
   taxRateBps,
   cardReader,
   drawer,
-  scanSlot,
 }: {
   products: PosProduct[];
   customers: PosCustomer[];
@@ -65,12 +69,6 @@ export function Register({
    * ignorant of the till: the register rings sales, the drawer holds money.
    */
   drawer?: React.ReactNode;
-  /**
-   * The camera scan button, rendered beside the search box. Passed down rather
-   * than imported so the register keeps no opinion about how a code is read —
-   * see `ProductGrid`'s `scanSlot` for the slot itself.
-   */
-  scanSlot?: React.ReactNode;
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
@@ -80,6 +78,8 @@ export function Register({
   /** The serialized product waiting on a "which unit?" answer. */
   const [pickingSerial, setPickingSerial] = React.useState<PosProduct | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  /** The "use my phone as a scanner" pairing dialog. */
+  const [phonePairing, setPhonePairing] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
   const scanRef = React.useRef<HTMLInputElement | null>(null);
@@ -155,6 +155,105 @@ export function Register({
       },
     ]);
     scanRef.current?.focus();
+  };
+
+  /**
+   * A scanned code, from the camera button or a paired phone.
+   *
+   * ---------------------------------------------------------------------------
+   * LOCAL FIRST, SERVER SECOND
+   * ---------------------------------------------------------------------------
+   * The whole catalogue is already in memory (the page loaded it), so an exact
+   * UPC or SKU is answered instantly with no round trip — which is the
+   * difference between a scanner that feels like hardware and one that feels
+   * like a web page. Only a code the catalogue does not recognise goes to the
+   * server, where it can still turn out to be a serial number or one of the
+   * shop's own printed work orders.
+   *
+   * A serialized product scanned by its own serial skips the "which unit?"
+   * picker entirely: the barcode already said which one.
+   */
+  const handleScan = async (
+    code: string,
+  ): Promise<{ message: string; matched: boolean }> => {
+    const value = normalizeScan(code);
+    if (!value) return { message: "Nothing to add", matched: false };
+
+    // Both spellings of a retail code, because a UPC-A barcode decodes to its
+    // 13-digit EAN-13 form while the shop typed the 12 printed digits.
+    const codes = scanCodeVariants(value).map((variant) => variant.toLowerCase());
+    const local = products.find(
+      (product) =>
+        (product.upc && codes.includes(product.upc.trim().toLowerCase())) ||
+        (product.sku && codes.includes(product.sku.trim().toLowerCase())),
+    );
+    if (local && !local.serialized) {
+      addProduct(local);
+      return { message: `Added ${local.name}`, matched: true };
+    }
+
+    const result = await resolveScanAction(value);
+
+    if (result.kind === "product") {
+      const product = products.find((row) => row.id === result.product.id);
+      if (!product) {
+        // In the catalogue but not on this register: an inactive product, or
+        // one added since the page loaded.
+        setError(`${result.product.name} is not available on the register.`);
+        return { message: `${result.product.name} is not on the register`, matched: true };
+      }
+      if (product.serialized) {
+        // Tapping the tile opens the "which unit?" picker, but a SCAN must not:
+        // stacking a picker behind the open scanner is a trap, and the unit's
+        // own serial barcode is the answer the picker is asking for anyway.
+        setError(
+          `${product.name} is tracked by serial — scan the unit's serial number.`,
+        );
+        return { message: `Scan the serial on the ${product.name}`, matched: true };
+      }
+      addProduct(product);
+      return { message: `Added ${product.name}`, matched: true };
+    }
+
+    if (result.kind === "serial") {
+      const product = products.find((row) => row.id === result.serial.productId);
+      const unit = product?.serials.find(
+        (row) => row.serial === result.serial.serial,
+      );
+      if (!product || !unit) {
+        const why =
+          result.serial.status === "SOLD"
+            ? "has already been sold"
+            : "is not in stock";
+        setError(`Serial ${result.serial.serial} ${why}.`);
+        return { message: `That unit ${why}`, matched: true };
+      }
+      if (lines.some((line) => line.serial === unit.serial)) {
+        return { message: "That unit is already in the cart", matched: true };
+      }
+      addSerialUnit(product, unit.serial);
+      return { message: `Added ${product.name} · ${unit.serial}`, matched: true };
+    }
+
+    if (result.kind === "ticket") {
+      // Scanning the work order stapled to a device pulls the job onto the sale.
+      const ticket = tickets.find((row) => row.number === result.number);
+      if (!ticket) {
+        setError(`${result.label} has nothing left to bill.`);
+        return { message: "Nothing left to bill on that ticket", matched: true };
+      }
+      addTicket(ticket);
+      return { message: `Added ticket #${ticket.number}`, matched: true };
+    }
+
+    if (result.kind !== "none") {
+      // An invoice, estimate or purchase order is a document, not a line item.
+      setError(`${result.label} is not something the register can add.`);
+      return { message: `${result.label} — not a sale item`, matched: true };
+    }
+
+    setError(`No product matches ${value}.`);
+    return { message: `No product matches ${value}`, matched: false };
   };
 
   const addCustom = (item: {
@@ -388,6 +487,15 @@ export function Register({
         icon={ICONS.pos}
         title="POS"
         description="Ring up walk-in sales at the counter."
+        actions={
+          /* The counter machine usually has no camera. This is the bridge: the
+             phone in your pocket becomes the gun, and what it reads lands in
+             this cart about a second later. */
+          <Button variant="outline" onClick={() => setPhonePairing(true)}>
+            <ACTIONS.scan />
+            Use my phone as a scanner
+          </Button>
+        }
       />
 
       {drawer}
@@ -408,7 +516,28 @@ export function Register({
             products={products}
             onAdd={addProduct}
             inputRef={scanRef}
-            scanSlot={scanSlot}
+            scanSlot={
+              /*
+                The slot ProductGrid keeps to the right of the search box. These
+                shops have no laser guns, so this is THE way to add something —
+                accent-filled rather than an outline, full height beside the
+                field, and icon-only at 390px where the word would eat the
+                search box. `continuous` because a counter sale is a pile of
+                items, not one.
+              */
+              <ScanButton
+                continuous
+                showLabel
+                variant="default"
+                size="lg"
+                className="h-14 shrink-0 gap-2 px-4 sm:px-5"
+                labelClassName="hidden sm:inline"
+                label="Scan"
+                title="Scan into the cart"
+                description="Every code adds a line. Keep scanning until the pile is done."
+                onScan={async (hit) => (await handleScan(hit.value)).message}
+              />
+            }
           />
         </div>
 
@@ -436,6 +565,15 @@ export function Register({
           disabled={pending}
         />
       </div>
+
+      <PhoneScanDialog
+        open={phonePairing}
+        onOpenChange={setPhonePairing}
+        label="the register"
+        onScan={(value) => {
+          void handleScan(value);
+        }}
+      />
 
       <SerialPickerDialog
         product={pickingSerial}

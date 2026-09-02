@@ -33,6 +33,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 import { parseSerialList } from "@/lib/serials";
 import { STOCK_REASONS, signedQty } from "./format";
+import { SerialScanField } from "./serial-scan-field";
 
 type Mode = "delta" | "count";
 type Direction = "add" | "remove";
@@ -199,26 +200,22 @@ export function AdjustStockDialog({
 
           {serialized ? (
             direction === "add" ? (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="stock-serials">Serial numbers — one per line</Label>
-                <Textarea
-                  id="stock-serials"
-                  name="serials"
-                  rows={5}
-                  autoFocus
-                  value={pasted}
-                  onChange={(event) => setPasted(event.target.value)}
-                  placeholder={"SN-0001\nSN-0002"}
-                  className="font-mono text-[13px]"
-                />
-                <p className="text-[13px] text-muted-foreground tabular-nums">
-                  {stockQty} →{" "}
-                  <strong className="font-semibold text-foreground">
-                    {stockQty + parseSerialList(pasted).length}
-                  </strong>{" "}
-                  ({signedQty(parseSerialList(pasted).length)})
-                </p>
-              </div>
+              <SerialScanField
+                id="stock-serials"
+                name="serials"
+                autoFocus
+                value={pasted}
+                onChange={setPasted}
+                hint={
+                  <p className="text-[13px] text-muted-foreground tabular-nums">
+                    {stockQty} →{" "}
+                    <strong className="font-semibold text-foreground">
+                      {stockQty + parseSerialList(pasted).length}
+                    </strong>{" "}
+                    ({signedQty(parseSerialList(pasted).length)})
+                  </p>
+                }
+              />
             ) : (
               <div className="flex flex-col gap-2">
                 <Label>Which units left the shelf?</Label>

@@ -46,3 +46,6 @@ next-env.d.ts
 # user uploads are data, not code
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# barcode fixtures written by scripts/dev/make-test-barcodes.mjs
+/scripts/dev/barcodes/

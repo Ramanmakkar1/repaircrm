@@ -305,7 +305,10 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
         {summary.sla?.breached ?? 0} overdue ticket
         {(summary.sla?.breached ?? 0) === 1 ? "" : "s"} flagged ·{" "}
         {summary.tokensPurged} expired portal link
-        {summary.tokensPurged === 1 ? "" : "s"} cleaned up · took {summary.ms}ms
+        {summary.tokensPurged === 1 ? "" : "s"} and{" "}
+        {summary.scanSessionsPurged ?? 0} phone pairing
+        {(summary.scanSessionsPurged ?? 0) === 1 ? "" : "s"} cleaned up · took{" "}
+        {summary.ms}ms
       </p>
 
       {summary.errors.length > 0 ? (

@@ -3,6 +3,7 @@
 import * as React from "react";
 
 
+import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,7 +27,10 @@ import type { PosProduct } from "./types";
  * moment such a tile is tapped and stays out of the way otherwise.
  *
  * The list is searchable because a shelf of forty refurbs is a scroll, and the
- * cashier is usually reading the last four digits off the label.
+ * cashier is usually reading the last four digits off the label — and it is
+ * scannable, because the serial is printed as a barcode on most of them and
+ * reading it with the camera is the one way to be certain the right handset
+ * left the shop.
  */
 export function SerialPickerDialog({
   product,
@@ -77,15 +81,36 @@ export function SerialPickerDialog({
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <div className="relative">
-              <ACTIONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search serial…"
-                aria-label="Search serial numbers"
-                autoFocus
-                className="pl-11 font-mono"
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <ACTIONS.search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-faint-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search serial…"
+                  aria-label="Search serial numbers"
+                  autoFocus
+                  className="pl-11 font-mono"
+                />
+              </div>
+              <ScanButton
+                label="Scan this unit's serial"
+                title="Scan the unit"
+                description="Read the serial off the handset or its box."
+                onScan={(hit) => {
+                  const scanned = hit.value.trim().toLowerCase();
+                  const unit = available.find(
+                    (row) => row.serial.toLowerCase() === scanned,
+                  );
+                  if (!unit) {
+                    // Not on this shelf: leave it in the box as a search so a
+                    // partial match still narrows the list.
+                    setQuery(hit.value);
+                    return `${hit.value} is not in stock for this product`;
+                  }
+                  onPick(unit.serial);
+                  return `Picked ${unit.serial}`;
+                }}
               />
             </div>
 

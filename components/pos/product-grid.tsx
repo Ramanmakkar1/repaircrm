@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { PackageSearch } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { ACTIONS } from "@/components/ui/icons";
 import { EmptyState } from "@/components/ui/empty-state";
+import { looksLikeUpc } from "@/lib/scan/codes";
 import { formatCents } from "@/lib/money";
 import { tracksStock, type PosProduct } from "./types";
 
@@ -36,6 +38,12 @@ function matchesCode(product: PosProduct, code: string): boolean {
  * scan works even while a category filter is on), then a sole surviving search
  * result. Anything else leaves the text in place as a filter — a half-typed
  * product name should narrow the grid, not throw the input away.
+ *
+ * The camera button beside it is the same thing for a shop with no gun: it
+ * stays open in continuous mode, so scanning five boxes puts five lines in the
+ * cart without anyone touching the screen. It hides itself on a machine with no
+ * camera (see components/scan/scan-button.tsx) — that till uses the phone
+ * instead, from the button in the cart panel's header.
  */
 export function ProductGrid({
   products,
@@ -45,6 +53,12 @@ export function ProductGrid({
 }: {
   products: PosProduct[];
   onAdd: (product: PosProduct) => void;
+  /**
+   * Handles a scanned code — from the camera or a paired phone. `message` is
+   * the one line to show for it ("Added iPhone 14 Case", or why not); `matched`
+   * is false when nothing in the shop answers to that code, which is what puts
+   * the "create a product for it" shortcut on screen.
+   */
   inputRef: React.RefObject<HTMLInputElement | null>;
   /**
    * THE CAMERA SCAN BUTTON GOES HERE.
@@ -147,8 +161,21 @@ export function ProductGrid({
         {scanSlot}
         </div>
         {miss ? (
-          <p role="status" className="mt-2 pl-1 text-[13px] font-medium text-destructive">
-            Nothing in the catalogue matches “{miss}”.
+          <p
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-1 text-[13px] font-medium text-destructive"
+          >
+            No product matches “{miss}”.
+            {/* The shortcut that turns a dead end into a task: a code that
+                scanned cleanly but is not in the catalogue almost always means
+                the product has not been added yet. */}
+            <Link
+              href={`/inventory/new?${looksLikeUpc(miss) ? "upc" : "sku"}=${encodeURIComponent(miss)}`}
+              className="inline-flex items-center gap-1 font-semibold text-accent-soft-foreground underline-offset-2 hover:underline"
+            >
+              <ACTIONS.add className="size-3.5" />
+              Create product with this {looksLikeUpc(miss) ? "UPC" : "code"}
+            </Link>
           </p>
         ) : null}
       </form>
