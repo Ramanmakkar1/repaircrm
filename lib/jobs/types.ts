@@ -42,6 +42,8 @@ export type JobsSummary = {
   campaigns: { queued: number; sent: number; failed: number };
   /** Tickets newly stamped as past due, and alerts actually delivered. */
   sla: { breached: number; notified: number };
+  /** Outbound webhook deliveries attempted this pass (lib/jobs/webhooks.ts). */
+  webhooks: { delivered: number; failed: number };
   tokensPurged: number;
   /**
    * One line per failure, already prefixed with the shop it came from. A run
@@ -80,6 +82,7 @@ export function emptySummary(source: JobSource): JobsSummary {
     charges: { attempted: 0, succeeded: 0, failed: 0 },
     campaigns: { queued: 0, sent: 0, failed: 0 },
     sla: { breached: 0, notified: 0 },
+    webhooks: { delivered: 0, failed: 0 },
     tokensPurged: 0,
     errors: [],
     source,
@@ -101,6 +104,9 @@ export function summaryLine(summary: JobsSummary): string {
     `${summary.campaigns.failed} failed`,
     // Optional-chained: a summary stored by an older build has no `sla` key.
     `${summary.sla?.breached ?? 0} overdue`,
+    // `?? 0` because a summary stored by an older build has no `webhooks` key,
+    // and the settings screen replays those stored blobs verbatim.
+    `${summary.webhooks?.delivered ?? 0} hooks delivered`,
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     `${summary.ms}ms`,
   ].join(", ");

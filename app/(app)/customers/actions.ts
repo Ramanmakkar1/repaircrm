@@ -8,6 +8,7 @@ import { deleteBlockedReason } from "@/components/customers/format";
 import { audit } from "@/lib/audit";
 import { requireRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { emitCustomerEvent } from "@/lib/events";
 
 /**
  * Server actions for the Customers module.
@@ -186,6 +187,8 @@ export async function createCustomerAction(
     },
     select: { id: true },
   });
+
+  await emitCustomerEvent(shopId, "customer.created", customer.id);
 
   revalidatePath("/customers");
   // redirect() throws — must stay outside any try/catch.

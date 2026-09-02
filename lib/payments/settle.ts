@@ -28,9 +28,17 @@
  * has been charged yet. Here the card is already debited. Money that arrived
  * and was not written down is the one outcome with no recovery, so the full
  * amount goes in and the invoice simply settles.
+ *
+ * THE OTHER HALF
+ * --------------
+ * Keyed-in money — the till form and POST /api/v1/payments — goes through
+ * lib/payments/record.ts instead. The two restate the invoice by the identical
+ * rule and emit the identical events; they differ only where "already charged"
+ * changes the answer (overpayment, and the dedupe keys above).
  */
 
 import { db } from "@/lib/db";
+import { emitInvoiceEvent, emitPaymentEvent } from "@/lib/events";
 import { invoiceTotals } from "@/lib/money";
 
 /** Where a Stripe payment came from. Mirrors `Payment.stripeSource`. */
@@ -69,6 +77,25 @@ export type SettleOutcome =
  *   balance after this payment  > 0  →  PARTIAL, paidAt = null
  */
 export async function settleStripePayment(
+  input: SettleInput,
+): Promise<SettleOutcome> {
+  const outcome = await writeStripePayment(input);
+
+  // After the commit, never inside it: a queued webhook for a rolled-back
+  // transaction would announce money that never arrived. Emitted here rather
+  // than in each caller so a card payment announces itself exactly like a
+  // keyed-in one (lib/payments/record.ts does the same).
+  if (outcome.status === "recorded") {
+    await emitPaymentEvent(input.shopId, outcome.paymentId);
+    if (outcome.invoiceStatus === "PAID") {
+      await emitInvoiceEvent(input.shopId, "invoice.paid", input.invoiceId);
+    }
+  }
+
+  return outcome;
+}
+
+async function writeStripePayment(
   input: SettleInput,
 ): Promise<SettleOutcome> {
   const amountCents = Math.round(input.amountCents);

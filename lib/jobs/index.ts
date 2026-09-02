@@ -5,6 +5,7 @@ import { runDueCampaignSends, syncCampaignSends } from "@/app/(app)/marketing/en
 import { purgeExpiredPortalTokens } from "./housekeeping";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import { runSlaChecksForShop } from "./sla";
+import { runDueWebhookDeliveries } from "./webhooks";
 import {
   emptySummary,
   summaryLine,
@@ -19,7 +20,7 @@ export { summaryLine };
 /**
  * The automation runner: the one place that decides what runs unattended.
  *
- * Three jobs, per shop, in this order:
+ * Five jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
  *                          date has arrived, then — only where the schedule
@@ -30,7 +31,9 @@ export { summaryLine };
  *                          those are plain functions taking a shopId)
  *   3. SLA                 stamp every open ticket that has run past its due
  *                          date and alert whoever owns it (lib/jobs/sla.ts)
- *   4. housekeeping        drop portal tokens expired for over a week
+ *   4. webhooks            POST every queued delivery that is due, with
+ *                          signature and backoff (lib/jobs/webhooks.ts)
+ *   5. housekeeping        drop portal tokens expired for over a week
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -350,6 +353,17 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
     }
   } catch (error) {
     summary.errors.push(`sla: ${message(error)}`);
+  }
+
+  try {
+    // Outbound webhooks: drain what emitEvent queued, with their own retries
+    // and backoff. Isolated like everything else — a shop whose endpoint is
+    // down must not stop the next shop's billing.
+    const hooks = await runDueWebhookDeliveries(shopId);
+    summary.webhooks.delivered += hooks.delivered;
+    summary.webhooks.failed += hooks.failed;
+  } catch (error) {
+    summary.errors.push(`webhooks: ${message(error)}`);
   }
 
   try {

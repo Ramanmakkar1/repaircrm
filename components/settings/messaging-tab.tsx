@@ -6,6 +6,7 @@ import { CheckCircle2, CircleAlert, Mail, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { InboundCard } from "./inbound-card";
 import type { MessagingConfig } from "./types";
 
 /**
@@ -48,6 +49,8 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
         envKey="SMS_DRIVER"
         liveValue="twilio"
       />
+
+      <InboundCard config={config.inbound} />
 
       <Card>
         <CardHeader>

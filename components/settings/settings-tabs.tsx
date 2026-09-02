@@ -31,6 +31,8 @@ import type {
   PaymentsTabConfig,
   ShopSettingsValues,
   TeamMember,
+  WebhookDeliveryItem,
+  WebhookItem,
 } from "./types";
 import {
   disconnectStripeAction,
@@ -62,6 +64,8 @@ export function SettingsTabs({
   messaging,
   payments,
   apiKeys,
+  webhooks,
+  webhookDeliveries,
   automation,
   sla,
   checklists,
@@ -85,6 +89,9 @@ export function SettingsTabs({
   payments: PaymentsTabConfig;
   /** Owner-only; empty for everyone else because the query never ran. */
   apiKeys: ApiKeyItem[];
+  /** Owner-only, for the same reason: where this shop's data is sent. */
+  webhooks: WebhookItem[];
+  webhookDeliveries: WebhookDeliveryItem[];
   /** Owner-only; scheduler state and the last automation run. */
   automation: AutomationConfig;
   /** Owner-only; response targets, checklists and the shop's branches. */
@@ -210,7 +217,12 @@ export function SettingsTabs({
 
       {isOwner ? (
         <TabsContent value="api-keys">
-          <ApiKeysTab keys={apiKeys} appUrl={messaging.appUrl} />
+          <ApiKeysTab
+            keys={apiKeys}
+            appUrl={messaging.appUrl}
+            webhooks={webhooks}
+            deliveries={webhookDeliveries}
+          />
         </TabsContent>
       ) : null}
     </Tabs>

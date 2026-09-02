@@ -1,6 +1,7 @@
 import { activeLocations, currentLocationId } from "@/lib/location";
 import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
+import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 
 export default async function AppLayout({
   children,
@@ -25,6 +26,8 @@ export default async function AppLayout({
       locations={locations}
       currentLocationId={locationId}
     >
+      {/* Production only; see the note in the component. */}
+      <RegisterServiceWorker />
       {children}
     </AppShell>
   );

@@ -13,6 +13,7 @@ import { newRecordLocationId, validLocationId } from "@/lib/location";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import { slaDueDate } from "@/lib/sla";
 import { sendEmail, sendSms } from "@/lib/comms";
+import { emitTicketEvent } from "@/lib/events";
 import { withNextNumber } from "@/lib/sequence";
 import { applyTicketDeposits } from "@/lib/deposits";
 import { readLabourSettings } from "@/lib/labour";
@@ -299,6 +300,8 @@ export async function createTicketAction(
     }),
   );
 
+  await emitTicketEvent(shopId, "ticket.created", ticket.id);
+
   revalidatePath("/tickets");
   // redirect() throws to unwind — never put it inside a try/catch.
   redirect(`/tickets/${ticket.id}`);
@@ -447,6 +450,13 @@ export async function postUpdateAction(
       },
     });
   });
+
+  if (statusChanged) {
+    await emitTicketEvent(shopId, "ticket.status_changed", ticket.id);
+    if (isResolved(nextStatus)) {
+      await emitTicketEvent(shopId, "ticket.resolved", ticket.id);
+    }
+  }
 
   // Sending happens AFTER the transaction commits, never inside it: a mail
   // provider timing out must not roll back the status change and the note that

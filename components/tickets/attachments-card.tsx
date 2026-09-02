@@ -40,8 +40,6 @@ export type AttachmentRow = {
   fileName: string;
   mimeType: string;
   sizeBytes: number;
-  /** Public `/uploads/<shopId>/<random>.<ext>` path. */
-  path: string;
   createdAtLabel: string;
   uploaderName: string | null;
   uploadedById: string | null;
@@ -252,18 +250,19 @@ function AttachmentTile({
   return (
     <li className="group relative flex flex-col gap-1.5">
       <a
-        href={attachment.path}
+        href={`/files/${attachment.id}`}
         target="_blank"
         rel="noreferrer"
         title={attachment.fileName}
         className="block overflow-hidden rounded-md border border-border bg-surface-hover transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         {kind === "image" ? (
-          // A plain <img>: these are user uploads on the local filesystem, not
-          // build-time assets, so next/image's optimiser has nothing to add.
+          // A plain <img>: these are session-gated uploads served by a route
+          // handler, not build-time assets, so next/image's optimiser has
+          // nothing to add and could not fetch them anyway.
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={attachment.path}
+            src={`/files/${attachment.id}`}
             alt={attachment.fileName}
             loading="lazy"
             className="h-24 w-full object-cover"
@@ -333,7 +332,7 @@ function DeleteAttachmentButton({ attachment }: { attachment: AttachmentRow }) {
           <DialogTitle>Delete this file?</DialogTitle>
           <DialogDescription>
             {attachment.fileName} will be removed from the ticket and deleted
-            from disk. This can&rsquo;t be undone.
+            from storage. This can&rsquo;t be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

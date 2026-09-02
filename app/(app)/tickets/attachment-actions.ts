@@ -13,7 +13,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/tickets/action-state";
-import { removeUpload } from "./attachment-storage";
+import { removeUpload } from "@/lib/storage";
 
 /**
  * Deletes an attachment: the row first, then the file.
@@ -35,7 +35,13 @@ export async function deleteAttachmentAction(
 
   const attachment = await db.attachment.findFirst({
     where: { id: attachmentId, shopId },
-    select: { id: true, path: true, ticketId: true, uploadedById: true },
+    select: {
+      id: true,
+      path: true,
+      storage: true,
+      ticketId: true,
+      uploadedById: true,
+    },
   });
   if (!attachment) return { error: "That file is already gone." };
 
@@ -44,7 +50,9 @@ export async function deleteAttachmentAction(
   }
 
   await db.attachment.delete({ where: { id: attachment.id } });
-  await removeUpload(shopId, attachment.path);
+  // The row records which driver wrote it, so a file stored on disk
+  // before the bucket was switched on is still deleted from disk.
+  await removeUpload(attachment.storage, attachment.path);
 
   if (attachment.ticketId) revalidatePath(`/tickets/${attachment.ticketId}`);
   return { ok: true };

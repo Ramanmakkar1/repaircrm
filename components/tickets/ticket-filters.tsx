@@ -26,6 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/** Sentinel for the "Needs reply" pill; it rides in `?status=`. */
+export const NEEDS_REPLY_FILTER = "needs-reply";
+
 export type TicketFilterValues = {
   q: string;
   status: string;
@@ -104,6 +107,10 @@ export function TicketFilters({
   const pills: { value: string; label: string }[] = [
     { value: "open", label: "Open jobs" },
     { value: "all", label: "Everything" },
+    // Not a status — a state the shop is in. It sits with the statuses because
+    // "who is waiting on me" is the same kind of question as "what is on the
+    // bench", and a front desk asks it just as often.
+    { value: NEEDS_REPLY_FILTER, label: "Needs reply" },
     ...statuses.map((s) => ({ value: s, label: s })),
   ];
 
@@ -117,7 +124,9 @@ export function TicketFilters({
         {pills.map((pill) => {
           const active = values.status === pill.value;
           const meta =
-            pill.value === "open" || pill.value === "all"
+            pill.value === "open" ||
+            pill.value === "all" ||
+            pill.value === NEEDS_REPLY_FILTER
               ? null
               : STATUS_META[normalizeStatus(pill.value)];
 

@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { estimateMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
+import { emitEstimateEvent } from "@/lib/events";
 import { newRecordLocationId } from "@/lib/location";
 import { calcTotals } from "@/lib/money";
 import { warrantyDaysByProduct } from "@/lib/warranty";
@@ -465,6 +466,8 @@ export async function approveEstimateAction(formData: FormData): Promise<void> {
     data: { status: "APPROVED", approvedAt: new Date() },
   });
 
+  await emitEstimateEvent(shopId, "estimate.approved", estimate.id);
+
   revalidatePath("/estimates");
   revalidatePath(`/estimates/${estimate.id}`);
 }
@@ -503,6 +506,8 @@ export async function approveWithSignatureAction(
     },
   });
 
+  await emitEstimateEvent(shopId, "estimate.approved", estimate.id);
+
   revalidatePath("/estimates");
   revalidatePath(`/estimates/${estimate.id}`);
   return formSuccess();
@@ -522,6 +527,8 @@ export async function declineEstimateAction(formData: FormData): Promise<void> {
     where: { id: estimate.id },
     data: { status: "DECLINED", approvedAt: null },
   });
+
+  await emitEstimateEvent(shopId, "estimate.declined", estimate.id);
 
   revalidatePath("/estimates");
   revalidatePath(`/estimates/${estimate.id}`);

@@ -25,7 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
-import type { ApiKeyItem } from "./types";
+import { WebhooksCard } from "./webhooks-card";
+import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
 
 /**
  * Settings → API keys.
@@ -41,9 +42,13 @@ import type { ApiKeyItem } from "./types";
 export function ApiKeysTab({
   keys,
   appUrl,
+  webhooks,
+  deliveries,
 }: {
   keys: ApiKeyItem[];
   appUrl: string;
+  webhooks: WebhookItem[];
+  deliveries: WebhookDeliveryItem[];
 }) {
   const [creating, setCreating] = React.useState(false);
   const [minted, setMinted] = React.useState<{ key: string; name: string } | null>(
@@ -98,6 +103,8 @@ export function ApiKeysTab({
       </Card>
 
       <UsageCard appUrl={appUrl} />
+
+      <WebhooksCard webhooks={webhooks} deliveries={deliveries} />
 
       <CreateDialog
         open={creating}
@@ -342,7 +349,8 @@ function UsageCard({ appUrl }: { appUrl: string }) {
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
           Send the key as a bearer token. Every response contains only this
-          shop&apos;s data, 50 rows per page.
+          shop&apos;s data, 50 rows per page, and a key acts with owner-level
+          access — it can read, create, update and delete.
         </p>
 
         <pre className="overflow-x-auto rounded-md border border-border bg-surface-hover p-4 text-[12.5px] leading-relaxed text-foreground">
@@ -352,10 +360,33 @@ function UsageCard({ appUrl }: { appUrl: string }) {
 
         <dl className="flex flex-col gap-2 text-[13.5px]">
           <Endpoint method="GET" path="/api/v1/customers?q=nguyen" />
-          <Endpoint method="POST" path="/api/v1/customers" />
+          <Endpoint method="POST · PATCH · DELETE" path="/api/v1/customers" />
           <Endpoint method="GET" path="/api/v1/tickets?status=New" />
-          <Endpoint method="POST" path="/api/v1/tickets" />
+          <Endpoint method="POST · PATCH · DELETE" path="/api/v1/tickets" />
           <Endpoint method="GET" path="/api/v1/invoices?status=SENT" />
+          <Endpoint method="PATCH · DELETE" path="/api/v1/invoices/{id}" />
+          <Endpoint method="GET · POST" path="/api/v1/payments" />
+          <Endpoint method="GET · POST · PATCH" path="/api/v1/estimates" />
+          <Endpoint method="GET · POST · PATCH" path="/api/v1/products" />
+          <Endpoint method="GET · POST · PATCH" path="/api/v1/leads" />
+          <Endpoint method="GET · POST · PATCH" path="/api/v1/appointments" />
+        </dl>
+
+        <dl className="flex flex-col gap-2 border-t border-border pt-4 text-[13.5px]">
+          <Detail term="Paging">
+            <code className="font-mono">?page=2</code>, or follow{" "}
+            <code className="font-mono">next_cursor</code> with{" "}
+            <code className="font-mono">?cursor=…</code> for a stable export.
+          </Detail>
+          <Detail term="Rate limit">
+            600 requests per minute per key. Watch{" "}
+            <code className="font-mono">X-RateLimit-Remaining</code>; a 429
+            carries <code className="font-mono">Retry-After</code>.
+          </Detail>
+          <Detail term="Deleting">
+            An invoice is <strong>voided</strong>, never removed — a numbered
+            document keeps its place in the sequence.
+          </Detail>
         </dl>
 
         <p className="text-[13px] leading-relaxed text-muted-foreground">
@@ -376,11 +407,24 @@ function UsageCard({ appUrl }: { appUrl: string }) {
 function Endpoint({ method, path }: { method: string; path: string }) {
   return (
     <div className="flex items-baseline gap-3">
-      <dt className="w-12 shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
+      <dt className="w-[132px] shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
         {method}
       </dt>
       <dd className="min-w-0 truncate font-mono text-[13px] text-foreground">
         {path}
+      </dd>
+    </div>
+  );
+}
+
+function Detail({ term, children }: { term: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-3">
+      <dt className="w-[132px] shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
+        {term}
+      </dt>
+      <dd className="min-w-0 text-[13px] leading-relaxed text-muted-foreground">
+        {children}
       </dd>
     </div>
   );

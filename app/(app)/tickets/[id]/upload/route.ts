@@ -19,7 +19,7 @@ import { revalidatePath } from "next/cache";
 
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { storeUpload } from "../../attachment-storage";
+import { storeUpload } from "@/lib/storage";
 
 /** Enough for a folder of photos, few enough that one request can't be a flood. */
 const MAX_FILES_PER_REQUEST = 20;
@@ -97,8 +97,8 @@ export async function POST(
       continue;
     }
 
-    // The row is written only after the bytes are safely on disk, so a failed
-    // write can never leave an attachment that renders as a broken image.
+    // The row is written only after the bytes are safely in storage, so a
+    // failed write can never leave an attachment that renders as broken.
     await db.attachment.create({
       data: {
         shopId: session.shopId,
@@ -108,6 +108,9 @@ export async function POST(
         mimeType: stored.upload.mimeType,
         sizeBytes: stored.upload.sizeBytes,
         path: stored.upload.path,
+        // Which driver wrote it. Reads dispatch on this, so a shop can switch
+        // STORAGE_DRIVER without stranding a single existing file.
+        storage: stored.upload.storage,
       },
     });
     uploaded += 1;

@@ -5,6 +5,7 @@ import {
   ArrowRight,
   CalendarClock,
   CircleDollarSign,
+  MessageSquare,
   Receipt,
   Wrench,
   type LucideIcon,
@@ -21,6 +22,8 @@ import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
+import { needsReplyTicketIds } from "@/lib/needs-reply";
+import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -48,51 +51,55 @@ export default async function DashboardPage() {
     monthPayments,
     unpaidCandidates,
     recentTickets,
+    awaitingReply,
   ] = await Promise.all([
-      db.ticket.groupBy({
-        by: ["status"],
-        where: { shopId, ...branch },
-        _count: { _all: true },
-      }),
-      db.ticket.count({
-        where: {
-          shopId,
-          ...branch,
-          status: { not: "Resolved" },
-          dueDate: { gte: startOfDay(now), lte: endOfDay(now) },
-        },
-      }),
-      db.ticket.count({
-        where: {
-          shopId,
-          ...branch,
-          status: { not: "Resolved" },
-          dueDate: { lt: now },
-        },
-      }),
-      db.payment.aggregate({
-        where: {
-          shopId,
-          createdAt: { gte: startOfMonth(now) },
-          ...(branch.locationId ? { invoice: { locationId: branch.locationId } } : {}),
-        },
-        _sum: { amountCents: true },
-      }),
-      db.invoice.findMany({
-        where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } },
-        include: { lines: true, payments: true },
-      }),
-      db.ticket.findMany({
-        where: { shopId, ...branch },
-        orderBy: { updatedAt: "desc" },
-        take: 6,
-        include: {
-          customer: true,
-          assignedTo: true,
-          asset: { select: { type: true, make: true, model: true } },
-        },
-      }),
-    ]);
+    db.ticket.groupBy({
+      by: ["status"],
+      where: { shopId, ...branch },
+      _count: { _all: true },
+    }),
+    db.ticket.count({
+      where: {
+        shopId,
+        ...branch,
+        status: { not: "Resolved" },
+        dueDate: { gte: startOfDay(now), lte: endOfDay(now) },
+      },
+    }),
+    db.ticket.count({
+      where: {
+        shopId,
+        ...branch,
+        status: { not: "Resolved" },
+        dueDate: { lt: now },
+      },
+    }),
+    db.payment.aggregate({
+      where: {
+        shopId,
+        createdAt: { gte: startOfMonth(now) },
+        ...(branch.locationId ? { invoice: { locationId: branch.locationId } } : {}),
+      },
+      _sum: { amountCents: true },
+    }),
+    db.invoice.findMany({
+      where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } },
+      include: { lines: true, payments: true },
+    }),
+    db.ticket.findMany({
+      where: { shopId, ...branch },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      include: {
+        customer: true,
+        assignedTo: true,
+        asset: { select: { type: true, make: true, model: true } },
+      },
+    }),
+    // Customers who wrote in and have not been answered — see
+    // lib/needs-reply.ts for what "answered" means.
+    needsReplyTicketIds(shopId),
+  ]);
 
   const statusCounts = new Map(statusGroups.map((g) => [g.status, g._count._all]));
   const openTickets = statusGroups
@@ -142,6 +149,14 @@ export default async function DashboardPage() {
       tint: "bg-status-overdue-bg text-status-overdue-fg",
     },
     {
+      label: "Customer Replies",
+      value: String(awaitingReply.length),
+      hint: "waiting on an answer",
+      href: `/tickets?status=${NEEDS_REPLY_FILTER}`,
+      icon: MessageSquare,
+      tint: "bg-accent-soft text-accent-soft-foreground",
+    },
+    {
       label: "Unpaid Invoices",
       value: String(unpaidCandidates.length),
       hint: `${formatCents(unpaidBalanceCents)} outstanding`,
@@ -174,8 +189,8 @@ export default async function DashboardPage() {
         }
       />
 
-      {/* The four numbers that answer "how is today going?" */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {/* The six numbers that answer "how is today going?" */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((stat) => (
           <Link
             key={stat.label}

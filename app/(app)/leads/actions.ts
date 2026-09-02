@@ -12,6 +12,7 @@ import type {
 import { splitName, ticketSubjectFromLead } from "@/components/leads/lead-meta";
 import { requireRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { emitLeadEvent } from "@/lib/events";
 import { newRecordLocationId } from "@/lib/location";
 import { slaDueDate } from "@/lib/sla";
 import { withNextNumber } from "@/lib/sequence";
@@ -107,6 +108,8 @@ export async function createLeadAction(
     data: { ...leadData(parsed.data), shopId },
     select: { id: true },
   });
+
+  await emitLeadEvent(shopId, "lead.created", lead.id);
 
   revalidateLead(lead.id);
   // redirect() throws to unwind — never put it inside a try/catch.

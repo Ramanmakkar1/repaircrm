@@ -66,6 +66,12 @@ export type TicketCardData = {
    * it (the landing-page mockup) need not.
    */
   depositCents?: number | null;
+  /**
+   * The customer wrote in and nobody has answered yet — see lib/needs-reply.ts
+   * for the rule. Optional so callers that do not compute it (the dashboard's
+   * recent strip, the landing-page mockup) need not.
+   */
+  needsReply?: boolean;
 };
 
 export function TicketCard({
@@ -111,8 +117,21 @@ export function TicketCard({
       />
 
       <div className="flex items-start justify-between gap-3">
-        <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
-          #{ticket.number}
+        <span className="flex items-center gap-2">
+          <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
+            #{ticket.number}
+          </span>
+          {/* One small blue dot: a customer message is waiting. Deliberately
+              not another chip in the row below — this has to be visible in the
+              half-second someone spends scanning the board. */}
+          {ticket.needsReply ? (
+            <span
+              title="Customer replied — no answer yet"
+              className="size-2.5 shrink-0 rounded-full bg-accent"
+            >
+              <span className="sr-only">Needs reply</span>
+            </span>
+          ) : null}
         </span>
         <StatusBadge status={ticket.status} />
       </div>
