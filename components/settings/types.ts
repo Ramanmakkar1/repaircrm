@@ -59,7 +59,23 @@ export type TeamMember = {
   role: string;
   active: boolean;
   createdAt: string;
+  /** Null means the invite has never been accepted — the row can be re-sent. */
+  lastLoginAt: string | null;
+  /** True when the member has an authenticator on their account. */
+  twoFactorOn: boolean;
 };
+
+/**
+ * What an invite (or a re-sent invite) comes back with.
+ *
+ * `inviteUrl` is only populated when the email driver is "log" — in development
+ * nothing is actually delivered, so the link is handed to the owner to pass on.
+ * With a real provider configured it is null and the link only exists in the
+ * email, which is where it belongs.
+ */
+export type InviteResult =
+  | { ok: true; inviteUrl: string | null; delivery: string }
+  | { ok: false; error: string };
 
 export type CannedResponseItem = {
   id: string;

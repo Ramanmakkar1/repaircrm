@@ -10,16 +10,28 @@ export const metadata: Metadata = {
   title: "Sign in · RepairFlow",
 };
 
+/**
+ * Why the browser was sent back here, in the operator's words. Set by
+ * /session-expired when a session stops being valid mid-visit.
+ */
+const NOTICES: Record<string, string> = {
+  "password-changed":
+    "Your password was changed on another device. Please sign in again.",
+  inactive: "That account is no longer active. Ask the shop owner to re-enable it.",
+  "signed-out": "You've been signed out. Please sign in again.",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; notice?: string }>;
 }) {
   const session = await getSession();
   if (session) redirect("/");
 
-  const { next } = await searchParams;
+  const { next, notice } = await searchParams;
   const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const noticeText = notice ? NOTICES[notice] : undefined;
 
   return (
     <>
@@ -32,9 +44,24 @@ export default async function LoginPage({
         </p>
       </div>
 
+      {noticeText ? (
+        <p className="mb-5 rounded-md border border-border-strong bg-surface-hover px-4 py-3 text-[14.5px] font-medium text-foreground">
+          {noticeText}
+        </p>
+      ) : null}
+
       <LoginForm redirectTo={redirectTo} />
 
-      <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
+      <p className="mt-6 text-center text-[14.5px]">
+        <Link
+          href="/forgot-password"
+          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
+        >
+          Forgot password?
+        </Link>
+      </p>
+
+      <p className="mt-4 text-center text-[14.5px] text-muted-foreground">
         New here?{" "}
         <Link
           href="/signup"

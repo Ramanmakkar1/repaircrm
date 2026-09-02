@@ -5,12 +5,16 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeysTab } from "./api-keys-tab";
+import { AuditTab } from "./audit-tab";
 import { AutomationTab, type AutomationConfig } from "./automation-tab";
 import { CannedTab } from "./canned-tab";
 import { MessagingTab } from "./messaging-tab";
+import { ProfileTab } from "./profile-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
+import type { AuditPage } from "./audit-types";
+import type { ProfileValues } from "./profile-types";
 import type {
   ApiKeyItem,
   CannedResponseItem,
@@ -43,6 +47,8 @@ export function SettingsTabs({
   messaging,
   apiKeys,
   automation,
+  profile,
+  auditPage,
 }: {
   role: string;
   currentUserId: string;
@@ -57,6 +63,10 @@ export function SettingsTabs({
   apiKeys: ApiKeyItem[];
   /** Owner-only; scheduler state and the last automation run. */
   automation: AutomationConfig;
+  /** The session user's own account — every role gets this one. */
+  profile: ProfileValues;
+  /** Owner-only; the first page of the audit trail, newest first. */
+  auditPage: AuditPage;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -67,13 +77,18 @@ export function SettingsTabs({
   const tabs = React.useMemo(
     () =>
       [
+        // First for everyone who is not an owner: a technician opening Settings
+        // is nearly always here to change their own password.
+        isOwner ? null : { value: "profile", label: "My profile" },
         isOwner ? { value: "shop", label: "Shop" } : null,
         isOwner ? { value: "workflow", label: "Workflow" } : null,
         { value: "canned", label: "Canned responses" },
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
         isOwner ? { value: "automation", label: "Automation" } : null,
+        isOwner ? { value: "profile", label: "My profile" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
+        isOwner ? { value: "audit", label: "Audit log" } : null,
       ].filter((tab): tab is { value: string; label: string } => tab !== null),
     [isOwner],
   );
@@ -131,6 +146,16 @@ export function SettingsTabs({
       {isOwner ? (
         <TabsContent value="automation">
           <AutomationTab config={automation} />
+        </TabsContent>
+      ) : null}
+
+      <TabsContent value="profile">
+        <ProfileTab profile={profile} />
+      </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="audit">
+          <AuditTab initial={auditPage} members={members} />
         </TabsContent>
       ) : null}
 

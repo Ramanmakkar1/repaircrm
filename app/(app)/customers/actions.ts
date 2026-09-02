@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { deleteBlockedReason } from "@/components/customers/format";
+import { audit } from "@/lib/audit";
 import { requireRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -423,12 +424,14 @@ export async function deleteAssetAction(assetId: string): Promise<ActionResult> 
 
 export async function deleteCustomerAction(customerId: string): Promise<ActionResult> {
   // Hard role guard — redirects a non-owner rather than deleting.
-  const { shopId } = await requireRole("OWNER");
+  const { shopId, userId } = await requireRole("OWNER");
 
   const customer = await db.customer.findFirst({
     where: { id: customerId, shopId },
     select: {
       id: true,
+      firstName: true,
+      lastName: true,
       _count: { select: { tickets: true, invoices: true, estimates: true } },
     },
   });
@@ -439,6 +442,15 @@ export async function deleteCustomerAction(customerId: string): Promise<ActionRe
 
   // Contacts, assets, attachments, comms and portal tokens cascade from Customer.
   await db.customer.delete({ where: { id: customerId } });
+
+  await audit({
+    shopId,
+    userId,
+    action: "customer.deleted",
+    entity: "customer",
+    entityId: customerId,
+    summary: `Deleted customer ${customer.firstName} ${customer.lastName}`,
+  });
 
   revalidatePath("/customers");
   return { ok: true };

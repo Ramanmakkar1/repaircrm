@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { sendEmail, sendSms } from "@/lib/comms";
 import { withNextNumber } from "@/lib/sequence";
@@ -241,12 +242,27 @@ export async function updateTicketAction(
 
 /** OWNER only — a tech deleting a job would take its charges and time with it. */
 export async function deleteTicketAction(ticketId: string): Promise<void> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   if (role !== "OWNER") return;
+
+  // Read the number before the row goes, so the audit line means something.
+  const doomed = await db.ticket.findFirst({
+    where: { id: ticketId, shopId },
+    select: { number: true },
+  });
 
   // deleteMany doubles as the ownership check: a foreign id matches 0 rows.
   const { count } = await db.ticket.deleteMany({ where: { id: ticketId, shopId } });
   if (count === 0) return;
+
+  await audit({
+    shopId,
+    userId,
+    action: "ticket.deleted",
+    entity: "ticket",
+    entityId: ticketId,
+    summary: `Deleted ticket #${doomed?.number ?? "?"}`,
+  });
 
   revalidatePath("/tickets");
   redirect("/tickets");

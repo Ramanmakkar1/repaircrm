@@ -4,13 +4,23 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import crypto from "node:crypto";
+
+import { audit } from "@/lib/audit";
 import { hashPassword, requireUser } from "@/lib/auth";
+import { emailDriverName } from "@/lib/comms/config";
 import { db } from "@/lib/db";
 import { parseBps } from "@/lib/money";
+import {
+  INVITE_TTL_MS,
+  issueResetToken,
+  sendInviteEmail,
+} from "@/lib/password-reset";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import {
   settingsError,
   settingsSuccess,
+  type InviteResult,
   type SettingsFormState,
   type SettingsResult,
 } from "@/components/settings/types";
@@ -106,6 +116,16 @@ export async function updateShopAction(
     },
   });
 
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "settings.updated",
+    entity: "settings",
+    entityId: session.shopId,
+    summary: "Shop details and billing defaults saved",
+    meta: { section: "shop", taxRateBps },
+  });
+
   // The shop block appears on every printed document and the app shell.
   revalidatePath("/", "layout");
   return settingsSuccess("Shop details saved.");
@@ -186,6 +206,20 @@ export async function updateWorkflowAction(input: {
   await db.shop.update({
     where: { id: session.shopId },
     data: { settings: mergeSettings(shop.settings, { problemTypes, ticketStatuses }) },
+  });
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "settings.updated",
+    entity: "settings",
+    entityId: session.shopId,
+    summary: "Problem types and ticket statuses saved",
+    meta: {
+      section: "workflow",
+      problemTypes: problemTypes.length,
+      ticketStatuses: ticketStatuses.length,
+    },
   });
 
   // Both lists feed the ticket pickers and the board columns.
@@ -275,12 +309,23 @@ async function isLastActiveOwner(shopId: string, userId: string): Promise<boolea
   return others === 0;
 }
 
+/**
+ * Sends an invite. The owner never types, sees or stores a password.
+ *
+ * The account is created with a random hash nobody knows — literally unusable —
+ * plus `mustChangePassword`, and a 72-hour set-your-password link goes out by
+ * email. That is the whole point: a "temporary password" passed across a
+ * counter is a password two people know, and it usually stays in place.
+ *
+ * When the email driver is "log" (development, or a deploy with no provider
+ * configured) nothing is really delivered, so the link comes back to the owner
+ * to hand over. With a real provider it stays in the email.
+ */
 export async function inviteUserAction(input: {
   name: string;
   email: string;
-  password: string;
   role: string;
-}): Promise<SettingsResult> {
+}): Promise<InviteResult> {
   const { session, denied } = await ownerOnly();
   if (denied) return { ok: false, error: denied };
 
@@ -297,10 +342,6 @@ export async function inviteUserAction(input: {
     return { ok: false, error: "Enter a valid email address." };
   }
 
-  if (input.password.length < 8) {
-    return { ok: false, error: "The temporary password must be at least 8 characters." };
-  }
-
   const role = asRole(input.role);
   if (!role) return { ok: false, error: "Pick a role." };
 
@@ -314,15 +355,20 @@ export async function inviteUserAction(input: {
     return { ok: false, error: "An account with that email already exists." };
   }
 
+  let user: { id: string; name: string; email: string };
   try {
-    await db.user.create({
+    user = await db.user.create({
       data: {
         shopId: session.shopId,
         email: parsedEmail.data,
-        passwordHash: await hashPassword(input.password),
+        // 32 random bytes, hashed and immediately forgotten. Nothing can match
+        // it, so the only way in is the emailed link.
+        passwordHash: await hashPassword(crypto.randomBytes(32).toString("hex")),
         name,
         role,
+        mustChangePassword: true,
       },
+      select: { id: true, name: true, email: true },
     });
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") {
@@ -330,6 +376,128 @@ export async function inviteUserAction(input: {
     }
     throw error;
   }
+
+  const delivered = await deliverInvite(session.shopId, user);
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "user.invited",
+    entity: "user",
+    entityId: user.id,
+    summary: `Invited ${user.name} (${user.email}) as ${role}`,
+    meta: { role, delivery: delivered.delivery },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, inviteUrl: delivered.inviteUrl, delivery: delivered.delivery };
+}
+
+/**
+ * Re-sends the set-your-password link, for someone who has never signed in.
+ *
+ * Refused once `lastLoginAt` is set: after that the person has a password of
+ * their own, and an owner minting a fresh link for a working account is a
+ * takeover, not an invite. They use "Forgot password?" like everyone else.
+ */
+export async function resendInviteAction(userId: string): Promise<InviteResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const user = await db.user.findFirst({
+    where: { id: userId, shopId: session.shopId },
+    select: { id: true, name: true, email: true, active: true, lastLoginAt: true },
+  });
+  if (!user) return { ok: false, error: "That user no longer exists." };
+  if (!user.active) {
+    return { ok: false, error: "Reactivate the account before resending an invite." };
+  }
+  if (user.lastLoginAt) {
+    return {
+      ok: false,
+      error: "They've already signed in — ask them to use \u201cForgot password?\u201d.",
+    };
+  }
+
+  // Back to square one: the old link stops working the moment a new one exists.
+  await db.user.update({
+    where: { id: user.id },
+    data: { mustChangePassword: true },
+  });
+
+  const delivered = await deliverInvite(session.shopId, user);
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "user.invited",
+    entity: "user",
+    entityId: user.id,
+    summary: `Re-sent the invite for ${user.name} (${user.email})`,
+    meta: { resend: true, delivery: delivered.delivery },
+  });
+
+  revalidatePath("/settings");
+  return { ok: true, inviteUrl: delivered.inviteUrl, delivery: delivered.delivery };
+}
+
+/** Mints the 72-hour link and mails it. Shared by invite and resend. */
+async function deliverInvite(
+  shopId: string,
+  user: { id: string; name: string; email: string },
+): Promise<{ inviteUrl: string | null; delivery: string }> {
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { name: true },
+  });
+
+  const issued = await issueResetToken(user.id, INVITE_TTL_MS);
+  const delivery = await sendInviteEmail({
+    to: user.email,
+    name: user.name,
+    shopName: shop?.name ?? "RepairFlow",
+    url: issued.url,
+  });
+
+  return {
+    inviteUrl: emailDriverName() === "log" ? issued.url : null,
+    delivery,
+  };
+}
+
+/**
+ * Clears a member's two-step verification — the "I lost my phone and my
+ * recovery codes" button. OWNER only, and it is recorded, because it is the
+ * one way to take a second factor off an account you do not control.
+ */
+export async function resetUserTotpAction(
+  userId: string,
+): Promise<SettingsResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const user = await db.user.findFirst({
+    where: { id: userId, shopId: session.shopId },
+    select: { id: true, name: true, totpEnabledAt: true },
+  });
+  if (!user) return { ok: false, error: "That user no longer exists." };
+  if (!user.totpEnabledAt) {
+    return { ok: false, error: "They don't have two-step verification on." };
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { totpSecret: null, totpEnabledAt: null, totpRecoveryCodes: [] },
+  });
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "user.2fa_reset",
+    entity: "user",
+    entityId: user.id,
+    summary: `Reset two-step verification for ${user.name}`,
+  });
 
   revalidatePath("/settings");
   return { ok: true };
@@ -363,7 +531,21 @@ export async function updateUserRoleAction(
     };
   }
 
-  await db.user.update({ where: { id: user.id }, data: { role: nextRole } });
+  const updated = await db.user.update({
+    where: { id: user.id },
+    data: { role: nextRole },
+    select: { name: true },
+  });
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "user.role_changed",
+    entity: "user",
+    entityId: user.id,
+    summary: `${updated.name} is now ${nextRole}`,
+    meta: { from: user.role, to: nextRole },
+  });
 
   revalidatePath("/settings");
   return { ok: true };
@@ -402,7 +584,20 @@ export async function setUserActiveAction(
     };
   }
 
-  await db.user.update({ where: { id: user.id }, data: { active } });
+  const updated = await db.user.update({
+    where: { id: user.id },
+    data: { active },
+    select: { name: true },
+  });
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: active ? "user.reactivated" : "user.deactivated",
+    entity: "user",
+    entityId: user.id,
+    summary: `${updated.name} was ${active ? "reactivated" : "deactivated"}`,
+  });
 
   revalidatePath("/settings");
   return { ok: true };

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mintApiKey } from "@/lib/api-key";
@@ -98,6 +99,15 @@ export async function createApiKeyAction(
       },
     });
 
+    await audit({
+      shopId: session.shopId,
+      userId: session.userId,
+      action: "api_key.created",
+      entity: "api_key",
+      entityId: row.id,
+      summary: `Created API key "${row.name}" (${row.prefix}\u2026)`,
+    });
+
     revalidatePath("/settings");
     return { ok: true, key: minted.key, item: toItem(row) };
   } catch {
@@ -130,6 +140,15 @@ export async function setApiKeyActiveAction(
   if (result.count === 0) {
     return { ok: false, error: "That key no longer exists." };
   }
+
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: active ? "api_key.created" : "api_key.revoked",
+    entity: "api_key",
+    entityId: keyId,
+    summary: active ? "Re-enabled an API key" : "Revoked an API key",
+  });
 
   revalidatePath("/settings");
   return { ok: true };

@@ -23,11 +23,26 @@ export type SessionUser = {
   role: SessionRole;
   name: string;
   email: string;
+  /**
+   * Password version: `User.passwordChangedAt` as epoch seconds, or 0 when the
+   * password has never been changed. The (app) layout compares it against the
+   * database on every request, so changing a password logs every other browser
+   * out without keeping server-side session state (see lib/session-guard.ts).
+   */
+  pv?: number;
 };
 
 const ROLES: readonly SessionRole[] = ["OWNER", "TECH", "FRONT_DESK"];
 
-function secretKey(): Uint8Array {
+/**
+ * The HS256 key for every token this app signs.
+ *
+ * Exported because the short-lived "password accepted, 2FA still pending"
+ * token (lib/pending-2fa.ts) is signed with the same secret — it carries a
+ * distinct `kind` claim and a distinct cookie name, so the two can never be
+ * mistaken for one another.
+ */
+export function authSecretKey(): Uint8Array {
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
     throw new Error(
@@ -36,6 +51,8 @@ function secretKey(): Uint8Array {
   }
   return new TextEncoder().encode(secret);
 }
+
+const secretKey = authSecretKey;
 
 export async function signSession(user: SessionUser): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
@@ -55,7 +72,7 @@ export async function verifySession(
     const { payload } = await jwtVerify(token, secretKey(), {
       algorithms: ["HS256"],
     });
-    const { userId, shopId, role, name, email } = payload as Record<
+    const { userId, shopId, role, name, email, pv } = payload as Record<
       string,
       unknown
     >;
@@ -69,7 +86,14 @@ export async function verifySession(
     ) {
       return null;
     }
-    return { userId, shopId, role: role as SessionRole, name, email };
+    return {
+      userId,
+      shopId,
+      role: role as SessionRole,
+      name,
+      email,
+      pv: typeof pv === "number" ? pv : 0,
+    };
   } catch {
     // Expired, tampered with, or signed by a different AUTH_SECRET.
     return null;

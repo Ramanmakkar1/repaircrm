@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
@@ -482,6 +483,16 @@ export async function refundInvoiceAction(
     );
   }
 
+  await audit({
+    shopId,
+    userId,
+    action: "invoice.refunded",
+    entity: "invoice",
+    entityId: invoice.id,
+    summary: `Refunded ${formatCents(amountCents)} on an invoice`,
+    meta: { method, amountCents, reason },
+  });
+
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${invoice.id}`);
   revalidatePath(`/customers/${invoice.customerId}`);
@@ -520,13 +531,18 @@ export async function markInvoiceSentAction(formData: FormData): Promise<void> {
 
 export async function voidInvoiceAction(formData: FormData): Promise<void> {
   // Voiding erases a receivable, so it is an owner-level act.
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   if (role !== "OWNER") return;
 
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
-    select: { id: true, status: true, _count: { select: { payments: true } } },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      _count: { select: { payments: true } },
+    },
   });
   if (!invoice) return;
   // Money has changed hands — voiding would orphan the payment history.
@@ -536,6 +552,15 @@ export async function voidInvoiceAction(formData: FormData): Promise<void> {
   await db.invoice.update({
     where: { id: invoice.id },
     data: { status: "VOID", paidAt: null },
+  });
+
+  await audit({
+    shopId,
+    userId,
+    action: "invoice.voided",
+    entity: "invoice",
+    entityId: invoice.id,
+    summary: `Voided invoice #${invoice.number}`,
   });
 
   revalidatePath("/invoices");
