@@ -39,9 +39,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { parseSerialList } from "@/lib/serials";
 import { SERIAL_STATUS_META } from "./purchasing";
+import { SerialScanField } from "./serial-scan-field";
 
 /** One physical unit, flattened for the client (dates pre-formatted). */
 export type SerialRow = {
@@ -269,8 +269,8 @@ function AddSerialsDialog({ productId }: { productId: string }) {
         <DialogHeader>
           <DialogTitle>Add serial numbers</DialogTitle>
           <DialogDescription>
-            One per line. Each becomes a unit in stock, and the total is recorded
-            as a stock adjustment.
+            Scan them one after another, or paste a packing slip. Each becomes a
+            unit in stock, and the total is recorded as a stock adjustment.
           </DialogDescription>
         </DialogHeader>
 
@@ -281,22 +281,20 @@ function AddSerialsDialog({ productId }: { productId: string }) {
             </p>
           ) : null}
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="add-serials">Serial numbers</Label>
-            <Textarea
-              id="add-serials"
-              name="serials"
-              rows={6}
-              autoFocus
-              value={pasted}
-              onChange={(event) => setPasted(event.target.value)}
-              placeholder={"SN-0001\nSN-0002\nSN-0003"}
-              className="font-mono text-[13px]"
-            />
-            <p className="text-[13px] text-muted-foreground tabular-nums">
-              {count} unit{count === 1 ? "" : "s"} will be added.
-            </p>
-          </div>
+          <SerialScanField
+            id="add-serials"
+            name="serials"
+            label="Serial numbers"
+            rows={6}
+            autoFocus
+            value={pasted}
+            onChange={setPasted}
+            hint={
+              <p className="text-[13px] text-muted-foreground tabular-nums">
+                {count} unit{count === 1 ? "" : "s"} will be added.
+              </p>
+            }
+          />
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="add-serials-note">Note</Label>

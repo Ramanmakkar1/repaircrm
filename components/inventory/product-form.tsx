@@ -10,6 +10,7 @@ import {
   updateProductAction,
   type ProductFormState,
 } from "@/app/(app)/inventory/actions";
+import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
@@ -77,12 +78,22 @@ type Values = Record<TextKey, string> & {
 const dollars = (cents: number | null | undefined) =>
   cents == null ? "" : (cents / 100).toFixed(2);
 
-function initialValues(product?: ProductFormValues | null): Values {
+/**
+ * A brand new product can arrive pre-seeded with a code — that is what the
+ * register's "Create product with this UPC" shortcut does when a scan finds
+ * nothing, so the number never has to be typed twice.
+ */
+export type ProductFormDefaults = { sku?: string; upc?: string };
+
+function initialValues(
+  product?: ProductFormValues | null,
+  defaults?: ProductFormDefaults,
+): Values {
   return {
     name: product?.name ?? "",
     category: product?.category ?? "",
-    sku: product?.sku ?? "",
-    upc: product?.upc ?? "",
+    sku: product?.sku ?? defaults?.sku ?? "",
+    upc: product?.upc ?? defaults?.upc ?? "",
     description: product?.description ?? "",
     price: product ? dollars(product.priceCents) : "",
     cost: dollars(product?.costCents),
@@ -116,19 +127,24 @@ export function ProductForm({
   product,
   vendors,
   canSeeCost,
+  defaults,
 }: {
   product?: ProductFormValues | null;
   /** Suppliers this product can be bought from. */
   vendors: VendorOption[];
   /** Cost is owner-only; a non-owner never sees or submits it. */
   canSeeCost: boolean;
+  /** Codes to start a NEW product with, e.g. a UPC that just failed to scan. */
+  defaults?: ProductFormDefaults;
 }) {
   const isEdit = Boolean(product);
   const [state, formAction] = React.useActionState<ProductFormState, FormData>(
     isEdit ? updateProductAction : createProductAction,
     undefined,
   );
-  const [values, setValues] = React.useState<Values>(() => initialValues(product));
+  const [values, setValues] = React.useState<Values>(() =>
+    initialValues(product, defaults),
+  );
   const [confirmed, setConfirmed] = React.useState(false);
 
   // Turning serial tracking ON for a product that already has stock is the one
@@ -211,12 +227,23 @@ export function ProductForm({
             error={errors.sku}
             hint="Your own part number. Printed as the label barcode."
           >
-            <Input
-              {...field("sku")}
-              className="font-mono uppercase"
-              placeholder="SCR-IP14"
-              aria-invalid={Boolean(errors.sku)}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                {...field("sku")}
+                className="font-mono uppercase"
+                placeholder="SCR-IP14"
+                aria-invalid={Boolean(errors.sku)}
+              />
+              <ScanButton
+                label="Scan a SKU"
+                title="Scan into SKU"
+                description="Point at the part's own barcode."
+                onScan={(hit) => {
+                  set("sku", hit.value);
+                  return `SKU set to ${hit.value}`;
+                }}
+              />
+            </div>
           </Field>
 
           <Field
@@ -225,12 +252,24 @@ export function ProductForm({
             error={errors.upc}
             hint="The manufacturer's barcode, if the part carries one."
           >
-            <Input
-              {...field("upc")}
-              className="font-mono"
-              inputMode="numeric"
-              placeholder="0810001100011"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                {...field("upc")}
+                className="font-mono"
+                inputMode="numeric"
+                placeholder="0810001100011"
+                aria-invalid={Boolean(errors.upc)}
+              />
+              <ScanButton
+                label="Scan a UPC"
+                title="Scan into UPC"
+                description="Point at the manufacturer's barcode on the box."
+                onScan={(hit) => {
+                  set("upc", hit.value);
+                  return `UPC set to ${hit.value}`;
+                }}
+              />
+            </div>
           </Field>
 
           <Field
@@ -391,11 +430,22 @@ export function ProductForm({
             error={errors.vendorSku}
             hint="Their part number — printed on the purchase order they read."
           >
-            <Input
-              {...field("vendorSku")}
-              className="font-mono"
-              placeholder="MS-IP14-OLED"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                {...field("vendorSku")}
+                className="font-mono"
+                placeholder="MS-IP14-OLED"
+              />
+              <ScanButton
+                label="Scan the vendor's code"
+                title="Scan into vendor SKU"
+                description="Point at the code on the supplier's packaging."
+                onScan={(hit) => {
+                  set("vendorSku", hit.value);
+                  return `Vendor SKU set to ${hit.value}`;
+                }}
+              />
+            </div>
           </Field>
 
           <Field

@@ -9,8 +9,21 @@ import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "New product · RepairFlow" };
 
-export default async function NewProductPage() {
+/**
+ * `?upc=` / `?sku=` seed the form.
+ *
+ * That is the register's "No product matches 0123456789012 — create one"
+ * shortcut arriving: the code scanned cleanly, it just is not in the catalogue
+ * yet, and retyping twelve digits is exactly the work the camera was supposed
+ * to remove. Both are trimmed and capped; they are only ever form values.
+ */
+export default async function NewProductPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upc?: string; sku?: string }>;
+}) {
   const { shopId, role } = await requireUser();
+  const seed = await searchParams;
 
   const vendors = await db.vendor.findMany({
     where: { shopId, active: true },
@@ -33,7 +46,14 @@ export default async function NewProductPage() {
         description="Only a name and a price are required — the rest can come later."
       />
 
-      <ProductForm vendors={vendors} canSeeCost={role === "OWNER"} />
+      <ProductForm
+        vendors={vendors}
+        canSeeCost={role === "OWNER"}
+        defaults={{
+          upc: seed.upc?.trim().slice(0, 64),
+          sku: seed.sku?.trim().slice(0, 64),
+        }}
+      />
     </div>
   );
 }

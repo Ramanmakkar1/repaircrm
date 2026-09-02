@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 
+import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -24,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { resolveScanAction } from "@/app/(app)/scan/actions";
 import { FILTERS, FILTER_LABELS, type InventoryFilter } from "./format";
 
 const ANY_CATEGORY = "__any__";
@@ -37,6 +39,11 @@ const ANY_CATEGORY = "__any__";
  * stays the only thing that decides what was actually queried. Current values
  * arrive as props rather than through `useSearchParams`, which keeps this out
  * of that hook's Suspense-boundary requirements.
+ *
+ * The camera button beside the box is a shortcut, not a second search: a code
+ * that matches a product exactly goes straight to that product, because
+ * somebody holding a part up to a camera wants the part, not a result list.
+ * Anything else drops into the search box, where a partial match still helps.
  */
 export function InventoryFilters({
   filter,
@@ -155,6 +162,28 @@ export function InventoryFilters({
             ) : null}
           </div>
         </form>
+
+        <ScanButton
+          label="Scan a barcode"
+          title="Scan to find a product"
+          description="A code that matches exactly opens that product."
+          onScan={async (hit) => {
+            const result = await resolveScanAction(hit.value);
+            if (result.kind === "product") {
+              startTransition(() => router.push(result.href));
+              return `Opening ${result.product.name}`;
+            }
+            if (result.kind === "serial") {
+              startTransition(() => router.push(result.href));
+              return `Opening ${result.serial.productName}`;
+            }
+            // No exact match: leave it in the search box, where a partial
+            // match on the name or a supplier's code can still find it.
+            setValue(hit.value);
+            go({ q: hit.value });
+            return `Searching for ${hit.value}`;
+          }}
+        />
 
         <Dialog
           open={open}

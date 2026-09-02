@@ -39,3 +39,38 @@ export async function purgeExpiredPortalTokens(shopId: string): Promise<number> 
 
   return deleted.count;
 }
+
+/**
+ * Housekeeping: dead phone-scanner pairings.
+ *
+ * A ScanSession is a half-hour rope between a till and a phone (lib/scan/
+ * pairing.ts). Once it has lapsed it can authenticate nothing and feed nobody,
+ * so the row and its ScanEvent children — which cascade — are deleted.
+ *
+ * THE ONE-DAY TAIL. Same reasoning as the portal tokens above, for a different
+ * reason: a phone that posts into a pairing which lapsed while it was in
+ * somebody's pocket should be told "that till has disconnected", and that
+ * sentence needs the row to still be there. A day is long enough to cover a
+ * shift, and short enough that the table never becomes a log.
+ */
+export const SCAN_SESSION_GRACE_HOURS = 24;
+
+/**
+ * Deletes one shop's long-dead pairings and returns the count.
+ *
+ * Scoped by `shopId` like every other query in the app (see lib/db.ts), so a
+ * shop's run can only ever clear that shop's rows. Sessions that were hung up
+ * early count too: `endedAt` is as final as expiry.
+ */
+export async function purgeExpiredScanSessions(shopId: string): Promise<number> {
+  const cutoff = new Date(Date.now() - SCAN_SESSION_GRACE_HOURS * 60 * 60 * 1000);
+
+  const deleted = await db.scanSession.deleteMany({
+    where: {
+      shopId,
+      OR: [{ expiresAt: { lt: cutoff } }, { endedAt: { lt: cutoff } }],
+    },
+  });
+
+  return deleted.count;
+}

@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { PackageSearch, ScanLine, Search } from "lucide-react";
+import Link from "next/link";
+import { PackageSearch, Plus, ScanLine, Search } from "lucide-react";
 
+import { ScanButton } from "@/components/scan/scan-button";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { looksLikeUpc } from "@/lib/scan/codes";
 import { formatCents } from "@/lib/money";
 import { tracksStock, type PosProduct } from "./types";
 
@@ -33,14 +36,28 @@ function matchesCode(product: PosProduct, code: string): boolean {
  * scan works even while a category filter is on), then a sole surviving search
  * result. Anything else leaves the text in place as a filter — a half-typed
  * product name should narrow the grid, not throw the input away.
+ *
+ * The camera button beside it is the same thing for a shop with no gun: it
+ * stays open in continuous mode, so scanning five boxes puts five lines in the
+ * cart without anyone touching the screen. It hides itself on a machine with no
+ * camera (see components/scan/scan-button.tsx) — that till uses the phone
+ * instead, from the button in the cart panel's header.
  */
 export function ProductGrid({
   products,
   onAdd,
+  onScan,
   inputRef,
 }: {
   products: PosProduct[];
   onAdd: (product: PosProduct) => void;
+  /**
+   * Handles a scanned code — from the camera or a paired phone. `message` is
+   * the one line to show for it ("Added iPhone 14 Case", or why not); `matched`
+   * is false when nothing in the shop answers to that code, which is what puts
+   * the "create a product for it" shortcut on screen.
+   */
+  onScan: (code: string) => Promise<{ message: string; matched: boolean }>;
   inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const [query, setQuery] = React.useState("");
@@ -92,38 +109,68 @@ export function ProductGrid({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <form onSubmit={onSubmit}>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-faint-foreground" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setMiss(null);
+      <form onSubmit={onSubmit} className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-faint-foreground" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setMiss(null);
+              }}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              aria-label="Scan a barcode or search products"
+              placeholder="Scan a barcode or search products…"
+              className={cn(
+                "h-14 w-full rounded-lg border bg-surface pl-12 pr-28 text-base font-medium text-foreground shadow-sm outline-none transition-colors",
+                "placeholder:font-normal placeholder:text-faint-foreground",
+                "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring/30",
+                miss
+                  ? "border-destructive/60 ring-2 ring-destructive/20"
+                  : "border-border-strong",
+              )}
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-full bg-surface-hover px-3 py-1.5 text-[12px] font-semibold text-muted-foreground sm:inline-flex">
+              <ScanLine className="size-3.5" />
+              Enter adds
+            </span>
+          </div>
+
+          <ScanButton
+            continuous
+            size="lg"
+            className="h-14 w-14 px-0"
+            label="Scan with the camera"
+            title="Scan into the cart"
+            description="Every code adds a line. Keep scanning until the pile is done."
+            onScan={async (hit) => {
+              const result = await onScan(hit.value);
+              setMiss(result.matched ? null : hit.value);
+              return result.message;
             }}
-            autoFocus
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="Scan a barcode or search products"
-            placeholder="Scan a barcode or search products…"
-            className={cn(
-              "h-14 w-full rounded-lg border bg-surface pl-12 pr-28 text-base font-medium text-foreground shadow-sm outline-none transition-colors",
-              "placeholder:font-normal placeholder:text-faint-foreground",
-              "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring/30",
-              miss
-                ? "border-destructive/60 ring-2 ring-destructive/20"
-                : "border-border-strong",
-            )}
           />
-          <span className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-full bg-surface-hover px-3 py-1.5 text-[12px] font-semibold text-muted-foreground sm:inline-flex">
-            <ScanLine className="size-3.5" />
-            Enter adds
-          </span>
         </div>
+
         {miss ? (
-          <p role="status" className="mt-2 pl-1 text-[13px] font-medium text-destructive">
-            Nothing in the catalogue matches “{miss}”.
+          <p
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 pl-1 text-[13px] font-medium text-destructive"
+          >
+            No product matches “{miss}”.
+            {/* The shortcut that turns a dead end into a task: a code that
+                scanned cleanly but is not in the catalogue almost always means
+                the product has not been added yet. */}
+            <Link
+              href={`/inventory/new?${looksLikeUpc(miss) ? "upc" : "sku"}=${encodeURIComponent(miss)}`}
+              className="inline-flex items-center gap-1 font-semibold text-accent-soft-foreground underline-offset-2 hover:underline"
+            >
+              <Plus className="size-3.5" />
+              Create product with this {looksLikeUpc(miss) ? "UPC" : "code"}
+            </Link>
           </p>
         ) : null}
       </form>

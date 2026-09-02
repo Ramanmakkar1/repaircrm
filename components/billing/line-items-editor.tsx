@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/components/ui/cn";
+import { resolveScanAction } from "@/app/(app)/scan/actions";
 import { calcTotals, formatBps, formatCents, parseCents } from "@/lib/money";
 import type { ProductOption, SubmittedLine } from "./types";
 
@@ -164,6 +166,58 @@ export function LineItemsEditor({
       });
     },
     [products, update],
+  );
+
+  /**
+   * Appends a line for a scanned product.
+   *
+   * A blank starter row is replaced rather than left sitting above the new
+   * line: the row the editor opens with is a placeholder, and stacking under it
+   * would leave an empty first line on every scanned document.
+   */
+  const addScanned = React.useCallback(
+    (product: ProductOption, serial?: string | null) => {
+      nextKey.current += 1;
+      const draft: Draft = {
+        key: `scan-${nextKey.current}`,
+        productId: product.id,
+        description: product.name,
+        quantity: "1",
+        unitPrice: centsToInput(product.priceCents),
+        taxable: product.taxable,
+        serial: serial ?? "",
+      };
+      setDrafts((rows) => [...rows.filter((row) => !isBlank(row)), draft]);
+    },
+    [],
+  );
+
+  /** One scanned code, resolved shop-side and turned into a line. */
+  const onScan = React.useCallback(
+    async (value: string): Promise<string> => {
+      const result = await resolveScanAction(value);
+
+      if (result.kind === "product") {
+        const product = products.find((row) => row.id === result.product.id);
+        if (!product) return `${result.product.name} is not on this list`;
+        addScanned(product);
+        return `Added ${product.name}`;
+      }
+
+      if (result.kind === "serial") {
+        const product = products.find((row) => row.id === result.serial.productId);
+        if (!product) return "That unit's product is not on this list";
+        // An estimate has no serial column, so the unit is dropped and only the
+        // product is quoted — which is what quoting a serialized item means.
+        addScanned(product, showSerial ? result.serial.serial : null);
+        return showSerial
+          ? `Added ${product.name} · ${result.serial.serial}`
+          : `Added ${product.name}`;
+      }
+
+      return `Nothing matches ${result.value}`;
+    },
+    [addScanned, products, showSerial],
   );
 
   const payload: SubmittedLine[] = React.useMemo(
@@ -366,9 +420,22 @@ export function LineItemsEditor({
           <tfoot>
             <tr>
               <td colSpan={colCount - 1} className="px-3 py-3">
-                <Button type="button" variant="soft" size="sm" onClick={addRow}>
-                  <Plus /> Add line
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="soft" size="sm" onClick={addRow}>
+                    <Plus /> Add line
+                  </Button>
+                  {/* Scanning is just a faster "Add line": it fills the product,
+                      the price and — on an invoice — the unit being sold. */}
+                  <ScanButton
+                    continuous
+                    size="sm"
+                    showLabel
+                    label="Scan"
+                    title="Scan to add a line"
+                    description="Each code adds a line at the price on file."
+                    onScan={(hit) => onScan(hit.value)}
+                  />
+                </div>
               </td>
               <td colSpan={2} />
             </tr>

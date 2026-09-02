@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
 import { parseSerialList } from "@/lib/serials";
+import { SerialScanField } from "./serial-scan-field";
 
 /** One outstanding line, as the receive form needs it. */
 export type ReceivableLine = {
@@ -104,8 +104,8 @@ export function ReceivePoDialog({
         <DialogHeader>
           <DialogTitle>Receive this order</DialogTitle>
           <DialogDescription>
-            Enter what actually turned up. Stock, costs and the adjustment log all
-            move together.
+            Enter what actually turned up — scan the serials straight off the box
+            if you like. Stock, costs and the adjustment log all move together.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,34 +163,28 @@ export function ReceivePoDialog({
                   </div>
 
                   {line.serialized ? (
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`serials-${line.id}`}>
-                        Serial numbers — one per line
-                      </Label>
-                      <Textarea
-                        id={`serials-${line.id}`}
-                        name={`serials-${line.id}`}
-                        rows={Math.min(6, Math.max(2, qty))}
-                        value={serials[line.id] ?? ""}
-                        onChange={(event) =>
-                          setSerials((prev) => ({
-                            ...prev,
-                            [line.id]: event.target.value,
-                          }))
-                        }
-                        placeholder={"SN-0001\nSN-0002"}
-                        className="font-mono text-[13px]"
-                        aria-invalid={bad}
-                      />
-                      <p
-                        className={cn(
-                          "text-[13px] tabular-nums",
-                          bad ? "font-medium text-destructive" : "text-muted-foreground",
-                        )}
-                      >
-                        {pasted} of {qty} serial{qty === 1 ? "" : "s"} entered
-                      </p>
-                    </div>
+                    <SerialScanField
+                      id={`serials-${line.id}`}
+                      name={`serials-${line.id}`}
+                      rows={Math.min(6, Math.max(2, qty))}
+                      value={serials[line.id] ?? ""}
+                      onChange={(next) =>
+                        setSerials((prev) => ({ ...prev, [line.id]: next }))
+                      }
+                      invalid={bad}
+                      hint={
+                        <p
+                          className={cn(
+                            "text-[13px] tabular-nums",
+                            bad
+                              ? "font-medium text-destructive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {pasted} of {qty} serial{qty === 1 ? "" : "s"} entered
+                        </p>
+                      }
+                    />
                   ) : null}
                 </div>
               );
