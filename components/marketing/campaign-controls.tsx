@@ -66,8 +66,13 @@ export function CampaignActiveSwitch({
   const [busy, setBusy] = React.useState(false);
 
   // The server is the source of truth: follow a re-render rather than pinning
-  // stale state from another tab or a revalidate.
-  React.useEffect(() => setChecked(active), [active]);
+  // stale state from another tab or a revalidate. Adjusted during render, so
+  // the switch never flicks to the old position first.
+  const [lastActive, setLastActive] = React.useState(active);
+  if (lastActive !== active) {
+    setLastActive(active);
+    setChecked(active);
+  }
 
   async function toggle(next: boolean) {
     setChecked(next);

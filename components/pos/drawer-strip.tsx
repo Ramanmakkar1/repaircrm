@@ -95,7 +95,7 @@ function HistoryLink() {
     <Button asChild variant="ghost" size="sm">
       <Link href="/pos/drawers">
         <History className="size-4" />
-        History
+        Drawer history
       </Link>
     </Button>
   );

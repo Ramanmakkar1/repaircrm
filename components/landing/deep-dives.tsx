@@ -30,9 +30,12 @@ function Row({
         <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-accent">
           {eyebrow}
         </p>
-        <h3 className="mt-3 text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-[36px]">
+        {/* h2, not h3: this band has no visible heading of its own (it is
+            labelled by `aria-label`), so each row's title is a top-level
+            heading of the page. h3 here skipped a level. */}
+        <h2 className="mt-3 text-[28px] font-bold leading-[1.08] tracking-[-0.03em] text-foreground sm:text-[36px]">
           {heading}
-        </h3>
+        </h2>
         <p className="mt-5 text-[16px] leading-relaxed text-muted-foreground">
           {body}
         </p>

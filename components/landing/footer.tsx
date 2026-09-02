@@ -59,6 +59,17 @@ export function LandingFooter() {
             >
               Sign in
             </Link>
+            {/*
+              Customers arrive on this page too — usually chasing their own
+              repair, having typed the shop's software name into a search box.
+              The footer is where they go looking for it.
+            */}
+            <Link
+              href="/portal"
+              className="text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Customer portal
+            </Link>
             <Link
               href="/signup"
               className="text-[14px] font-semibold text-accent transition-colors hover:text-accent-hover"

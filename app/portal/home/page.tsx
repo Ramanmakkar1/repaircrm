@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRight, FileText, Plus, Receipt, Wrench } from "lucide-react";
 
 import { StatusBadge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   EstimateStatusBadge,
   InvoiceStatusBadge,
@@ -12,7 +14,6 @@ import { calcTotals, formatCents, invoiceTotals } from "@/lib/money";
 import { requirePortalCustomer } from "@/lib/portal-session";
 import { EstimateDecision } from "../_components/estimate-decision";
 import {
-  EmptyRow,
   PortalCard,
   PortalCardHeader,
   PortalShell,
@@ -139,17 +140,16 @@ export default async function PortalHomePage() {
             }
           />
           {tickets.length === 0 ? (
-            <EmptyRow>
-              Nothing here yet — a repair will appear as soon as the shop books
-              your device in, or you can{" "}
-              <Link
-                href="/portal/tickets/new"
-                className="font-semibold text-accent hover:underline"
-              >
-                start a request
-              </Link>
-              .
-            </EmptyRow>
+            <EmptyState
+              icon={Wrench}
+              title="No repairs yet"
+              hint={`A repair appears here the moment ${customer.shop.name} books your device in — or you can tell them what's wrong yourself.`}
+              action={
+                <Button asChild>
+                  <Link href="/portal/tickets/new">Start a repair request</Link>
+                </Button>
+              }
+            />
           ) : (
             <ul className="divide-y divide-border">
               {tickets.map((ticket) => {
@@ -203,7 +203,11 @@ export default async function PortalHomePage() {
             }
           />
           {estimates.length === 0 ? (
-            <EmptyRow>No estimates yet.</EmptyRow>
+            <EmptyState
+              icon={FileText}
+              title="No estimates yet"
+              hint="When the shop quotes for work before starting it, the quote lands here for you to approve or decline."
+            />
           ) : (
             <ul className="divide-y divide-border">
               {estimates.map((estimate) => {
@@ -263,7 +267,11 @@ export default async function PortalHomePage() {
             }
           />
           {invoices.length === 0 ? (
-            <EmptyRow>No invoices yet.</EmptyRow>
+            <EmptyState
+              icon={Receipt}
+              title="No invoices yet"
+              hint="Bills for finished work show up here, with what's been paid and anything still outstanding."
+            />
           ) : (
             <ul className="divide-y divide-border">
               {invoices.map((invoice) => {

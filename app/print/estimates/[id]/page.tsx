@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { taxLabel } from "@/lib/tax";
 import { formatDate, formatDateLong } from "@/components/billing/format";
 import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
@@ -45,7 +46,7 @@ export default async function EstimatePrintPage({
   const expired =
     !approved &&
     !declined &&
-    Boolean(estimate.expiresAt && estimate.expiresAt.getTime() < Date.now());
+    Boolean(estimate.expiresAt && estimate.expiresAt.getTime() < requestNow());
 
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },

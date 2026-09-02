@@ -37,8 +37,14 @@ export function ScheduleActiveSwitch({
   const [busy, setBusy] = React.useState(false);
 
   // The server is the source of truth: if the page re-renders with a different
-  // value (another tab, a revalidate), follow it rather than pinning stale state.
-  React.useEffect(() => setChecked(active), [active]);
+  // value (another tab, a revalidate), follow it rather than pinning stale
+  // state. Adjusted during render, so the switch never flicks to the old
+  // position first.
+  const [lastActive, setLastActive] = React.useState(active);
+  if (lastActive !== active) {
+    setLastActive(active);
+    setChecked(active);
+  }
 
   async function toggle(next: boolean) {
     setChecked(next);

@@ -500,7 +500,7 @@ function StaffDialog({
         <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
           {members.length === 0 ? (
             <p className="px-1 py-4 text-sm text-muted-foreground">
-              Nobody on the team yet — add people on the Team tab.
+              Nobody on the team yet — add people under Settings → Team.
             </p>
           ) : (
             members.map((member) => {

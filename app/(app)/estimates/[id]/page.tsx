@@ -21,6 +21,7 @@ import {
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { taxLabel } from "@/lib/tax";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,7 @@ export default async function EstimateDetailPage({
 
   const expired =
     estimate.expiresAt !== null &&
-    estimate.expiresAt.getTime() < Date.now() &&
+    estimate.expiresAt.getTime() < requestNow() &&
     (estimate.status === "DRAFT" || estimate.status === "SENT");
 
   // ---------------------------------------------------------------- sending

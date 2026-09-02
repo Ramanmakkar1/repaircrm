@@ -304,8 +304,8 @@ function ReviewsCard({
         </CardTitle>
         <CardDescription>
           Asks for a review once a customer has collected their device and had a
-          little time to use it. Sent automatically by the scheduler — see the
-          Automation tab.
+          little time to use it. Sent automatically by the scheduler — see
+          Settings → Automation.
         </CardDescription>
       </CardHeader>
 

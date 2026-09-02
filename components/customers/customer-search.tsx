@@ -18,7 +18,14 @@ export function CustomerSearch({ query }: { query: string }) {
   const [pending, startTransition] = React.useTransition();
 
   // Keep in step when the URL changes from elsewhere (back button, Clear).
-  React.useEffect(() => setValue(query), [query]);
+  // Adjusted during render rather than from an effect: React re-runs this
+  // component before it touches the DOM, so the box never paints the old
+  // term and then correct it a frame later.
+  const [lastQuery, setLastQuery] = React.useState(query);
+  if (lastQuery !== query) {
+    setLastQuery(query);
+    setValue(query);
+  }
 
   React.useEffect(() => {
     if (value.trim() === query.trim()) return;

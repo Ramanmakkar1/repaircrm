@@ -141,9 +141,15 @@ function MemberRow({
   const [active, setActive] = React.useState(member.active);
   const [busy, setBusy] = React.useState(false);
 
-  // Follow the server when the page re-renders with new values.
-  React.useEffect(() => setRole(member.role), [member.role]);
-  React.useEffect(() => setActive(member.active), [member.active]);
+  // Follow the server when the page re-renders with new values. Adjusted
+  // during render rather than from an effect: React re-runs the row before it
+  // touches the DOM, so it never paints the stale role for a frame.
+  const [fromServer, setFromServer] = React.useState(member);
+  if (fromServer.role !== member.role || fromServer.active !== member.active) {
+    setFromServer(member);
+    setRole(member.role);
+    setActive(member.active);
+  }
 
   async function changeRole(next: string) {
     const previous = role;

@@ -19,7 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
-import { SubmitButton } from "@/components/billing/submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "@/components/billing/types";
 import {
   BODY_MAX_CHARS,

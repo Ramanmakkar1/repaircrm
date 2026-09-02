@@ -12,7 +12,7 @@ import type { MessagingConfig } from "./types";
 /**
  * Read-only view of how outbound email and SMS are wired up right now.
  *
- * Card payments used to live here too. They have their own tab now — Settings
+ * Card payments used to live here too. They have their own screen now — Settings
  * → Payments — because Stripe Connect gave them a connection to manage, an
  * account to report on and readers to pair, none of which is messaging.
  *

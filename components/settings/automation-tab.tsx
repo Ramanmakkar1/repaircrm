@@ -410,18 +410,36 @@ function LastRunLabel({
  * on both sides — and the relative form is swapped in afterwards.
  */
 function Stamp({ iso }: { iso: string }) {
-  const [relative, setRelative] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return;
-    setRelative(`${formatDistanceToNow(date)} ago`);
-  }, [iso]);
+  const mounted = useMounted();
 
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return <>unknown</>;
 
-  return <>{relative ?? format(date, "d MMM yyyy, h:mm a")}</>;
+  return (
+    <>
+      {mounted
+        ? `${formatDistanceToNow(date)} ago`
+        : format(date, "d MMM yyyy, h:mm a")}
+    </>
+  );
+}
+
+/** The "have we mounted?" store never changes again, so nothing subscribes. */
+const subscribeNever = () => () => {};
+
+/**
+ * `false` on the server and for the very first client render, `true` from the
+ * moment React has hydrated.
+ *
+ * Read as an external store rather than flipped by an effect: same single
+ * re-render, without a setState in an effect body to cascade one more.
+ */
+function useMounted(): boolean {
+  return React.useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
 }
 
 function Env({ children }: { children: React.ReactNode }) {

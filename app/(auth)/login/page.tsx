@@ -70,6 +70,21 @@ export default async function LoginPage({
           Create a shop
         </Link>
       </p>
+
+      {/*
+        This page is for staff, but it is also where a customer hunting for
+        their repair ends up — /portal already points people the other way, and
+        without the return leg they have nowhere to go but the back button.
+      */}
+      <p className="mt-6 border-t border-border pt-5 text-center text-[13.5px] text-muted-foreground">
+        Had a device repaired?{" "}
+        <Link
+          href="/portal"
+          className="font-semibold text-foreground underline underline-offset-4 hover:text-accent"
+        >
+          Check your repair here
+        </Link>
+      </p>
     </>
   );
 }

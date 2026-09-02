@@ -13,6 +13,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -45,7 +46,7 @@ export default async function RecurringSchedulesPage() {
     },
   });
 
-  const now = Date.now();
+  const now = requestNow();
   const dueCount = schedules.filter((s) => isDue(s.nextRunAt, s.active, now)).length;
 
   return (

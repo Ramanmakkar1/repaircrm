@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SubmitButton } from "./submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
 /**
@@ -45,13 +45,17 @@ export function SignatureDialog({
 }) {
   const [open, setOpen] = React.useState(false);
   const [dataUrl, setDataUrl] = React.useState("");
-  const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
+  // Submitting is what closes the pad, so the close lives in the action
+  // itself rather than in an effect waiting for `state.done` to land.
+  const [state, formAction] = useActionState(
+    async (previous: FormState, formData: FormData) => {
+      const result = await action(previous, formData);
+      if (result.done) setOpen(false);
+      return result;
+    },
+    IDLE_FORM_STATE,
+  );
   const padRef = React.useRef<SignatureCanvas | null>(null);
-
-  const done = state.done;
-  React.useEffect(() => {
-    if (done) setOpen(false);
-  }, [done]);
 
   const onOpenChange = (next: boolean) => {
     if (next) setDataUrl("");

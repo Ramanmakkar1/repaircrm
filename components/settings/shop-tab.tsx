@@ -8,7 +8,7 @@ import { updateShopAction } from "@/app/(app)/settings/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SubmitButton } from "@/components/billing/submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import type { TaxRateOption } from "@/lib/tax";
 import { TaxRatesCard } from "./tax-rates-card";
 import { IDLE_SETTINGS_STATE, type ShopSettingsValues } from "./types";

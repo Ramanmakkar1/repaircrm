@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, CheckCircle2, Clock, Download } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Printer } from "lucide-react";
 
 import { formatDate } from "@/components/billing/format";
 import { InvoiceStatusBadge } from "@/components/billing/status-badge";
@@ -119,12 +119,18 @@ export default async function PortalInvoicePage({
           </p>
         </div>
 
+        {/*
+          Named for what it does. Nothing is downloaded here — the link opens
+          the printable sheet, whose own button hands the browser's print dialog
+          (and its "Save as PDF") to the customer. A "Download PDF" button that
+          never puts a file in the downloads folder is a support call.
+        */}
         <Link
           href={`/portal/invoices/${invoice.id}/print`}
           className="inline-flex h-11 items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-hover"
         >
-          <Download className="size-4" />
-          Download PDF
+          <Printer className="size-4" />
+          Print or save as PDF
         </Link>
       </div>
 

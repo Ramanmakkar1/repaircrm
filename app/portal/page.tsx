@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { CheckCircle2, Mail, ShieldCheck } from "lucide-react";
 
+import { db } from "@/lib/db";
 import { getPortalSession, safeNextPath } from "@/lib/portal-session";
 import { PortalCard } from "./_components/shell";
 import { requestPortalLinkAction } from "./actions";
@@ -28,6 +29,14 @@ const ERRORS: Record<string, string> = {
     "We couldn't read that sign-in link. Request a fresh one below and it will work.",
 };
 
+/**
+ * Shown when the browser still holds a portal cookie whose customer record has
+ * since gone — deleted, merged, or moved to another shop. See the guard below
+ * for why this case has to be caught here.
+ */
+const STALE_SESSION_MESSAGE =
+  "You were signed out because this account is no longer on file with the shop. Request a fresh link below, or give the shop a call.";
+
 export default async function PortalEntryPage({
   searchParams,
 }: {
@@ -49,11 +58,27 @@ export default async function PortalEntryPage({
     );
   }
 
+  /*
+   * A cookie whose signature still verifies is not the same thing as a customer
+   * who still exists. `requirePortalCustomer()` re-reads the record and bounces
+   * back here when it has gone — so redirecting on the signature alone sends the
+   * browser guarded-page → here → guarded-page forever, and the visitor gets
+   * ERR_TOO_MANY_REDIRECTS instead of a way back in. The same DB check the guard
+   * makes has to happen before we hand the visit on.
+   */
   const session = await getPortalSession();
-  if (session) redirect(next ?? "/portal/home");
+  const live =
+    session !== null &&
+    (await db.customer.count({
+      where: { id: session.customerId, shopId: session.shopId },
+    })) > 0;
+
+  if (live) redirect(next ?? "/portal/home");
 
   const sent = first("sent") === "1";
-  const error = ERRORS[first("error")] ?? null;
+  const error = session
+    ? STALE_SESSION_MESSAGE
+    : (ERRORS[first("error")] ?? null);
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-5 py-12 text-foreground">

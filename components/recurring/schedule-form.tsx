@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { LineItemsEditor, type InitialLine } from "@/components/billing/line-items-editor";
-import { SubmitButton } from "@/components/billing/submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TaxRateSelect } from "@/components/billing/tax-rate-select";
 import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
 import {

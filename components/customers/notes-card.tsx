@@ -28,8 +28,14 @@ export function NotesCard({
   const [value, setValue] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
 
-  // Re-sync when the server sends fresh data after a save.
-  React.useEffect(() => setValue(initial), [initial]);
+  // Re-sync when the server sends fresh data after a save. Adjusted during
+  // render rather than from an effect, so the card never shows the stale note
+  // for a frame after the refresh lands.
+  const [lastInitial, setLastInitial] = React.useState(initial);
+  if (lastInitial !== initial) {
+    setLastInitial(initial);
+    setValue(initial);
+  }
 
   const dirty = value !== initial;
 

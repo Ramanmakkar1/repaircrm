@@ -43,6 +43,22 @@ interface Section {
   rows: Row[];
 }
 
+/** What the search endpoint last said, tagged with the term it answers. */
+interface Answer {
+  query: string;
+  groups: SearchGroup[];
+  failed: boolean;
+}
+
+/** The arrow-key cursor, carried with the row list it points into. */
+interface Selection {
+  rows: Row[];
+  index: number;
+}
+
+const NO_GROUPS: SearchGroup[] = [];
+const NO_SELECTION: Selection = { rows: [], index: 0 };
+
 /**
  * The four things a front-counter user starts most often, plus POS. These sit
  * at the very top whenever the box is empty, so ⌘K doubles as the app's "start
@@ -90,13 +106,44 @@ export function CommandPalette({
   const router = useRouter();
 
   const [query, setQuery] = React.useState("");
-  const [groups, setGroups] = React.useState<SearchGroup[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [failed, setFailed] = React.useState(false);
-  const [active, setActive] = React.useState(0);
+  // What the endpoint last said. Tagging it with the term it answers is what
+  // lets "loading" and "failed" be read off it: a keystroke needs no state
+  // reset, because the previous answer simply stops matching what is typed.
+  const [answer, setAnswer] = React.useState<Answer | null>(null);
+  const [selection, setSelection] = React.useState<Selection>(NO_SELECTION);
   const [entered, setEntered] = React.useState(false);
 
   const listRef = React.useRef<HTMLDivElement>(null);
+
+  // ---- what the list shows -------------------------------------------------
+  const q = query.trim();
+  const searchable = open && q.length >= MIN_QUERY;
+  /** The answer for exactly what is typed; anything older still counts as loading. */
+  const answered = answer !== null && answer.query === q ? answer : null;
+
+  const loading = searchable && answered === null;
+  const failed = searchable && answered !== null && answered.failed;
+  // The previous term's rows stay on screen while the next ones load, so the
+  // list never blinks empty between keystrokes.
+  const groups =
+    searchable && answer !== null && !answer.failed ? answer.groups : NO_GROUPS;
+
+  // ---- opening and closing -------------------------------------------------
+  // Every way out of the palette funnels through here — Esc, the Esc button,
+  // ⌘K again, picking a row — so the per-session state is cleared by whatever
+  // closed it, rather than by an effect noticing afterwards that it shut.
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!next) {
+        setEntered(false);
+        setQuery("");
+        setAnswer(null);
+        setSelection(NO_SELECTION);
+      }
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
 
   // ---- ⌘K / Ctrl+K, from anywhere in the app -------------------------------
   React.useEffect(() => {
@@ -105,37 +152,23 @@ export function CommandPalette({
         return;
       }
       event.preventDefault();
-      onOpenChange(!open);
+      setOpen(!open);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onOpenChange]);
+  }, [open, setOpen]);
 
-  // ---- reset on close, animate in on open ----------------------------------
+  // ---- animate in on open --------------------------------------------------
   React.useEffect(() => {
-    if (open) {
-      const frame = requestAnimationFrame(() => setEntered(true));
-      return () => cancelAnimationFrame(frame);
-    }
-    setEntered(false);
-    setQuery("");
-    setGroups([]);
-    setLoading(false);
-    setFailed(false);
-    setActive(0);
+    if (!open) return;
+    const frame = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(frame);
   }, [open]);
 
   // ---- debounced fetch -----------------------------------------------------
   React.useEffect(() => {
-    const q = query.trim();
-    if (!open || q.length < MIN_QUERY) {
-      setGroups([]);
-      setLoading(false);
-      setFailed(false);
-      return;
-    }
+    if (!searchable) return;
 
-    setLoading(true);
     let cancelled = false;
     const controller = new AbortController();
 
@@ -147,16 +180,12 @@ export function CommandPalette({
           res.ok ? (res.json() as Promise<SearchResponse>) : Promise.reject(res.status),
         )
         .then((data) => {
-          if (cancelled) return;
-          setGroups(data.groups);
-          setFailed(false);
-          setLoading(false);
+          if (!cancelled) {
+            setAnswer({ query: q, groups: data.groups, failed: false });
+          }
         })
         .catch(() => {
-          if (cancelled) return;
-          setGroups([]);
-          setFailed(true);
-          setLoading(false);
+          if (!cancelled) setAnswer({ query: q, groups: [], failed: true });
         });
     }, DEBOUNCE_MS);
 
@@ -165,10 +194,8 @@ export function CommandPalette({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, open]);
+  }, [q, searchable]);
 
-  // ---- what the list shows -------------------------------------------------
-  const q = query.trim();
   const lower = q.toLowerCase();
 
   const sections = React.useMemo<Section[]>(() => {
@@ -214,9 +241,9 @@ export function CommandPalette({
     [sections],
   );
 
-  React.useEffect(() => {
-    setActive(0);
-  }, [q, groups]);
+  /** Where the arrow keys are. A fresh row list starts at the top by itself. */
+  const active = selection.rows === rows ? selection.index : 0;
+  const select = (index: number) => setSelection({ rows, index });
 
   React.useEffect(() => {
     listRef.current
@@ -226,26 +253,26 @@ export function CommandPalette({
 
   const go = React.useCallback(
     (href: string) => {
-      onOpenChange(false);
+      setOpen(false);
       router.push(href);
     },
-    [onOpenChange, router],
+    [setOpen, router],
   );
 
   function onKeyDown(event: React.KeyboardEvent) {
     if (rows.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActive((i) => (i + 1) % rows.length);
+      select((active + 1) % rows.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActive((i) => (i - 1 + rows.length) % rows.length);
+      select((active - 1 + rows.length) % rows.length);
     } else if (event.key === "Home") {
       event.preventDefault();
-      setActive(0);
+      select(0);
     } else if (event.key === "End") {
       event.preventDefault();
-      setActive(rows.length - 1);
+      select(rows.length - 1);
     } else if (event.key === "Enter") {
       event.preventDefault();
       const row = rows[active];
@@ -256,7 +283,7 @@ export function CommandPalette({
   let cursor = -1; // running index across sections, so it matches `rows`
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
@@ -297,7 +324,7 @@ export function CommandPalette({
             />
             <button
               type="button"
-              onClick={() => onOpenChange(false)}
+              onClick={() => setOpen(false)}
               className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-semibold text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
             >
               Esc
@@ -333,7 +360,7 @@ export function CommandPalette({
                         role="option"
                         aria-selected={isActive}
                         type="button"
-                        onMouseMove={() => setActive(index)}
+                        onMouseMove={() => select(index)}
                         onClick={() => go(row.href)}
                         className={cn(
                           "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",

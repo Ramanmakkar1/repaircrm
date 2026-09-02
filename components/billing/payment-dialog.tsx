@@ -28,7 +28,7 @@ import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents } from "@/lib/money";
 import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
-import { SubmitButton } from "./submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
 /**
@@ -87,35 +87,33 @@ export function PaymentDialog({
   receiptAction?: ReceiptAction;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
+  // Submitting is what closes the dialog and offers the receipt, so both live
+  // in the action itself rather than in an effect waiting for `state.done` to
+  // land. Reading `receiptAction` straight from props is safe here for the
+  // same reason: the action runs once per submit, so a re-created Server
+  // Action reference can no longer re-offer a receipt that was already taken.
+  const [state, formAction] = useActionState(
+    async (previous: FormState, formData: FormData) => {
+      const result = await action(previous, formData);
+      if (!result.done) return result;
+
+      setOpen(false);
+      if (result.settled && receiptAction) {
+        offerReceiptToast(
+          invoiceId,
+          receiptAction,
+          "Paid in full — nothing left owing.",
+        );
+      }
+      return result;
+    },
+    IDLE_FORM_STATE,
+  );
   const [method, setMethod] = React.useState<string>("CARD");
   const [readerMode, setReaderMode] = React.useState(false);
   const [amount, setAmount] = React.useState(() =>
     (Math.max(balanceCents, 0) / 100).toFixed(2),
   );
-
-  // Held in a ref so a re-created Server Action reference cannot re-fire the
-  // effect below and offer the same receipt twice. Assigned in its own effect
-  // rather than during render — a ref written mid-render is a stale read
-  // waiting to happen.
-  const receiptRef = React.useRef(receiptAction);
-  React.useEffect(() => {
-    receiptRef.current = receiptAction;
-  }, [receiptAction]);
-
-  const done = state.done;
-  const settled = state.settled;
-  React.useEffect(() => {
-    if (!done) return;
-    setOpen(false);
-    if (settled && receiptRef.current) {
-      offerReceiptToast(
-        invoiceId,
-        receiptRef.current,
-        "Paid in full — nothing left owing.",
-      );
-    }
-  }, [done, settled, invoiceId]);
 
   // Reset to a fresh default every time the dialog is opened.
   const onOpenChange = (next: boolean) => {

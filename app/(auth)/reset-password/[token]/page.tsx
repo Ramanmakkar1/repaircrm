@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth";
 import { resolveResetToken } from "@/lib/password-reset";
 
@@ -41,12 +42,9 @@ export default async function ResetPasswordPage({
           </p>
         </div>
 
-        <Link
-          href="/forgot-password"
-          className="flex h-12 w-full items-center justify-center rounded-md bg-accent px-4 text-[15px] font-semibold text-accent-foreground shadow-xs transition hover:bg-accent-hover hover:shadow-sm"
-        >
-          Send a new link
-        </Link>
+        <Button asChild size="lg" className="w-full">
+          <Link href="/forgot-password">Send me a new link</Link>
+        </Button>
       </>
     );
   }

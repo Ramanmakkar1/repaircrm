@@ -19,7 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
 import { LineItemsEditor, type InitialLine } from "./line-items-editor";
-import { SubmitButton } from "./submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { TaxRateSelect } from "./tax-rate-select";
 import { IDLE_FORM_STATE, type CustomerOption, type FormState, type ProductOption } from "./types";
 

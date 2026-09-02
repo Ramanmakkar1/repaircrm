@@ -2,15 +2,23 @@
 
 import { useFormStatus } from "react-dom";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 /**
- * Small shared bits for the auth forms. Deliberately plain Tailwind — the
- * design agent will restyle these later.
+ * Small shared bits for the auth forms.
+ *
+ * These are the house primitives, not lookalikes: `Input`, `Label` and `Button`
+ * from components/ui, nudged one step up in size because an auth card is a
+ * single-purpose screen with four controls on it, not a dense working page. The
+ * hand-rolled copies that used to live here drifted from the primitives on
+ * focus behaviour — `focus:` rather than `focus-visible:` — which is exactly
+ * the kind of thing a shared component exists to stop happening.
  */
 
-export const fieldClass =
-  "h-11 w-full rounded-md border border-border-strong bg-surface px-3.5 text-[15px] text-foreground shadow-xs outline-none transition placeholder:text-faint-foreground focus:border-accent focus:ring-[3px] focus:ring-ring/20 disabled:opacity-60";
-
-export const labelClass = "block text-sm font-semibold text-foreground";
+/** 44px rather than the app's 40px, at the 15px body scale. */
+const AUTH_CONTROL = "h-11 text-[15px]";
 
 export function Field({
   label,
@@ -33,10 +41,8 @@ export function Field({
 }) {
   return (
     <div className="space-y-2">
-      <label className={labelClass} htmlFor={name}>
-        {label}
-      </label>
-      <input
+      <Label htmlFor={name}>{label}</Label>
+      <Input
         id={name}
         name={name}
         type={type}
@@ -45,7 +51,40 @@ export function Field({
         required={required}
         minLength={minLength}
         defaultValue={defaultValue}
-        className={fieldClass}
+        className={AUTH_CONTROL}
+      />
+    </div>
+  );
+}
+
+/** The one-line code box on the two-step screen — same control, monospaced. */
+export function CodeField({
+  label,
+  name,
+  placeholder,
+  autoComplete,
+  maxLength,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  autoComplete?: string;
+  maxLength?: number;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={name}>{label}</Label>
+      <Input
+        id={name}
+        name={name}
+        type="text"
+        inputMode="text"
+        autoComplete={autoComplete}
+        placeholder={placeholder}
+        required
+        maxLength={maxLength}
+        autoFocus
+        className={`${AUTH_CONTROL} font-mono tracking-[0.3em]`}
       />
     </div>
   );
@@ -72,12 +111,8 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="h-12 w-full rounded-md bg-accent px-4 text-[15px] font-semibold text-accent-foreground shadow-xs transition hover:bg-accent-hover hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-2 focus:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <Button type="submit" size="lg" disabled={pending} className="w-full">
       {pending ? pendingLabel : children}
-    </button>
+    </Button>
   );
 }

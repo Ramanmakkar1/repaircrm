@@ -188,7 +188,10 @@ export default async function PosPage() {
       tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}
       drawer={
+        // Keyed because this element crosses the server/client boundary as a
+        // prop: React re-validates it on the client and warns without one.
         <DrawerStrip
+          key="drawer"
           isOwner={role === "OWNER"}
           drawer={
             drawer

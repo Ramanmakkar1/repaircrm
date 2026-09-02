@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -69,7 +70,7 @@ export default async function EstimatesPage({
   ]);
 
   const filtered = Boolean(q || status || customerId);
-  const now = Date.now();
+  const now = requestNow();
 
   return (
     <div className="flex flex-col gap-6">

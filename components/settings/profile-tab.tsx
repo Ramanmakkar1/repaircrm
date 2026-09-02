@@ -27,7 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatDateTime } from "@/components/billing/format";
-import { SubmitButton } from "@/components/billing/submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_SETTINGS_STATE, ROLE_LABEL, type SettingsFormState } from "./types";
 import type { ProfileValues, TotpSetup } from "./profile-types";
 

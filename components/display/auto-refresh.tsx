@@ -20,11 +20,15 @@ export function AutoRefresh({ className }: { className?: string }) {
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
-    setLastRefreshed(new Date());
+    const stamp = () => setLastRefreshed(new Date());
+    // Every reading of the clock is a callback of whatever caused it — the
+    // opening stamp from the next painted frame, later ones from the refresh
+    // itself. Stamping straight from the effect body would cascade a render.
+    const firstStamp = requestAnimationFrame(stamp);
 
     const refresh = () => {
       router.refresh();
-      setLastRefreshed(new Date());
+      stamp();
     };
 
     let id: ReturnType<typeof setInterval> | null = null;
@@ -50,6 +54,7 @@ export function AutoRefresh({ className }: { className?: string }) {
     if (!document.hidden) start();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
+      cancelAnimationFrame(firstStamp);
       stop();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

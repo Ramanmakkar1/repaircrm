@@ -65,7 +65,10 @@ export function Features() {
           <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-accent">
             Everything in one place
           </p>
-          <h2 className="mt-3 text-[32px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-[44px]">
+          <h2
+            id="features-heading"
+            className="mt-3 text-[32px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-[44px]"
+          >
             Six things a repair shop
             <br className="hidden sm:block" /> runs on. All of them here.
           </h2>

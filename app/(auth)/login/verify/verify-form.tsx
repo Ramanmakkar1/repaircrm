@@ -6,7 +6,7 @@ import {
   verifyTwoFactorAction,
   type SecurityFormState,
 } from "../../security-actions";
-import { ErrorBanner, SubmitButton, fieldClass, labelClass } from "../../form-parts";
+import { CodeField, ErrorBanner, SubmitButton } from "../../form-parts";
 
 /**
  * One field, deliberately. A recovery code goes in the same box as a 6-digit
@@ -25,25 +25,15 @@ export function VerifyForm({ next }: { next: string }) {
 
       <ErrorBanner message={state?.error} />
 
-      <div className="space-y-2">
-        <label className={labelClass} htmlFor="code">
-          Code
-        </label>
-        <input
-          id="code"
-          name="code"
-          type="text"
-          inputMode="text"
-          autoComplete="one-time-code"
-          placeholder="123456"
-          required
-          maxLength={20}
-          autoFocus
-          className={`${fieldClass} font-mono tracking-[0.3em]`}
-        />
-      </div>
+      <CodeField
+        label="Code"
+        name="code"
+        autoComplete="one-time-code"
+        placeholder="123456"
+        maxLength={20}
+      />
 
-      <SubmitButton pendingLabel="Checking…">Verify</SubmitButton>
+      <SubmitButton pendingLabel="Checking…">Verify code</SubmitButton>
     </form>
   );
 }

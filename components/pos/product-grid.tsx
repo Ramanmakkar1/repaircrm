@@ -103,6 +103,9 @@ export function ProductGrid({
               setMiss(null);
             }}
             autoFocus
+            // Named as well as labelled: an unnamed field makes the browser
+            // guess at autofill, and a guess in the scanner box costs a sale.
+            name="pos-scan"
             autoComplete="off"
             spellCheck={false}
             aria-label="Scan a barcode or search products"

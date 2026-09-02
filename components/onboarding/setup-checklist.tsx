@@ -82,7 +82,7 @@ export async function SetupChecklist() {
       // Either half is enough to call this done: the shop's own connected
       // Stripe account, or a server-wide key on a single-tenant install.
       done: Boolean(shop.stripeAccountId) || Boolean(stripeSecretKey()),
-      href: "/settings?tab=messaging",
+      href: "/settings?tab=payments",
       cta: "Payment settings",
     },
     {

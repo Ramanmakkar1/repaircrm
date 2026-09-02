@@ -124,7 +124,7 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
             body={
               config.stripeConnected
                 ? "Customers can pay an invoice by card from their portal, and the money lands in your own Stripe account."
-                : "Take card payments from the customer portal. Set it up on the Payments tab."
+                : "Take card payments from the customer portal. Set it up under Settings \u2192 Payments."
             }
             href="/settings?tab=payments"
             cta={config.stripeConnected ? "Payment settings" : "Set up payments"}
@@ -141,7 +141,7 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
                 : "Outbound messages are going through a live provider."
             }
             href="/settings?tab=messaging"
-            cta="Messaging tab"
+            cta="Messaging settings"
           />
 
           <QuickCard
@@ -155,7 +155,7 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
             }
             body="Let another system read and write your customers, tickets and invoices over the REST API."
             href="/settings?tab=api-keys"
-            cta="API keys tab"
+            cta="API & webhooks"
           />
 
           <QuickCard

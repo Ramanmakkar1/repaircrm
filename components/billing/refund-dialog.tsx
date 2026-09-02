@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
-import { SubmitButton } from "./submit-button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
 const METHODS = [
@@ -86,7 +86,16 @@ export function RefundDialog({
   defaultMethod?: string;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
+  // Submitting is what closes the dialog, so the close lives in the action
+  // itself rather than in an effect waiting for `state.done` to land.
+  const [state, formAction] = useActionState(
+    async (previous: FormState, formData: FormData) => {
+      const result = await action(previous, formData);
+      if (result.done) setOpen(false);
+      return result;
+    },
+    IDLE_FORM_STATE,
+  );
   const [method, setMethod] = React.useState(defaultMethod);
   const [paymentId, setPaymentId] = React.useState(NO_PAYMENT);
   // "Send it back to the card" vs "write down a refund that happened
@@ -96,11 +105,6 @@ export function RefundDialog({
   const [amount, setAmount] = React.useState(() =>
     (Math.max(refundableCents, 0) / 100).toFixed(2),
   );
-
-  const done = state.done;
-  React.useEffect(() => {
-    if (done) setOpen(false);
-  }, [done]);
 
   // Reset to a fresh default every time the dialog is opened.
   const onOpenChange = (next: boolean) => {

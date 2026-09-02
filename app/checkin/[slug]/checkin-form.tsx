@@ -94,7 +94,7 @@ export function CheckinForm({
             <CheckCircle2 className="size-8 text-status-resolved-fg" />
           </span>
           <div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-bold tracking-tight">You&rsquo;re checked in</h2>
+            <h1 className="text-2xl font-bold tracking-tight">You&rsquo;re checked in</h1>
             <p className="text-[15px] text-muted-foreground">
               Keep this number handy — it&rsquo;s how we&rsquo;ll find your device.
             </p>
@@ -121,6 +121,12 @@ export function CheckinForm({
 
   return (
     <Shell shopName={shopName} shopPhone={shopPhone} kiosk={kiosk}>
+      <Heading
+        kiosk={kiosk}
+        title="Check in a device"
+        description={`Tell ${shopName} what you're leaving with them and what's wrong with it — it takes about a minute.`}
+      />
+
       <form
         ref={formRef}
         action={submit}
@@ -227,38 +233,42 @@ export function CheckinForm({
               </FieldBox>
             ) : null}
           </Row>
-          <Row>
-            {fields.model ? (
-              <FieldBox
-                label={CHECKIN_FIELD_LABEL.model}
-                htmlFor="model"
-                hint={CHECKIN_FIELD_HINT.model}
-                kiosk={kiosk}
-              >
-                <Input
-                  id="model"
-                  name="model"
-                  maxLength={60}
-                  className={kiosk ? "h-14 text-base" : undefined}
-                />
-              </FieldBox>
-            ) : null}
-            {fields.serial ? (
-              <FieldBox
-                label={CHECKIN_FIELD_LABEL.serial}
-                htmlFor="serial"
-                hint={CHECKIN_FIELD_HINT.serial}
-                kiosk={kiosk}
-              >
-                <Input
-                  id="serial"
-                  name="serial"
-                  maxLength={80}
-                  className={kiosk ? "h-14 text-base" : undefined}
-                />
-              </FieldBox>
-            ) : null}
-          </Row>
+          {/* A shop that hides both of these would otherwise render an empty
+              grid — an invisible row still eats a 16px gap. */}
+          {fields.model || fields.serial ? (
+            <Row>
+              {fields.model ? (
+                <FieldBox
+                  label={CHECKIN_FIELD_LABEL.model}
+                  htmlFor="model"
+                  hint={CHECKIN_FIELD_HINT.model}
+                  kiosk={kiosk}
+                >
+                  <Input
+                    id="model"
+                    name="model"
+                    maxLength={60}
+                    className={kiosk ? "h-14 text-base" : undefined}
+                  />
+                </FieldBox>
+              ) : null}
+              {fields.serial ? (
+                <FieldBox
+                  label={CHECKIN_FIELD_LABEL.serial}
+                  htmlFor="serial"
+                  hint={CHECKIN_FIELD_HINT.serial}
+                  kiosk={kiosk}
+                >
+                  <Input
+                    id="serial"
+                    name="serial"
+                    maxLength={80}
+                    className={kiosk ? "h-14 text-base" : undefined}
+                  />
+                </FieldBox>
+              ) : null}
+            </Row>
+          ) : null}
           {fields.unlockCode ? (
             <Row>
               <FieldBox
@@ -426,14 +436,18 @@ function Shell({
 }) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
+      {/* Shop branding in the band, the page's own title below it — the same
+          two-part lockup the customer portal uses (app/portal/_components/
+          shell.tsx), so a shop's two public surfaces introduce themselves the
+          same way. The <h1> belongs to whichever state is on screen (see
+          `Heading` below), because "Check in a device" is the wrong title to
+          leave sitting above a finished check-in. */}
       <header className="border-b border-border bg-surface">
-        <div className="mx-auto max-w-2xl px-5 py-5">
-          <div className={cn("font-bold tracking-tight", kiosk ? "text-2xl" : "text-xl")}>
+        <div className="mx-auto max-w-2xl px-5 py-4">
+          <div className={cn("font-bold tracking-tight", kiosk ? "text-xl" : "text-[17px]")}>
             {shopName}
           </div>
-          <div className="text-[13.5px] text-muted-foreground">
-            Check in a device — it takes about a minute.
-          </div>
+          <div className="text-[13px] text-muted-foreground">Device check-in</div>
         </div>
       </header>
 
@@ -468,6 +482,41 @@ function Section({
       </h2>
       <div className="mt-4 flex flex-col gap-4">{children}</div>
     </section>
+  );
+}
+
+/**
+ * The page title and its one-line explanation. One per state, so the document
+ * always has exactly one `h1` and it always names what is actually on screen.
+ */
+function Heading({
+  title,
+  description,
+  kiosk,
+}: {
+  title: string;
+  description: string;
+  kiosk: boolean;
+}) {
+  return (
+    <div className="mb-6">
+      <h1
+        className={cn(
+          "font-bold leading-tight tracking-tight",
+          kiosk ? "text-[32px]" : "text-2xl",
+        )}
+      >
+        {title}
+      </h1>
+      <p
+        className={cn(
+          "mt-1.5 leading-snug text-muted-foreground",
+          kiosk ? "text-[17px]" : "text-[15px]",
+        )}
+      >
+        {description}
+      </p>
+    </div>
   );
 }
 
