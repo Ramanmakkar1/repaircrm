@@ -58,6 +58,8 @@ export function ScheduleForm({
     nextRunAt?: string;
     dueInDays?: number;
     active?: boolean;
+    autoCharge?: boolean;
+    autoSend?: boolean;
     lines?: InitialLine[];
   };
   submitLabel: string;
@@ -70,12 +72,27 @@ export function ScheduleForm({
   const [customerId, setCustomerId] = React.useState(initial?.customerId ?? "");
   const [frequency, setFrequency] = React.useState(initial?.frequency ?? "MONTHLY");
   const [active, setActive] = React.useState(initial?.active ?? true);
+  const [autoCharge, setAutoCharge] = React.useState(initial?.autoCharge ?? false);
+  const [autoSend, setAutoSend] = React.useState(initial?.autoSend ?? false);
+
+  // Auto-charge needs somewhere to charge. The switch is disabled rather than
+  // hidden, with the reason next to it, because "why can't I turn this on?" is
+  // the question a hidden control cannot answer.
+  const chosen = customers.find((c) => c.id === customerId) ?? null;
+  const customerHasCard = Boolean(chosen?.hasCard);
+  const chargeReady = customerHasCard && autoCharge;
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
       {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
       <input type="hidden" name="frequency" value={frequency} />
       <input type="hidden" name="active" value={active ? "true" : "false"} />
+      <input
+        type="hidden"
+        name="autoCharge"
+        value={chargeReady ? "true" : "false"}
+      />
+      <input type="hidden" name="autoSend" value={autoSend ? "true" : "false"} />
 
       {state.error ? (
         <div
@@ -202,6 +219,33 @@ export function ScheduleForm({
 
       <Card>
         <CardHeader>
+          <CardTitle>What happens on each run</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <ToggleRow
+            id="autoSend"
+            checked={autoSend}
+            onChange={setAutoSend}
+            title="Email the invoice automatically"
+            detail="The generated invoice is emailed to the customer as soon as it is raised, instead of waiting in Drafts for someone to send it."
+          />
+          <ToggleRow
+            id="autoCharge"
+            checked={chargeReady}
+            onChange={setAutoCharge}
+            disabled={!customerHasCard}
+            title="Charge card on file automatically"
+            detail={
+              customerHasCard
+                ? "The balance is taken from the saved card the moment the invoice is raised. A decline is reported on this schedule and emailed to the shop owner."
+                : "This customer has no card on file. Save one from their customer page to enable this."
+            }
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>What gets billed each time</CardTitle>
         </CardHeader>
         <CardContent className="px-3 py-3">
@@ -223,5 +267,48 @@ export function ScheduleForm({
         </SubmitButton>
       </div>
     </form>
+  );
+}
+
+/**
+ * One labelled switch with its consequence spelled out underneath.
+ *
+ * Both of these toggles cause something to happen to a customer while nobody
+ * is watching — an email leaving, a card being charged — so neither gets to be
+ * a bare switch with a two-word label.
+ */
+function ToggleRow({
+  id,
+  checked,
+  onChange,
+  title,
+  detail,
+  disabled,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  title: string;
+  detail: string;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-3.5 rounded-lg border border-border bg-surface-hover px-4 py-3.5">
+      <Switch
+        id={id}
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        className="mt-0.5"
+      />
+      <div className="flex min-w-0 flex-col gap-1">
+        <Label htmlFor={id} className="text-[14.5px] font-bold">
+          {title}
+        </Label>
+        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          {detail}
+        </p>
+      </div>
+    </div>
   );
 }

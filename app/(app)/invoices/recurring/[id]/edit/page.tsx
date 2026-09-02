@@ -45,6 +45,8 @@ export default async function EditSchedulePage({
           nextRunAt: toDateInputValue(schedule.nextRunAt),
           dueInDays: schedule.dueInDays,
           active: schedule.active,
+          autoCharge: schedule.autoCharge,
+          autoSend: schedule.autoSend,
           lines: schedule.lines.map((line) => ({
             productId: line.productId,
             description: line.description,

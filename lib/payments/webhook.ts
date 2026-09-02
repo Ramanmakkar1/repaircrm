@@ -14,17 +14,26 @@
  *   VERIFY   HMAC-SHA256 over `${timestamp}.${rawBody}`, compared in constant
  *            time, with a 5-minute freshness window so a captured payload
  *            cannot be replayed tomorrow.
- *   DEDUPE   The Stripe session id is stored in `Payment.reference`. A second
- *            delivery of the same event finds that row and does nothing.
+ *   DEDUPE   The Stripe session id is stored in `Payment.reference` and the
+ *            PaymentIntent id in `Payment.stripePaymentIntentId`. Either one
+ *            matching means the money is already written down, which is what
+ *            lets `checkout.session.completed` and `payment_intent.succeeded`
+ *            both be handled without paying an invoice twice.
  *   RE-READ  The invoice's status is recomputed from its own lines and
  *            payments — never nudged by a delta — so events arriving out of
  *            order still converge on the same answer.
+ *
+ * The write itself lives in ./settle.ts, shared with the card-on-file and
+ * Terminal paths that record a payment without waiting for a webhook.
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
+import {
+  settleStripePayment,
+  type SettleOutcome,
+  type StripeSource,
+} from "./settle";
 
 /** How old a signed timestamp may be. Stripe's own default. */
 export const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -129,43 +138,54 @@ export function signPayload(
   return `t=${timestamp},v1=${signature}`;
 }
 
+
 // ---------------------------------------------------------------------------
 // Applying a completed checkout
 // ---------------------------------------------------------------------------
 
 export type CheckoutSessionEvent = {
   id?: string;
+  /** "payment" for an invoice, "setup" for saving a card on file. */
+  mode?: string | null;
   amount_total?: number | null;
   currency?: string | null;
   payment_status?: string | null;
-  payment_intent?: string | null;
-  metadata?: { invoiceId?: string; shopId?: string } | null;
+  payment_intent?: string | { id?: string } | null;
+  setup_intent?: string | { id?: string } | null;
+  customer?: string | { id?: string } | null;
+  metadata?: {
+    invoiceId?: string;
+    shopId?: string;
+    customerId?: string;
+    source?: string;
+  } | null;
 };
 
-export type ApplyOutcome =
-  /** A payment row was written and the invoice status recomputed. */
-  | { status: "recorded"; paymentId: string; invoiceStatus: string }
-  /** Already applied, or nothing to apply. Safe, expected, and a 200. */
-  | { status: "ignored"; reason: string }
-  /** The write failed. The caller should ask Stripe to redeliver. */
-  | { status: "error"; reason: string };
+export type ApplyOutcome = SettleOutcome;
+
+/** Stripe sends an id string when unexpanded and an object when expanded. */
+export function idOf(value: string | { id?: string } | null | undefined): string | null {
+  if (!value) return null;
+  return typeof value === "string" ? value : (value.id ?? null);
+}
 
 /**
  * Records a completed Checkout Session against its invoice.
  *
- * STATUS RECOMPUTE — mirrors takePaymentAction in app/(app)/invoices/actions.ts:
- *   balance after this payment <= 0  →  PAID,    paidAt = now
- *   balance after this payment  > 0  →  PARTIAL, paidAt = null
+ * The interesting decisions — dedupe, status recompute, what to do about an
+ * overpayment or a voided invoice — all live in ./settle.ts, because the
+ * PaymentIntent, card-on-file and Terminal paths have to make exactly the same
+ * ones. This function is the Checkout-shaped adapter onto it: unwrap the
+ * session, refuse the ones that are not money, and hand over.
  *
- * ONE DELIBERATE DIFFERENCE from the counter flow: the staff form refuses an
- * amount larger than the balance, because nobody has been charged yet and the
- * cashier can simply retype it. Here the card has already been debited. An
- * overpayment (a second tab, a stale session opened before a cash payment was
- * keyed in) is money the shop is holding, and it gets recorded in full. Money
- * that arrived and was not written down is the one outcome with no recovery.
+ * `shopIdOverride` comes from a Connect event's `account` field, resolved
+ * against `Shop.stripeAccountId`. It is the more trustworthy of the two — an
+ * account id we stored ourselves beats metadata that rode in on the event — so
+ * it wins when both are present.
  */
 export async function applyCheckoutSession(
   session: CheckoutSessionEvent,
+  shopIdOverride?: string | null,
 ): Promise<ApplyOutcome> {
   const sessionId = session.id?.trim();
   if (!sessionId) return { status: "ignored", reason: "session has no id" };
@@ -173,109 +193,94 @@ export async function applyCheckoutSession(
   // "complete" can also mean "the bank debit is pending". Only paid is paid.
   const paymentStatus = session.payment_status ?? "";
   if (paymentStatus !== "paid" && paymentStatus !== "no_payment_required") {
-    return { status: "ignored", reason: `payment_status=${paymentStatus || "unknown"}` };
-  }
-
-  const amountCents = Math.round(Number(session.amount_total ?? 0));
-  if (!Number.isFinite(amountCents) || amountCents <= 0) {
-    return { status: "ignored", reason: "no amount on session" };
+    return {
+      status: "ignored",
+      reason: `payment_status=${paymentStatus || "unknown"}`,
+    };
   }
 
   const invoiceId = session.metadata?.invoiceId?.trim();
-  const shopId = session.metadata?.shopId?.trim();
+  const shopId = shopIdOverride?.trim() || session.metadata?.shopId?.trim();
   if (!invoiceId || !shopId) {
     return { status: "ignored", reason: "session is not one of ours" };
   }
 
-  try {
-    return await db.$transaction(
-      async (tx) => {
-        // Scoped by BOTH ids. Metadata rides on an event we authenticated, but
-        // it is still an id that arrived over the wire: a mismatched pair finds
-        // nothing and writes nothing.
-        const invoice = await tx.invoice.findFirst({
-          where: { id: invoiceId, shopId },
-          select: {
-            id: true,
-            status: true,
-            taxRateBps: true,
-            lines: {
-              select: { quantity: true, unitPriceCents: true, taxable: true },
-            },
-            payments: { select: { amountCents: true } },
-          },
-        });
-        if (!invoice) {
-          return { status: "ignored" as const, reason: "invoice not found for that shop" };
-        }
+  return settleStripePayment({
+    shopId,
+    invoiceId,
+    amountCents: Math.round(Number(session.amount_total ?? 0)),
+    // The session id stays the reference: it is the handle staff will be
+    // reading back to Stripe support, and it is what pre-Wave-8 rows carry.
+    reference: sessionId,
+    paymentIntentId: idOf(session.payment_intent),
+    chargeId: null,
+    source: "checkout",
+  });
+}
 
-        // Re-check inside the transaction, not before it: two simultaneous
-        // deliveries of the same event both pass an outside check.
-        const existing = await tx.payment.findFirst({
-          where: { invoiceId: invoice.id, reference: sessionId },
-          select: { id: true },
-        });
-        if (existing) {
-          return { status: "ignored" as const, reason: "already recorded" };
-        }
+// ---------------------------------------------------------------------------
+// Applying a succeeded PaymentIntent
+// ---------------------------------------------------------------------------
 
-        if (invoice.status === "VOID") {
-          // Voided after the customer opened checkout. The money is real and
-          // needs refunding by hand; silently marking a void invoice paid would
-          // hide that from whoever has to do it.
-          console.error(
-            `[payments] session ${sessionId} paid ${amountCents} against VOID invoice ${invoice.id} — refund required`,
-          );
-          return { status: "ignored" as const, reason: "invoice is void" };
-        }
+export type PaymentIntentEvent = {
+  id?: string;
+  status?: string | null;
+  amount?: number | null;
+  amount_received?: number | null;
+  latest_charge?: string | { id?: string } | null;
+  metadata?: {
+    invoiceId?: string;
+    shopId?: string;
+    source?: string;
+  } | null;
+};
 
-        const totals = invoiceTotals(
-          invoice.lines,
-          invoice.taxRateBps,
-          invoice.payments,
-        );
-        const balanceAfter = totals.balanceCents - amountCents;
-        const nextStatus = balanceAfter <= 0 ? "PAID" : "PARTIAL";
+/** The sources this app stamps onto its own PaymentIntents. */
+function sourceOf(raw: string | undefined): StripeSource {
+  if (raw === "terminal" || raw === "card_on_file") return raw;
+  return "checkout";
+}
 
-        const payment = await tx.payment.create({
-          data: {
-            shopId,
-            invoiceId: invoice.id,
-            amountCents,
-            method: "CARD",
-            // The session id is both the audit trail back to Stripe and the
-            // dedupe key that makes this handler safe to run twice.
-            reference: sessionId,
-            // Nobody stood at a counter for this one.
-            takenById: null,
-          },
-          select: { id: true },
-        });
+/**
+ * Records a succeeded PaymentIntent — the card reader and the card on file.
+ *
+ * BOTH OF THOSE ALSO RECORD SYNCHRONOUSLY. A card-present sale writes the
+ * payment the moment the reader approves, because the cashier is standing
+ * there and cannot wait on a webhook; charging a card on file does the same.
+ * This handler exists for the case where those calls did not get to finish —
+ * the tab was closed, the process restarted, the network died between Stripe
+ * approving and this app writing the row. The dedupe in ./settle.ts means the
+ * ordinary case (both paths run) still produces exactly one Payment.
+ *
+ * Checkout PaymentIntents land here too. They dedupe against the session's row
+ * on `stripePaymentIntentId`, which is precisely why that column is written.
+ */
+export async function applyPaymentIntent(
+  intent: PaymentIntentEvent,
+  shopIdOverride?: string | null,
+): Promise<ApplyOutcome> {
+  const intentId = intent.id?.trim();
+  if (!intentId) return { status: "ignored", reason: "intent has no id" };
 
-        await tx.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            status: nextStatus,
-            paidAt: balanceAfter <= 0 ? new Date() : null,
-          },
-        });
-
-        return {
-          status: "recorded" as const,
-          paymentId: payment.id,
-          invoiceStatus: nextStatus,
-        };
-      },
-      // Serializable turns the read-then-write above into a real guarantee:
-      // concurrent duplicate deliveries cannot both pass the dedupe check, one
-      // of them aborts, and the caller asks Stripe to redeliver.
-      { isolationLevel: "Serializable" },
-    );
-  } catch (error) {
-    console.error("[payments] failed to apply checkout session:", error);
-    return {
-      status: "error",
-      reason: error instanceof Error ? error.message : "write failed",
-    };
+  if ((intent.status ?? "") !== "succeeded") {
+    return { status: "ignored", reason: `status=${intent.status ?? "unknown"}` };
   }
+
+  const invoiceId = intent.metadata?.invoiceId?.trim();
+  const shopId = shopIdOverride?.trim() || intent.metadata?.shopId?.trim();
+  if (!invoiceId || !shopId) {
+    return { status: "ignored", reason: "intent is not one of ours" };
+  }
+
+  return settleStripePayment({
+    shopId,
+    invoiceId,
+    amountCents: Math.round(
+      Number(intent.amount_received ?? intent.amount ?? 0),
+    ),
+    reference: intentId,
+    paymentIntentId: intentId,
+    chargeId: idOf(intent.latest_charge),
+    source: sourceOf(intent.metadata?.source),
+  });
 }

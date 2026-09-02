@@ -3,10 +3,13 @@ import { notFound } from "next/navigation";
 import {
   CalendarClock,
   CalendarSync,
+  CreditCard,
   Hash,
+  Mail,
   Pencil,
   Receipt,
   Trash2,
+  TriangleAlert,
   User,
   Wallet,
 } from "lucide-react";
@@ -171,12 +174,34 @@ export default async function ScheduleDetailPage({
             <Chip icon={Receipt}>
               {generatedCount} invoice{generatedCount === 1 ? "" : "s"} generated
             </Chip>
+            {schedule.autoSend ? <Chip icon={Mail}>Auto-send</Chip> : null}
+            {schedule.autoCharge ? (
+              <Chip
+                icon={CreditCard}
+                className="bg-chip-accent-bg text-chip-accent-fg"
+              >
+                Auto-charge
+              </Chip>
+            ) : null}
             <Link href={`/customers/${schedule.customer.id}`}>
               <Chip icon={User} className={LINK_CHIP}>
                 {name}
               </Chip>
             </Link>
           </div>
+
+          {/* The full reason, not the list page's tooltip. This is where
+              someone lands when they want to know what to do about it. */}
+          {schedule.lastChargeError ? (
+            <p className="flex items-start gap-2.5 rounded-md bg-destructive-soft px-4 py-3 text-[13.5px] font-medium leading-relaxed text-destructive">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>
+                The last automatic charge failed: {schedule.lastChargeError} The
+                invoice was still raised. This clears itself once a charge goes
+                through.
+              </span>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

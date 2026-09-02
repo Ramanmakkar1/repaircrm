@@ -4,10 +4,15 @@ import { requireUser } from "@/lib/auth";
 import { emailDriverName, smsDriverName, appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
 import {
+  connectConfigured,
+  connectStatus,
   currencySupported,
+  listReaders,
   paymentsCurrency,
   paymentsDriverName,
   paymentsLive,
+  readTerminalLocationId,
+  stripeClientId,
   stripeSecretKey,
   stripeWebhookSecret,
   webhookReady,
@@ -16,7 +21,10 @@ import { readAutomation, recentRuns } from "@/lib/jobs";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import type { AutomationConfig } from "@/components/settings/automation-tab";
-import type { MessagingConfig } from "@/components/settings/types";
+import type {
+  MessagingConfig,
+  PaymentsTabConfig,
+} from "@/components/settings/types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
 
 export const metadata = { title: "Settings · RepairFlow" };
@@ -118,25 +126,56 @@ export default async function SettingsPage({
       },
       { name: "TWILIO_FROM", set: Boolean(process.env.TWILIO_FROM?.trim()) },
     ],
-    // Card payments follow the same rule as the messaging drivers: env decides,
-    // the screen only reports. Presence of each secret crosses to the browser,
-    // never its value — a leaked Stripe secret key is the whole account.
-    payments: {
-      driver: paymentsDriverName(),
-      live: paymentsLive(),
-      webhookReady: webhookReady(),
-      currency: paymentsCurrency(),
-      currencySupported: currencySupported(paymentsCurrency()),
-      webhookUrl: `${appUrl()}/api/webhooks/stripe`,
-      vars: [
-        { name: "STRIPE_SECRET_KEY", set: Boolean(stripeSecretKey()) },
-        { name: "STRIPE_WEBHOOK_SECRET", set: Boolean(stripeWebhookSecret()) },
-        {
-          name: "PAYMENTS_CURRENCY",
-          set: Boolean(process.env.PAYMENTS_CURRENCY?.trim()),
-        },
-      ],
-    },
+  };
+
+  // ------------------------------------------------------------- payments
+  // Card payments follow the same rule as the messaging drivers: env decides,
+  // the screen only reports. Presence of each secret crosses to the browser,
+  // never its value — a leaked Stripe secret key is the whole account.
+  //
+  // The live Stripe calls (account status, reader list) run only for an owner,
+  // and only when a key exists: a technician's settings page must not spend a
+  // round trip on data they will never be shown.
+  const paymentsEnv = {
+    driver: paymentsDriverName(),
+    live: paymentsLive(),
+    webhookReady: webhookReady(),
+    currency: paymentsCurrency(),
+    currencySupported: currencySupported(paymentsCurrency()),
+    webhookUrl: `${appUrl()}/api/webhooks/stripe`,
+    vars: [
+      { name: "STRIPE_SECRET_KEY", set: Boolean(stripeSecretKey()) },
+      { name: "STRIPE_CLIENT_ID", set: Boolean(stripeClientId()) },
+      { name: "STRIPE_WEBHOOK_SECRET", set: Boolean(stripeWebhookSecret()) },
+      {
+        name: "PAYMENTS_CURRENCY",
+        set: Boolean(process.env.PAYMENTS_CURRENCY?.trim()),
+      },
+    ],
+  };
+
+  const shouldQueryStripe = isOwner && paymentsLive();
+  const [connection, readers] = await Promise.all([
+    shouldQueryStripe ? connectStatus(session.shopId) : Promise.resolve(null),
+    shouldQueryStripe ? listReaders(session.shopId) : Promise.resolve(null),
+  ]);
+
+  const payments: PaymentsTabConfig = {
+    env: paymentsEnv,
+    connectConfigured: connectConfigured(),
+    connected: connection?.connected ?? false,
+    accountId: connection?.accountId ?? null,
+    onboardedAt: connection?.onboardedAt ?? null,
+    testMode: connection?.testMode ?? false,
+    currency: connection?.currency ?? paymentsCurrency(),
+    account: connection?.account ?? null,
+    accountError: connection?.accountError ?? null,
+    readers: readers?.ok ? readers.readers : [],
+    readersError: readers && !readers.ok ? readers.reason : null,
+    hasReaderLocation: Boolean(readTerminalLocationId(shop.settings)),
+    // A card can only be saved when the whole online path works — the setup
+    // page is a Checkout Session and the card arrives by webhook.
+    cardOnFileReady: paymentsLive() && webhookReady(),
   };
 
   // Scheduler state. Like the messaging config above, this is read from
@@ -191,6 +230,7 @@ export default async function SettingsPage({
           createdAt: member.createdAt.toISOString(),
         }))}
         messaging={messaging}
+        payments={payments}
         automation={automation}
         apiKeys={apiKeys.map((key) => ({
           ...key,

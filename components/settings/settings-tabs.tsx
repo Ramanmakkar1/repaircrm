@@ -8,6 +8,7 @@ import { ApiKeysTab } from "./api-keys-tab";
 import { AutomationTab, type AutomationConfig } from "./automation-tab";
 import { CannedTab } from "./canned-tab";
 import { MessagingTab } from "./messaging-tab";
+import { PaymentsTab } from "./payments-tab";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
@@ -15,9 +16,14 @@ import type {
   ApiKeyItem,
   CannedResponseItem,
   MessagingConfig,
+  PaymentsTabConfig,
   ShopSettingsValues,
   TeamMember,
 } from "./types";
+import {
+  disconnectStripeAction,
+  registerReaderAction,
+} from "@/app/(app)/settings/payments-actions";
 
 /**
  * The settings shell.
@@ -41,6 +47,7 @@ export function SettingsTabs({
   cannedResponses,
   members,
   messaging,
+  payments,
   apiKeys,
   automation,
 }: {
@@ -53,6 +60,8 @@ export function SettingsTabs({
   cannedResponses: CannedResponseItem[];
   members: TeamMember[];
   messaging: MessagingConfig;
+  /** Owner-only; the Stripe lookups behind it never run for anyone else. */
+  payments: PaymentsTabConfig;
   /** Owner-only; empty for everyone else because the query never ran. */
   apiKeys: ApiKeyItem[];
   /** Owner-only; scheduler state and the last automation run. */
@@ -72,6 +81,7 @@ export function SettingsTabs({
         { value: "canned", label: "Canned responses" },
         isOwner ? { value: "team", label: "Team" } : null,
         { value: "messaging", label: "Messaging" },
+        isOwner ? { value: "payments", label: "Payments" } : null,
         isOwner ? { value: "automation", label: "Automation" } : null,
         isOwner ? { value: "api-keys", label: "API keys" } : null,
       ].filter((tab): tab is { value: string; label: string } => tab !== null),
@@ -127,6 +137,16 @@ export function SettingsTabs({
       <TabsContent value="messaging">
         <MessagingTab config={messaging} />
       </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="payments">
+          <PaymentsTab
+            config={payments}
+            disconnectAction={disconnectStripeAction}
+            registerReaderAction={registerReaderAction}
+          />
+        </TabsContent>
+      ) : null}
 
       {isOwner ? (
         <TabsContent value="automation">

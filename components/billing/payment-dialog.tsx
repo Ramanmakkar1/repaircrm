@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { AlertCircle, CreditCard } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +24,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TerminalPanel } from "@/components/payments/terminal-panel";
+import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents } from "@/lib/money";
 import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
 import { SubmitButton } from "./submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
+
+/**
+ * The card-reader half of this dialog, or absent when the shop has no reader.
+ *
+ * `record` is the Server Action that RETRIEVES the intent from Stripe and
+ * verifies it against this invoice before writing a Payment — the browser only
+ * ever passes an id along.
+ */
+export type PaymentTerminal = {
+  /** Server-derived. Decides whether Stripe offers a simulated reader. */
+  testMode: boolean;
+  record: (
+    invoiceId: string,
+    paymentIntentId: string,
+  ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+};
 
 const METHODS = [
   { value: "CARD", label: "Card" },
@@ -51,12 +70,15 @@ export function PaymentDialog({
   customerCreditCents,
   customerName,
   receiptAction,
+  terminal,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
   balanceCents: number;
   customerCreditCents: number;
   customerName: string;
+  /** Absent when this shop has no card reader paired. */
+  terminal?: PaymentTerminal;
   /**
    * Optional. When the payment just recorded clears the balance, the success
    * toast carries an "Email receipt" button — the one moment the customer is
@@ -67,6 +89,7 @@ export function PaymentDialog({
   const [open, setOpen] = React.useState(false);
   const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
   const [method, setMethod] = React.useState<string>("CARD");
+  const [readerMode, setReaderMode] = React.useState(false);
   const [amount, setAmount] = React.useState(() =>
     (Math.max(balanceCents, 0) / 100).toFixed(2),
   );
@@ -99,6 +122,7 @@ export function PaymentDialog({
     if (next) {
       setAmount((Math.max(balanceCents, 0) / 100).toFixed(2));
       setMethod("CARD");
+      setReaderMode(false);
     }
     setOpen(next);
   };
@@ -122,8 +146,29 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {terminal && readerMode ? (
+          <ReaderPayment
+            invoiceId={invoiceId}
+            balanceCents={balanceCents}
+            terminal={terminal}
+            onKeyIn={() => setReaderMode(false)}
+            onDone={() => setOpen(false)}
+          />
+        ) : (
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="invoiceId" value={invoiceId} />
+
+          {terminal ? (
+            <Button
+              type="button"
+              variant="soft"
+              size="lg"
+              className="h-13"
+              onClick={() => setReaderMode(true)}
+            >
+              <CreditCard /> Take it on the card reader
+            </Button>
+          ) : null}
 
           {state.error ? (
             <div
@@ -195,7 +240,106 @@ export function PaymentDialog({
             <SubmitButton pendingLabel="Recording…">Record payment</SubmitButton>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Taking the card on a reader instead of typing an auth code.
+ *
+ * The amount is not asked for and cannot be edited: /api/payments/terminal/intent
+ * prices it from the invoice's own lines and payments, so what the customer
+ * taps against is what the invoice actually owes.
+ */
+function ReaderPayment({
+  invoiceId,
+  balanceCents,
+  terminal,
+  onKeyIn,
+  onDone,
+}: {
+  invoiceId: string;
+  balanceCents: number;
+  terminal: PaymentTerminal;
+  onKeyIn: () => void;
+  onDone: () => void;
+}) {
+  const reader = useStripeTerminal(terminal.testMode);
+
+  const start = () => {
+    void reader.collect({
+      createIntent: async () => {
+        const response = await fetch("/api/payments/terminal/intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId }),
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          id?: string;
+          clientSecret?: string | null;
+          error?: string;
+        } | null;
+        if (!response.ok || !payload?.id) {
+          return {
+            ok: false as const,
+            error: payload?.error ?? "Could not start that payment.",
+          };
+        }
+        return {
+          ok: true as const,
+          clientSecret: payload.clientSecret ?? null,
+          paymentIntentId: payload.id,
+        };
+      },
+      record: async (paymentIntentId) => {
+        const result = await terminal.record(invoiceId, paymentIntentId);
+        if (!result.ok) return { ok: false as const, error: result.error };
+        // The action revalidates the invoice, which re-renders it as PAID and
+        // takes this whole dialog away with it. A toast is what survives that
+        // to tell the cashier the card went through.
+        toast.success(result.message);
+        return { ok: true as const };
+      },
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <TerminalPanel
+        amountCents={balanceCents}
+        terminal={reader}
+        onStart={start}
+        startLabel={`Charge ${formatCents(balanceCents)}`}
+      />
+
+      <DialogFooter>
+        {reader.step === "approved" ? (
+          <Button type="button" onClick={onDone}>
+            Done
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={reader.busy}
+              onClick={onKeyIn}
+            >
+              Record it by hand instead
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={reader.busy}
+              onClick={onDone}
+            >
+              Cancel
+            </Button>
+          </>
+        )}
+      </DialogFooter>
+    </div>
   );
 }

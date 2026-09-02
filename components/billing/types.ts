@@ -22,6 +22,12 @@ export type ProductOption = {
 export type CustomerOption = {
   id: string;
   label: string;
+  /**
+   * True when this customer has a card saved at Stripe. Only the recurring
+   * schedule form reads it — auto-charge is meaningless without one — but it
+   * rides along on the shared option so no caller needs a second query.
+   */
+  hasCard?: boolean;
 };
 
 /**

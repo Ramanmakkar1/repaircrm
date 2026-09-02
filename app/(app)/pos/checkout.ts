@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { verifyPosTerminalIntent } from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
 import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/pos/types";
 
@@ -94,6 +95,12 @@ const checkoutSchema = z.object({
   method: z.enum(METHODS),
   reference: z.string().trim().max(200).nullable(),
   tenderedCents: z.number().int().min(0).max(100_000_000).nullable(),
+  /**
+   * Set when the card was already presented to a Stripe Terminal reader. It is
+   * a CLAIM, not a receipt: `performCheckout` retrieves the intent from Stripe
+   * and refuses the sale unless Stripe agrees on the shop and the amount.
+   */
+  terminalPaymentIntentId: z.string().trim().min(1).nullable().optional().default(null),
 });
 
 /** Errors safe to show at the counter. Anything else becomes a generic message. */
@@ -119,6 +126,178 @@ type ResolvedLine = {
 /** The tenant + operator identity, always resolved from the session by the caller. */
 export type SaleContext = { shopId: string; userId: string };
 
+/**
+ * Everything a sale's PRICES depend on, resolved from the database.
+ *
+ * Split out of `performCheckout` so the card-reader flow can price a cart
+ * BEFORE the sale exists: at the register the invoice is not written until the
+ * money is taken, so the reader has to be shown an amount, and that amount must
+ * come from here rather than from the register's own arithmetic. Both callers
+ * therefore run the identical trust model described in this file's header.
+ *
+ * Takes a `Tx` so `performCheckout` can call it inside its transaction and
+ * `priceCart` can call it with the plain client for a read-only quote.
+ */
+async function resolveSale(
+  tx: Tx,
+  shopId: string,
+  sale: z.infer<typeof checkoutSchema>,
+) {
+  // ----------------------------------------------- authoritative prices
+  const productIds = [
+    ...new Set(
+      sale.lines
+        .map((line) => line.productId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const products = productIds.length
+    ? await tx.product.findMany({
+        // Scoped to the session's shop: an id from another tenant simply
+        // does not come back, and the check below turns that into an error.
+        where: { id: { in: productIds }, shopId },
+        select: { id: true, name: true, priceCents: true, taxable: true },
+      })
+    : [];
+
+  const byId = new Map(products.map((p) => [p.id, p]));
+  if (byId.size !== productIds.length) {
+    throw new SaleError(
+      "One of those products is no longer available. Refresh the register.",
+    );
+  }
+
+  // ------------------------------------------------- ticket charges
+  // Re-read from the database, scoped to this shop AND to invoiceId:
+  // null. A charge someone else already billed while this cart sat open
+  // simply does not come back, and the count check below turns that into
+  // a refusal rather than a silent double-charge.
+  const ticketChargeIds = [
+    ...new Set(
+      sale.lines
+        .map((line) => line.ticketChargeId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const ticketCharges = ticketChargeIds.length
+    ? await tx.ticketCharge.findMany({
+        where: { id: { in: ticketChargeIds }, shopId, invoiceId: null },
+        select: {
+          id: true,
+          ticketId: true,
+          productId: true,
+          description: true,
+          quantity: true,
+          unitPriceCents: true,
+          taxable: true,
+          ticket: { select: { id: true, number: true, customerId: true } },
+        },
+      })
+    : [];
+
+  const chargeById = new Map(ticketCharges.map((c) => [c.id, c]));
+  if (chargeById.size !== ticketChargeIds.length) {
+    throw new SaleError(
+      "Some of that ticket's charges have already been invoiced. Refresh the register.",
+    );
+  }
+
+  // Rule 1: one ticket per sale.
+  const ticketIds = [...new Set(ticketCharges.map((c) => c.ticketId))];
+  if (ticketIds.length > 1) {
+    throw new SaleError(
+      "One sale can only bill one ticket. Ring the second repair up separately.",
+    );
+  }
+  const billedTicket = ticketCharges[0]?.ticket ?? null;
+
+  const lines: ResolvedLine[] = sale.lines.map((line) => {
+    if (line.ticketChargeId) {
+      // The bench already agreed these numbers with the customer, so the
+      // charge row — not the cart — is the price of record.
+      const charge = chargeById.get(line.ticketChargeId)!;
+      return {
+        productId: charge.productId,
+        description: `Ticket #${charge.ticket.number} — ${charge.description}`,
+        quantity: charge.quantity,
+        unitPriceCents: charge.unitPriceCents,
+        taxable: charge.taxable,
+        ticketChargeId: charge.id,
+      };
+    }
+    if (line.productId) {
+      const product = byId.get(line.productId)!;
+      return {
+        productId: product.id,
+        description: product.name,
+        quantity: line.quantity,
+        unitPriceCents: product.priceCents,
+        taxable: product.taxable,
+        ticketChargeId: null,
+      };
+    }
+    const description = line.description.trim();
+    if (!description) {
+      throw new SaleError("Every custom item needs a description.");
+    }
+    return {
+      productId: null,
+      description,
+      quantity: line.quantity,
+      unitPriceCents: Math.max(0, line.unitPriceCents),
+      taxable: line.taxable,
+      ticketChargeId: null,
+    };
+  });
+
+  // ------------------------------------------------------------ totals
+  const shop = await tx.shop.findUnique({
+    where: { id: shopId },
+    select: { taxRateBps: true },
+  });
+  const taxRateBps = shop?.taxRateBps ?? 0;
+  const totals = calcTotals(lines, taxRateBps);
+
+  if (totals.totalCents <= 0) {
+    throw new SaleError("This sale comes to nothing — add a priced item.");
+  }
+
+  return { lines, totals, taxRateBps, billedTicket, ticketChargeIds };
+}
+
+/**
+ * What this cart comes to, priced by the server.
+ *
+ * Read-only: nothing is written, no stock moves, no invoice is created. Used by
+ * the POS card-reader flow to open a PaymentIntent for the right amount. The
+ * figure is checked again inside the sale transaction against what Stripe
+ * actually took, so a cart edited between the two steps is refused rather than
+ * charged at the old price.
+ */
+export async function priceCart(
+  shopId: string,
+  input: CheckoutInput,
+): Promise<{ ok: true; totalCents: number } | { ok: false; error: string }> {
+  const parsed = checkoutSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "That sale is not valid.",
+    };
+  }
+
+  try {
+    const { totals } = await resolveSale(db, shopId, parsed.data);
+    return { ok: true, totalCents: totals.totalCents };
+  } catch (error) {
+    if (error instanceof SaleError) return { ok: false, error: error.message };
+    console.error("[pos] pricing failed", error);
+    return { ok: false, error: "Could not price that cart." };
+  }
+}
+
 export async function performCheckout(
   { shopId, userId }: SaleContext,
   input: CheckoutInput,
@@ -132,128 +311,54 @@ export async function performCheckout(
   }
   const sale = parsed.data;
 
+  // -------------------------------------------------------- card reader ----
+  // Verified BEFORE the transaction, because it is a network round trip and a
+  // Stripe call inside an interactive transaction holds a lock open for as
+  // long as Stripe feels like taking. What comes back is the amount STRIPE
+  // says it took, which is compared against the server-priced cart below.
+  let terminal: { intentId: string; chargeId: string | null; amountCents: number } | null =
+    null;
+  if (sale.terminalPaymentIntentId) {
+    if (sale.method !== "CARD") {
+      return { ok: false, error: "A reader payment has to be tendered as a card." };
+    }
+    const verified = await verifyPosTerminalIntent({
+      shopId,
+      paymentIntentId: sale.terminalPaymentIntentId,
+    });
+    if (!verified.ok) return { ok: false, error: verified.reason };
+    terminal = verified;
+  }
+
   try {
     const result = await withNextNumber(shopId, "invoice", (number) =>
       db.$transaction(async (tx) => {
-        // ----------------------------------------------- authoritative prices
-        const productIds = [
-          ...new Set(
-            sale.lines
-              .map((line) => line.productId)
-              .filter((id): id is string => Boolean(id)),
-          ),
-        ];
+        // Prices, ticket charges and totals — all re-read from the database,
+        // never believed from the cart. See `resolveSale` above.
+        const { lines, totals, taxRateBps, billedTicket, ticketChargeIds } =
+          await resolveSale(tx, shopId, sale);
 
-        const products = productIds.length
-          ? await tx.product.findMany({
-              // Scoped to the session's shop: an id from another tenant simply
-              // does not come back, and the check below turns that into an error.
-              where: { id: { in: productIds }, shopId },
-              select: { id: true, name: true, priceCents: true, taxable: true },
-            })
-          : [];
-
-        const byId = new Map(products.map((p) => [p.id, p]));
-        if (byId.size !== productIds.length) {
-          throw new SaleError(
-            "One of those products is no longer available. Refresh the register.",
-          );
-        }
-
-        // ------------------------------------------------- ticket charges
-        // Re-read from the database, scoped to this shop AND to invoiceId:
-        // null. A charge someone else already billed while this cart sat open
-        // simply does not come back, and the count check below turns that into
-        // a refusal rather than a silent double-charge.
-        const ticketChargeIds = [
-          ...new Set(
-            sale.lines
-              .map((line) => line.ticketChargeId)
-              .filter((id): id is string => Boolean(id)),
-          ),
-        ];
-
-        const ticketCharges = ticketChargeIds.length
-          ? await tx.ticketCharge.findMany({
-              where: { id: { in: ticketChargeIds }, shopId, invoiceId: null },
-              select: {
-                id: true,
-                ticketId: true,
-                productId: true,
-                description: true,
-                quantity: true,
-                unitPriceCents: true,
-                taxable: true,
-                ticket: { select: { id: true, number: true, customerId: true } },
-              },
-            })
-          : [];
-
-        const chargeById = new Map(ticketCharges.map((c) => [c.id, c]));
-        if (chargeById.size !== ticketChargeIds.length) {
-          throw new SaleError(
-            "Some of that ticket's charges have already been invoiced. Refresh the register.",
-          );
-        }
-
-        // Rule 1: one ticket per sale.
-        const ticketIds = [...new Set(ticketCharges.map((c) => c.ticketId))];
-        if (ticketIds.length > 1) {
-          throw new SaleError(
-            "One sale can only bill one ticket. Ring the second repair up separately.",
-          );
-        }
-        const billedTicket = ticketCharges[0]?.ticket ?? null;
-
-        const lines: ResolvedLine[] = sale.lines.map((line) => {
-          if (line.ticketChargeId) {
-            // The bench already agreed these numbers with the customer, so the
-            // charge row — not the cart — is the price of record.
-            const charge = chargeById.get(line.ticketChargeId)!;
-            return {
-              productId: charge.productId,
-              description: `Ticket #${charge.ticket.number} — ${charge.description}`,
-              quantity: charge.quantity,
-              unitPriceCents: charge.unitPriceCents,
-              taxable: charge.taxable,
-              ticketChargeId: charge.id,
-            };
+        if (terminal) {
+          // The cart is priced from the catalogue; the card was charged for
+          // whatever it was priced at a moment ago. If somebody added a line
+          // in between, refuse rather than ring up a sale for more than the
+          // customer's card actually paid.
+          if (terminal.amountCents !== totals.totalCents) {
+            throw new SaleError(
+              `The reader took ${formatCents(terminal.amountCents)} but this cart now comes to ${formatCents(totals.totalCents)}. Refund that payment in Stripe and ring the sale up again.`,
+            );
           }
-          if (line.productId) {
-            const product = byId.get(line.productId)!;
-            return {
-              productId: product.id,
-              description: product.name,
-              quantity: line.quantity,
-              unitPriceCents: product.priceCents,
-              taxable: product.taxable,
-              ticketChargeId: null,
-            };
+          // Double-submit guard: the same approved card payment must not be
+          // able to create a second invoice.
+          const already = await tx.payment.findFirst({
+            where: { shopId, stripePaymentIntentId: terminal.intentId },
+            select: { invoice: { select: { number: true } } },
+          });
+          if (already) {
+            throw new SaleError(
+              `That card payment was already rung up as invoice #${already.invoice.number}.`,
+            );
           }
-          const description = line.description.trim();
-          if (!description) {
-            throw new SaleError("Every custom item needs a description.");
-          }
-          return {
-            productId: null,
-            description,
-            quantity: line.quantity,
-            unitPriceCents: Math.max(0, line.unitPriceCents),
-            taxable: line.taxable,
-            ticketChargeId: null,
-          };
-        });
-
-        // ------------------------------------------------------------ totals
-        const shop = await tx.shop.findUnique({
-          where: { id: shopId },
-          select: { taxRateBps: true },
-        });
-        const taxRateBps = shop?.taxRateBps ?? 0;
-        const totals = calcTotals(lines, taxRateBps);
-
-        if (totals.totalCents <= 0) {
-          throw new SaleError("This sale comes to nothing — add a priced item.");
         }
 
         // ---------------------------------------------------------- customer
@@ -325,8 +430,16 @@ export async function performCheckout(
             invoiceId: invoice.id,
             amountCents: totals.totalCents,
             method: sale.method as TenderMethod,
-            reference: buildReference(sale.method, sale.reference, sale.tenderedCents),
+            reference: terminal
+              ? terminal.intentId
+              : buildReference(sale.method, sale.reference, sale.tenderedCents),
             takenById: userId,
+            // Only set on a reader sale. These are what tie the till back to a
+            // Stripe payout, and what let a refund be pushed to the card later
+            // instead of being handed back out of the drawer.
+            stripePaymentIntentId: terminal?.intentId ?? null,
+            stripeChargeId: terminal?.chargeId ?? null,
+            stripeSource: terminal ? "terminal" : null,
           },
         });
 

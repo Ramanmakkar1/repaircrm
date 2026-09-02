@@ -21,7 +21,9 @@ export { summaryLine };
  * Three jobs, per shop, in this order:
  *
  *   1. recurring invoices  stamp a DRAFT invoice out of every schedule whose
- *                          date has arrived (lib/jobs/recurring.ts)
+ *                          date has arrived, then — only where the schedule
+ *                          says so — email it and charge the card on file
+ *                          (lib/jobs/recurring.ts)
  *   2. campaigns           sync the queue, then send what is due
  *                          (app/(app)/marketing/engine.ts, called directly —
  *                          those are plain functions taking a shopId)
@@ -308,6 +310,9 @@ async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
     summary.recurring.created += recurring.created;
+    summary.charges.attempted += recurring.charges.attempted;
+    summary.charges.succeeded += recurring.charges.succeeded;
+    summary.charges.failed += recurring.charges.failed;
     for (const error of recurring.errors) {
       summary.errors.push(`recurring: ${error}`);
     }

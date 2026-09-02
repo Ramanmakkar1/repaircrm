@@ -147,6 +147,13 @@ export type CheckoutInput = {
   reference: string | null;
   /** Cash only: what the customer handed over, in cents. */
   tenderedCents: number | null;
+  /**
+   * Set when the card was taken on a Stripe Terminal reader before the sale was
+   * rung up. The server retrieves that intent from Stripe and refuses the sale
+   * unless the shop and the amount both match — an id from the browser is a
+   * claim, not a receipt.
+   */
+  terminalPaymentIntentId?: string | null;
 };
 
 export type CheckoutResult =

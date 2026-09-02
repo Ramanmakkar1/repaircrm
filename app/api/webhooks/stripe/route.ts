@@ -1,5 +1,19 @@
-import { applyCheckoutSession, stripeWebhookSecret, verifyStripeSignature } from "@/lib/payments";
-import type { CheckoutSessionEvent } from "@/lib/payments";
+import {
+  applyChargeRefunded,
+  applyCheckoutSession,
+  applyPaymentIntent,
+  applyRefundEvent,
+  clearConnectionByAccount,
+  idOf,
+  storeCardFromSetupIntent,
+  stripeWebhookSecret,
+  verifyStripeSignature,
+  type ApplyOutcome,
+  type CheckoutSessionEvent,
+  type PaymentIntentEvent,
+} from "@/lib/payments";
+import type { StripeCharge, StripeRefundObject } from "@/lib/payments/stripe";
+import { db } from "@/lib/db";
 
 /**
  * POST /api/webhooks/stripe
@@ -14,6 +28,15 @@ import type { CheckoutSessionEvent } from "@/lib/payments";
  * that re-serialises with different whitespace and key order, and the signature
  * would never verify again.
  *
+ * CONNECT EVENTS
+ * --------------
+ * An event about a connected account carries `account: "acct_…"` at the top
+ * level. That id is resolved against `Shop.stripeAccountId` and the shop it
+ * finds WINS over any `shopId` in the payload's metadata — an account id this
+ * app stored itself is a stronger claim than metadata riding in on the event.
+ * Platform (direct-mode) events have no `account` and fall back to metadata,
+ * exactly as before.
+ *
  * STATUS CODES ARE INSTRUCTIONS TO STRIPE, NOT DESCRIPTIONS OF OUR MOOD
  *   400  the signature did not verify — do not retry, it will never verify
  *   500  we could not write it down — please redeliver
@@ -24,18 +47,12 @@ import type { CheckoutSessionEvent } from "@/lib/payments";
  * the endpoint that our actual payments depend on.
  */
 
-/** Events that mean "the money is ours now". */
-const PAID_EVENTS = new Set([
-  "checkout.session.completed",
-  // Delayed methods (bank debits) confirm on their own schedule; the session
-  // completed hours ago with payment_status "unpaid".
-  "checkout.session.async_payment_succeeded",
-]);
-
 type StripeEvent = {
   id?: string;
   type?: string;
-  data?: { object?: CheckoutSessionEvent };
+  /** Present on Connect events: the connected account the event belongs to. */
+  account?: string;
+  data?: { object?: Record<string, unknown> };
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -67,13 +84,121 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const type = event.type ?? "";
-  if (!PAID_EVENTS.has(type)) {
-    // payment_intent.*, charge.*, everything else: acknowledged and dropped.
-    return Response.json({ received: true, ignored: type || "unknown" });
+  const object = event.data?.object ?? {};
+  // Resolved once, up front: every handler below needs the same answer, and a
+  // Connect event that names an account we do not know must not fall through
+  // to trusting the metadata instead.
+  const shopId = await resolveShopId(event.account);
+  if (event.account && !shopId) {
+    return Response.json({ received: true, ignored: "unknown connected account" });
   }
 
-  const outcome = await applyCheckoutSession(event.data?.object ?? {});
+  switch (type) {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
+      const session = object as CheckoutSessionEvent;
+      // Saving a card and paying an invoice arrive as the same event type and
+      // are told apart only by `mode`.
+      if (session.mode === "setup") {
+        return handleSetupSession(session, shopId, event.id);
+      }
+      return respond(await applyCheckoutSession(session, shopId), event.id);
+    }
 
+    case "payment_intent.succeeded":
+      return respond(
+        await applyPaymentIntent(object as PaymentIntentEvent, shopId),
+        event.id,
+      );
+
+    case "charge.refunded": {
+      const outcomes = await applyChargeRefunded(object as StripeCharge, shopId);
+      return Response.json({
+        received: true,
+        refunds: outcomes.map((outcome) => outcome.status),
+      });
+    }
+
+    case "refund.updated": {
+      const outcome = await applyRefundEvent(object as StripeRefundObject, shopId);
+      return Response.json({ received: true, outcome: outcome.status });
+    }
+
+    case "account.application.deauthorized": {
+      // The owner revoked us from Stripe's side. Holding on to the account id
+      // would make every later charge fail with a permissions error nobody in
+      // the shop can interpret.
+      if (!event.account) {
+        return Response.json({ received: true, ignored: "no account on event" });
+      }
+      const cleared = await clearConnectionByAccount(event.account);
+      console.log(
+        `[payments] account ${event.account} deauthorized; cleared ${cleared} shop connection(s)`,
+      );
+      return Response.json({ received: true, cleared });
+    }
+
+    default:
+      // Everything else: acknowledged and dropped.
+      return Response.json({ received: true, ignored: type || "unknown" });
+  }
+}
+
+/**
+ * The shop that owns a connected account, or null.
+ *
+ * A single indexed lookup by `stripeAccountId`. Returning null for an account
+ * we have never seen is deliberate: a disconnected shop still receives events
+ * for a while, and applying them to whatever the metadata claimed would write
+ * money into a tenant that no longer owns the account.
+ */
+async function resolveShopId(account: string | undefined): Promise<string | null> {
+  if (!account) return null;
+  const shop = await db.shop.findFirst({
+    where: { stripeAccountId: account },
+    select: { id: true },
+  });
+  return shop?.id ?? null;
+}
+
+/**
+ * `mode=setup` — the customer just saved a card.
+ *
+ * The SetupIntent is re-read from Stripe rather than trusted from the payload,
+ * and the customer is written scoped by shopId. Nothing about money happens
+ * here, so a failure is a 500 and a redelivery rather than anything louder.
+ */
+async function handleSetupSession(
+  session: CheckoutSessionEvent,
+  shopIdOverride: string | null,
+  eventId: string | undefined,
+): Promise<Response> {
+  const shopId = shopIdOverride ?? session.metadata?.shopId?.trim() ?? "";
+  const customerId = session.metadata?.customerId?.trim() ?? "";
+  const setupIntentId = idOf(session.setup_intent);
+
+  if (!shopId || !customerId || !setupIntentId) {
+    return Response.json({ received: true, ignored: "setup is not one of ours" });
+  }
+
+  const result = await storeCardFromSetupIntent({
+    shopId,
+    customerId,
+    setupIntentId,
+  });
+  if (!result.ok) {
+    console.error(`[payments] event ${eventId ?? "?"} card save failed: ${result.reason}`);
+    return new Response(`could not save card: ${result.reason}`, { status: 500 });
+  }
+
+  console.log(
+    `[payments] event ${eventId ?? "?"} saved ${result.card.brand} ····${result.card.last4} for customer ${customerId}`,
+  );
+  return Response.json({ received: true, outcome: "card_saved" });
+}
+
+/** Turns a settlement outcome into the status code Stripe should act on. */
+function respond(outcome: ApplyOutcome, eventId: string | undefined): Response {
   if (outcome.status === "error") {
     // Stripe's retry schedule is the recovery mechanism for a database blip.
     return new Response(`could not record payment: ${outcome.reason}`, {
@@ -83,7 +208,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (outcome.status === "recorded") {
     console.log(
-      `[payments] event ${event.id ?? "?"} recorded payment ${outcome.paymentId}; invoice now ${outcome.invoiceStatus}`,
+      `[payments] event ${eventId ?? "?"} recorded payment ${outcome.paymentId}; invoice now ${outcome.invoiceStatus}`,
     );
   }
 
