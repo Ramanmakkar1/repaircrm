@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Ban, CheckCheck, Package, Plus, Truck } from "lucide-react";
+import { Ban, CheckCheck, ClipboardList, Package, Plus, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatCents } from "@/lib/money";
@@ -21,7 +21,19 @@ import {
   PART_STATUS_META,
   type PartActionState,
 } from "./part-meta";
-import { PartOrderDialog, type PartProductOption } from "./part-order-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { addPartOrderToPoAction } from "@/app/(app)/inventory/purchase-orders/actions";
+import {
+  PartOrderDialog,
+  type PartProductOption,
+  type PartVendorOption,
+} from "./part-order-dialog";
 
 /**
  * One part order, flattened for the client.
@@ -42,6 +54,11 @@ export type PartOrderRow = {
   stampLabel: string | null;
   notes: string | null;
   productName: string | null;
+  /** The vendor this part is destined for, if one was chosen. */
+  vendorId: string | null;
+  /** Set once the part has been rolled onto a purchase order. */
+  poNumber: number | null;
+  poId: string | null;
 };
 
 /**
@@ -61,11 +78,16 @@ export function PartsCard({
   ticketStatus,
   parts,
   products,
+  vendors,
+  canPurchase,
 }: {
   ticketId: string;
   ticketStatus: string;
   parts: PartOrderRow[];
   products: PartProductOption[];
+  vendors: PartVendorOption[];
+  /** Purchase orders are owner-only, so the button is hidden for everyone else. */
+  canPurchase: boolean;
 }) {
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [, startTransition] = React.useTransition();
@@ -133,6 +155,7 @@ export function PartsCard({
         <PartOrderDialog
           ticketId={ticketId}
           products={products}
+          vendors={vendors}
           trigger={
             <Button variant="outline" size="sm">
               <Plus className="size-4" />
@@ -153,6 +176,8 @@ export function PartsCard({
               <PartRow
                 key={part.id}
                 part={part}
+                vendors={vendors}
+                canPurchase={canPurchase}
                 busy={pendingId === part.id}
                 onOrdered={() =>
                   run(part.id, markPartOrderedAction, "Marked as ordered")
@@ -199,12 +224,16 @@ export function PartsCard({
 
 function PartRow({
   part,
+  vendors,
+  canPurchase,
   busy,
   onOrdered,
   onReceived,
   onCancel,
 }: {
   part: PartOrderRow;
+  vendors: PartVendorOption[];
+  canPurchase: boolean;
   busy: boolean;
   onOrdered: () => void;
   onReceived: () => void;
@@ -214,6 +243,22 @@ function PartRow({
   const meta = PART_STATUS_META[status];
   const terminal = isTerminalPartStatus(status);
   const lineCost = part.costCents != null ? part.costCents * part.quantity : null;
+  const [attaching, startAttach] = React.useTransition();
+
+  /**
+   * Roll this part onto a vendor's open draft PO (creating one if there isn't
+   * one). From then on the purchase order owns the stock movement — receiving
+   * the PO line is what marks this part received.
+   */
+  const attach = (vendorId: string) =>
+    startAttach(async () => {
+      const result = await addPartOrderToPoAction(part.id, vendorId);
+      if (result.error) toast.error(result.error);
+      else toast.success(`Added to PO #${result.number}`);
+    });
+
+  const canAttach =
+    canPurchase && !terminal && part.poNumber === null && vendors.length > 0;
 
   return (
     <li className="flex flex-col gap-2.5 px-4 py-3.5">
@@ -251,6 +296,15 @@ function PartRow({
               </Chip>
             ) : null}
             {part.stampLabel ? <Chip>{part.stampLabel}</Chip> : null}
+            {part.poNumber !== null && part.poId ? (
+              <a
+                href={`/inventory/purchase-orders/${part.poId}`}
+                className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[12.5px] font-semibold leading-none text-accent-soft-foreground transition-colors hover:brightness-95"
+              >
+                <ClipboardList className="size-3.5" />
+                PO #{part.poNumber}
+              </a>
+            ) : null}
           </div>
 
           {part.notes ? (
@@ -269,6 +323,27 @@ function PartRow({
 
           {!terminal ? (
             <div className="flex flex-wrap justify-end gap-1.5">
+              {canAttach ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={attaching}>
+                      <ClipboardList className="size-4" />
+                      Add to PO
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Order from</DropdownMenuLabel>
+                    {orderVendors(vendors, part.vendorId).map((vendor) => (
+                      <DropdownMenuItem
+                        key={vendor.id}
+                        onSelect={() => attach(vendor.id)}
+                      >
+                        {vendor.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
               {status === "NEEDED" ? (
                 <Button
                   variant="outline"
@@ -300,4 +375,15 @@ function PartRow({
       </div>
     </li>
   );
+}
+
+/** The part's own vendor first — it is the answer nine times out of ten. */
+function orderVendors(
+  vendors: PartVendorOption[],
+  preferredId: string | null,
+): PartVendorOption[] {
+  if (!preferredId) return vendors;
+  const preferred = vendors.find((vendor) => vendor.id === preferredId);
+  if (!preferred) return vendors;
+  return [preferred, ...vendors.filter((vendor) => vendor.id !== preferredId)];
 }

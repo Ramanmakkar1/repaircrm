@@ -13,6 +13,13 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseCents } from "@/lib/money";
 import { MAX_WARRANTY_DAYS } from "@/lib/warranty";
+import {
+  SerialError,
+  isSerialStatus,
+  parseSerialList,
+  receiveSerials,
+  syncSerializedStock,
+} from "@/lib/serials";
 
 /**
  * Server actions for the Inventory module.
@@ -25,6 +32,11 @@ import { MAX_WARRANTY_DAYS } from "@/lib/warranty";
  * STOCK: `Product.stockQty` is a cached level and `StockAdjustment` is the
  * audit trail. They are only ever written together, inside one transaction, so
  * the cached level can't drift from its history.
+ *
+ * SERIALS: for a product with `serialized = true` the level is not a number
+ * somebody types — it is the count of IN_STOCK `ProductSerial` rows. Those
+ * paths go through lib/serials.ts, which recounts and writes the difference as
+ * one adjustment, so the same invariant holds however the units moved.
  */
 
 // ---------------------------------------------------------------------------
@@ -116,6 +128,14 @@ const productSchema = z.object({
     .min(0, "Warranty can't be negative")
     .max(MAX_WARRANTY_DAYS, "That warranty is longer than ten years")
     .nullable(),
+  reorderQty: z
+    .number()
+    .int()
+    .min(1, "Order at least one when reordering")
+    .nullable(),
+  vendorId: z.string().min(1).nullable(),
+  vendorSku: z.string().max(80).nullable(),
+  serialized: z.boolean(),
   active: z.boolean(),
 });
 
@@ -135,8 +155,28 @@ function readProduct(formData: FormData): ProductInput {
     lowStockAt: whole(formData, "lowStockAt"),
     // 0 and blank both mean "no warranty"; null is what the column stores.
     warrantyDays: whole(formData, "warrantyDays") || null,
+    reorderQty: whole(formData, "reorderQty"),
+    vendorId: text(formData, "vendorId") ?? null,
+    vendorSku: text(formData, "vendorSku") ?? null,
+    serialized: flag(formData, "serialized"),
     active: flag(formData, "active"),
   };
+}
+
+/**
+ * A vendorId is only trusted once this shop is proved to own it — a forged id
+ * would otherwise point a product at another tenant's supplier.
+ */
+async function resolveVendorId(
+  shopId: string,
+  vendorId: string | null,
+): Promise<string | null> {
+  if (!vendorId) return null;
+  const vendor = await db.vendor.findFirst({
+    where: { id: vendorId, shopId },
+    select: { id: true },
+  });
+  return vendor?.id ?? null;
 }
 
 /**
@@ -176,6 +216,8 @@ export async function createProductAction(
     return { error: "Please fix the highlighted fields.", fieldErrors: { sku: DUPLICATE_SKU } };
   }
 
+  const vendorId = await resolveVendorId(shopId, input.vendorId);
+
   let productId: string;
   try {
     // The opening balance and its audit row are written together, so a product
@@ -193,9 +235,15 @@ export async function createProductAction(
           // Cost is owner-only information; a non-owner can't set it.
           costCents: role === "OWNER" ? input.costCents : null,
           taxable: input.taxable,
-          stockQty: input.stockQty,
+          stockQty: input.serialized ? 0 : input.stockQty,
           lowStockAt: input.lowStockAt,
           warrantyDays: input.warrantyDays,
+          reorderQty: input.reorderQty,
+          vendorId,
+          vendorSku: input.vendorSku,
+          // A brand-new serialized product starts empty by definition: units
+          // only exist once their serial numbers do.
+          serialized: input.serialized,
           active: input.active,
         },
         select: { id: true, stockQty: true },
@@ -234,14 +282,14 @@ export async function updateProductAction(
   _prev: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
 
   const id = text(formData, "id");
   if (!id) return { error: "Missing product id." };
 
   const owned = await db.product.findFirst({
     where: { id, shopId },
-    select: { id: true },
+    select: { id: true, stockQty: true, serialized: true },
   });
   if (!owned) return { error: "Product not found." };
 
@@ -258,26 +306,60 @@ export async function updateProductAction(
     return { error: "Please fix the highlighted fields.", fieldErrors: { sku: DUPLICATE_SKU } };
   }
 
+  const vendorId = await resolveVendorId(shopId, input.vendorId);
+  const turningOn = input.serialized && !owned.serialized;
+
+  // Switching an already-stocked product to serial tracking is destructive to
+  // the count: there are no serial numbers for the units on the shelf, and a
+  // serialized product's level IS its IN_STOCK units. So the level is zeroed
+  // (audited) and the shelf is re-entered as serials. The form warns first;
+  // this refuses without that confirmation.
+  if (turningOn && owned.stockQty !== 0 && !flag(formData, "serializedConfirm")) {
+    return {
+      error:
+        "Turning on serial tracking resets the on-hand count so every unit can be entered by serial. Confirm on the form to continue.",
+    };
+  }
+
   try {
-    await db.product.update({
-      where: { id },
-      data: {
-        name: input.name,
-        category: input.category,
-        sku: input.sku,
-        upc: input.upc,
-        description: input.description,
-        priceCents: input.priceCents,
-        // Omitted entirely for a non-owner: the form never showed them the
-        // cost, so submitting must not blank it.
-        ...(role === "OWNER" ? { costCents: input.costCents } : {}),
-        taxable: input.taxable,
-        lowStockAt: input.lowStockAt,
-        warrantyDays: input.warrantyDays,
-        active: input.active,
-        // stockQty is deliberately NOT here. Stock only moves through
-        // adjustStockAction, so every change lands in the audit trail.
-      },
+    await db.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id },
+        data: {
+          name: input.name,
+          category: input.category,
+          sku: input.sku,
+          upc: input.upc,
+          description: input.description,
+          priceCents: input.priceCents,
+          // Omitted entirely for a non-owner: the form never showed them the
+          // cost, so submitting must not blank it.
+          ...(role === "OWNER" ? { costCents: input.costCents } : {}),
+          taxable: input.taxable,
+          lowStockAt: input.lowStockAt,
+          warrantyDays: input.warrantyDays,
+          reorderQty: input.reorderQty,
+          vendorId,
+          vendorSku: input.vendorSku,
+          serialized: input.serialized,
+          active: input.active,
+          // stockQty is deliberately NOT here. Stock only moves through
+          // adjustStockAction, so every change lands in the audit trail.
+        },
+      });
+
+      if (turningOn && owned.stockQty !== 0) {
+        await tx.product.update({ where: { id }, data: { stockQty: 0 } });
+        await tx.stockAdjustment.create({
+          data: {
+            shopId,
+            productId: id,
+            delta: -owned.stockQty,
+            reason: "Switched to serial tracking — re-enter units by serial",
+            userId,
+          },
+        });
+      }
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -305,6 +387,10 @@ export async function updateProductAction(
  * the number physically on the shelf and derives the delta from the level read
  * INSIDE the transaction, so two people counting at once can't overwrite each
  * other with a stale "from" value.
+ *
+ * A serialized product takes neither: it is handed off to
+ * `adjustSerializedStock`, where the change is derived from the actual units
+ * added or removed.
  */
 export async function adjustStockAction(
   productId: string,
@@ -318,12 +404,6 @@ export async function adjustStockAction(
   const reason = text(formData, "reason") ?? "";
   const note = text(formData, "note") ?? null;
 
-  if (amount === null) {
-    return { error: mode === "count" ? "Enter the counted quantity." : "Enter a quantity." };
-  }
-  if (mode === "count" && amount < 0) {
-    return { error: "A counted quantity can't be negative." };
-  }
   if (!isStockReason(reason)) {
     return { error: "Choose a reason for this adjustment." };
   }
@@ -331,14 +411,39 @@ export async function adjustStockAction(
     return { error: "Notes are limited to 500 characters." };
   }
 
+  const product = await db.product.findFirst({
+    where: { id: productId, shopId },
+    select: { id: true, stockQty: true, serialized: true },
+  });
+  if (!product) return { error: "Product not found." };
+
+  if (product.serialized) {
+    return adjustSerializedStock({
+      shopId,
+      userId,
+      productId: product.id,
+      mode,
+      reason,
+      note,
+      formData,
+    });
+  }
+
+  if (amount === null) {
+    return { error: mode === "count" ? "Enter the counted quantity." : "Enter a quantity." };
+  }
+  if (mode === "count" && amount < 0) {
+    return { error: "A counted quantity can't be negative." };
+  }
+
   const outcome = await db.$transaction(async (tx) => {
-    const product = await tx.product.findFirst({
+    const current = await tx.product.findFirst({
       where: { id: productId, shopId },
       select: { id: true, stockQty: true },
     });
-    if (!product) return "missing" as const;
+    if (!current) return "missing" as const;
 
-    const delta = mode === "count" ? amount - product.stockQty : amount;
+    const delta = mode === "count" ? amount - current.stockQty : amount;
     if (delta === 0) return "unchanged" as const;
 
     await tx.product.update({
@@ -369,6 +474,209 @@ export async function adjustStockAction(
 
   revalidatePath("/inventory");
   revalidatePath(`/inventory/${productId}`);
+  return { ok: true };
+}
+
+/**
+ * The serialized half of `adjustStockAction`.
+ *
+ * A serialized product has no quantity to nudge — it has units. Adding means
+ * pasting the serials that arrived; removing means picking the exact units that
+ * left. The signed change is therefore DERIVED from those lists rather than
+ * typed, which is what keeps `stockQty` equal to the IN_STOCK count.
+ *
+ * "Set counted total" is refused outright: a number cannot say which cabinet
+ * the missing handset was in.
+ */
+async function adjustSerializedStock(input: {
+  shopId: string;
+  userId: string;
+  productId: string;
+  mode: "delta" | "count";
+  reason: string;
+  note: string | null;
+  formData: FormData;
+}): Promise<InventoryActionState> {
+  const { shopId, userId, productId, reason, note, formData } = input;
+
+  if (input.mode === "count") {
+    return {
+      error:
+        "This product is tracked by serial number — add the units you found or remove the ones that are gone.",
+    };
+  }
+
+  const direction = formData.get("direction") === "remove" ? "remove" : "add";
+  const composed = composeReason(reason, note);
+
+  if (direction === "add") {
+    const serials = parseSerialList(String(formData.get("serials") ?? ""));
+    if (serials.length === 0) {
+      return { error: "Paste the serial numbers that arrived, one per line." };
+    }
+    try {
+      await db.$transaction(async (tx) => {
+        await receiveSerials(tx, { shopId, productId, serials, notes: composed });
+        await syncSerializedStock(tx, {
+          shopId,
+          userId,
+          productIds: [productId],
+          reason: composed,
+        });
+      });
+    } catch (error) {
+      if (error instanceof SerialError) return { error: error.message };
+      throw error;
+    }
+  } else {
+    const ids = formData
+      .getAll("serialIds")
+      .map((value) => String(value))
+      .filter(Boolean);
+    if (ids.length === 0) {
+      return { error: "Pick which units are leaving stock." };
+    }
+
+    await db.$transaction(async (tx) => {
+      // Scoped by shopId AND by status, so a stale checkbox for a unit somebody
+      // else already sold moves nothing.
+      await tx.productSerial.updateMany({
+        where: { id: { in: ids }, shopId, productId, status: "IN_STOCK" },
+        data: { status: removalStatusFor(reason), notes: composed },
+      });
+      await syncSerializedStock(tx, {
+        shopId,
+        userId,
+        productIds: [productId],
+        reason: composed,
+      });
+    });
+  }
+
+  revalidatePath("/inventory");
+  revalidatePath(`/inventory/${productId}`);
+  return { ok: true };
+}
+
+/**
+ * Where a unit goes when it leaves the shelf outside a sale.
+ *
+ * "Sold" is a sale that happened somewhere this app didn't see. "Damaged" is a
+ * write-off. Everything else — a count correction, a return to the supplier —
+ * lands on RETURNED, which is the schema's word for "off the shelf, neither
+ * sold nor broken".
+ */
+function removalStatusFor(reason: string): "SOLD" | "DEFECTIVE" | "RETURNED" {
+  if (reason === "Sold") return "SOLD";
+  if (reason === "Damaged") return "DEFECTIVE";
+  return "RETURNED";
+}
+
+// ---------------------------------------------------------------------------
+// Serial numbers
+// ---------------------------------------------------------------------------
+
+/**
+ * Adds units to a serialized product from the product page.
+ *
+ * This is a stock-in: `receiveSerials` writes one row per unit and
+ * `syncSerializedStock` turns the new IN_STOCK count into the level and its
+ * StockAdjustment, in the same transaction.
+ */
+export async function addSerialsAction(
+  productId: string,
+  _prev: InventoryActionState,
+  formData: FormData,
+): Promise<InventoryActionState> {
+  const { shopId, userId } = await requireUser();
+
+  const product = await db.product.findFirst({
+    where: { id: productId, shopId },
+    select: { id: true, serialized: true },
+  });
+  if (!product) return { error: "Product not found." };
+  if (!product.serialized) {
+    return { error: "Turn on serial tracking for this product first." };
+  }
+
+  const serials = parseSerialList(String(formData.get("serials") ?? ""));
+  if (serials.length === 0) {
+    return { error: "Paste at least one serial number." };
+  }
+  if (serials.length > 500) {
+    return { error: "That's more than 500 units — add them in smaller batches." };
+  }
+
+  const note = text(formData, "note") ?? null;
+  const reason = composeReason("Received", note ?? "Serials added");
+
+  try {
+    await db.$transaction(async (tx) => {
+      await receiveSerials(tx, { shopId, productId, serials, notes: reason });
+      await syncSerializedStock(tx, {
+        shopId,
+        userId,
+        productIds: [productId],
+        reason,
+      });
+    });
+  } catch (error) {
+    if (error instanceof SerialError) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath("/inventory");
+  revalidatePath(`/inventory/${productId}`);
+  return { ok: true };
+}
+
+/**
+ * Moves one unit between states — defective, returned, or back on the shelf.
+ *
+ * SOLD is not offered: a unit becomes sold by being sold, and un-selling it is
+ * what voiding its invoice does. Letting a dropdown here contradict an invoice
+ * would make the two disagree about the same physical thing.
+ */
+export async function setSerialStatusAction(
+  serialId: string,
+  status: string,
+  note: string | null,
+): Promise<InventoryActionState> {
+  const { shopId, userId } = await requireUser();
+
+  if (!isSerialStatus(status) || status === "SOLD") {
+    return { error: "Choose defective, returned, or back in stock." };
+  }
+
+  const unit = await db.productSerial.findFirst({
+    where: { id: serialId, shopId },
+    select: { id: true, productId: true, serial: true, status: true },
+  });
+  if (!unit) return { error: "Serial not found." };
+  if (unit.status === status) return { ok: true };
+
+  const reason = `Serial ${unit.serial} → ${status.toLowerCase().replace("_", " ")}`;
+
+  await db.$transaction(async (tx) => {
+    await tx.productSerial.update({
+      where: { id: unit.id },
+      data: {
+        status,
+        notes: note?.slice(0, 500) || null,
+        // A unit coming back on the shelf is no longer attached to a sale.
+        ...(status === "IN_STOCK" ? { invoiceLineId: null, soldAt: null } : {}),
+      },
+    });
+    await syncSerializedStock(tx, {
+      shopId,
+      userId,
+      productIds: [unit.productId],
+      reason,
+    });
+  });
+
+  revalidatePath("/inventory");
+  revalidatePath(`/inventory/${unit.productId}`);
   return { ok: true };
 }
 

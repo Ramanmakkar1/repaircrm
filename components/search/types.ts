@@ -10,6 +10,7 @@ export type SearchType =
   | "invoice"
   | "estimate"
   | "product"
+  | "serial"
   | "lead";
 
 export interface SearchItem {
@@ -42,5 +43,6 @@ export const TYPE_LABEL: Record<SearchType, string> = {
   invoice: "Invoices",
   estimate: "Estimates",
   product: "Parts & products",
+  serial: "Serial numbers",
   lead: "Leads",
 };

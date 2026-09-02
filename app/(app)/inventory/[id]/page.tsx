@@ -5,9 +5,11 @@ import {
   ArrowLeftRight,
   Barcode,
   EyeOff,
+  Hash,
   History,
   Pencil,
   Receipt,
+  Store,
   Tag,
   Tags,
 } from "lucide-react";
@@ -23,6 +25,7 @@ import {
   stockStatus,
 } from "@/components/inventory/format";
 import { ReorderPointEditor } from "@/components/inventory/reorder-point-editor";
+import { SerialsCard, type SerialRow } from "@/components/inventory/serials-card";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -87,6 +90,10 @@ export default async function ProductPage({
       taxable: true,
       stockQty: true,
       lowStockAt: true,
+      reorderQty: true,
+      serialized: true,
+      vendorSku: true,
+      vendor: { select: { id: true, name: true } },
       active: true,
       createdAt: true,
       updatedAt: true,
@@ -94,7 +101,7 @@ export default async function ProductPage({
   });
   if (!product) notFound();
 
-  const [adjustments, sales] = await Promise.all([
+  const [adjustments, sales, serials] = await Promise.all([
     db.stockAdjustment.findMany({
       where: { shopId, productId: product.id },
       orderBy: { createdAt: "desc" },
@@ -122,7 +129,39 @@ export default async function ProductPage({
         },
       },
     }),
+    // Only serialized products have units; everything else skips the query.
+    product.serialized
+      ? db.productSerial.findMany({
+          where: { shopId, productId: product.id },
+          orderBy: [{ status: "asc" }, { serial: "asc" }],
+          select: {
+            id: true,
+            serial: true,
+            status: true,
+            receivedAt: true,
+            soldAt: true,
+            notes: true,
+            invoiceLine: {
+              select: { invoice: { select: { id: true, number: true } } },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const serialRows: SerialRow[] = serials.map((unit) => ({
+    id: unit.id,
+    serial: unit.serial,
+    status: unit.status,
+    receivedLabel: formatDateTime(unit.receivedAt),
+    soldLabel: unit.soldAt ? formatDateTime(unit.soldAt) : null,
+    notes: unit.notes,
+    invoice: unit.invoiceLine?.invoice ?? null,
+  }));
+
+  const inStockSerials = serials
+    .filter((unit) => unit.status === "IN_STOCK")
+    .map((unit) => ({ id: unit.id, serial: unit.serial }));
 
   const status = stockStatus(product);
   const meta = STOCK_META[status];
@@ -155,6 +194,10 @@ export default async function ProductPage({
                   Inactive
                 </Chip>
               ) : null}
+              {product.serialized ? <Chip icon={Hash}>Serialized</Chip> : null}
+              {product.vendor ? (
+                <Chip icon={Store}>{product.vendor.name}</Chip>
+              ) : null}
               {!product.taxable ? <Chip>Non-taxable</Chip> : null}
             </div>
           </div>
@@ -175,6 +218,8 @@ export default async function ProductPage({
             <AdjustStockDialog
               productId={product.id}
               stockQty={product.stockQty}
+              serialized={product.serialized}
+              serials={inStockSerials}
               trigger={
                 <Button>
                   <ArrowLeftRight />
@@ -211,6 +256,8 @@ export default async function ProductPage({
             <AdjustStockDialog
               productId={product.id}
               stockQty={product.stockQty}
+              serialized={product.serialized}
+              serials={inStockSerials}
               trigger={
                 <Button variant="soft" size="lg" className="w-full">
                   <ArrowLeftRight />
@@ -255,6 +302,12 @@ export default async function ProductPage({
               <Stat label="UPC" value={product.upc ?? "—"} mono />
               <Stat label="Category" value={product.category ?? "Uncategorised"} />
               <Stat label="Taxable" value={product.taxable ? "Yes" : "No"} />
+              <Stat label="Vendor" value={product.vendor?.name ?? "—"} />
+              <Stat label="Vendor SKU" value={product.vendorSku ?? "—"} mono />
+              <Stat
+                label="Reorder qty"
+                value={product.reorderQty == null ? "Auto" : String(product.reorderQty)}
+              />
               <Stat label="Added" value={formatDateTime(product.createdAt)} />
               <Stat label="Last edited" value={formatDateTime(product.updatedAt)} />
             </div>
@@ -272,6 +325,10 @@ export default async function ProductPage({
           </CardContent>
         </Card>
       </div>
+
+      {product.serialized ? (
+        <SerialsCard productId={product.id} serials={serialRows} />
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* ------------------------------------------------ adjustments --- */}

@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Banknote,
   CreditCard,
+  Hash,
   Lock,
   Minus,
   Plus,
@@ -27,6 +28,7 @@ import { formatBps, formatCents, type Totals } from "@/lib/money";
 import { CustomItemDialog } from "./custom-item-dialog";
 import { TicketPickerDialog } from "./ticket-picker-dialog";
 import {
+  isSerialLine,
   isTicketLine,
   METHOD_LABELS,
   type CartLine,
@@ -366,6 +368,8 @@ function CartRow({
   const lineTotal = line.quantity * line.unitPriceCents;
   const oversold =
     line.stockQty !== null && line.quantity > Math.max(line.stockQty, 0);
+  // A serialized line is one specific unit, so there is nothing to step.
+  const serialised = isSerialLine(line);
 
   return (
     <li className="flex flex-col gap-2 px-5 py-3">
@@ -384,26 +388,41 @@ function CartRow({
         </button>
       </div>
 
+      {serialised ? (
+        <span className="flex items-center gap-1.5 font-mono text-[12.5px] font-semibold text-accent-soft-foreground">
+          <Hash className="size-3.5" />
+          {line.serial}
+        </span>
+      ) : null}
+
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
-          <Stepper
-            label={`Fewer ${line.name}`}
-            icon={Minus}
-            disabled={disabled}
-            onClick={() => onQuantityChange(line.key, line.quantity - 1)}
-          />
-          <span className="w-9 text-center text-[15px] font-bold tabular-nums text-foreground">
-            {line.quantity}
-          </span>
-          <Stepper
-            label={`More ${line.name}`}
-            icon={Plus}
-            disabled={disabled}
-            onClick={() => onQuantityChange(line.key, line.quantity + 1)}
-          />
-          <span className="ml-1.5 text-[12.5px] tabular-nums text-faint-foreground">
-            × {formatCents(line.unitPriceCents)}
-          </span>
+          {serialised ? (
+            <span className="text-[12.5px] tabular-nums text-faint-foreground">
+              1 × {formatCents(line.unitPriceCents)}
+            </span>
+          ) : (
+            <>
+              <Stepper
+                label={`Fewer ${line.name}`}
+                icon={Minus}
+                disabled={disabled}
+                onClick={() => onQuantityChange(line.key, line.quantity - 1)}
+              />
+              <span className="w-9 text-center text-[15px] font-bold tabular-nums text-foreground">
+                {line.quantity}
+              </span>
+              <Stepper
+                label={`More ${line.name}`}
+                icon={Plus}
+                disabled={disabled}
+                onClick={() => onQuantityChange(line.key, line.quantity + 1)}
+              />
+              <span className="ml-1.5 text-[12.5px] tabular-nums text-faint-foreground">
+                × {formatCents(line.unitPriceCents)}
+              </span>
+            </>
+          )}
         </div>
 
         <span className="shrink-0 text-[15px] font-bold tabular-nums text-foreground">

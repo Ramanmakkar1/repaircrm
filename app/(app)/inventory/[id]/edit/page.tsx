@@ -51,10 +51,28 @@ export default async function EditProductPage({
       stockQty: true,
       lowStockAt: true,
       warrantyDays: true,
+      reorderQty: true,
+      vendorId: true,
+      vendorSku: true,
+      serialized: true,
       active: true,
     },
   });
   if (!product) notFound();
+
+  // Active vendors plus, if this product already points at a retired one, that
+  // vendor too — otherwise opening the form would silently unset it on save.
+  const vendors = await db.vendor.findMany({
+    where: {
+      shopId,
+      OR: [
+        { active: true },
+        ...(product.vendorId ? [{ id: product.vendorId }] : []),
+      ],
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
@@ -71,7 +89,7 @@ export default async function EditProductPage({
         description="Stock on hand is adjusted from the product page, not here."
       />
 
-      <ProductForm product={product} canSeeCost={role === "OWNER"} />
+      <ProductForm product={product} vendors={vendors} canSeeCost={role === "OWNER"} />
     </div>
   );
 }

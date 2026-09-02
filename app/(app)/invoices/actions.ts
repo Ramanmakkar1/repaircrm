@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
@@ -21,6 +22,12 @@ import {
   recordTerminalPayment,
 } from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
+import {
+  SerialError,
+  markInvoiceSerialsSold,
+  releaseInvoiceSerials,
+  syncSerializedStock,
+} from "@/lib/serials";
 import { fromDateInputValue } from "@/components/billing/format";
 import { resolveDocumentTax } from "@/components/billing/queries";
 import {
@@ -55,6 +62,14 @@ import {
  *   any of DRAFT/SENT/PARTIAL  → PARTIAL when a payment leaves a balance
  *   any of DRAFT/SENT/PARTIAL  → PAID    when a payment clears the balance
  *   PAID / VOID                terminal — lines are frozen, no new payments
+ *
+ * SERIALS: a line that names a serial number of a serialized product claims a
+ * specific physical unit. Saving the invoice marks that unit SOLD and attaches
+ * it to the line; rewriting the lines releases the old units first; voiding
+ * puts them all back. `syncSerializedStock` then makes the product's on-hand
+ * level agree with how many units are actually in stock, writing the move as
+ * one StockAdjustment. Non-serialized lines are untouched — an ordinary
+ * invoice still does not move stock, only the register does.
  */
 
 type Line = {
@@ -110,6 +125,37 @@ function readNotes(formData: FormData): string | null {
  * days are SNAPSHOTTED onto the line here, so changing a product's warranty
  * later never restates cover a customer already bought.
  */
+/**
+ * Claims the serialized units this invoice's lines name, and squares the
+ * affected products' on-hand levels with reality.
+ *
+ * `alsoTouched` carries products whose units were RELEASED earlier in the same
+ * transaction (a rewrite): they have to be recounted even when the new lines
+ * do not mention them, or a removed line would leave the level a unit short.
+ */
+async function settleSerials(
+  tx: Prisma.TransactionClient,
+  shopId: string,
+  userId: string,
+  invoiceId: string,
+  invoiceNumber: number,
+  alsoTouched: readonly string[] = []
+): Promise<void> {
+  const sold = await markInvoiceSerialsSold(tx, { shopId, invoiceId });
+  const productIds = [
+    ...sold.map((unit) => unit.productId),
+    ...alsoTouched,
+  ];
+  if (productIds.length === 0) return;
+
+  await syncSerializedStock(tx, {
+    shopId,
+    userId,
+    productIds,
+    reason: `Sold — invoice #${invoiceNumber}`,
+  });
+}
+
 function lineCreateData(lines: Line[], warranty?: Map<string, number>) {
   return lines.map((line, index) => ({
     productId: line.productId,
@@ -156,27 +202,38 @@ export async function createInvoiceAction(
     parsed.lines.map((line) => line.productId),
   );
 
-  const invoice = await withNextNumber(shopId, "invoice", (number) =>
-    db.invoice.create({
-      data: {
-        shopId,
-        customerId: customer.id,
-        ticketId,
-        locationId,
-        number,
-        status: "DRAFT",
-        taxRateId: tax.taxRateId,
-        taxRateBps: tax.taxRateBps,
-        notes: readNotes(formData),
-        dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines, warranty) },
-      },
-      select: { id: true },
-    })
-  );
+  let invoiceId: string;
+  try {
+    invoiceId = await withNextNumber(shopId, "invoice", (number) =>
+      db.$transaction(async (tx) => {
+        const created = await tx.invoice.create({
+          data: {
+            shopId,
+            customerId: customer.id,
+            ticketId,
+            locationId,
+            number,
+            status: "DRAFT",
+            taxRateId: tax.taxRateId,
+            taxRateBps: tax.taxRateBps,
+            notes: readNotes(formData),
+            dueDate: fromDateInputValue(formData.get("date")),
+            lines: { create: lineCreateData(parsed.lines, warranty) },
+          },
+          select: { id: true, number: true },
+        });
+        await settleSerials(tx, shopId, userId, created.id, created.number);
+        return created.id;
+      })
+    );
+  } catch (error) {
+    if (error instanceof SerialError) return formError(error.message);
+    throw error;
+  }
 
   revalidatePath("/invoices");
-  redirect(`/invoices/${invoice.id}`);
+  revalidatePath("/inventory");
+  redirect(`/invoices/${invoiceId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,12 +244,12 @@ export async function updateInvoiceAction(
   _state: FormState,
   formData: FormData
 ): Promise<FormState> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
-    select: { id: true, status: true },
+    select: { id: true, number: true, status: true },
   });
   if (!invoice) return formError("That invoice no longer exists.");
 
@@ -215,7 +272,10 @@ export async function updateInvoiceAction(
 
   // Replace-all rather than diff: line ids are not surfaced to the client, and
   // an invoice has a handful of rows, so a clean rewrite is both simpler and
-  // immune to a stale id from a concurrent edit.
+  // immune to a stale id from a concurrent edit. Serialized units are released
+  // BEFORE the rewrite and re-claimed after, so a line that kept its serial
+  // nets to no stock movement at all.
+  //
   // An unpaid invoice can still be re-taxed; a paid or void one never reaches
   // here (EDITABLE_STATUSES above).
   const tax = await resolveDocumentTax(
@@ -224,22 +284,40 @@ export async function updateInvoiceAction(
     formData.get("taxRateId"),
   );
 
-  await db.$transaction([
-    db.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } }),
-    db.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        customerId: customer.id,
-        taxRateId: tax.taxRateId,
-        taxRateBps: tax.taxRateBps,
-        notes: readNotes(formData),
-        dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines, warranty) },
-      },
-    }),
-  ]);
+  try {
+    await db.$transaction(async (tx) => {
+      const released = await releaseInvoiceSerials(tx, {
+        shopId,
+        invoiceId: invoice.id,
+      });
+      await tx.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } });
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          customerId: customer.id,
+          taxRateId: tax.taxRateId,
+          taxRateBps: tax.taxRateBps,
+          notes: readNotes(formData),
+          dueDate: fromDateInputValue(formData.get("date")),
+          lines: { create: lineCreateData(parsed.lines, warranty) },
+        },
+      });
+      await settleSerials(
+        tx,
+        shopId,
+        userId,
+        invoice.id,
+        invoice.number,
+        released.map((unit) => unit.productId)
+      );
+    });
+  } catch (error) {
+    if (error instanceof SerialError) return formError(error.message);
+    throw error;
+  }
 
   revalidatePath("/invoices");
+  revalidatePath("/inventory");
   revalidatePath(`/invoices/${invoice.id}`);
   redirect(`/invoices/${invoice.id}`);
 }
@@ -788,18 +866,32 @@ export async function voidInvoiceAction(formData: FormData): Promise<void> {
   if (invoice._count.payments > 0) return;
   if (invoice.status === "VOID") return;
 
-  await db.$transaction([
-    db.invoice.update({
+  // Voiding un-sells everything on it, so any serialized units go straight
+  // back on the shelf with the level corrected in the same transaction.
+  await db.$transaction(async (tx) => {
+    await tx.invoice.update({
       where: { id: invoice.id },
       data: { status: "VOID", paidAt: null },
-    }),
-    // Voiding un-bills the labour: the hours were worked, so they go back to
-    // being unbilled time on the ticket rather than dying with the document.
-    db.timeEntry.updateMany({
+    });
+    // Voiding un-bills the labour too: the hours were worked, so they go back
+    // to being unbilled time on the ticket rather than dying with the document.
+    await tx.timeEntry.updateMany({
       where: { invoiceId: invoice.id, shopId },
       data: { invoiceId: null },
-    }),
-  ]);
+    });
+    const released = await releaseInvoiceSerials(tx, {
+      shopId,
+      invoiceId: invoice.id,
+    });
+    if (released.length > 0) {
+      await syncSerializedStock(tx, {
+        shopId,
+        userId,
+        productIds: released.map((unit) => unit.productId),
+        reason: `Returned to stock — invoice #${invoice.number} voided`,
+      });
+    }
+  });
 
   await audit({
     shopId,
@@ -811,6 +903,7 @@ export async function voidInvoiceAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/invoices");
+  revalidatePath("/inventory");
   revalidatePath(`/invoices/${invoice.id}`);
   if (invoice.ticketId) revalidatePath(`/tickets/${invoice.ticketId}`);
 }

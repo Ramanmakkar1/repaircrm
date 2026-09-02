@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ChevronLeft, ChevronRight, Mail, Phone, Plus, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Mail, Phone, Plus, Upload, Users } from "lucide-react";
 
 import { CustomerSearch } from "@/components/customers/customer-search";
 import { formatDate, initials, plural } from "@/components/customers/format";
@@ -39,9 +39,12 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
   const params = await searchParams;
 
+  // Front desk keeps the customer book, so they get the importer too; a tech
+  // has no reason to bulk-load customers.
+  const canImport = role === "OWNER" || role === "FRONT_DESK";
   const query = (params.q ?? "").trim();
   const where = buildWhere(shopId, query);
 
@@ -131,12 +134,22 @@ export default async function CustomersPage({
         title="Customers"
         description="Every account the shop has on file, with what they owe and what's open."
         actions={
-          <Button asChild>
-            <Link href="/customers/new">
-              <Plus />
-              New Customer
-            </Link>
-          </Button>
+          <>
+            {canImport ? (
+              <Button variant="outline" asChild>
+                <Link href="/customers/import">
+                  <Upload />
+                  Import
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild>
+              <Link href="/customers/new">
+                <Plus />
+                New Customer
+              </Link>
+            </Button>
+          </>
         }
       />
 

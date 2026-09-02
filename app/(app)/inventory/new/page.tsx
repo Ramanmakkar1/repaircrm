@@ -5,11 +5,18 @@ import { ChevronLeft } from "lucide-react";
 import { ProductForm } from "@/components/inventory/product-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "New product · RepairFlow" };
 
 export default async function NewProductPage() {
-  const { role } = await requireUser();
+  const { shopId, role } = await requireUser();
+
+  const vendors = await db.vendor.findMany({
+    where: { shopId, active: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
@@ -26,7 +33,7 @@ export default async function NewProductPage() {
         description="Only a name and a price are required — the rest can come later."
       />
 
-      <ProductForm canSeeCost={role === "OWNER"} />
+      <ProductForm vendors={vendors} canSeeCost={role === "OWNER"} />
     </div>
   );
 }

@@ -159,7 +159,9 @@ export default async function TicketDetailPage({
           orderedAt: true,
           receivedAt: true,
           notes: true,
+          vendorId: true,
           product: { select: { name: true } },
+          purchaseOrder: { select: { id: true, number: true } },
         },
       },
       timeEntries: {
@@ -218,45 +220,54 @@ export default async function TicketDetailPage({
     locations,
     checklistTemplates,
     warranties,
+    vendors,
   ] = await Promise.all([
-      db.shop.findUnique({
-        where: { id: shopId },
-        select: { settings: true, taxRateBps: true },
-      }),
-      db.user.findMany({
-        where: { shopId, active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      db.product.findMany({
-        where: { shopId, active: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          priceCents: true,
-          taxable: true,
-          costCents: true,
-        },
-      }),
-      db.cannedResponse.findMany({
-        where: { shopId },
-        orderBy: { title: "asc" },
-        select: { id: true, title: true, body: true },
-      }),
-      db.asset.findMany({
-        where: { shopId, customerId: ticket.customer.id },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, type: true, make: true, model: true, serial: true },
-      }),
-      activeLocations(shopId),
-      db.checklistTemplate.findMany({
-        where: { shopId, active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true },
-      }),
-      customerWarranties(shopId, ticket.customer.id, { activeOnly: true }),
-    ]);
+    db.shop.findUnique({
+      where: { id: shopId },
+      select: { settings: true, taxRateBps: true },
+    }),
+    db.user.findMany({
+      where: { shopId, active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    db.product.findMany({
+      where: { shopId, active: true },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        priceCents: true,
+        taxable: true,
+        costCents: true,
+        vendorId: true,
+      },
+    }),
+    db.cannedResponse.findMany({
+      where: { shopId },
+      orderBy: { title: "asc" },
+      select: { id: true, title: true, body: true },
+    }),
+    db.asset.findMany({
+      where: { shopId, customerId: ticket.customer.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, type: true, make: true, model: true, serial: true },
+    }),
+    activeLocations(shopId),
+    db.checklistTemplate.findMany({
+      where: { shopId, active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    customerWarranties(shopId, ticket.customer.id, { activeOnly: true }),
+    // Suppliers a part can be ordered from, for the part dialog and the
+    // "Add to PO" menu.
+    db.vendor.findMany({
+      where: { shopId, active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   // Single request-time clock, so every row in this render is measured against
   // the same instant. eslint-disable: react-hooks/purity targets Client
@@ -367,6 +378,9 @@ export default async function TicketDetailPage({
         ? `Ordered ${format(part.orderedAt, "MMM d")}`
         : null,
     notes: part.notes,
+    vendorId: part.vendorId,
+    poNumber: part.purchaseOrder?.number ?? null,
+    poId: part.purchaseOrder?.id ?? null,
     productName: part.product?.name ?? null,
   }));
 
@@ -556,7 +570,10 @@ export default async function TicketDetailPage({
               id: product.id,
               name: product.name,
               costCents: role === "OWNER" ? product.costCents : null,
+              vendorId: product.vendorId,
             }))}
+            vendors={vendors}
+            canPurchase={role === "OWNER"}
           />
 
           <Timeline

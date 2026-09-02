@@ -38,7 +38,15 @@ export type PartProductOption = {
   id: string;
   name: string;
   costCents: number | null;
+  /** The product's usual supplier, so picking it also picks the vendor. */
+  vendorId: string | null;
 };
+
+/** A supplier this part can be ordered from. */
+export type PartVendorOption = { id: string; name: string };
+
+/** Radix Select cannot hold "", so "no vendor" needs a sentinel. */
+const NO_VENDOR = "__none__";
 
 const dollars = (cents: number) => (cents / 100).toFixed(2);
 
@@ -53,15 +61,18 @@ const dollars = (cents: number) => (cents / 100).toFixed(2);
 export function PartOrderDialog({
   ticketId,
   products,
+  vendors,
   trigger,
 }: {
   ticketId: string;
   products: PartProductOption[];
+  vendors: PartVendorOption[];
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
 
   const [productId, setProductId] = React.useState("none");
+  const [vendorId, setVendorId] = React.useState(NO_VENDOR);
   const [description, setDescription] = React.useState("");
   const [quantity, setQuantity] = React.useState("1");
   const [supplier, setSupplier] = React.useState("");
@@ -71,6 +82,7 @@ export function PartOrderDialog({
 
   const reset = () => {
     setProductId("none");
+    setVendorId(NO_VENDOR);
     setDescription("");
     setQuantity("1");
     setSupplier("");
@@ -100,6 +112,11 @@ export function PartOrderDialog({
     if (!product) return;
     setDescription(product.name);
     setCost(product.costCents != null ? dollars(product.costCents) : "");
+    // The catalogue knows who this is normally bought from; the buyer can still
+    // override it for a one-off.
+    if (product.vendorId && vendors.some((v) => v.id === product.vendorId)) {
+      setVendorId(product.vendorId);
+    }
   }
 
   return (
@@ -116,6 +133,11 @@ export function PartOrderDialog({
 
         <form action={formAction} className="flex flex-col gap-3">
           <input type="hidden" name="productId" value={productId} />
+          <input
+            type="hidden"
+            name="vendorId"
+            value={vendorId === NO_VENDOR ? "" : vendorId}
+          />
 
           {state.error ? (
             <p role="alert" className="text-xs text-destructive">
@@ -180,14 +202,20 @@ export function PartOrderDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="part-supplier">Supplier</Label>
-              <Input
-                id="part-supplier"
-                name="supplier"
-                value={supplier}
-                onChange={(event) => setSupplier(event.target.value)}
-                placeholder="Mobile Sentrix"
-              />
+              <Label htmlFor="part-vendor">Vendor</Label>
+              <Select value={vendorId} onValueChange={setVendorId}>
+                <SelectTrigger id="part-vendor">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value={NO_VENDOR}>Not decided yet</SelectItem>
+                  {vendors.map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="part-expected">Expected</Label>
@@ -199,6 +227,17 @@ export function PartOrderDialog({
                 onChange={(event) => setExpectedAt(event.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="part-supplier">Supplier note</Label>
+            <Input
+              id="part-supplier"
+              name="supplier"
+              value={supplier}
+              onChange={(event) => setSupplier(event.target.value)}
+              placeholder="Defaults to the vendor's name"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

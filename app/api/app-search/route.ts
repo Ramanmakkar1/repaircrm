@@ -79,7 +79,7 @@ export async function GET(request: Request) {
     businessName: true,
   } as const;
 
-  const [customers, tickets, ticketExact, invoices, invoiceExact, estimates, estimateExact, products, leads] =
+  const [customers, tickets, ticketExact, invoices, invoiceExact, estimates, estimateExact, products, serials, leads] =
     await Promise.all([
       db.customer.findMany({
         where: { shopId, OR: customerOr },
@@ -205,6 +205,23 @@ export async function GET(request: Request) {
         take: PER_GROUP,
       }),
 
+      // Typing a serial number finds the physical unit: which product it is,
+      // where it got to, and — once sold — the invoice it left on.
+      db.productSerial.findMany({
+        where: { shopId, serial: like },
+        select: {
+          id: true,
+          serial: true,
+          status: true,
+          product: { select: { id: true, name: true } },
+          invoiceLine: {
+            select: { invoice: { select: { id: true, number: true } } },
+          },
+        },
+        orderBy: { serial: "asc" },
+        take: PER_GROUP,
+      }),
+
       db.lead.findMany({
         where: {
           shopId,
@@ -290,6 +307,30 @@ export async function GET(request: Request) {
     ),
 
     group(
+      "serial",
+      serials.map((unit) => ({
+        type: "serial" as const,
+        id: unit.id,
+        title: unit.serial,
+        subtitle:
+          [
+            unit.product.name,
+            unit.invoiceLine?.invoice
+              ? `Invoice #${unit.invoiceLine.invoice.number}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined,
+        // A sold unit's story is on its invoice; anything else is answered on
+        // the product's serial list.
+        href: unit.invoiceLine?.invoice
+          ? `/invoices/${unit.invoiceLine.invoice.id}`
+          : `/inventory/${unit.product.id}`,
+        badge: serialBadge(unit.status),
+      })),
+    ),
+
+    group(
       "lead",
       leads.map((l) => ({
         type: "lead" as const,
@@ -327,6 +368,11 @@ function personName(c: {
 }): string {
   const name = `${c.firstName} ${c.lastName}`.trim();
   return name || c.businessName || "Unnamed";
+}
+
+/** IN_STOCK -> In stock. */
+function serialBadge(status: string): string {
+  return titleCase(status.replace("_", " "));
 }
 
 /** DRAFT -> Draft, so an enum never shouts at the user from a badge. */
