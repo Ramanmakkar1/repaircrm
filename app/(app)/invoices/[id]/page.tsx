@@ -24,7 +24,9 @@ import {
   defaultInvoiceSubject,
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
-import { formatBps, formatCents } from "@/lib/money";
+import { formatCents } from "@/lib/money";
+import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
+import { taxLabel } from "@/lib/tax";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { refundAwareTotals } from "@/components/billing/refund-math";
 import {
@@ -32,6 +34,7 @@ import {
   type RefundablePayment,
 } from "@/components/billing/refund-dialog";
 import { SendDocumentDialog } from "@/components/billing/send-dialog";
+import { UnbilledTimeBanner } from "@/components/billing/unbilled-time-banner";
 import { ShareRow } from "@/components/billing/send-links";
 import { EmailReceiptButton } from "@/components/billing/send-receipt";
 import {
@@ -100,7 +103,8 @@ export default async function InvoiceDetailPage({
     where: { id, shopId },
     include: {
       customer: true,
-      shop: { select: { name: true } },
+      shop: { select: { name: true, settings: true } },
+      taxRate: { select: { name: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       estimate: { select: { id: true, number: true } },
       lines: { orderBy: { sortOrder: "asc" } },
@@ -173,6 +177,33 @@ export default async function InvoiceDetailPage({
   // channel it went out on. Rendered under the Send button so a second click
   // is an informed one: "we already emailed this an hour ago" is the fact that
   // stops a customer being messaged three times about the same bill.
+  // Time logged on the linked ticket that nobody has billed yet. Loaded only
+  // for an invoice that can still take lines — nothing to offer otherwise.
+  const canAddTime = invoice.ticketId !== null && canEdit;
+  const unbilledEntries = canAddTime
+    ? await db.timeEntry.findMany({
+        where: {
+          shopId,
+          ticketId: invoice.ticketId!,
+          billable: true,
+          invoiceId: null,
+          endedAt: { not: null },
+          seconds: { gt: 0 },
+        },
+        select: { seconds: true },
+      })
+    : [];
+
+  const labour = readLabourSettings(invoice.shop.settings);
+  const unbilledSeconds = unbilledEntries.reduce(
+    (sum, entry) => sum + roundSecondsUp(entry.seconds ?? 0, labour.roundingMinutes),
+    0,
+  );
+  const unbilledCents = unbilledEntries.reduce(
+    (sum, entry) => sum + labourAmountCents(entry.seconds ?? 0, labour),
+    0,
+  );
+
   const lastSent = await db.communicationLog.findFirst({
     where: { shopId, invoiceId: invoice.id, direction: "OUT" },
     orderBy: { createdAt: "desc" },
@@ -408,6 +439,15 @@ export default async function InvoiceDetailPage({
       {/* -------------------------------------------------------------- body */}
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
+          {unbilledEntries.length > 0 ? (
+            <UnbilledTimeBanner
+              invoiceId={invoice.id}
+              entryCount={unbilledEntries.length}
+              durationLabel={formatHm(unbilledSeconds)}
+              amountLabel={formatCents(unbilledCents)}
+            />
+          ) : null}
+
           {/* ------------------------------------------------------ line items */}
           <Card>
             <CardHeader>
@@ -470,7 +510,7 @@ export default async function InvoiceDetailPage({
                   value={formatCents(totals.subtotalCents)}
                 />
                 <TotalsRow
-                  label={`Tax (${formatBps(invoice.taxRateBps)})`}
+                  label={taxLabel(invoice.taxRate?.name, invoice.taxRateBps)}
                   value={formatCents(totals.taxCents)}
                 />
                 <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">

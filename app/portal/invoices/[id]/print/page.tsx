@@ -5,7 +5,8 @@ import { termsLabel } from "@/components/billing/print-chrome";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { PrintSheet, type PrintTotalRow } from "@/components/billing/print-sheet";
 import { db } from "@/lib/db";
-import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents, invoiceTotals } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { requirePortalCustomer } from "@/lib/portal-session";
 import { PortalPrintRoot, addressLines } from "../../../_components/print-root";
 
@@ -40,6 +41,7 @@ export default async function PortalInvoicePrintPage({
       where: { id, customerId: customer.id, shopId: customer.shopId },
       include: {
         customer: true,
+        taxRate: { select: { name: true } },
         lines: { orderBy: { sortOrder: "asc" } },
         payments: { orderBy: { createdAt: "asc" } },
       },
@@ -59,7 +61,7 @@ export default async function PortalInvoicePrintPage({
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
     {
-      label: `Sales tax (${formatBps(invoice.taxRateBps)})`,
+      label: taxLabel(invoice.taxRate?.name, invoice.taxRateBps),
       value: formatCents(totals.taxCents),
     },
     { label: "Total", value: formatCents(totals.totalCents), strong: true },

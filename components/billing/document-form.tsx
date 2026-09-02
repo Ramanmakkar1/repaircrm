@@ -17,8 +17,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
 import { LineItemsEditor, type InitialLine } from "./line-items-editor";
 import { SubmitButton } from "./submit-button";
+import { TaxRateSelect } from "./tax-rate-select";
 import { IDLE_FORM_STATE, type CustomerOption, type FormState, type ProductOption } from "./types";
 
 /**
@@ -32,6 +34,7 @@ export function DocumentForm({
   customers,
   products,
   taxRateBps,
+  taxRates,
   initial,
   submitLabel,
   cancelHref,
@@ -40,11 +43,15 @@ export function DocumentForm({
   kind: "invoice" | "estimate";
   customers: CustomerOption[];
   products: ProductOption[];
+  /** The rate the document opens on — its own snapshot, or the shop default. */
   taxRateBps: number;
+  /** The shop's named rates. Empty means the shop just uses one flat rate. */
+  taxRates: TaxRateOption[];
   initial?: {
     id?: string;
     customerId?: string | null;
     ticketId?: string | null;
+    taxRateId?: string | null;
     /** yyyy-mm-dd */
     date?: string;
     notes?: string | null;
@@ -59,6 +66,42 @@ export function DocumentForm({
   // Radix Select is controlled here so the customer stays picked across a
   // failed submit (the server action re-renders the form with its error).
   const [customerId, setCustomerId] = React.useState(initial?.customerId ?? "");
+
+  // The document's tax. An existing document opens on what it snapshotted; a
+  // new one follows whoever is selected, because a tax-exempt customer picked
+  // three fields down must not leave a taxed total sitting on screen.
+  const [tax, setTax] = React.useState<{
+    taxRateId: string | null;
+    taxRateBps: number;
+  }>(() => {
+    // A saved document keeps its own snapshot.
+    if (initial?.id) {
+      return { taxRateId: initial.taxRateId ?? null, taxRateBps };
+    }
+    // A new one that already knows its customer (prefilled from the customer or
+    // ticket screen) opens on that customer's rate…
+    const prefill = customers.find((c) => c.id === initial?.customerId) ?? null;
+    if (prefill) {
+      return { taxRateId: prefill.taxRateId, taxRateBps: prefill.taxRateBps };
+    }
+    // …and one that does not opens on the shop default, which is what it would
+    // have been taxed at before this picker existed.
+    const fallback = defaultTaxRate(taxRates);
+    return fallback
+      ? { taxRateId: fallback.id, taxRateBps: fallback.rateBps }
+      : { taxRateId: null, taxRateBps };
+  });
+
+  function selectCustomer(nextId: string) {
+    setCustomerId(nextId);
+    const customer = customers.find((c) => c.id === nextId);
+    if (customer) {
+      setTax({
+        taxRateId: customer.taxRateId,
+        taxRateBps: customer.taxRateBps,
+      });
+    }
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -87,7 +130,7 @@ export function DocumentForm({
             <Select
               name="customerId"
               value={customerId}
-              onValueChange={setCustomerId}
+              onValueChange={selectCustomer}
               required
             >
               <SelectTrigger id="customerId">
@@ -118,6 +161,15 @@ export function DocumentForm({
             </p>
           </div>
 
+          {taxRates.length > 0 ? (
+            <TaxRateSelect
+              rates={taxRates}
+              value={tax.taxRateId}
+              onChange={setTax}
+              hint="Snapshotted on save — changing a rate later never restates this document."
+            />
+          ) : null}
+
           <div className="flex flex-col gap-2 sm:col-span-1">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
@@ -138,7 +190,7 @@ export function DocumentForm({
         <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}
-            taxRateBps={taxRateBps}
+            taxRateBps={tax.taxRateBps}
             initialLines={initial?.lines}
             showSerial={isInvoice}
           />

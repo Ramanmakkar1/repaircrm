@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { CalendarDays, ListChecks, Package, Wrench } from "lucide-react";
+import { CalendarDays, HandCoins, ListChecks, Package, Wrench } from "lucide-react";
 
 import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
@@ -9,6 +9,7 @@ import { STATUS_META, StatusBadge, normalizeStatus } from "@/components/ui/badge
 import { Chip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { initials } from "@/components/customers/format";
+import { formatCents } from "@/lib/money";
 import {
   asPriority,
   customerLabel,
@@ -60,6 +61,11 @@ export type TicketCardData = {
    * the card never has to parse the Json blob itself.
    */
   checklist?: ChecklistProgress | null;
+  /**
+   * Money taken up front, in cents. Optional so callers that do not query for
+   * it (the landing-page mockup) need not.
+   */
+  depositCents?: number | null;
 };
 
 export function TicketCard({
@@ -132,6 +138,18 @@ export function TicketCard({
             className="bg-status-waiting-bg font-semibold text-status-waiting-fg"
           >
             {partsLabel}
+          </Chip>
+        ) : null}
+
+        {/* Money already collected changes what the counter says when this
+            customer walks in, so it rides on the card rather than only on the
+            ticket page. */}
+        {ticket.depositCents && ticket.depositCents > 0 ? (
+          <Chip
+            icon={HandCoins}
+            className="bg-status-resolved-bg font-semibold text-status-resolved-fg"
+          >
+            Deposit {formatCents(ticket.depositCents)}
           </Chip>
         ) : null}
 

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { calcTotals, formatCents } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { formatDate, formatDateLong } from "@/components/billing/format";
 import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
 import {
@@ -26,6 +27,7 @@ export default async function EstimatePrintPage({
       where: { id, shopId },
       include: {
         customer: true,
+        taxRate: { select: { name: true } },
         lines: { orderBy: { sortOrder: "asc" } },
       },
     }),
@@ -48,7 +50,7 @@ export default async function EstimatePrintPage({
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
     {
-      label: `Sales tax (${formatBps(estimate.taxRateBps)})`,
+      label: taxLabel(estimate.taxRate?.name, estimate.taxRateBps),
       value: formatCents(totals.taxCents),
     },
     {

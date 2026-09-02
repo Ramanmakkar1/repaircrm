@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents, invoiceTotals } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { formatDateLong, formatDate } from "@/components/billing/format";
 import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
 import { termsLabel } from "@/components/billing/print-chrome";
@@ -35,6 +36,7 @@ export default async function InvoicePrintPage({
       where: { id, shopId },
       include: {
         customer: true,
+        taxRate: { select: { name: true } },
         lines: { orderBy: { sortOrder: "asc" } },
         payments: { orderBy: { createdAt: "asc" } },
       },
@@ -64,7 +66,7 @@ export default async function InvoicePrintPage({
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
     {
-      label: `Sales tax (${formatBps(invoice.taxRateBps)})`,
+      label: taxLabel(invoice.taxRate?.name, invoice.taxRateBps),
       value: formatCents(totals.taxCents),
     },
     { label: "Total", value: formatCents(totals.totalCents), strong: true },

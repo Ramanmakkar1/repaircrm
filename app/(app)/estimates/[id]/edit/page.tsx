@@ -27,7 +27,8 @@ export default async function EditEstimatePage({
     redirect(`/estimates/${estimate.id}`);
   }
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   return (
     <div className="flex flex-col">
@@ -41,9 +42,11 @@ export default async function EditEstimatePage({
         customers={customers}
         products={products}
         taxRateBps={estimate.taxRateBps || taxRateBps}
+        taxRates={taxRates}
         initial={{
           id: estimate.id,
           customerId: estimate.customerId,
+          taxRateId: estimate.taxRateId,
           ticketId: estimate.ticketId,
           date: toDateInputValue(estimate.expiresAt),
           notes: estimate.notes,

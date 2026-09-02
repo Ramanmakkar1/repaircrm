@@ -10,7 +10,7 @@ import { audit } from "@/lib/audit";
 import { hashPassword, requireUser } from "@/lib/auth";
 import { emailDriverName } from "@/lib/comms/config";
 import { db } from "@/lib/db";
-import { parseBps } from "@/lib/money";
+import { parseBps, parseCents } from "@/lib/money";
 import {
   INVITE_TTL_MS,
   issueResetToken,
@@ -99,9 +99,31 @@ export async function updateShopAction(
     return settingsError("Enter a tax rate between 0 and 100%.");
   }
 
+  // Labour defaults live in the settings JSON rather than in columns of their
+  // own — they are shop preferences, not facts about a document. Merged in so a
+  // future key stored beside them survives this save (see mergeSettings).
+  const labourRateCents = parseCents(text(formData, "labourRate"));
+  if (labourRateCents < 0 || labourRateCents > 100_000_000) {
+    return settingsError("Enter an hourly labour rate of $0 or more.");
+  }
+  const roundingRaw = Number(text(formData, "labourRounding"));
+  if (!Number.isFinite(roundingRaw) || roundingRaw < 1 || roundingRaw > 240) {
+    return settingsError("Round labour to between 1 and 240 minutes.");
+  }
+
+  const shop = await db.shop.findUnique({
+    where: { id: session.shopId },
+    select: { settings: true },
+  });
+  if (!shop) return settingsError("Shop not found.");
+
   await db.shop.update({
     where: { id: session.shopId },
     data: {
+      settings: mergeSettings(shop.settings, {
+        defaultLabourRateCents: labourRateCents,
+        labourRoundingMinutes: Math.round(roundingRaw),
+      }),
       name,
       address1: optional(formData, "address1"),
       address2: optional(formData, "address2"),

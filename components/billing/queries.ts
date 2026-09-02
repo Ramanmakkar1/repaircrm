@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { NO_TAX, resolveTaxRate, type TaxRateOption } from "@/lib/tax";
 import type { CustomerOption, ProductOption } from "./types";
 
 /**
@@ -23,8 +24,9 @@ export async function loadDocumentFormData(shopId: string): Promise<{
   customers: CustomerOption[];
   products: ProductOption[];
   taxRateBps: number;
+  taxRates: TaxRateOption[];
 }> {
-  const [customerRows, productRows, shop] = await Promise.all([
+  const [customerRows, productRows, shop, taxRates] = await Promise.all([
     db.customer.findMany({
       where: { shopId },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -33,6 +35,8 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         firstName: true,
         lastName: true,
         businessName: true,
+        taxExempt: true,
+        taxRateId: true,
       },
     }),
     db.product.findMany({
@@ -50,12 +54,38 @@ export async function loadDocumentFormData(shopId: string): Promise<{
       where: { id: shopId },
       select: { taxRateBps: true },
     }),
+    db.taxRate.findMany({
+      where: { shopId },
+      orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        rateBps: true,
+        isDefault: true,
+        active: true,
+      },
+    }),
   ]);
 
+  const shopTax = { taxRateBps: shop?.taxRateBps ?? 0, taxRates };
+
   return {
-    customers: customerRows.map((c) => ({ id: c.id, label: customerLabel(c) })),
+    // Each customer carries the tax they resolve to, so picking them in the
+    // form can set the document's rate without a server round-trip. The server
+    // action re-derives the same answer — this is convenience, not authority.
+    customers: customerRows.map((c) => {
+      const tax = resolveTaxRate({ shop: shopTax, customer: c });
+      return {
+        id: c.id,
+        label: customerLabel(c),
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
+        taxExempt: c.taxExempt,
+      };
+    }),
     products: productRows,
     taxRateBps: shop?.taxRateBps ?? 0,
+    taxRates,
   };
 }
 
@@ -76,4 +106,55 @@ export async function loadShopHeader(shopId: string) {
       taxRateBps: true,
     },
   });
+}
+
+/**
+ * The tax a document being saved should carry.
+ *
+ * The form's `taxRateId` is a REQUEST, not an answer: it is re-read against
+ * this shop's own rates, so an id from another tenant (or one deleted while the
+ * form sat open) falls back to what the customer resolves to rather than
+ * silently taxing at someone else's number. When the form posted no field at
+ * all — a shop with no named rates — the customer's resolution is the answer.
+ *
+ * Both halves are stored: `taxRateBps` is the snapshot the customer is shown,
+ * `taxRateId` is where it came from.
+ */
+export async function resolveDocumentTax(
+  shopId: string,
+  customerId: string,
+  requestedTaxRateId: FormDataEntryValue | string | null | undefined,
+): Promise<{ taxRateId: string | null; taxRateBps: number }> {
+  const [shop, taxRates, customer] = await Promise.all([
+    db.shop.findUnique({ where: { id: shopId }, select: { taxRateBps: true } }),
+    db.taxRate.findMany({
+      where: { shopId },
+      select: {
+        id: true,
+        name: true,
+        rateBps: true,
+        isDefault: true,
+        active: true,
+      },
+    }),
+    db.customer.findFirst({
+      where: { id: customerId, shopId },
+      select: { taxExempt: true, taxRateId: true },
+    }),
+  ]);
+
+  const requested = String(requestedTaxRateId ?? "").trim();
+
+  if (requested === NO_TAX) return { taxRateId: null, taxRateBps: 0 };
+
+  if (requested) {
+    const rate = taxRates.find((option) => option.id === requested);
+    if (rate) return { taxRateId: rate.id, taxRateBps: rate.rateBps };
+  }
+
+  const resolved = resolveTaxRate({
+    shop: { taxRateBps: shop?.taxRateBps ?? 0, taxRates },
+    customer,
+  });
+  return { taxRateId: resolved.taxRateId, taxRateBps: resolved.taxRateBps };
 }

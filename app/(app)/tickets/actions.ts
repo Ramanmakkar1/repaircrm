@@ -14,7 +14,11 @@ import { warrantyDaysByProduct } from "@/lib/warranty";
 import { slaDueDate } from "@/lib/sla";
 import { sendEmail, sendSms } from "@/lib/comms";
 import { withNextNumber } from "@/lib/sequence";
-import { parseCents } from "@/lib/money";
+import { applyTicketDeposits } from "@/lib/deposits";
+import { readLabourSettings } from "@/lib/labour";
+import { calcTotals, parseCents } from "@/lib/money";
+import { labourLinesFor, loadBillableTime } from "@/lib/time-billing";
+import { resolveDocumentTax } from "@/components/billing/queries";
 import { asPriority, isResolved } from "@/components/tickets/ticket-meta";
 import {
   IN_PROGRESS_STATUS,
@@ -908,9 +912,12 @@ export async function deleteTimeEntryAction(entryId: string): Promise<void> {
 
   const entry = await db.timeEntry.findFirst({
     where: { id: entryId, shopId },
-    select: { id: true, ticketId: true },
+    select: { id: true, ticketId: true, invoiceId: true },
   });
   if (!entry) return;
+  // Billed time belongs to an invoice the customer may already have paid.
+  // Voiding that invoice releases it; until then it stays put.
+  if (entry.invoiceId) return;
 
   await db.timeEntry.delete({ where: { id: entry.id } });
   revalidateTicket(entry.ticketId);
@@ -990,16 +997,28 @@ export async function deleteCannedResponseAction(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Sweeps every un-invoiced charge on the ticket onto a new DRAFT invoice.
+ * Sweeps every un-invoiced charge on the ticket onto a new DRAFT invoice, and
+ * (unless the operator unticks it) every unbilled billable time entry with it.
  *
- * The tax rate is snapshotted from the shop at creation time so a later rate
- * change can't silently re-price an issued document. Charges are stamped with
- * `invoiceId`, which is what makes them read-only on the ticket from here on.
+ * The tax rate is resolved from the customer — exempt customers are taxed at
+ * 0%, everyone else at their own rate or the shop default — and snapshotted at
+ * creation time so a later rate change can't silently re-price an issued
+ * document. Charges are stamped with `invoiceId`, which is what makes them
+ * read-only on the ticket from here on; time entries are stamped the same way.
+ *
+ * A deposit taken at intake is spent against the invoice in the SAME
+ * transaction (see lib/deposits.ts), so the bill the customer is handed already
+ * has their money on it.
  */
-// Takes no state/formData: a shorter parameter list is still assignable to what
-// `useActionState` expects, and there is nothing on the form to read.
-export async function makeInvoiceAction(ticketId: string): Promise<ActionState> {
+// Takes an options object rather than state/formData: a shorter parameter list
+// is still assignable to what `useActionState` expects, and the only choice on
+// the confirm dialog is the one checkbox.
+export async function makeInvoiceAction(
+  ticketId: string,
+  options?: { includeTime?: boolean },
+): Promise<ActionState> {
   const { shopId, userId } = await requireUser();
+  const includeTime = options?.includeTime !== false;
 
   const ticket = await db.ticket.findFirst({
     where: { id: ticketId, shopId },
@@ -1023,14 +1042,20 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
   });
 
   if (!ticket) return { error: "Ticket not found." };
-  if (ticket.charges.length === 0) {
-    return { error: "There are no un-invoiced charges on this ticket yet." };
-  }
 
-  const shop = await db.shop.findUnique({
-    where: { id: shopId },
-    select: { taxRateBps: true },
-  });
+  const [shop, tax] = await Promise.all([
+    db.shop.findUnique({
+      where: { id: shopId },
+      select: { settings: true },
+    }),
+    resolveDocumentTax(shopId, ticket.customerId, null),
+  ]);
+
+  const labour = readLabourSettings(shop?.settings);
+  const timeEntries = includeTime
+    ? await loadBillableTime(db, shopId, ticket.id)
+    : [];
+  const labourLines = labourLinesFor(timeEntries, labour);
 
   const charges = ticket.charges;
   const locationId = await newRecordLocationId(shopId, userId);
@@ -1038,6 +1063,27 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
     shopId,
     charges.map((charge) => charge.productId),
   );
+
+  if (charges.length === 0 && labourLines.length === 0) {
+    return {
+      error: includeTime
+        ? "There are no un-invoiced charges or unbilled time on this ticket yet."
+        : "There are no un-invoiced charges on this ticket yet.",
+    };
+  }
+
+  const lines = [
+    ...charges.map((charge) => ({
+      productId: charge.productId,
+      description: charge.description,
+      quantity: charge.quantity,
+      unitPriceCents: charge.unitPriceCents,
+      taxable: charge.taxable,
+    })),
+    ...labourLines,
+  ];
+
+  const totalCents = calcTotals(lines, tax.taxRateBps).totalCents;
 
   const invoice = await withNextNumber(shopId, "invoice", (number) =>
     db.$transaction(async (tx) => {
@@ -1049,16 +1095,20 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
           locationId,
           number,
           status: "DRAFT",
-          taxRateBps: shop?.taxRateBps ?? 0,
+          taxRateId: tax.taxRateId,
+          taxRateBps: tax.taxRateBps,
           lines: {
-            create: charges.map((charge, index) => ({
-              productId: charge.productId,
-              description: charge.description,
-              quantity: charge.quantity,
-              unitPriceCents: charge.unitPriceCents,
-              taxable: charge.taxable,
-              warrantyDays: charge.productId
-                ? (warranty.get(charge.productId) ?? null)
+            create: lines.map((line, index) => ({
+              productId: line.productId,
+              description: line.description,
+              quantity: line.quantity,
+              unitPriceCents: line.unitPriceCents,
+              taxable: line.taxable,
+              // Warranty is snapshotted from the product at invoice time, so a
+              // later catalogue edit never rewrites a bill already issued.
+              // Labour lines carry no product and so no warranty.
+              warrantyDays: line.productId
+                ? (warranty.get(line.productId) ?? null)
                 : null,
               sortOrder: index,
             })),
@@ -1067,19 +1117,55 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
         select: { id: true, number: true },
       });
 
-      await tx.ticketCharge.updateMany({
-        where: { id: { in: charges.map((c) => c.id) }, shopId },
-        data: { invoiceId: created.id },
+      if (charges.length > 0) {
+        await tx.ticketCharge.updateMany({
+          where: { id: { in: charges.map((c) => c.id) }, shopId },
+          data: { invoiceId: created.id },
+        });
+      }
+
+      // Stamping the entries inside the transaction is what stops the same
+      // hour being billed twice by two people pressing the button at once.
+      if (timeEntries.length > 0) {
+        await tx.timeEntry.updateMany({
+          where: {
+            id: { in: timeEntries.map((entry) => entry.id) },
+            shopId,
+            invoiceId: null,
+          },
+          data: { invoiceId: created.id },
+        });
+      }
+
+      const deposit = await applyTicketDeposits(tx, {
+        shopId,
+        ticketId: ticket.id,
+        customerId: ticket.customerId,
+        ticketNumber: ticket.number,
+        invoiceId: created.id,
+        invoiceNumber: created.number,
+        totalCents,
+        userId,
       });
+
+      // A deposit that clears the bill leaves nothing to collect, so the
+      // invoice is born settled rather than as a draft nobody has to action.
+      if (deposit.amountCents > 0) {
+        await tx.invoice.update({
+          where: { id: created.id },
+          data:
+            deposit.amountCents >= totalCents
+              ? { status: "PAID", paidAt: new Date() }
+              : { status: "PARTIAL" },
+        });
+      }
 
       await tx.ticketComment.create({
         data: {
           shopId,
           ticketId: ticket.id,
           authorId: userId,
-          body: `Invoice #${created.number} created from ${charges.length} charge${
-            charges.length === 1 ? "" : "s"
-          }.`,
+          body: invoicedNote(created.number, charges.length, timeEntries.length),
           isPublic: false,
           updateType: "Invoiced",
           channel: "NOTE",
@@ -1092,5 +1178,22 @@ export async function makeInvoiceAction(ticketId: string): Promise<ActionState> 
 
   revalidateTicket(ticket.id);
   revalidatePath("/invoices");
+  revalidatePath(`/customers/${ticket.customerId}`);
   redirect(`/invoices/${invoice.id}`);
+}
+
+/** "Invoice #1004 created from 2 charges and 1 time entry." */
+function invoicedNote(
+  number: number,
+  chargeCount: number,
+  timeCount: number,
+): string {
+  const parts: string[] = [];
+  if (chargeCount > 0) {
+    parts.push(`${chargeCount} charge${chargeCount === 1 ? "" : "s"}`);
+  }
+  if (timeCount > 0) {
+    parts.push(`${timeCount} time entr${timeCount === 1 ? "y" : "ies"}`);
+  }
+  return `Invoice #${number} created from ${parts.join(" and ")}.`;
 }

@@ -4,7 +4,8 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { formatDate, formatDateTime } from "@/components/billing/format";
 import { EstimateStatusBadge } from "@/components/billing/status-badge";
 import { db } from "@/lib/db";
-import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { calcTotals, formatCents } from "@/lib/money";
+import { taxLabel } from "@/lib/tax";
 import { requirePortalCustomer } from "@/lib/portal-session";
 import { EstimateDecision } from "../../_components/estimate-decision";
 import {
@@ -34,6 +35,7 @@ export default async function PortalEstimatePage({
       approvalSignatureDataUrl: true,
       notes: true,
       taxRateBps: true,
+      taxRate: { select: { name: true } },
       ticketId: true,
       lines: {
         orderBy: { sortOrder: "asc" },
@@ -117,7 +119,7 @@ export default async function PortalEstimatePage({
               </div>
               <div className="flex items-baseline justify-between">
                 <dt className="text-muted-foreground">
-                  Sales tax ({formatBps(estimate.taxRateBps)})
+                  {taxLabel(estimate.taxRate?.name, estimate.taxRateBps)}
                 </dt>
                 <dd className="font-mono text-muted-foreground">
                   {formatCents(totals.taxCents)}

@@ -147,6 +147,9 @@ async function generate(
           locationId,
           number,
           status: "DRAFT",
+          // Both halves of the schedule's tax carry over, so the generated
+          // invoice prints the rate's NAME ("GST 5%") and not just its number.
+          taxRateId: schedule.taxRateId,
           taxRateBps: schedule.taxRateBps,
           dueDate,
           lines: {

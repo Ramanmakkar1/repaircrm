@@ -13,6 +13,8 @@ export type CompletedSale = {
   invoiceId: string;
   number: number;
   totalCents: number;
+  /** How much of the total a ticket deposit covered. */
+  depositAppliedCents: number;
   changeDueCents: number;
   method: TenderMethod;
   /** Set when the sale billed a repair — the cashier usually has to go back. */
@@ -64,6 +66,11 @@ export function SaleComplete({
               Invoice #{sale.number} · {formatCents(sale.totalCents)} ·{" "}
               {METHOD_LABELS[sale.method]}
             </p>
+            {sale.depositAppliedCents > 0 ? (
+              <p className="text-[14px] font-semibold text-status-resolved-fg/80">
+                {formatCents(sale.depositAppliedCents)} deposit applied
+              </p>
+            ) : null}
           </div>
         </div>
 

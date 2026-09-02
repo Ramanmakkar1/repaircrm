@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
+import { formatBps } from "@/lib/money";
 import { EM_DASH, addressLines, formatDate } from "./format";
 
 export type CustomerInfo = {
@@ -21,6 +22,9 @@ export type CustomerInfo = {
   smsOptIn: boolean;
   emailOptIn: boolean;
   createdAt: Date;
+  taxExempt: boolean;
+  /** The customer's own rate, when they are pinned to one. */
+  taxRate: { name: string; rateBps: number } | null;
 };
 
 export function InfoCard({ customer }: { customer: CustomerInfo }) {
@@ -86,6 +90,16 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
         <Separator />
 
         <dl className="flex flex-col gap-2.5 text-sm">
+          <Row
+            label="Sales tax"
+            value={
+              customer.taxExempt
+                ? "Tax exempt"
+                : customer.taxRate
+                  ? `${customer.taxRate.name} ${formatBps(customer.taxRate.rateBps)}`
+                  : "Shop default"
+            }
+          />
           <Row label="Referred by" value={customer.referredBy ?? EM_DASH} />
           <Row label="Customer since" value={formatDate(customer.createdAt)} />
         </dl>

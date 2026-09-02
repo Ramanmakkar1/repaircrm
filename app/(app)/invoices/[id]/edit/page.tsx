@@ -28,7 +28,8 @@ export default async function EditInvoicePage({
     redirect(`/invoices/${invoice.id}`);
   }
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   return (
     <div className="flex flex-col">
@@ -44,9 +45,11 @@ export default async function EditInvoicePage({
         // The document's own snapshotted rate, so editing never silently
         // re-taxes it at a rate the customer has not seen.
         taxRateBps={invoice.taxRateBps || taxRateBps}
+        taxRates={taxRates}
         initial={{
           id: invoice.id,
           customerId: invoice.customerId,
+          taxRateId: invoice.taxRateId,
           ticketId: invoice.ticketId,
           date: toDateInputValue(invoice.dueDate),
           notes: invoice.notes,

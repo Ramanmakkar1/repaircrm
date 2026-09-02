@@ -15,7 +15,8 @@ export default async function NewInvoicePage({
   const { shopId } = await requireUser();
   const params = await searchParams;
 
-  const { customers, products, taxRateBps } = await loadDocumentFormData(shopId);
+  const { customers, products, taxRateBps, taxRates } =
+    await loadDocumentFormData(shopId);
 
   // Prefills arrive as query params from the customer and ticket screens. Both
   // are re-verified against the shop before they are trusted as defaults.
@@ -51,6 +52,7 @@ export default async function NewInvoicePage({
         customers={customers}
         products={products}
         taxRateBps={taxRateBps}
+        taxRates={taxRates}
         initial={{
           customerId: prefillCustomer?.id ?? prefillTicket?.customerId ?? null,
           ticketId: prefillTicket?.id ?? null,

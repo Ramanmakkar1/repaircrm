@@ -37,8 +37,32 @@ export type TwoSeriesPoint = {
   resolved: number;
 };
 
+export type RefundRow = {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: number;
+  customerName: string;
+  amountCents: number;
+  method: string;
+  methodLabel: string;
+  reason: string | null;
+  createdAt: Date;
+};
+
 export type MoneyReport = {
+  /** Everything collected in the period, before anything went back out. */
   revenueCents: number;
+  /** Collected minus refunded — the money the shop actually kept. */
+  netRevenueCents: number;
+  refundCents: number;
+  refundCount: number;
+  refunds: RefundRow[];
+  /**
+   * Deposits taken and neither applied nor refunded, as of RIGHT NOW. A
+   * liability, not income: it is the customer's money the shop is holding.
+   */
+  depositsHeldCents: number;
+  depositsHeldCount: number;
   paymentCount: number;
   /** Payments collected, cut into the period's buckets. */
   revenueByBucket: SeriesPoint[];
@@ -105,30 +129,26 @@ export async function loadReport(
   options: {
     includeMoney: boolean;
     /**
-     * One branch, or null/"all" for the whole shop. Applied to tickets and
-     * invoices; payments follow their invoice's branch.
+     * One branch, or null for the whole shop. Applied to tickets and invoices;
+     * payments, refunds and deposits follow their parent document's branch.
      */
-    location?: string | null;
+    locationId?: string | null;
   },
 ): Promise<ReportData> {
   const inPeriod = { gte: period.from, lt: period.toExclusive };
-  const branch =
-    options.location && options.location !== "all"
-      ? { locationId: options.location }
-      : {};
+  // Null means "every location", which is the whole shop and therefore no
+  // filter at all — `locationId: undefined` is how Prisma spells that.
+  const locationId = options.locationId ?? undefined;
 
   const [work, money] = await Promise.all([
-    loadWork(shopId, period, inPeriod, branch),
+    loadWork(shopId, period, inPeriod, locationId),
     options.includeMoney
-      ? loadMoney(shopId, period, inPeriod, branch)
+      ? loadMoney(shopId, period, inPeriod, locationId)
       : Promise.resolve(null),
   ]);
 
   return { ...work, money };
 }
-
-/** The branch narrowing, as the two `where` shapes the queries below need. */
-type Branch = { locationId?: string };
 
 // ---------------------------------------------------------------------------
 // Work: throughput, time-to-resolve, tech leaderboard
@@ -138,15 +158,15 @@ async function loadWork(
   shopId: string,
   period: ReportPeriod,
   inPeriod: { gte: Date; lt: Date },
-  branch: Branch,
+  locationId: string | undefined,
 ): Promise<Omit<ReportData, "money">> {
   const [created, resolved, timeGroups, members] = await Promise.all([
     db.ticket.findMany({
-      where: { shopId, ...branch, createdAt: inPeriod },
+      where: { shopId, createdAt: inPeriod, locationId },
       select: { createdAt: true },
     }),
     db.ticket.findMany({
-      where: { shopId, ...branch, resolvedAt: inPeriod },
+      where: { shopId, resolvedAt: inPeriod, locationId },
       select: {
         createdAt: true,
         resolvedAt: true,
@@ -159,10 +179,11 @@ async function loadWork(
     // logged" — the work is not logged until it is stopped.
     db.timeEntry.groupBy({
       by: ["userId"],
+      // A time entry has no location of its own — its ticket does.
       where: {
         shopId,
         startedAt: inPeriod,
-        ...(branch.locationId ? { ticket: { locationId: branch.locationId } } : {}),
+        ...(locationId ? { ticket: { locationId } } : {}),
       },
       _sum: { seconds: true },
     }),
@@ -277,36 +298,43 @@ async function loadMoney(
   shopId: string,
   period: ReportPeriod,
   inPeriod: { gte: Date; lt: Date },
-  branch: Branch,
+  locationId: string | undefined,
 ): Promise<MoneyReport> {
-  // Payments have no branch of their own — they belong to the branch that
-  // raised the invoice.
-  const paymentBranch = branch.locationId
-    ? { invoice: { locationId: branch.locationId } }
-    : {};
-  const [payments, methodGroups, raisedRows, paidRows, productLines, owing] =
-    await Promise.all([
+  // A payment, a refund and a deposit all belong to a location through their
+  // parent document, so the filter travels one relation deep.
+  const viaInvoice = locationId ? { invoice: { locationId } } : {};
+
+  const [
+    payments,
+    methodGroups,
+    raisedRows,
+    paidRows,
+    productLines,
+    owing,
+    refundRows,
+    depositRows,
+  ] = await Promise.all([
       db.payment.findMany({
-        where: { shopId, ...paymentBranch, createdAt: inPeriod },
+        where: { shopId, createdAt: inPeriod, ...viaInvoice },
         select: { amountCents: true, createdAt: true },
       }),
       db.payment.groupBy({
         by: ["method"],
-        where: { shopId, ...paymentBranch, createdAt: inPeriod },
+        where: { shopId, createdAt: inPeriod, ...viaInvoice },
         _sum: { amountCents: true },
         _count: { _all: true },
       }),
       // Void invoices are excluded everywhere: a voided document is not a
       // thing that was billed, it is a thing that was un-billed.
       db.invoice.findMany({
-        where: { shopId, ...branch, createdAt: inPeriod, status: { not: "VOID" } },
+        where: { shopId, createdAt: inPeriod, status: { not: "VOID" }, locationId },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         },
       }),
       db.invoice.findMany({
-        where: { shopId, ...branch, paidAt: inPeriod, status: { not: "VOID" } },
+        where: { shopId, paidAt: inPeriod, status: { not: "VOID" }, locationId },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
@@ -315,7 +343,7 @@ async function loadMoney(
       db.invoiceLine.findMany({
         where: {
           productId: { not: null },
-          invoice: { shopId, ...branch, createdAt: inPeriod, status: { not: "VOID" } },
+          invoice: { shopId, createdAt: inPeriod, status: { not: "VOID" }, locationId },
         },
         select: {
           quantity: true,
@@ -324,12 +352,46 @@ async function loadMoney(
         },
       }),
       db.invoice.findMany({
-        where: { shopId, ...branch, status: { in: [...OWING_STATUSES] } },
+        where: { shopId, status: { in: [...OWING_STATUSES] }, locationId },
         select: {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
           payments: { select: { amountCents: true } },
         },
+      }),
+      // Money handed back in the period. Its own table, never a negative
+      // payment, so "collected" and "returned" stay separately reportable.
+      db.refund.findMany({
+        where: { shopId, createdAt: inPeriod, ...viaInvoice },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          amountCents: true,
+          method: true,
+          reason: true,
+          createdAt: true,
+          invoice: {
+            select: {
+              id: true,
+              number: true,
+              customer: {
+                select: { firstName: true, lastName: true, businessName: true },
+              },
+            },
+          },
+        },
+      }),
+      // NOT period-scoped, same reasoning as A/R: a deposit taken in March is
+      // still the customer's money today. It is a standing liability, not
+      // income, so it is reported as of right now.
+      db.deposit.findMany({
+        where: {
+          shopId,
+          appliedInvoiceId: null,
+          refundedAt: null,
+          ...(locationId ? { ticket: { locationId } } : {}),
+        },
+        select: { amountCents: true },
       }),
     ]);
 
@@ -393,8 +455,34 @@ async function loadMoney(
     }
   }
 
+  const refundCents = refundRows.reduce((sum, row) => sum + row.amountCents, 0);
+  const refunds: RefundRow[] = refundRows.map((row) => ({
+    id: row.id,
+    invoiceId: row.invoice.id,
+    invoiceNumber: row.invoice.number,
+    customerName:
+      row.invoice.customer.businessName ||
+      `${row.invoice.customer.firstName} ${row.invoice.customer.lastName}`.trim(),
+    amountCents: row.amountCents,
+    method: row.method,
+    methodLabel: PAYMENT_METHOD_LABELS[row.method] ?? row.method,
+    reason: row.reason,
+    createdAt: row.createdAt,
+  }));
+
+  const depositsHeldCents = depositRows.reduce(
+    (sum, row) => sum + row.amountCents,
+    0,
+  );
+
   return {
     revenueCents,
+    netRevenueCents: revenueCents - refundCents,
+    refundCents,
+    refundCount: refundRows.length,
+    refunds,
+    depositsHeldCents,
+    depositsHeldCount: depositRows.length,
     paymentCount: payments.length,
     revenueByBucket,
     byMethod,

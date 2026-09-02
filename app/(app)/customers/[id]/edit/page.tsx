@@ -11,6 +11,21 @@ import { db } from "@/lib/db";
 
 export const metadata: Metadata = { title: "Edit customer · RepairFlow" };
 
+/** The shop's named tax rates, for the customer form's preferred-rate picker. */
+async function loadTaxRates(shopId: string) {
+  return db.taxRate.findMany({
+    where: { shopId },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      rateBps: true,
+      isDefault: true,
+      active: true,
+    },
+  });
+}
+
 export default async function EditCustomerPage({
   params,
 }: {
@@ -39,10 +54,14 @@ export default async function EditCustomerPage({
       notes: true,
       smsOptIn: true,
       emailOptIn: true,
+      taxExempt: true,
+      taxRateId: true,
     },
   });
 
   if (!customer) notFound();
+
+  const taxRates = await loadTaxRates(shopId);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
@@ -56,7 +75,7 @@ export default async function EditCustomerPage({
 
       <PageHeader title="Edit customer" />
 
-      <CustomerForm customer={customer} />
+      <CustomerForm customer={customer} taxRates={taxRates} />
     </div>
   );
 }

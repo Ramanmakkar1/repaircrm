@@ -58,6 +58,9 @@ export type PosCustomer = {
   id: string;
   label: string;
   creditBalanceCents: number;
+  /** The rate this customer is taxed at, already resolved (see lib/tax.ts). */
+  taxRateBps: number;
+  taxExempt: boolean;
 };
 
 /**
@@ -78,6 +81,8 @@ export type PosTicket = {
   charges: PosTicketCharge[];
   /** Tax-exclusive sum of those charges, for the picker list. */
   subtotalCents: number;
+  /** Deposits taken at intake and not yet applied or refunded, in cents. */
+  depositCents: number;
 };
 
 export type PosTicketCharge = {
@@ -155,6 +160,8 @@ export type CheckoutResult =
       invoiceId: string;
       number: number;
       totalCents: number;
+      /** How much of the total a ticket deposit covered. */
+      depositAppliedCents: number;
       changeDueCents: number;
       method: TenderMethod;
       /** Set when the sale billed a repair ticket, so the receipt can link it. */

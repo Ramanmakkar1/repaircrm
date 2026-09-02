@@ -22,6 +22,7 @@ import type { ProfileValues } from "@/components/settings/profile-types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
 import { readSla } from "@/lib/sla";
 import { parseTemplateItems } from "@/lib/checklist";
+import { readLabourSettings } from "@/lib/labour";
 
 export const metadata = { title: "Settings · RepairFlow" };
 
@@ -47,6 +48,7 @@ export default async function SettingsPage({
     cannedResponses,
     members,
     apiKeys,
+    taxRates,
     checklists,
     locations,
     profile,
@@ -108,6 +110,20 @@ export default async function SettingsPage({
             active: true,
             lastUsedAt: true,
             createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+    // Named tax rates are an owner concern, like the rate they refine.
+    isOwner
+      ? db.taxRate.findMany({
+          where: { shopId: session.shopId },
+          orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            rateBps: true,
+            isDefault: true,
+            active: true,
           },
         })
       : Promise.resolve([]),
@@ -173,6 +189,8 @@ export default async function SettingsPage({
 
   // "Staff based here" needs each member's current branch, by name.
   const locationNames = new Map(locations.map((l) => [l.id, l.name]));
+
+  const labour = readLabourSettings(shop.settings);
 
   const messaging: MessagingConfig = {
     emailDriver: emailDriverName(),
@@ -254,7 +272,10 @@ export default async function SettingsPage({
           email: shop.email ?? "",
           timezone: shop.timezone,
           taxRateBps: shop.taxRateBps,
+          labourRateCents: labour.rateCents,
+          labourRoundingMinutes: labour.roundingMinutes,
         }}
+        taxRates={taxRates}
         // The *effective* lists — the shop's own when it has configured them,
         // the built-in defaults otherwise. Editing therefore starts from what
         // the ticket pickers are actually showing today.

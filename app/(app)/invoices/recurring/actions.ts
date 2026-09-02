@@ -9,6 +9,7 @@ import { shopDefaultLocationId } from "@/lib/location";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import { withNextNumber } from "@/lib/sequence";
 import { fromDateInputValue } from "@/components/billing/format";
+import { resolveDocumentTax } from "@/components/billing/queries";
 import { formError, parseLines, type FormState } from "@/components/billing/types";
 import {
   addUtcDays,
@@ -105,10 +106,11 @@ export async function createScheduleAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
-  const shop = await db.shop.findUnique({
-    where: { id: shopId },
-    select: { taxRateBps: true },
-  });
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
 
   const schedule = await db.recurringInvoice.create({
     data: {
@@ -121,7 +123,8 @@ export async function createScheduleAction(
       // Snapshot the rate now, exactly like a one-off invoice: a later settings
       // change must not silently restate a contract already agreed with the
       // customer. Editing the schedule is the way to move it.
-      taxRateBps: shop?.taxRateBps ?? 0,
+      taxRateId: tax.taxRateId,
+      taxRateBps: tax.taxRateBps,
       dueInDays: readDueInDays(formData),
       lines: { create: lineCreateData(parsed.lines) },
     },
@@ -157,6 +160,12 @@ export async function updateScheduleAction(
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
 
+  const tax = await resolveDocumentTax(
+    shopId,
+    customer.id,
+    formData.get("taxRateId"),
+  );
+
   // Replace-all rather than diff: line ids never reach the client, and a
   // schedule has a handful of rows, so a clean rewrite is both simpler and
   // immune to a stale id from a concurrent edit.
@@ -166,6 +175,8 @@ export async function updateScheduleAction(
       where: { id: existing.id },
       data: {
         customerId: customer.id,
+        taxRateId: tax.taxRateId,
+        taxRateBps: tax.taxRateBps,
         name,
         frequency: asFrequency(formData.get("frequency")),
         nextRunAt,
@@ -279,6 +290,9 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
           locationId,
           number,
           status: "DRAFT",
+          // Both halves of the schedule's tax carry over, so the generated
+          // invoice prints the rate's NAME ("GST 5%") and not just its number.
+          taxRateId: schedule.taxRateId,
           taxRateBps: schedule.taxRateBps,
           dueDate,
           lines: {

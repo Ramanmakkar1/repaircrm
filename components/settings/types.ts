@@ -95,6 +95,10 @@ export type ShopSettingsValues = {
   email: string;
   timezone: string;
   taxRateBps: number;
+  /** Hourly bench rate billed when time entries become invoice lines. */
+  labourRateCents: number;
+  /** Billing increment in minutes; logged time rounds UP to it. */
+  labourRoundingMinutes: number;
 };
 
 /**

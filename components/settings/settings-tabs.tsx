@@ -20,6 +20,7 @@ import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
 import type { ChecklistTemplateItem } from "./checklists-card";
 import type { SlaHours } from "@/lib/sla";
+import type { TaxRateOption } from "@/lib/tax";
 import type { AuditPage } from "./audit-types";
 import type { ProfileValues } from "./profile-types";
 import type {
@@ -47,6 +48,7 @@ export function SettingsTabs({
   currentUserId,
   activeTab,
   shop,
+  taxRates,
   problemTypes,
   ticketStatuses,
   cannedResponses,
@@ -65,6 +67,8 @@ export function SettingsTabs({
   currentUserId: string;
   activeTab: string;
   shop: ShopSettingsValues;
+  /** Owner-only; empty for everyone else because the query never ran. */
+  taxRates: TaxRateOption[];
   problemTypes: string[];
   ticketStatuses: string[];
   cannedResponses: CannedResponseItem[];
@@ -133,7 +137,7 @@ export function SettingsTabs({
 
       {isOwner ? (
         <TabsContent value="shop">
-          <ShopTab shop={shop} />
+          <ShopTab shop={shop} taxRates={taxRates} />
         </TabsContent>
       ) : null}
 

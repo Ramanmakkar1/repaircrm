@@ -19,6 +19,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { LineItemsEditor, type InitialLine } from "@/components/billing/line-items-editor";
 import { SubmitButton } from "@/components/billing/submit-button";
+import { TaxRateSelect } from "@/components/billing/tax-rate-select";
+import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
 import {
   IDLE_FORM_STATE,
   type CustomerOption,
@@ -41,6 +43,7 @@ export function ScheduleForm({
   customers,
   products,
   taxRateBps,
+  taxRates,
   initial,
   submitLabel,
   cancelHref,
@@ -48,11 +51,15 @@ export function ScheduleForm({
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   customers: CustomerOption[];
   products: ProductOption[];
+  /** The rate the schedule opens on — its own snapshot, or the shop default. */
   taxRateBps: number;
+  /** The shop's named rates. Empty means the shop just uses one flat rate. */
+  taxRates: TaxRateOption[];
   initial?: {
     id?: string;
     name?: string;
     customerId?: string | null;
+    taxRateId?: string | null;
     frequency?: string;
     /** yyyy-mm-dd */
     nextRunAt?: string;
@@ -70,6 +77,41 @@ export function ScheduleForm({
   const [customerId, setCustomerId] = React.useState(initial?.customerId ?? "");
   const [frequency, setFrequency] = React.useState(initial?.frequency ?? "MONTHLY");
   const [active, setActive] = React.useState(initial?.active ?? true);
+
+  // Same rule as a one-off invoice: an existing schedule keeps the rate it
+  // snapshotted, a new one follows whoever is selected.
+  const [tax, setTax] = React.useState<{
+    taxRateId: string | null;
+    taxRateBps: number;
+  }>(() => {
+    // A saved document keeps its own snapshot.
+    if (initial?.id) {
+      return { taxRateId: initial.taxRateId ?? null, taxRateBps };
+    }
+    // A new one that already knows its customer (prefilled from the customer or
+    // ticket screen) opens on that customer's rate…
+    const prefill = customers.find((c) => c.id === initial?.customerId) ?? null;
+    if (prefill) {
+      return { taxRateId: prefill.taxRateId, taxRateBps: prefill.taxRateBps };
+    }
+    // …and one that does not opens on the shop default, which is what it would
+    // have been taxed at before this picker existed.
+    const fallback = defaultTaxRate(taxRates);
+    return fallback
+      ? { taxRateId: fallback.id, taxRateBps: fallback.rateBps }
+      : { taxRateId: null, taxRateBps };
+  });
+
+  function selectCustomer(nextId: string) {
+    setCustomerId(nextId);
+    const customer = customers.find((c) => c.id === nextId);
+    if (customer) {
+      setTax({
+        taxRateId: customer.taxRateId,
+        taxRateBps: customer.taxRateBps,
+      });
+    }
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
@@ -112,7 +154,7 @@ export function ScheduleForm({
             <Select
               name="customerId"
               value={customerId}
-              onValueChange={setCustomerId}
+              onValueChange={selectCustomer}
               required
             >
               <SelectTrigger id="customerId">
@@ -180,6 +222,15 @@ export function ScheduleForm({
             </p>
           </div>
 
+          {taxRates.length > 0 ? (
+            <TaxRateSelect
+              rates={taxRates}
+              value={tax.taxRateId}
+              onChange={setTax}
+              hint="Every invoice this schedule raises is taxed at this rate."
+            />
+          ) : null}
+
           <div className="flex flex-col gap-2">
             <Label htmlFor="active">Status</Label>
             <div className="flex h-10 items-center gap-3">
@@ -207,7 +258,7 @@ export function ScheduleForm({
         <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}
-            taxRateBps={taxRateBps}
+            taxRateBps={tax.taxRateBps}
             initialLines={initial?.lines}
             showSerial={false}
           />

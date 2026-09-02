@@ -115,6 +115,8 @@ export default async function CustomerHubPage({
       creditBalanceCents: true,
       referredBy: true,
       createdAt: true,
+      taxExempt: true,
+      taxRate: { select: { name: true, rateBps: true } },
       contacts: {
         orderBy: { createdAt: "asc" },
         select: { id: true, name: true, email: true, phone: true, label: true },
