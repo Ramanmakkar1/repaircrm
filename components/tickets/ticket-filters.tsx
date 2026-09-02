@@ -18,6 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 import {
   Select,
   SelectContent,
@@ -25,9 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/** Sentinel for the "Needs reply" pill; it rides in `?status=`. */
-export const NEEDS_REPLY_FILTER = "needs-reply";
 
 export type TicketFilterValues = {
   q: string;

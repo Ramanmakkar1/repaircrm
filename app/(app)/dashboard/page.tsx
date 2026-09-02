@@ -24,7 +24,7 @@ import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
-import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-filters";
+import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 
 export const dynamic = "force-dynamic";
 

@@ -11,12 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import {
-  NEEDS_REPLY_FILTER,
-  TicketFilters,
-} from "@/components/tickets/ticket-filters";
+import { TicketFilters } from "@/components/tickets/ticket-filters";
 import { TicketCard } from "@/components/tickets/ticket-card";
 import {
+  NEEDS_REPLY_FILTER,
   RESOLVED_STATUS,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";

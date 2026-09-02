@@ -35,6 +35,16 @@ export const RESOLVED_STATUS = "Resolved";
 export const READY_FOR_PICKUP_STATUS = "Ready for Pickup";
 
 /**
+ * Sentinel for the "Needs reply" pill; it rides in `?status=`.
+ *
+ * It lives HERE, not next to the pill that renders it: ticket-filters.tsx is a
+ * "use client" module, so a Server Component importing a plain string from it
+ * gets a client reference back rather than the string, and every comparison
+ * against it silently fails.
+ */
+export const NEEDS_REPLY_FILTER = "needs-reply";
+
+/**
  * Fallback problem types, used only when `Shop.settings.problemTypes` is empty.
  * A configured shop always wins so the picker matches the shop's own history.
  */
