@@ -4,8 +4,8 @@ import type { Prisma } from "@prisma/client";
 /**
  * Per-shop document numbering.
  *
- * Tickets, estimates and invoices each get their own sequence starting at 1000
- * within a shop. The number is derived from max(number) + 1 inside a
+ * Tickets, estimates, invoices and purchase orders each get their own sequence
+ * starting at 1000 within a shop. The number is derived from max(number) + 1 inside a
  * transaction, and the DB enforces @@unique([shopId, number]) as the real
  * guarantee — so if two requests race, the loser gets a unique-violation and
  * retries rather than silently duplicating a number.
@@ -15,7 +15,7 @@ import type { Prisma } from "@prisma/client";
  * `UPDATE ... RETURNING value + 1` (row lock), keeping this signature.
  */
 
-export type SequenceKind = "ticket" | "estimate" | "invoice";
+export type SequenceKind = "ticket" | "estimate" | "invoice" | "purchaseOrder";
 
 const START_AT = 1000;
 const MAX_ATTEMPTS = 5;
@@ -40,6 +40,13 @@ async function maxNumber(tx: Tx, shopId: string, kind: SequenceKind) {
     }
     case "invoice": {
       const row = await tx.invoice.aggregate({
+        where: { shopId },
+        _max: { number: true },
+      });
+      return row._max.number;
+    }
+    case "purchaseOrder": {
+      const row = await tx.purchaseOrder.aggregate({
         where: { shopId },
         _max: { number: true },
       });

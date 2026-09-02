@@ -16,6 +16,10 @@ export type ProductOption = {
   sku: string | null;
   priceCents: number;
   taxable: boolean;
+  /** True when every unit is tracked by serial number. */
+  serialized?: boolean;
+  /** Serials still in stock — the choices on a serialized line. */
+  serials?: string[];
 };
 
 /** A customer the document form can be addressed to. */

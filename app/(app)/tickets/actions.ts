@@ -477,6 +477,10 @@ export async function deleteChargeAction(chargeId: string): Promise<void> {
  * audited path every other stock movement in the app uses (inventory receiving,
  * POS selling). A free-form part has no product row and therefore no stock to
  * move; it just changes status.
+ *
+ * ONE EXCEPTION: a part attached to a purchase order (`purchaseOrderId` set).
+ * There, receiving the PO is the stock event and this path only flips the
+ * status — otherwise the same box would be counted onto the shelf twice.
  */
 
 const RECEIVABLE_FROM: readonly string[] = ["NEEDED", "ORDERED"];
@@ -493,6 +497,7 @@ async function findPartOrder(shopId: string, partOrderId: string) {
       description: true,
       quantity: true,
       status: true,
+      purchaseOrderId: true,
       ticket: { select: { number: true, status: true } },
     },
   });
@@ -508,6 +513,7 @@ export async function addPartOrderAction(
   if (!ticket) return { error: "Ticket not found." };
 
   const productId = optionalId(formData, "productId");
+  const vendorId = optionalId(formData, "vendorId");
   let description = str(formData, "description");
   const typedCost = str(formData, "costCents");
   let costCents = typedCost ? parseCents(typedCost) : null;
@@ -532,13 +538,25 @@ export async function addPartOrderAction(
     Math.round(Number(str(formData, "quantity")) || 1),
   );
 
+  // A vendorId from the wire is only trusted once this shop is proved to own
+  // it — it is what "Add to purchase order" later raises the PO against.
+  const vendor = vendorId
+    ? await db.vendor.findFirst({
+        where: { id: vendorId, shopId },
+        select: { id: true, name: true },
+      })
+    : null;
+
   await db.partOrder.create({
     data: {
       shopId,
       ticketId: ticket.id,
       productId,
+      vendorId: vendor?.id ?? null,
       description,
-      supplier: str(formData, "supplier") || null,
+      // The typed supplier still wins; the vendor name only fills a blank, so
+      // the card reads the same whichever way the part was entered.
+      supplier: str(formData, "supplier") || vendor?.name || null,
       quantity,
       costCents: costCents !== null && costCents > 0 ? costCents : null,
       status: "NEEDED",
@@ -611,7 +629,13 @@ export async function markPartReceivedAction(
       data: { status: "RECEIVED", receivedAt: new Date() },
     });
 
-    if (part.productId) {
+    // STOCK IS COUNTED IN EXACTLY ONCE. When this part rides on a purchase
+    // order, receiving THAT order is the stock event: it already incremented
+    // the product and wrote the StockAdjustment (see
+    // app/(app)/inventory/purchase-orders/actions.ts). Doing it again here
+    // would count the same physical part onto the shelf twice, so this path
+    // only changes status when `purchaseOrderId` is set.
+    if (part.productId && !part.purchaseOrderId) {
       // Scoped update: an id that does not belong to this shop matches nothing,
       // and the adjustment below would then describe a movement that never
       // happened — so the write is guarded by the same where clause.

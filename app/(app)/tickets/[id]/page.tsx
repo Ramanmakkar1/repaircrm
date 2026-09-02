@@ -138,7 +138,9 @@ export default async function TicketDetailPage({
           orderedAt: true,
           receivedAt: true,
           notes: true,
+          vendorId: true,
           product: { select: { name: true } },
+          purchaseOrder: { select: { id: true, number: true } },
         },
       },
       timeEntries: {
@@ -172,7 +174,7 @@ export default async function TicketDetailPage({
 
   if (!ticket) notFound();
 
-  const [shop, techs, products, cannedResponses, customerAssets] =
+  const [shop, techs, products, cannedResponses, customerAssets, vendors] =
     await Promise.all([
       db.shop.findUnique({
         where: { id: shopId },
@@ -192,6 +194,7 @@ export default async function TicketDetailPage({
           priceCents: true,
           taxable: true,
           costCents: true,
+          vendorId: true,
         },
       }),
       db.cannedResponse.findMany({
@@ -203,6 +206,13 @@ export default async function TicketDetailPage({
         where: { shopId, customerId: ticket.customer.id },
         orderBy: { createdAt: "desc" },
         select: { id: true, type: true, make: true, model: true, serial: true },
+      }),
+      // Suppliers a part can be ordered from, for the part dialog and the
+      // "Add to PO" menu.
+      db.vendor.findMany({
+        where: { shopId, active: true },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true },
       }),
     ]);
 
@@ -263,6 +273,9 @@ export default async function TicketDetailPage({
         ? `Ordered ${format(part.orderedAt, "MMM d")}`
         : null,
     notes: part.notes,
+    vendorId: part.vendorId,
+    poNumber: part.purchaseOrder?.number ?? null,
+    poId: part.purchaseOrder?.id ?? null,
     productName: part.product?.name ?? null,
   }));
 
@@ -421,7 +434,10 @@ export default async function TicketDetailPage({
               id: product.id,
               name: product.name,
               costCents: role === "OWNER" ? product.costCents : null,
+              vendorId: product.vendorId,
             }))}
+            vendors={vendors}
+            canPurchase={role === "OWNER"}
           />
 
           <Timeline

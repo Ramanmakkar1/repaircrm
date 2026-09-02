@@ -35,7 +35,14 @@ export type PosProduct = {
   upc: string | null;
   category: string | null;
   lowStockAt: number | null;
+  /** True when every unit is tracked by serial number. */
+  serialized: boolean;
+  /** The units currently in stock. Only populated for serialized products. */
+  serials: PosSerial[];
 };
+
+/** One physical unit of a serialized product, ready to sell. */
+export type PosSerial = { id: string; serial: string };
 
 /**
  * Whether a product is a countable thing rather than a service.
@@ -112,6 +119,13 @@ export type CartLine = {
   quantity: number;
   /** Stock level at page load, for the low/out-of-stock hint. Null for custom. */
   stockQty: number | null;
+  /**
+   * The exact unit being sold, on a serialized line. A serialized line is
+   * always quantity 1 — one row per physical thing — so ringing up two
+   * handsets is two lines with two serials, which is also the only way the
+   * receipt can say which one the customer walked out with.
+   */
+  serial?: string | null;
   /** Set on locked ticket lines; null on catalogue and custom lines. */
   ticketChargeId?: string | null;
   /** The ticket a locked line came off, for grouping and the header label. */
@@ -122,6 +136,11 @@ export type CartLine = {
 /** True for a line pulled off a repair ticket — read-only in the cart. */
 export function isTicketLine(line: CartLine): boolean {
   return Boolean(line.ticketChargeId);
+}
+
+/** True for a line that carries one serialized unit — quantity is fixed at 1. */
+export function isSerialLine(line: CartLine): boolean {
+  return Boolean(line.serial);
 }
 
 /** What the register posts to `checkoutAction`. */
@@ -135,6 +154,11 @@ export type CheckoutInput = {
     /** Only trusted for custom lines. */
     taxable: boolean;
     quantity: number;
+    /**
+     * The serialized unit this line sells. The server re-checks that it is in
+     * stock for that product before marking it SOLD.
+     */
+    serial?: string | null;
     /**
      * Set for a line pulled off a ticket. Nothing else about the line is
      * trusted then: the server re-reads description, quantity, price and

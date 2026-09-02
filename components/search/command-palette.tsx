@@ -9,6 +9,7 @@ import {
   CornerDownLeft,
   CreditCard,
   FileText,
+  Hash,
   Loader2,
   Receipt,
   Search,
@@ -68,6 +69,7 @@ const TYPE_ICON: Record<SearchType, LucideIcon> = {
   invoice: Receipt,
   estimate: FileText,
   product: Boxes,
+  serial: Hash,
   lead: UserPlus,
 };
 

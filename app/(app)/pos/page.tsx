@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
-import type { PosTicket } from "@/components/pos/types";
+import type { PosProduct, PosTicket } from "@/components/pos/types";
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -32,6 +32,14 @@ export default async function PosPage() {
         upc: true,
         category: true,
         lowStockAt: true,
+        serialized: true,
+        // Only what's on the shelf: the picker at the counter must never offer
+        // a unit that has already been sold.
+        serials: {
+          where: { status: "IN_STOCK" },
+          orderBy: { serial: "asc" },
+          select: { id: true, serial: true },
+        },
       },
     }),
     db.customer.findMany({
@@ -105,9 +113,11 @@ export default async function PosPage() {
     ),
   }));
 
+  const posProducts: PosProduct[] = products;
+
   return (
     <Register
-      products={products}
+      products={posProducts}
       customers={customerRows.map((c) => ({
         id: c.id,
         label: customerLabel(c),

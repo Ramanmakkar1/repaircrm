@@ -31,6 +31,8 @@ import type { ProductOption, SubmittedLine } from "./types";
  */
 
 const CUSTOM = "__custom__";
+/** Radix Select cannot hold "", so "no unit chosen" needs a sentinel. */
+const NO_SERIAL = "__none__";
 
 type Draft = {
   key: string;
@@ -156,6 +158,9 @@ export function LineItemsEditor({
         description: product.name,
         unitPrice: centsToInput(product.priceCents),
         taxable: product.taxable,
+        // One row per physical unit, so a serialized product starts at one and
+        // drops whatever serial the previous product had chosen.
+        ...(product.serialized ? { quantity: "1", serial: "" } : { serial: "" }),
       });
     },
     [products, update],
@@ -177,6 +182,24 @@ export function LineItemsEditor({
   const totals = React.useMemo(
     () => calcTotals(payload, taxRateBps),
     [payload, taxRateBps],
+  );
+
+  /**
+   * The serials a row may choose from, or null when the row is not a
+   * serialized product (and therefore keeps the free-text box).
+   */
+  const serialsFor = React.useCallback(
+    (draft: Draft): string[] | null => {
+      if (draft.productId === CUSTOM) return null;
+      const product = products.find((p) => p.id === draft.productId);
+      if (!product?.serialized) return null;
+      const available = product.serials ?? [];
+      const current = draft.serial.trim();
+      return current && !available.includes(current)
+        ? [current, ...available]
+        : available;
+    },
+    [products],
   );
 
   const colCount = showSerial ? 7 : 6;
@@ -279,14 +302,41 @@ export function LineItemsEditor({
 
                   {showSerial ? (
                     <Cell>
-                      <Input
-                        value={draft.serial}
-                        onChange={(e) =>
-                          update(draft.key, { serial: e.target.value })
-                        }
-                        placeholder="—"
-                        aria-label="Serial number"
-                      />
+                      {/* A serialized product sells specific units, so the
+                          serial is a choice from what's in stock rather than
+                          free text — the same rule the register enforces. The
+                          line's existing serial stays selectable when editing,
+                          because that unit is already committed to this
+                          invoice and is no longer "in stock". */}
+                      {serialsFor(draft) ? (
+                        <Select
+                          value={draft.serial || NO_SERIAL}
+                          onValueChange={(v) =>
+                            update(draft.key, { serial: v === NO_SERIAL ? "" : v })
+                          }
+                        >
+                          <SelectTrigger aria-label="Serial number">
+                            <SelectValue placeholder="Pick a unit" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-64 overflow-y-auto">
+                            <SelectItem value={NO_SERIAL}>No unit yet</SelectItem>
+                            {serialsFor(draft)?.map((serial) => (
+                              <SelectItem key={serial} value={serial}>
+                                {serial}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={draft.serial}
+                          onChange={(e) =>
+                            update(draft.key, { serial: e.target.value })
+                          }
+                          placeholder="—"
+                          aria-label="Serial number"
+                        />
+                      )}
                     </Cell>
                   ) : null}
 

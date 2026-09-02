@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { Boxes, ChevronLeft, ChevronRight, Plus, TriangleAlert } from "lucide-react";
+import {
+  Boxes,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Plus,
+  Store,
+  TriangleAlert,
+  Upload,
+} from "lucide-react";
 
 import { plural } from "@/components/customers/format";
 import { asFilter, type InventoryFilter } from "@/components/inventory/format";
@@ -91,12 +100,40 @@ export default async function InventoryPage({
         title="Inventory"
         description="Every part, accessory and service the shop sells, with what's on the shelf."
         actions={
-          <Button asChild>
-            <Link href="/inventory/new">
-              <Plus />
-              New Product
-            </Link>
-          </Button>
+          <>
+            {/* Purchasing lives one level in, reachable from here rather than
+                from the sidebar — the rail is already thirteen items long and
+                these are inventory's own sub-pages. Owner only, like the pages
+                themselves. */}
+            {showCost ? (
+              <>
+                <Button variant="outline" asChild>
+                  <Link href="/inventory/vendors">
+                    <Store />
+                    Vendors
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/inventory/purchase-orders">
+                    <ClipboardList />
+                    Purchase orders
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/inventory/import">
+                    <Upload />
+                    Import
+                  </Link>
+                </Button>
+              </>
+            ) : null}
+            <Button asChild>
+              <Link href="/inventory/new">
+                <Plus />
+                New Product
+              </Link>
+            </Button>
+          </>
         }
       />
 

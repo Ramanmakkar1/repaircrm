@@ -44,6 +44,14 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         sku: true,
         priceCents: true,
         taxable: true,
+        serialized: true,
+        // A serialized line picks one of these; anything already sold is
+        // deliberately absent so it cannot be billed twice.
+        serials: {
+          where: { status: "IN_STOCK" },
+          orderBy: { serial: "asc" },
+          select: { serial: true },
+        },
       },
     }),
     db.shop.findUnique({
@@ -54,7 +62,10 @@ export async function loadDocumentFormData(shopId: string): Promise<{
 
   return {
     customers: customerRows.map((c) => ({ id: c.id, label: customerLabel(c) })),
-    products: productRows,
+    products: productRows.map((product) => ({
+      ...product,
+      serials: product.serials.map((unit) => unit.serial),
+    })),
     taxRateBps: shop?.taxRateBps ?? 0,
   };
 }

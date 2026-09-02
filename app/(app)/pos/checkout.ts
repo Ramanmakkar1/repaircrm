@@ -4,6 +4,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { withNextNumber } from "@/lib/sequence";
+import {
+  SerialError,
+  markInvoiceSerialsSold,
+  syncSerializedStock,
+} from "@/lib/serials";
 import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/pos/types";
 
 /**
@@ -85,6 +90,7 @@ const lineSchema = z.object({
   unitPriceCents: z.number().int().min(0).max(100_000_000),
   taxable: z.boolean(),
   quantity: z.number().int().min(1).max(10_000),
+  serial: z.string().trim().max(120).nullable().optional().default(null),
   ticketChargeId: z.string().min(1).nullable().optional().default(null),
 });
 
@@ -114,6 +120,13 @@ type ResolvedLine = {
    * the line (rule 3 in the header — the part already left stock at the bench).
    */
   ticketChargeId: string | null;
+  /**
+   * The serialized unit this line sells. Written to `InvoiceLine.serial`, then
+   * `markInvoiceSerialsSold` attaches the physical `ProductSerial` row to that
+   * line — refusing anything that is not in stock for that product in this
+   * shop, which is what stops one handset being sold twice.
+   */
+  serial: string | null;
 };
 
 /** The tenant + operator identity, always resolved from the session by the caller. */
@@ -149,7 +162,13 @@ export async function performCheckout(
               // Scoped to the session's shop: an id from another tenant simply
               // does not come back, and the check below turns that into an error.
               where: { id: { in: productIds }, shopId },
-              select: { id: true, name: true, priceCents: true, taxable: true },
+              select: {
+                id: true,
+                name: true,
+                priceCents: true,
+                taxable: true,
+                serialized: true,
+              },
             })
           : [];
 
@@ -217,17 +236,26 @@ export async function performCheckout(
               unitPriceCents: charge.unitPriceCents,
               taxable: charge.taxable,
               ticketChargeId: charge.id,
+              serial: null,
             };
           }
           if (line.productId) {
             const product = byId.get(line.productId)!;
+            // One row per physical unit: a serialized line is always a single
+            // serial and a quantity of one, whatever the cart claimed.
+            if (product.serialized && !line.serial) {
+              throw new SaleError(
+                `${product.name} is tracked by serial number — pick which unit is being sold.`,
+              );
+            }
             return {
               productId: product.id,
               description: product.name,
-              quantity: line.quantity,
+              quantity: product.serialized ? 1 : line.quantity,
               unitPriceCents: product.priceCents,
               taxable: product.taxable,
               ticketChargeId: null,
+              serial: product.serialized ? line.serial : null,
             };
           }
           const description = line.description.trim();
@@ -241,6 +269,7 @@ export async function performCheckout(
             unitPriceCents: Math.max(0, line.unitPriceCents),
             taxable: line.taxable,
             ticketChargeId: null,
+            serial: null,
           };
         });
 
@@ -309,6 +338,7 @@ export async function performCheckout(
                 quantity: line.quantity,
                 unitPriceCents: line.unitPriceCents,
                 taxable: line.taxable,
+                serial: line.serial,
                 sortOrder: index,
               })),
             },
@@ -389,6 +419,23 @@ export async function performCheckout(
           });
         }
 
+        // The serialized units on this sale become SOLD and are attached to
+        // their invoice lines. The decrements above already took them off the
+        // shelf, so the reconciliation below normally writes nothing — it is
+        // there to catch a level that had drifted, not to move stock twice.
+        const soldSerials = await markInvoiceSerialsSold(tx, {
+          shopId,
+          invoiceId: invoice.id,
+        });
+        if (soldSerials.length > 0) {
+          await syncSerializedStock(tx, {
+            shopId,
+            userId,
+            productIds: soldSerials.map((unit) => unit.productId),
+            reason: `Serial reconciled — invoice #${invoice.number}`,
+          });
+        }
+
         const changeDueCents =
           sale.method === "CASH" && sale.tenderedCents != null
             ? Math.max(0, sale.tenderedCents - totals.totalCents)
@@ -408,6 +455,8 @@ export async function performCheckout(
     return { ok: true, ...result, method: sale.method };
   } catch (error) {
     if (error instanceof SaleError) return { ok: false, error: error.message };
+    // A serial that vanished between rendering the picker and pressing Pay.
+    if (error instanceof SerialError) return { ok: false, error: error.message };
     console.error("[pos] checkout failed", error);
     return { ok: false, error: "Could not complete that sale. Nothing was charged." };
   }

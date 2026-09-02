@@ -9,8 +9,10 @@ import { checkoutAction } from "@/app/(app)/pos/actions";
 import { CartPanel } from "./cart-panel";
 import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
+import { SerialPickerDialog } from "./serial-picker-dialog";
 import { TenderDialog } from "./tender-dialog";
 import {
+  isSerialLine,
   isTicketLine,
   tracksStock,
   type CartLine,
@@ -53,6 +55,8 @@ export function Register({
   const [ticketId, setTicketId] = React.useState<string | null>(null);
   const [tender, setTender] = React.useState<TenderMethod | null>(null);
   const [sale, setSale] = React.useState<CompletedSale | null>(null);
+  /** The serialized product waiting on a "which unit?" answer. */
+  const [pickingSerial, setPickingSerial] = React.useState<PosProduct | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -65,9 +69,17 @@ export function Register({
 
   // ------------------------------------------------------------ cart edits ---
 
-  /** Scanning the same thing twice bumps the quantity rather than stacking rows. */
+  /**
+   * Scanning the same thing twice bumps the quantity rather than stacking rows —
+   * except for a serialized product, where every unit is a different physical
+   * thing and therefore its own row. Those detour through the serial picker.
+   */
   const addProduct = (product: PosProduct) => {
     setError(null);
+    if (product.serialized) {
+      setPickingSerial(product);
+      return;
+    }
     setLines((current) => {
       const existing = current.find((line) => line.productId === product.id);
       if (existing) {
@@ -88,6 +100,25 @@ export function Register({
         },
       ];
     });
+  };
+
+  /** One serialized unit, added as its own quantity-1 line. */
+  const addSerialUnit = (product: PosProduct, serial: string) => {
+    setPickingSerial(null);
+    setLines((current) => [
+      ...current,
+      {
+        key: nextKey(),
+        productId: product.id,
+        name: product.name,
+        unitPriceCents: product.priceCents,
+        taxable: product.taxable,
+        quantity: 1,
+        stockQty: null,
+        serial,
+      },
+    ]);
+    scanRef.current?.focus();
   };
 
   const addCustom = (item: {
@@ -156,7 +187,11 @@ export function Register({
       quantity <= 0
         ? current.filter((line) => line.key !== key)
         : current.map((line) =>
-            line.key === key ? { ...line, quantity: Math.min(quantity, 9999) } : line,
+            // A serialized line is one unit by definition; the stepper is
+            // hidden for it, and this holds the line even if that changes.
+            line.key === key && !isSerialLine(line)
+              ? { ...line, quantity: Math.min(quantity, 9999) }
+              : line,
           ),
     );
   };
@@ -193,6 +228,7 @@ export function Register({
           unitPriceCents: line.unitPriceCents,
           taxable: line.taxable,
           quantity: line.quantity,
+          serial: line.serial ?? null,
           ticketChargeId: line.ticketChargeId ?? null,
         })),
         customerId,
@@ -283,6 +319,17 @@ export function Register({
           disabled={pending}
         />
       </div>
+
+      <SerialPickerDialog
+        product={pickingSerial}
+        taken={lines
+          .map((line) => line.serial)
+          .filter((serial): serial is string => Boolean(serial))}
+        onPick={(serial) => {
+          if (pickingSerial) addSerialUnit(pickingSerial, serial);
+        }}
+        onClose={() => setPickingSerial(null)}
+      />
 
       <TenderDialog
         method={tender}

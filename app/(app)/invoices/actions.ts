@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
@@ -10,6 +11,12 @@ import { db } from "@/lib/db";
 import { formatCents, invoiceTotals, parseCents } from "@/lib/money";
 import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
 import { withNextNumber } from "@/lib/sequence";
+import {
+  SerialError,
+  markInvoiceSerialsSold,
+  releaseInvoiceSerials,
+  syncSerializedStock,
+} from "@/lib/serials";
 import { fromDateInputValue } from "@/components/billing/format";
 import {
   refundAwareTotals,
@@ -43,6 +50,14 @@ import {
  *   any of DRAFT/SENT/PARTIAL  → PARTIAL when a payment leaves a balance
  *   any of DRAFT/SENT/PARTIAL  → PAID    when a payment clears the balance
  *   PAID / VOID                terminal — lines are frozen, no new payments
+ *
+ * SERIALS: a line that names a serial number of a serialized product claims a
+ * specific physical unit. Saving the invoice marks that unit SOLD and attaches
+ * it to the line; rewriting the lines releases the old units first; voiding
+ * puts them all back. `syncSerializedStock` then makes the product's on-hand
+ * level agree with how many units are actually in stock, writing the move as
+ * one StockAdjustment. Non-serialized lines are untouched — an ordinary
+ * invoice still does not move stock, only the register does.
  */
 
 type Line = {
@@ -93,6 +108,37 @@ function readNotes(formData: FormData): string | null {
   return notes === "" ? null : notes.slice(0, 5000);
 }
 
+/**
+ * Claims the serialized units this invoice's lines name, and squares the
+ * affected products' on-hand levels with reality.
+ *
+ * `alsoTouched` carries products whose units were RELEASED earlier in the same
+ * transaction (a rewrite): they have to be recounted even when the new lines
+ * do not mention them, or a removed line would leave the level a unit short.
+ */
+async function settleSerials(
+  tx: Prisma.TransactionClient,
+  shopId: string,
+  userId: string,
+  invoiceId: string,
+  invoiceNumber: number,
+  alsoTouched: readonly string[] = []
+): Promise<void> {
+  const sold = await markInvoiceSerialsSold(tx, { shopId, invoiceId });
+  const productIds = [
+    ...sold.map((unit) => unit.productId),
+    ...alsoTouched,
+  ];
+  if (productIds.length === 0) return;
+
+  await syncSerializedStock(tx, {
+    shopId,
+    userId,
+    productIds,
+    reason: `Sold — invoice #${invoiceNumber}`,
+  });
+}
+
 function lineCreateData(lines: Line[]) {
   return lines.map((line, index) => ({
     productId: line.productId,
@@ -113,7 +159,7 @@ export async function createInvoiceAction(
   _state: FormState,
   formData: FormData
 ): Promise<FormState> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const customer = await resolveCustomer(shopId, formData.get("customerId"));
   if (!customer) return formError("Choose a customer for this invoice.");
@@ -128,27 +174,38 @@ export async function createInvoiceAction(
 
   const ticketId = await resolveTicketId(shopId, formData.get("ticketId"));
 
-  const invoice = await withNextNumber(shopId, "invoice", (number) =>
-    db.invoice.create({
-      data: {
-        shopId,
-        customerId: customer.id,
-        ticketId,
-        number,
-        status: "DRAFT",
-        // Snapshot the rate now — a later settings change must not silently
-        // restate an invoice the customer has already been shown.
-        taxRateBps: shop?.taxRateBps ?? 0,
-        notes: readNotes(formData),
-        dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines) },
-      },
-      select: { id: true },
-    })
-  );
+  let invoiceId: string;
+  try {
+    invoiceId = await withNextNumber(shopId, "invoice", (number) =>
+      db.$transaction(async (tx) => {
+        const created = await tx.invoice.create({
+          data: {
+            shopId,
+            customerId: customer.id,
+            ticketId,
+            number,
+            status: "DRAFT",
+            // Snapshot the rate now — a later settings change must not silently
+            // restate an invoice the customer has already been shown.
+            taxRateBps: shop?.taxRateBps ?? 0,
+            notes: readNotes(formData),
+            dueDate: fromDateInputValue(formData.get("date")),
+            lines: { create: lineCreateData(parsed.lines) },
+          },
+          select: { id: true, number: true },
+        });
+        await settleSerials(tx, shopId, userId, created.id, created.number);
+        return created.id;
+      })
+    );
+  } catch (error) {
+    if (error instanceof SerialError) return formError(error.message);
+    throw error;
+  }
 
   revalidatePath("/invoices");
-  redirect(`/invoices/${invoice.id}`);
+  revalidatePath("/inventory");
+  redirect(`/invoices/${invoiceId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -159,12 +216,12 @@ export async function updateInvoiceAction(
   _state: FormState,
   formData: FormData
 ): Promise<FormState> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
-    select: { id: true, status: true },
+    select: { id: true, number: true, status: true },
   });
   if (!invoice) return formError("That invoice no longer exists.");
 
@@ -182,21 +239,41 @@ export async function updateInvoiceAction(
 
   // Replace-all rather than diff: line ids are not surfaced to the client, and
   // an invoice has a handful of rows, so a clean rewrite is both simpler and
-  // immune to a stale id from a concurrent edit.
-  await db.$transaction([
-    db.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } }),
-    db.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        customerId: customer.id,
-        notes: readNotes(formData),
-        dueDate: fromDateInputValue(formData.get("date")),
-        lines: { create: lineCreateData(parsed.lines) },
-      },
-    }),
-  ]);
+  // immune to a stale id from a concurrent edit. Serialized units are released
+  // BEFORE the rewrite and re-claimed after, so a line that kept its serial
+  // nets to no stock movement at all.
+  try {
+    await db.$transaction(async (tx) => {
+      const released = await releaseInvoiceSerials(tx, {
+        shopId,
+        invoiceId: invoice.id,
+      });
+      await tx.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } });
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          customerId: customer.id,
+          notes: readNotes(formData),
+          dueDate: fromDateInputValue(formData.get("date")),
+          lines: { create: lineCreateData(parsed.lines) },
+        },
+      });
+      await settleSerials(
+        tx,
+        shopId,
+        userId,
+        invoice.id,
+        invoice.number,
+        released.map((unit) => unit.productId)
+      );
+    });
+  } catch (error) {
+    if (error instanceof SerialError) return formError(error.message);
+    throw error;
+  }
 
   revalidatePath("/invoices");
+  revalidatePath("/inventory");
   revalidatePath(`/invoices/${invoice.id}`);
   redirect(`/invoices/${invoice.id}`);
 }
@@ -520,25 +597,47 @@ export async function markInvoiceSentAction(formData: FormData): Promise<void> {
 
 export async function voidInvoiceAction(formData: FormData): Promise<void> {
   // Voiding erases a receivable, so it is an owner-level act.
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   if (role !== "OWNER") return;
 
   const id = String(formData.get("id") ?? "");
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
-    select: { id: true, status: true, _count: { select: { payments: true } } },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      _count: { select: { payments: true } },
+    },
   });
   if (!invoice) return;
   // Money has changed hands — voiding would orphan the payment history.
   if (invoice._count.payments > 0) return;
   if (invoice.status === "VOID") return;
 
-  await db.invoice.update({
-    where: { id: invoice.id },
-    data: { status: "VOID", paidAt: null },
+  // Voiding un-sells everything on it, so any serialized units go straight
+  // back on the shelf with the level corrected in the same transaction.
+  await db.$transaction(async (tx) => {
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: { status: "VOID", paidAt: null },
+    });
+    const released = await releaseInvoiceSerials(tx, {
+      shopId,
+      invoiceId: invoice.id,
+    });
+    if (released.length > 0) {
+      await syncSerializedStock(tx, {
+        shopId,
+        userId,
+        productIds: released.map((unit) => unit.productId),
+        reason: `Returned to stock — invoice #${invoice.number} voided`,
+      });
+    }
   });
 
   revalidatePath("/invoices");
+  revalidatePath("/inventory");
   revalidatePath(`/invoices/${invoice.id}`);
 }
 
