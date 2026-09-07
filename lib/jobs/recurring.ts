@@ -181,7 +181,14 @@ async function generate(
   );
 
   const scheduledFor = schedule.nextRunAt;
-  const nextRunAt = advanceRunDate(scheduledFor, asFrequency(schedule.frequency));
+  // The stored anchor, not the previous run's (already clamped) day — see
+  // advanceRunDate(). Without it a month-end schedule walks back to the 28th
+  // permanently after its first February.
+  const nextRunAt = advanceRunDate(
+    scheduledFor,
+    asFrequency(schedule.frequency),
+    schedule.anchorDay,
+  );
   // Terms run from the day the bill is raised, normalised to UTC midnight so
   // the printed due date reads the same in every timezone.
   const dueDate = addUtcDays(startOfUtcDay(new Date()), schedule.dueInDays);

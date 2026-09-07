@@ -1,7 +1,11 @@
+import {
+  refundAwareTotals,
+  type RefundLike,
+} from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
 import { recordCreditSpend } from "@/lib/deposits";
 import { emitInvoiceEvent, emitPaymentEvent } from "@/lib/events";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 
 /**
  * Recording a manual payment — the ONE implementation.
@@ -19,6 +23,24 @@ import { formatCents, invoiceTotals } from "@/lib/money";
  *     charged yet at this point (unlike the Stripe webhook, which records an
  *     overpayment in full because the card was already debited), so the right
  *     answer to "that is too much" is to say so and let the operator retype it.
+ *
+ *     That ceiling is REFUND-AWARE, and it is read INSIDE the transaction.
+ *     Both of those were bugs:
+ *
+ *       · It used to use `invoiceTotals`, which is refund-blind. An invoice
+ *         paid in full and then refunded in full shows the whole amount owed
+ *         again on screen — `refundAwareTotals` says so, and the status walks
+ *         back to SENT — while this function still saw `balance = 0` and
+ *         refused every amount with "more than the $0.00 still outstanding".
+ *         The screen invited a payment the till would not take.
+ *
+ *       · It used to read the invoice with a plain `findFirst` and then open a
+ *         separate transaction that never re-read it. Two cashiers taking the
+ *         last $50 both saw $50 outstanding, both passed the check, and both
+ *         wrote — leaving the invoice overpaid by exactly the amount this rule
+ *         exists to refuse. The read now happens inside a Serializable
+ *         transaction, the same guarantee lib/payments/settle.ts already used
+ *         for its dedupe.
  *   · CREDIT draws the customer's stored balance down inside the same
  *     transaction as the payment row, so a failure cannot spend credit twice
  *     or spend it for nothing — and writes the matching CreditAdjustment row,
@@ -68,48 +90,68 @@ export type RecordPaymentResult =
     }
   | { ok: false; error: string };
 
+/**
+ * A rule said no.
+ *
+ * Distinct from a database or serialization failure so the message reaching
+ * the operator is the rule's own wording, not a Prisma string. Thrown rather
+ * than returned because these checks now live inside the transaction, and the
+ * only way out of a transaction callback is to throw.
+ */
+class PaymentRefused extends Error {}
+
 export async function recordPayment(
   input: RecordPaymentInput,
 ): Promise<RecordPaymentResult> {
-  const invoice = await db.invoice.findFirst({
-    where: { id: input.invoiceId, shopId: input.shopId },
-    select: {
-      id: true,
-      status: true,
-      customerId: true,
-      taxRateBps: true,
-      number: true,
-      lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
-      payments: { select: { amountCents: true } },
-    },
-  });
-  if (!invoice) return { ok: false, error: "That invoice no longer exists." };
-
-  if (invoice.status === "VOID") {
-    return { ok: false, error: "This invoice is void — it cannot take payments." };
-  }
+  // Cheap rejection that needs no database read at all.
   if (input.amountCents <= 0) {
     return { ok: false, error: "Enter an amount greater than zero." };
   }
 
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
-  if (totals.totalCents <= 0) {
-    return { ok: false, error: "Add line items before taking a payment." };
-  }
-  if (input.amountCents > totals.balanceCents) {
-    return {
-      ok: false,
-      error: `That is more than the ${formatCents(totals.balanceCents)} still outstanding.`,
-    };
-  }
-
-  const balanceAfter = totals.balanceCents - input.amountCents;
-  const nextStatus: "PAID" | "PARTIAL" = balanceAfter <= 0 ? "PAID" : "PARTIAL";
-
   let paymentId: string;
+  let nextStatus: "PAID" | "PARTIAL";
+  let invoiceId: string;
 
   try {
-    paymentId = await db.$transaction(async (tx) => {
+    ({ paymentId, nextStatus, invoiceId } = await db.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: { id: input.invoiceId, shopId: input.shopId },
+        select: {
+          id: true,
+          status: true,
+          customerId: true,
+          taxRateBps: true,
+          number: true,
+          lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
+          payments: { select: { amountCents: true } },
+          refunds: { select: { amountCents: true, status: true } },
+        },
+      });
+      if (!invoice) throw new PaymentRefused("That invoice no longer exists.");
+
+      if (invoice.status === "VOID") {
+        throw new PaymentRefused(
+          "This invoice is void — it cannot take payments.",
+        );
+      }
+
+      const totals = refundAwareTotals(
+        invoice.lines,
+        invoice.taxRateBps,
+        invoice.payments,
+        invoice.refunds as RefundLike[],
+      );
+      if (totals.totalCents <= 0) {
+        throw new PaymentRefused("Add line items before taking a payment.");
+      }
+      if (input.amountCents > totals.balanceCents) {
+        throw new PaymentRefused(
+          `That is more than the ${formatCents(totals.balanceCents)} still outstanding.`,
+        );
+      }
+
+      const balanceAfter = totals.balanceCents - input.amountCents;
+      const status: "PAID" | "PARTIAL" = balanceAfter <= 0 ? "PAID" : "PARTIAL";
       // Store credit is real money already held for the customer, so drawing it
       // down and writing the payment must succeed or fail together.
       if (input.method === "CREDIT") {
@@ -154,13 +196,21 @@ export async function recordPayment(
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
-          status: nextStatus,
+          status,
           paidAt: balanceAfter <= 0 ? new Date() : null,
         },
       });
 
-      return payment.id;
-    });
+      return {
+        paymentId: payment.id,
+        nextStatus: status,
+        invoiceId: invoice.id,
+      };
+    },
+    // Serializable is what makes the ceiling above a real guarantee rather
+    // than a hopeful one: two tills taking the last of a balance cannot both
+    // read it as outstanding — one aborts and its operator retries.
+    { isolationLevel: "Serializable" }));
   } catch (error) {
     return {
       ok: false,
@@ -173,7 +223,7 @@ export async function recordPayment(
   // transaction would announce money that never arrived.
   await emitPaymentEvent(input.shopId, paymentId);
   if (nextStatus === "PAID") {
-    await emitInvoiceEvent(input.shopId, "invoice.paid", invoice.id);
+    await emitInvoiceEvent(input.shopId, "invoice.paid", invoiceId);
   }
 
   return {

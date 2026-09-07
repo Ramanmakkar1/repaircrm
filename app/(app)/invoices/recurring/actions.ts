@@ -14,6 +14,7 @@ import { formError, parseLines, type FormState } from "@/components/billing/type
 import {
   addUtcDays,
   advanceRunDate,
+  anchorDayFor,
   asFrequency,
   startOfUtcDay,
 } from "@/components/recurring/meta";
@@ -145,6 +146,11 @@ export async function createScheduleAction(
       name,
       frequency: asFrequency(formData.get("frequency")),
       nextRunAt,
+      // The day of the month this contract is anchored to, captured from the
+      // first run date. Stored rather than re-derived later, because a run
+      // date that has been clamped to a short month no longer knows what it
+      // was anchored to. Null for WEEKLY, which never clamps.
+      anchorDay: anchorDayFor(nextRunAt, asFrequency(formData.get("frequency"))),
       active: readActive(formData),
       // Snapshot the rate now, exactly like a one-off invoice: a later settings
       // change must not silently restate a contract already agreed with the
@@ -208,6 +214,9 @@ export async function updateScheduleAction(
         name,
         frequency: asFrequency(formData.get("frequency")),
         nextRunAt,
+        // Editing the run date or the frequency re-anchors the contract —
+        // that is what moving the date means.
+        anchorDay: anchorDayFor(nextRunAt, asFrequency(formData.get("frequency"))),
         active: readActive(formData),
         dueInDays: readDueInDays(formData),
         autoCharge: await readAutoCharge(shopId, customer.id, formData),
@@ -308,7 +317,14 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
   );
 
   const scheduledFor = schedule.nextRunAt;
-  const nextRunAt = advanceRunDate(scheduledFor, asFrequency(schedule.frequency));
+  // The stored anchor, not the previous run's (already clamped) day — see
+  // advanceRunDate(). Without it a month-end schedule walks back to the 28th
+  // permanently after its first February.
+  const nextRunAt = advanceRunDate(
+    scheduledFor,
+    asFrequency(schedule.frequency),
+    schedule.anchorDay,
+  );
   // Terms run from the day the bill is raised, normalised to UTC midnight so
   // the printed due date reads the same in every timezone.
   const dueDate = addUtcDays(startOfUtcDay(new Date()), schedule.dueInDays);

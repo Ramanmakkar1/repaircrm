@@ -45,6 +45,12 @@ export async function register(): Promise<void> {
   // this hook runs there too, so the guard is required, not decorative.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  // Before anything else: refuse to serve a deploy that cannot sign a session.
+  // See lib/preflight.ts — a missing AUTH_SECRET otherwise boots clean, passes
+  // the health check, and 500s every sign-in.
+  const { preflight } = await import("@/lib/preflight");
+  preflight();
+
   const intervalMin = readNumber(
     process.env.JOBS_INTERVAL_MIN,
     DEFAULT_INTERVAL_MIN,

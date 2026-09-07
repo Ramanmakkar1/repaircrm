@@ -1,0 +1,100 @@
+name: CI
+
+# Every push and every pull request. The suite is fast (well under a minute of
+# actual test time) precisely so it can run on all of them — a money path that
+# is only checked before a release is a money path that breaks between them.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  # A new push to the same branch cancels the run it replaces.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Postgres 17, matching the version the app is developed against.
+      #
+      # The unit suite does NOT need it — every database-touching module is
+      # tested through an injected transaction client or a recording fake (see
+      # tests/helpers/db-mock.ts). It is here because `prisma migrate deploy`
+      # is the only thing that proves the migration history in prisma/migrations
+      # still applies cleanly to an empty database, and because `next build`
+      # gets a real DATABASE_URL rather than a placeholder.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: repairshop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/repairshop
+      # lib/preflight.ts refuses to serve a deploy that cannot sign a session,
+      # so the build gets a throwaway one. It signs nothing that leaves CI.
+      AUTH_SECRET: ci-only-secret-not-used-anywhere-else
+      NEXT_PUBLIC_APP_URL: http://localhost:3020
+      # The in-process job timer (instrumentation.ts) must not tick during a
+      # build or a test run.
+      JOBS_INTERVAL_MIN: "0"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the postinstall hook, which is load-bearing twice over:
+      #
+      #   prisma generate         without it there is no @prisma/client to
+      #                           typecheck or build against;
+      #   copy-zxing-wasm.mjs     copies the barcode reader binary into
+      #                           public/zxing so the scanner serves it from
+      #                           this app's own origin instead of a CDN.
+      #
+      # The zxing script deliberately swallows its own failure (a missing
+      # optional binary must not break an install that only wants to run
+      # migrations), so the step after this one checks the outcome rather than
+      # trusting the exit code.
+      - name: Install
+        run: npm ci
+
+      - name: Verify postinstall produced what the build needs
+        run: |
+          test -d node_modules/.prisma/client \
+            || { echo "::error::prisma generate did not produce a client"; exit 1; }
+          test -s public/zxing/zxing_reader.wasm \
+            || { echo "::error::copy-zxing-wasm did not produce the reader binary"; exit 1; }
+
+      # Proves the migration history still applies to an empty database — the
+      # one thing a unit suite cannot tell you about prisma/migrations.
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

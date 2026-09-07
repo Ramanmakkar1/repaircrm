@@ -804,6 +804,14 @@ model RecurringInvoice {
   frequency       RecurringFrequency @default(MONTHLY)
   /// Next date an invoice should be generated for this schedule.
   nextRunAt       DateTime
+  /// Day of the month this schedule is anchored to, 1-31.
+  ///
+  /// Stored, not re-derived from nextRunAt, because a month shorter than the
+  /// anchor clamps the run date — and re-deriving from the clamped result
+  /// loses the anchor for good: 31 Jan -> 28 Feb -> 28 Mar -> 28 Apr, three
+  /// days early every month after the first February. Null on WEEKLY
+  /// schedules, which have no month-day anchor at all.
+  anchorDay       Int?
   lastRunAt       DateTime?
   active          Boolean            @default(true)
   taxRateBps      Int                @default(0)

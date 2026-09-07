@@ -282,7 +282,7 @@ export default async function ScheduleDetailPage({
               Runs {FREQUENCY_CADENCE[frequency]}. After the{" "}
               {formatDate(schedule.nextRunAt)} run the next one lands on{" "}
               <span className="font-semibold text-foreground">
-                {formatDate(advanceRunDate(schedule.nextRunAt, frequency))}
+                {formatDate(advanceRunDate(schedule.nextRunAt, frequency, schedule.anchorDay))}
               </span>
               , whenever you actually press run.
             </p>

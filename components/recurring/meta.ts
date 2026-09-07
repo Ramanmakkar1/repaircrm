@@ -105,13 +105,38 @@ export function addUtcDays(date: Date, days: number): Date {
  * Month arithmetic is done in UTC (dates are stored at UTC midnight) and clamps
  * to the last day of the target month, so a schedule anchored on the 31st bills
  * on Feb 28 rather than silently rolling into March 3rd.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY `anchorDay` IS A PARAMETER AND NOT READ OFF `from`
+ * ---------------------------------------------------------------------------
+ * It used to be read off `from`. But `from` is the previous run's date, and
+ * that date has ALREADY been clamped — so the clamp fed itself:
+ *
+ *     31 Jan -> 28 Feb -> 28 Mar -> 28 Apr -> 28 May -> ...
+ *
+ * A shop billing on the last day of the month got billed on the 28th from
+ * February onwards, three days early, every month, for as long as the schedule
+ * lived. The same decay hit the 29th and 30th, and a yearly schedule anchored
+ * on 29 February never returned to the 29th.
+ *
+ * Passing the schedule's stored `anchorDay` (RecurringInvoice.anchorDay) makes
+ * the clamp a per-month adjustment instead of a permanent one: February bills
+ * on the 28th and March goes straight back to the 31st. Callers that genuinely
+ * have no stored anchor — a preview of "what comes after this date?" — may omit
+ * it and get the old self-anchoring behaviour, which is correct for a single
+ * step forward.
  */
-export function advanceRunDate(from: Date, frequency: Frequency): Date {
+export function advanceRunDate(
+  from: Date,
+  frequency: Frequency,
+  /** The schedule's stored day-of-month, 1-31. Omit to anchor on `from`. */
+  anchorDay?: number | null,
+): Date {
   const next = startOfUtcDay(from);
 
   if (frequency === "WEEKLY") return addUtcDays(next, 7);
 
-  const anchorDay = next.getUTCDate();
+  const anchor = clampAnchorDay(anchorDay) ?? next.getUTCDate();
   // Park on the 1st first: setUTCMonth on the 31st would overflow the month.
   next.setUTCDate(1);
   next.setUTCMonth(next.getUTCMonth() + MONTH_STEP[frequency]);
@@ -119,9 +144,33 @@ export function advanceRunDate(from: Date, frequency: Frequency): Date {
   const lastDayOfMonth = new Date(
     Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
   ).getUTCDate();
-  next.setUTCDate(Math.min(anchorDay, lastDayOfMonth));
+  next.setUTCDate(Math.min(anchor, lastDayOfMonth));
 
   return next;
+}
+
+/**
+ * A stored anchor is only trusted if it is a real day of the month. Anything
+ * else (null, 0, 32, a float, a value from a hand-edited row) falls back to
+ * anchoring on `from`, which is the behaviour that shipped before the column
+ * existed — degrading to the old bug beats throwing inside a billing job.
+ */
+export function clampAnchorDay(day: number | null | undefined): number | null {
+  if (typeof day !== "number" || !Number.isInteger(day)) return null;
+  return day >= 1 && day <= 31 ? day : null;
+}
+
+/**
+ * The anchor a NEW schedule should store, taken from its first run date.
+ *
+ * Weekly schedules have no month-day anchor — they step seven days and never
+ * clamp — so they store null rather than a meaningless number.
+ */
+export function anchorDayFor(
+  firstRunAt: Date,
+  frequency: Frequency,
+): number | null {
+  return frequency === "WEEKLY" ? null : startOfUtcDay(firstRunAt).getUTCDate();
 }
 
 /** A schedule is "due" when it is switched on and its run date has arrived. */
