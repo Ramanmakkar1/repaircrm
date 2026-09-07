@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { CustomerForm } from "@/components/customers/customer-form";
 import { fullName } from "@/components/customers/format";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -65,7 +64,6 @@ export default async function EditCustomerPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        icon={ICONS.customer}
         breadcrumbs={[
           { label: "Customers", href: "/customers" },
           { label: fullName(customer), href: `/customers/${customer.id}` },

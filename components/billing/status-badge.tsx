@@ -38,15 +38,23 @@ const FALLBACK: DocStatusMeta = { label: "Unknown", tone: "neutral" };
 
 export function InvoiceStatusBadge({
   status,
+  size = "sm",
   className,
 }: {
   status: string;
+  /**
+   * `sm` is the default because most callers are dense embedded lists (a
+   * customer's activity feed, the portal). A list TABLE, where the status is
+   * its own column, passes `md` so a billing document reads at the same weight
+   * as a ticket or a purchase order two screens over.
+   */
+  size?: "sm" | "md";
   className?: string;
 }) {
   const meta = INVOICE_TONES[status] ?? FALLBACK;
   return (
     <StatusPill
-      size="sm"
+      size={size}
       tone={meta.tone}
       label={meta.label}
       struck={meta.struck}
@@ -57,15 +65,18 @@ export function InvoiceStatusBadge({
 
 export function EstimateStatusBadge({
   status,
+  size = "sm",
   className,
 }: {
   status: string;
+  /** See `InvoiceStatusBadge` — `md` is for the status column of a list table. */
+  size?: "sm" | "md";
   className?: string;
 }) {
   const meta = ESTIMATE_TONES[status] ?? FALLBACK;
   return (
     <StatusPill
-      size="sm"
+      size={size}
       tone={meta.tone}
       label={meta.label}
       struck={meta.struck}

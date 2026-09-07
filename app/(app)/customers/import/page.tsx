@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { ImportWizard } from "@/components/import/import-wizard";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import {
@@ -18,7 +17,6 @@ export default async function ImportCustomersPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
       <PageHeader
-        icon={ICONS.importData}
         breadcrumbs={[
           { label: "Customers", href: "/customers" },
           { label: "Import" },

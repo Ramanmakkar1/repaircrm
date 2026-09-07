@@ -71,7 +71,6 @@ export default async function CustomerStatementPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.invoice}
         breadcrumbs={[
           { label: "Customers", href: "/customers" },
           { label: name, href: `/customers/${customer.id}` },

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { CustomerForm } from "@/components/customers/customer-form";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -30,7 +29,6 @@ export default async function NewCustomerPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        icon={ICONS.customer}
         breadcrumbs={[
           { label: "Customers", href: "/customers" },
           { label: "New customer" },

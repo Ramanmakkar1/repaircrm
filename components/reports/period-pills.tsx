@@ -22,7 +22,19 @@ export function PeriodPills({
   const suffix = location ? `&location=${encodeURIComponent(location)}` : "";
 
   return (
-    <nav aria-label="Reporting period" className="flex flex-wrap items-center gap-2">
+    /*
+     * A segmented control, not four separate buttons — one of these is always
+     * chosen, so they are a single switch with four positions and should look
+     * like one. The old filled-indigo lozenge made "This month" read as the
+     * page's primary action rather than as the state it is. Segmented (rather
+     * than the underline `FilterTabs` used on list pages) because this sits
+     * mid-row beside the custom date range, where an underline would float
+     * with nothing to sit on.
+     */
+    <nav
+      aria-label="Reporting period"
+      className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1"
+    >
       {REPORT_PERIODS.map((period) => {
         const current = period.key === active;
         return (
@@ -31,11 +43,11 @@ export function PeriodPills({
             href={`/reports?period=${period.key}${suffix}`}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
+              "inline-flex h-7 items-center whitespace-nowrap rounded-sm px-3 text-[13px] font-semibold transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               current
-                ? "border-transparent bg-accent text-accent-foreground shadow-sm"
-                : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                ? "bg-surface text-foreground shadow-xs"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {period.label}

@@ -6,14 +6,17 @@ import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
+import { customerLabel } from "@/components/customers/format";
+import { RowLink } from "@/components/list/row-link";
 import { formatDate } from "@/components/billing/format";
-import { customerLabel } from "@/components/billing/queries";
 import {
   SCHEDULE_STATE_META,
   frequencyLabel,
@@ -27,8 +30,32 @@ import {
 
 export const metadata = { title: "Recurring billing · RepairFlow" };
 
-export default async function RecurringSchedulesPage() {
+/**
+ * The saved views. Every schedule is already in memory — this list is small by
+ * nature and deliberately unpaginated — so the counts beside each tab cost
+ * nothing and the filtering is a `.filter()`, not a second query.
+ */
+const VIEWS = ["all", "due", "active", "paused"] as const;
+type View = (typeof VIEWS)[number];
+
+const VIEW_LABELS: Record<View, string> = {
+  all: "All",
+  due: "Due now",
+  active: "Active",
+  paused: "Paused",
+};
+
+function asView(value: string | string[] | undefined): View {
+  return (VIEWS as readonly string[]).includes(String(value)) ? (value as View) : "all";
+}
+
+export default async function RecurringSchedulesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { shopId } = await requireUser();
+  const view = asView((await searchParams).view);
 
   const schedules = await db.recurringInvoice.findMany({
     where: { shopId },
@@ -44,7 +71,22 @@ export default async function RecurringSchedulesPage() {
   });
 
   const now = requestNow();
-  const dueCount = schedules.filter((s) => isDue(s.nextRunAt, s.active, now)).length;
+  const due = schedules.filter((s) => isDue(s.nextRunAt, s.active, now));
+  const dueCount = due.length;
+
+  const counts: Record<View, number> = {
+    all: schedules.length,
+    due: dueCount,
+    active: schedules.filter((s) => s.active).length,
+    paused: schedules.filter((s) => !s.active).length,
+  };
+
+  const rows =
+    view === "all"
+      ? schedules
+      : view === "due"
+        ? due
+        : schedules.filter((s) => (view === "active" ? s.active : !s.active));
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,7 +99,6 @@ export default async function RecurringSchedulesPage() {
       </Link>
 
       <PageHeader
-        icon={ICONS.recurring}
         title="Recurring billing"
         description="Contracts and retainers that stamp out a draft invoice on a cadence."
         actions={
@@ -72,130 +113,150 @@ export default async function RecurringSchedulesPage() {
         }
       />
 
-      {schedules.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={ICONS.recurring}
-            title="No recurring schedules yet"
-            hint="Set one up for a managed-service retainer or a monthly support contract, and RepairFlow will draft the invoice for you."
-            action={
-              <Button asChild>
-                <Link href="/invoices/recurring/new">
-                  <ACTIONS.add /> New schedule
-                </Link>
-              </Button>
-            }
-          />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {schedules.map((schedule) => {
-            const totals = calcTotals(schedule.lines, schedule.taxRateBps);
-            const due = isDue(schedule.nextRunAt, schedule.active, now);
-            const state = SCHEDULE_STATE_META[scheduleState(schedule.active, due)];
-            const name = customerLabel(schedule.customer);
+      {schedules.length > 0 ? (
+        <FilterTabs
+          aria-label="Schedule views"
+          tabs={VIEWS.map((key) => ({
+            label: VIEW_LABELS[key],
+            href: hrefFor(key),
+            active: view === key,
+            count: counts[key],
+          }))}
+        />
+      ) : null}
 
-            return (
-              // Amber for a run that has come due, red for a charge that
-              // bounced — a paused schedule is simply quiet, not a problem.
-              <Card
-                key={schedule.id}
-                tone={
-                  schedule.lastChargeError
-                    ? "danger"
-                    : due
-                      ? "active"
-                      : undefined
-                }
-                className={cn(
-                  "flex flex-col gap-4 p-5",
-                  !schedule.active && "opacity-70",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <Link
-                    href={`/invoices/recurring/${schedule.id}`}
-                    className="min-w-0 rounded-sm text-lg font-bold leading-snug tracking-tight text-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    {schedule.name}
-                  </Link>
-                  <span className="flex shrink-0 items-center gap-2.5">
-                    <StatusPill size="sm" tone={state.tone} label={state.label} />
-                    <ScheduleActiveSwitch
-                      scheduleId={schedule.id}
-                      active={schedule.active}
-                      scheduleName={schedule.name}
-                    />
-                  </span>
-                </div>
+      <Card>
+        <CardContent className="px-0 py-0">
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={ICONS.recurring}
+              title={
+                schedules.length === 0
+                  ? "No recurring schedules yet"
+                  : "Nothing in this view"
+              }
+              hint={
+                schedules.length === 0
+                  ? "Set one up for a managed-service retainer or a monthly support contract, and RepairFlow will draft the invoice for you."
+                  : "Every schedule is on one of the other tabs."
+              }
+              action={
+                schedules.length === 0 ? (
+                  <Button asChild>
+                    <Link href="/invoices/recurring/new">
+                      <ACTIONS.add /> New schedule
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" asChild>
+                    <Link href="/invoices/recurring">Show all schedules</Link>
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Schedule</Th>
+                  <Th>Customer</Th>
+                  <Th>Status</Th>
+                  <Th>Every</Th>
+                  <Th>Next run</Th>
+                  <Th className="text-right">Invoices</Th>
+                  <Th className="text-right">Each run</Th>
+                  <Th className="text-right">Live</Th>
+                </Tr>
+              </THead>
+              <TBody>
+                {rows.map((schedule) => {
+                  const totals = calcTotals(schedule.lines, schedule.taxRateBps);
+                  const isDueNow = isDue(schedule.nextRunAt, schedule.active, now);
+                  const state =
+                    SCHEDULE_STATE_META[scheduleState(schedule.active, isDueNow)];
 
-                <Link
-                  href={`/customers/${schedule.customer.id}`}
-                  className="flex w-fit min-w-0 items-center gap-1.5 text-[15px] font-semibold text-muted-foreground transition-colors hover:text-accent"
-                >
-                  <ICONS.customer className="size-4 shrink-0" />
-                  <span className="truncate">{name}</span>
-                </Link>
-
-                <div className="flex items-end justify-between gap-3">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Each run
-                    </span>
-                    <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-                      {formatCents(totals.totalCents)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end gap-0.5">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {due ? "Due" : schedule.active ? "Next run" : "Paused at"}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[15px] font-bold leading-none tabular-nums",
-                        due ? "text-status-overdue-fg" : "text-foreground",
-                      )}
+                  return (
+                    <RowLink
+                      key={schedule.id}
+                      href={`/invoices/recurring/${schedule.id}`}
+                      className={cn(!schedule.active && "text-muted-foreground")}
                     >
-                      {formatDate(schedule.nextRunAt)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                  <Chip icon={ICONS.recurring}>{frequencyLabel(schedule.frequency)}</Chip>
-                  <Chip icon={ICONS.invoice}>
-                    {schedule._count.invoices} generated
-                  </Chip>
-                  {schedule.lastRunAt ? (
-                    <Chip>Last {formatDate(schedule.lastRunAt)}</Chip>
-                  ) : null}
-                  {schedule.autoSend ? (
-                    <Chip icon={ICONS.email}>Auto-send</Chip>
-                  ) : null}
-                  {schedule.autoCharge ? (
-                    <Chip
-                      icon={ICONS.payment}
-                      className="bg-chip-accent-bg text-chip-accent-fg"
-                    >
-                      Auto-charge
-                    </Chip>
-                  ) : null}
-                  {/* Cleared automatically on the next successful charge, so
-                      this pill only ever describes the situation right now. */}
-                  {schedule.lastChargeError ? (
-                    <StatusPill
-                      size="sm"
-                      tone="danger"
-                      label="Last charge failed"
-                      title={schedule.lastChargeError}
-                    />
-                  ) : null}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+                      <Td>
+                        <Link
+                          href={`/invoices/recurring/${schedule.id}`}
+                          className="block max-w-[260px] truncate font-semibold text-foreground hover:underline"
+                        >
+                          {schedule.name}
+                        </Link>
+                      </Td>
+                      {/* Plain text — see the note on the invoices list. */}
+                      <Td>
+                        <span className="block max-w-[200px] truncate font-medium text-foreground">
+                          {customerLabel(schedule.customer)}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="flex items-center gap-1.5">
+                          <StatusPill tone={state.tone} label={state.label} />
+                          {/* Cleared automatically on the next successful
+                              charge, so this only ever describes right now. */}
+                          {schedule.lastChargeError ? (
+                            <StatusPill
+                              size="sm"
+                              tone="danger"
+                              label="Charge failed"
+                              title={schedule.lastChargeError}
+                            />
+                          ) : null}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          {frequencyLabel(schedule.frequency)}
+                          {schedule.autoSend ? <Chip>Auto-send</Chip> : null}
+                          {schedule.autoCharge ? (
+                            <Chip className="bg-chip-accent-bg text-chip-accent-fg">
+                              Auto-charge
+                            </Chip>
+                          ) : null}
+                        </span>
+                      </Td>
+                      <Td
+                        className={cn(
+                          "text-muted-foreground",
+                          isDueNow && "font-semibold text-status-overdue-fg",
+                        )}
+                      >
+                        {formatDate(schedule.nextRunAt)}
+                      </Td>
+                      <Td className="text-right text-muted-foreground">
+                        {schedule._count.invoices}
+                      </Td>
+                      <Td className="text-right font-semibold text-foreground">
+                        {formatCents(totals.totalCents)}
+                      </Td>
+                      <Td className="w-px text-right">
+                        <ScheduleActiveSwitch
+                          scheduleId={schedule.id}
+                          active={schedule.active}
+                          scheduleName={schedule.name}
+                        />
+                      </Td>
+                    </RowLink>
+                  );
+                })}
+              </TBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+
+/** A view is a URL: shareable, bookmarkable, and back-button correct. */
+function hrefFor(view: View): string {
+  return view === "all" ? "/invoices/recurring" : `/invoices/recurring?view=${view}`;
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { AppointmentList } from "@/components/appointments/appointment-list";
 import {
@@ -26,8 +25,8 @@ import {
 import { TodayStrip } from "@/components/appointments/today-strip";
 import { WeekGrid } from "@/components/appointments/week-grid";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/components/ui/cn";
-import { ICONS } from "@/components/ui/icons";
+import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -39,6 +38,10 @@ export const metadata: Metadata = { title: "Appointments · RepairFlow" };
 export const dynamic = "force-dynamic";
 
 const NONE = "none";
+
+/** The tech filter's "no filter" sentinel — stripped from every URL. */
+const ALL_TECHS = "all";
+const UNASSIGNED = "unassigned";
 
 /** How much of the ticket / customer catalogue the pickers load up front. */
 const PICKER_LIMIT = 500;
@@ -62,6 +65,7 @@ export default async function AppointmentsPage({
 
   const view = one(params.view) === "day" ? "day" : "week";
   const anchor = parseDateParam(one(params.date) ?? one(params.week), now);
+  const tech = one(params.tech) ?? ALL_TECHS;
 
   const days = view === "day" ? [anchor] : weekDays(weekStart(anchor));
   const rangeStart = startOfDay(days[0]);
@@ -90,10 +94,23 @@ export default async function AppointmentsPage({
   // somebody else's day.
   const branch = await locationWhere();
 
+  // "Whose day is this?" — the one lens a calendar actually needs. It narrows
+  // the grid, the list AND the today strip together, so the three can never
+  // disagree about how busy the shop is.
+  const techWhere =
+    tech === ALL_TECHS
+      ? {}
+      : { assignedToId: tech === UNASSIGNED ? null : tech };
+
   const [appointments, todayRows, customers, tickets, techs, locations, editing] =
     await Promise.all([
       db.appointment.findMany({
-        where: { shopId, ...branch, startsAt: { gte: rangeStart, lte: rangeEnd } },
+        where: {
+          shopId,
+          ...branch,
+          ...techWhere,
+          startsAt: { gte: rangeStart, lte: rangeEnd },
+        },
         orderBy: { startsAt: "asc" },
         select,
       }),
@@ -102,6 +119,7 @@ export default async function AppointmentsPage({
         where: {
           shopId,
           ...branch,
+          ...techWhere,
           startsAt: { gte: startOfDay(now), lte: endOfDay(now) },
           status: { not: "CANCELED" },
         },
@@ -162,26 +180,43 @@ export default async function AppointmentsPage({
   };
 
   // --------------------------------------------------------------- links ---
-  const base = (patch: Record<string, string | undefined>) => {
+  /**
+   * Every /appointments URL is spelled here. The view, the anchor date and the
+   * tech lens ride through every link — a technician filter that fell off when
+   * you clicked "next week" would be worse than not having one.
+   *
+   * `date: null` means "drop the anchor", i.e. jump back to today.
+   */
+  const calendarHref = (patch: {
+    view?: "week" | "day";
+    date?: string | null;
+    tech?: string;
+    at?: string;
+    edit?: string;
+  }) => {
     const next = new URLSearchParams();
-    if (view === "day") next.set("view", "day");
-    next.set("date", toDateParam(anchor));
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === undefined) next.delete(key);
-      else next.set(key, value);
-    }
-    return `/appointments?${next.toString()}`;
+    const nextView = patch.view ?? view;
+    if (nextView === "day") next.set("view", "day");
+    const nextDate = patch.date === undefined ? toDateParam(anchor) : patch.date;
+    if (nextDate) next.set("date", nextDate);
+    const nextTech = patch.tech ?? tech;
+    if (nextTech !== ALL_TECHS) next.set("tech", nextTech);
+    if (patch.at) next.set("at", patch.at);
+    if (patch.edit) next.set("edit", patch.edit);
+    const qs = next.toString();
+    return qs ? `/appointments?${qs}` : "/appointments";
   };
 
   /** The calendar URL with no dialog on it — where closing a dialog returns to. */
-  const closeHref = base({});
+  const closeHref = calendarHref({});
 
   const step = view === "day" ? 1 : 7;
-  const prevHref = base({ date: toDateParam(addDays(anchor, -step)) });
-  const nextHref = base({ date: toDateParam(addDays(anchor, step)) });
+  const prevHref = calendarHref({ date: toDateParam(addDays(anchor, -step)) });
+  const nextHref = calendarHref({ date: toDateParam(addDays(anchor, step)) });
 
-  const slotHref = (day: Date, hour: number) => base({ at: slotParam(day, hour) });
-  const editHref = (id: string) => base({ edit: id });
+  const slotHref = (day: Date, hour: number) =>
+    calendarHref({ at: slotParam(day, hour) });
+  const editHref = (id: string) => calendarHref({ edit: id });
 
   const title =
     view === "day"
@@ -197,13 +232,75 @@ export default async function AppointmentsPage({
       : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        icon={ICONS.appointment}
         title="Appointments"
         description="Drop-offs, pickups, callbacks and on-site jobs — who's booked in and when."
         actions={<NewAppointmentButton pickers={pickers} defaults={defaults} />}
       />
+
+      <div className="flex flex-col gap-3">
+        <FilterTabs
+          aria-label="Calendar views"
+          tabs={[
+            {
+              label: "Week",
+              href: calendarHref({ view: "week" }),
+              active: view === "week",
+            },
+            {
+              label: "Day",
+              href: calendarHref({ view: "day" }),
+              active: view === "day",
+            },
+          ]}
+        />
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="outline" size="icon" asChild>
+            <Link href={prevHref} scroll={false} aria-label="Previous">
+              <ACTIONS.back />
+            </Link>
+          </Button>
+          <Button variant="outline" size="icon" asChild>
+            <Link href={nextHref} scroll={false} aria-label="Next">
+              <ACTIONS.next />
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={calendarHref({ date: null })} scroll={false}>
+              Today
+            </Link>
+          </Button>
+          <span className="ml-1.5 flex items-center gap-2 text-[14px] font-semibold text-foreground">
+            <ICONS.appointment className="size-4 text-muted-foreground" />
+            {title}
+          </span>
+        </div>
+
+        {techs.length > 0 ? (
+          <FilterChips
+            label="Tech"
+            options={[
+              {
+                label: "All",
+                href: calendarHref({ tech: ALL_TECHS }),
+                active: tech === ALL_TECHS,
+              },
+              {
+                label: "Unassigned",
+                href: calendarHref({ tech: UNASSIGNED }),
+                active: tech === UNASSIGNED,
+              },
+              ...techs.map((t) => ({
+                label: t.name,
+                href: calendarHref({ tech: t.id }),
+                active: tech === t.id,
+              })),
+            ]}
+          />
+        ) : null}
+      </div>
 
       <TodayStrip
         count={todayRows.length}
@@ -211,48 +308,6 @@ export default async function AppointmentsPage({
         now={now}
         editHref={editHref}
       />
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" asChild>
-            <Link href={prevHref} scroll={false} aria-label="Previous">
-              <ChevronLeft />
-            </Link>
-          </Button>
-          <Button variant="outline" size="icon" asChild>
-            <Link href={nextHref} scroll={false} aria-label="Next">
-              <ChevronRight />
-            </Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link
-              href={view === "day" ? "/appointments?view=day" : "/appointments"}
-              scroll={false}
-            >
-              Today
-            </Link>
-          </Button>
-          <span className="ml-1 flex items-center gap-2 text-[15px] font-bold text-foreground">
-            <ICONS.appointment className="size-4 text-muted-foreground" />
-            {title}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 rounded-full border border-border-strong bg-surface p-1">
-          <ViewTab
-            href={`/appointments?date=${toDateParam(anchor)}`}
-            active={view === "week"}
-          >
-            Week
-          </ViewTab>
-          <ViewTab
-            href={`/appointments?view=day&date=${toDateParam(anchor)}`}
-            active={view === "day"}
-          >
-            Day
-          </ViewTab>
-        </div>
-      </div>
 
       {/* The grid needs horizontal room; on a phone the list below IS the view. */}
       <div className="hidden md:block">
@@ -271,6 +326,7 @@ export default async function AppointmentsPage({
         editHref={editHref}
         canDelete={role === "OWNER"}
         now={now}
+        filtered={tech !== ALL_TECHS}
       />
 
       {dialogValues ? (
@@ -345,30 +401,4 @@ function valuesFromAppointment(
       ? format(appointment.reminderSentAt, "MMM d, h:mm a")
       : null,
   };
-}
-
-function ViewTab({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      scroll={false}
-      className={cn(
-        "rounded-full px-4 py-1.5 text-[13.5px] font-semibold transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        active
-          ? "bg-accent text-accent-foreground shadow-xs"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {children}
-    </Link>
-  );
 }

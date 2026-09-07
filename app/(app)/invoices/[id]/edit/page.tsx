@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { toDateInputValue } from "@/components/billing/format";
@@ -53,7 +52,6 @@ export default async function EditInvoicePage({
   return (
     <div className="flex flex-col">
       <PageHeader
-        icon={ICONS.invoice}
         title={`Edit invoice #${invoice.number}`}
         description="Changes replace the current line items."
       />

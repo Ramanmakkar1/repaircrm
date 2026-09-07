@@ -15,8 +15,8 @@ import {
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
@@ -84,7 +84,6 @@ export default async function PurchaseOrdersPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.purchaseOrder}
         title="Purchase orders"
         description="What the shop has asked its vendors for, and how much of it has landed."
         actions={
@@ -106,38 +105,31 @@ export default async function PurchaseOrdersPage({
       />
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {PO_FILTERS.map((key) => (
-            <Pill
-              key={key}
-              href={hrefFor(key, vendorId)}
-              active={filter === key}
-              label={PO_FILTER_LABELS[key]}
-            />
-          ))}
-        </div>
+        <FilterTabs
+          aria-label="Purchase order views"
+          tabs={PO_FILTERS.map((key) => ({
+            label: PO_FILTER_LABELS[key],
+            href: hrefFor(key, vendorId),
+            active: filter === key,
+          }))}
+        />
 
         {vendors.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[13px] font-semibold text-muted-foreground">
-              Vendor
-            </span>
-            <Pill
-              href={hrefFor(filter, ALL_VENDORS)}
-              active={vendorId === ""}
-              label="All"
-              small
-            />
-            {vendors.map((vendor) => (
-              <Pill
-                key={vendor.id}
-                href={hrefFor(filter, vendor.id)}
-                active={vendorId === vendor.id}
-                label={vendor.name}
-                small
-              />
-            ))}
-          </div>
+          <FilterChips
+            label="Vendor"
+            options={[
+              {
+                label: "All",
+                href: hrefFor(filter, ALL_VENDORS),
+                active: vendorId === "",
+              },
+              ...vendors.map((vendor) => ({
+                label: vendor.name,
+                href: hrefFor(filter, vendor.id),
+                active: vendorId === vendor.id,
+              })),
+            ]}
+          />
         ) : null}
       </div>
 
@@ -196,7 +188,7 @@ export default async function PurchaseOrdersPage({
                       <Td>
                         <Link
                           href={`/inventory/purchase-orders/${order.id}`}
-                          className="font-bold tabular-nums text-accent-soft-foreground hover:underline"
+                          className="rf-id font-semibold text-accent-soft-foreground hover:underline"
                         >
                           #{order.number}
                         </Link>
@@ -250,31 +242,3 @@ function hrefFor(status: PoFilter, vendorId: string): string {
   return qs ? `/inventory/purchase-orders?${qs}` : "/inventory/purchase-orders";
 }
 
-function Pill({
-  href,
-  active,
-  label,
-  small,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-  small?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "inline-flex items-center rounded-full border font-semibold transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        small ? "h-8 px-3 text-[12.5px]" : "h-10 px-4 text-[13.5px]",
-        active
-          ? "border-transparent bg-accent text-accent-foreground shadow-sm"
-          : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-      )}
-    >
-      {label}
-    </Link>
-  );
-}

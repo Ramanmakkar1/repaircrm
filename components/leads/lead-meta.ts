@@ -142,14 +142,6 @@ export function samePhone(a: string | null | undefined, b: string | null | undef
   return left.slice(-10) === right.slice(-10);
 }
 
-/** Up to two uppercase initials, mirroring components/customers/format.ts. */
-export function leadInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 /** First `max` characters of a message, single-spaced, with an ellipsis. */
 export function messagePreview(body: string, max = 150): string {
   const flat = body.replace(/\s+/g, " ").trim();

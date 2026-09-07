@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignForm } from "@/components/marketing/campaign-form";
 import { findTemplate } from "@/components/marketing/meta";
@@ -39,7 +39,6 @@ export default async function NewCampaignPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.marketing}
         title="New campaign"
         description="Pick the moment, the wait, and the words. Nothing sends until you run it."
       />

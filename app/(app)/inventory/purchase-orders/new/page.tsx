@@ -65,7 +65,6 @@ export default async function NewPurchaseOrderPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.purchaseOrder}
         title="New purchase order"
         description="Pick a vendor, then add lines by hand or pull in everything that's running low."
       />

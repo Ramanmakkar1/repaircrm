@@ -182,7 +182,6 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.dashboard}
         title="Dashboard"
         description="A quick look at what's happening in your shop."
         actions={
@@ -221,7 +220,7 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Where the work stands, as six colour-coded boxes. */}
+      {/* Where the work stands: six counts on one hairline grid. */}
       <Card>
         <CardHeader
           icon={ICONS.ticket}
@@ -236,8 +235,16 @@ export default async function DashboardPage() {
             </Link>
           }
         />
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <CardContent className="px-0 py-0">
+          {/*
+            Six saturated colour blocks used to live here, and on a gray canvas
+            they were the loudest thing on the shop's home screen — six equal
+            shouts, which is the same as none. The colour is now carried by a
+            7px dot, the count is plain foreground ink at a size you can read
+            across the counter, and the hairline grid (gap-px over a border
+            fill) is what separates them. Same six links, same six numbers.
+          */}
+          <div className="grid grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-3 lg:grid-cols-6">
             {TICKET_STATUSES.map((status) => {
               const meta = STATUS_META[normalizeStatus(status)];
               const count = statusCounts.get(status) ?? 0;
@@ -245,26 +252,17 @@ export default async function DashboardPage() {
                 <Link
                   key={status}
                   href={`/tickets?status=${encodeURIComponent(status)}`}
-                  className={cn(
-                    "rf-lift flex flex-col gap-1.5 rounded-md p-4 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    meta.bg,
-                  )}
+                  className="flex flex-col gap-2 bg-surface p-4 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                 >
-                  <span
-                    className={cn(
-                      "text-3xl font-bold leading-none tabular-nums",
-                      meta.fg,
-                    )}
-                  >
-                    {count}
+                  <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+                    <span
+                      aria-hidden
+                      className={cn("size-[7px] shrink-0 rounded-full", meta.dot)}
+                    />
+                    <span className="truncate">{status}</span>
                   </span>
-                  <span
-                    className={cn(
-                      "text-[13px] font-bold leading-snug",
-                      meta.fg,
-                    )}
-                  >
-                    {status}
+                  <span className="rf-num text-[26px] font-semibold leading-none text-foreground">
+                    {count}
                   </span>
                 </Link>
               );
@@ -276,7 +274,7 @@ export default async function DashboardPage() {
       {/* Recent activity, as the same cards used on the tickets board. */}
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
+          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">
             Recently touched
           </h2>
           <Link

@@ -27,7 +27,6 @@ import { problemTypes } from "@/components/tickets/ticket-meta";
 import { StatusPill } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -96,7 +95,6 @@ export default async function LeadDetailPage({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <PageHeader
-        icon={ICONS.lead}
         breadcrumbs={[{ label: "Leads", href: "/leads" }, { label: lead.name }]}
         title={lead.name}
         description={`${lead.source ?? "Unknown source"} · ${leadAge(lead.createdAt)}`}

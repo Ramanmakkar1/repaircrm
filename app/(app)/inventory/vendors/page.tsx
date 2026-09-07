@@ -5,8 +5,8 @@ import { VendorCard, type VendorCardData } from "@/components/inventory/vendor-c
 import { VendorDialog } from "@/components/inventory/vendor-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
@@ -77,7 +77,6 @@ export default async function VendorsPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.vendor}
         title="Vendors"
         description="Everyone the shop buys parts from, and what's on order with them."
         actions={
@@ -101,14 +100,22 @@ export default async function VendorsPage({
       />
 
       {inactiveCount > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Pill href="/inventory/vendors" active={!includeInactive}>
-            Active only
-          </Pill>
-          <Pill href="/inventory/vendors?show=all" active={includeInactive}>
-            Include inactive ({inactiveCount})
-          </Pill>
-        </div>
+        <FilterTabs
+          aria-label="Vendor views"
+          tabs={[
+            {
+              label: "Active only",
+              href: "/inventory/vendors",
+              active: !includeInactive,
+            },
+            {
+              label: "Include inactive",
+              href: "/inventory/vendors?show=all",
+              active: includeInactive,
+              count: inactiveCount,
+            },
+          ]}
+        />
       ) : null}
 
       {cards.length === 0 ? (
@@ -156,28 +163,3 @@ export default async function VendorsPage({
   );
 }
 
-function Pill({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        active
-          ? "border-transparent bg-accent text-accent-foreground shadow-sm"
-          : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-      )}
-    >
-      {children}
-    </Link>
-  );
-}

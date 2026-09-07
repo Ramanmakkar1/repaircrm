@@ -1,15 +1,17 @@
 import Link from "next/link";
-import { CalendarPlus, Clock } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
+import { RowLink } from "@/components/list/row-link";
 import { formatDate } from "@/components/billing/format";
 import { CampaignActiveSwitch, SyncAndSendButton } from "@/components/marketing/campaign-controls";
 import {
@@ -27,8 +29,31 @@ import { countDueSends } from "./engine";
 
 export const metadata = { title: "Marketing · RepairFlow" };
 
-export default async function MarketingPage() {
+/**
+ * The saved views. Every campaign is already in memory — a shop runs a handful,
+ * not a page of them — so the counts beside each tab cost nothing and the
+ * filtering is a `.filter()`, not a second query.
+ */
+const VIEWS = ["all", "live", "paused"] as const;
+type View = (typeof VIEWS)[number];
+
+const VIEW_LABELS: Record<View, string> = {
+  all: "All",
+  live: "Live",
+  paused: "Paused",
+};
+
+function asView(value: string | string[] | undefined): View {
+  return (VIEWS as readonly string[]).includes(String(value)) ? (value as View) : "all";
+}
+
+export default async function MarketingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { shopId } = await requireUser();
+  const view = asView((await searchParams).view);
 
   const [campaigns, sendCounts, dueCount] = await Promise.all([
     db.campaign.findMany({
@@ -45,7 +70,7 @@ export default async function MarketingPage() {
         createdAt: true,
       },
     }),
-    // One grouped read for every campaign's counts, rather than N per card.
+    // One grouped read for every campaign's counts, rather than N per row.
     db.campaignSend.groupBy({
       by: ["campaignId", "status"],
       where: { shopId },
@@ -69,10 +94,20 @@ export default async function MarketingPage() {
   const enabledNames = campaigns.map((c) => c.name);
   const empty = campaigns.length === 0;
 
+  const counts: Record<View, number> = {
+    all: campaigns.length,
+    live: campaigns.filter((c) => c.active).length,
+    paused: campaigns.filter((c) => !c.active).length,
+  };
+
+  const rows =
+    view === "all"
+      ? campaigns
+      : campaigns.filter((c) => (view === "live" ? c.active : !c.active));
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.marketing}
         title="Marketing"
         description={
           empty
@@ -122,79 +157,109 @@ export default async function MarketingPage() {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {campaigns.map((campaign) => {
-              const trigger = asTrigger(campaign.trigger);
-              const channel = asChannel(campaign.channel);
-              const counts = stats.get(campaign.id) ?? { scheduled: 0, sent: 0 };
+          <FilterTabs
+            aria-label="Campaign views"
+            tabs={VIEWS.map((key) => ({
+              label: VIEW_LABELS[key],
+              href: hrefFor(key),
+              active: view === key,
+              count: counts[key],
+            }))}
+          />
 
-              return (
-                <Card
-                  key={campaign.id}
-                  interactive
-                  tone={campaign.active ? undefined : "neutral"}
-                  className={cn(
-                    "flex flex-col gap-4 p-5",
-                    !campaign.active && "opacity-70",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <Link
-                      href={`/marketing/${campaign.id}`}
-                      className="min-w-0 rounded-sm text-lg font-bold leading-snug tracking-tight text-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      {campaign.name}
-                    </Link>
-                    <CampaignActiveSwitch
-                      campaignId={campaign.id}
-                      active={campaign.active}
-                      campaignName={campaign.name}
-                    />
-                  </div>
+          <Card>
+            <CardContent className="px-0 py-0">
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon={ICONS.marketing}
+                  title="Nothing in this view"
+                  hint="Every campaign is on one of the other tabs."
+                  action={
+                    <Button variant="outline" asChild>
+                      <Link href="/marketing">Show all campaigns</Link>
+                    </Button>
+                  }
+                />
+              ) : (
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Campaign</Th>
+                      <Th>Status</Th>
+                      <Th>Trigger</Th>
+                      <Th>Channel</Th>
+                      <Th className="text-right">Queued</Th>
+                      <Th className="text-right">Sent</Th>
+                      <Th>Added</Th>
+                      <Th className="text-right">Live</Th>
+                    </Tr>
+                  </THead>
+                  <TBody>
+                    {rows.map((campaign) => {
+                      const trigger = asTrigger(campaign.trigger);
+                      const channel = asChannel(campaign.channel);
+                      const counted =
+                        stats.get(campaign.id) ?? { scheduled: 0, sent: 0 };
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Chip icon={ICONS.automation}>{TRIGGER_LABEL[trigger]}</Chip>
-                    <Chip icon={Clock}>{delayLabel(campaign.delayDays)}</Chip>
-                    <Chip icon={channel === "SMS" ? ICONS.message : ICONS.email}>
-                      {channel === "SMS" ? "Text" : "Email"}
-                    </Chip>
-                  </div>
-
-                  <div className="flex items-end gap-6">
-                    <Stat label="Queued" value={counts.scheduled} />
-                    <Stat label="Sent" value={counts.sent} />
-                  </div>
-
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                    <Chip icon={CalendarPlus}>
-                      Added {formatDate(campaign.createdAt)}
-                    </Chip>
-                    {/* Live/paused is the card's status, so it wears the pill
-                        rather than passing as another grey fact-tag. */}
-                    {!campaign.active ? (
-                      <StatusPill tone="neutral" label="Paused" size="sm" />
-                    ) : null}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      return (
+                        <RowLink
+                          key={campaign.id}
+                          href={`/marketing/${campaign.id}`}
+                          className={cn(!campaign.active && "text-muted-foreground")}
+                        >
+                          <Td>
+                            <Link
+                              href={`/marketing/${campaign.id}`}
+                              className="block max-w-[260px] truncate font-semibold text-foreground hover:underline"
+                            >
+                              {campaign.name}
+                            </Link>
+                          </Td>
+                          <Td>
+                            <StatusPill
+                              tone={campaign.active ? "success" : "neutral"}
+                              label={campaign.active ? "Live" : "Paused"}
+                            />
+                          </Td>
+                          <Td className="text-muted-foreground">
+                            {TRIGGER_LABEL[trigger]} · {delayLabel(campaign.delayDays)}
+                          </Td>
+                          <Td className="text-muted-foreground">
+                            {channel === "SMS" ? "Text" : "Email"}
+                          </Td>
+                          <Td className="text-right text-muted-foreground">
+                            {counted.scheduled}
+                          </Td>
+                          <Td className="text-right font-semibold text-foreground">
+                            {counted.sent}
+                          </Td>
+                          <Td className="text-muted-foreground">
+                            {formatDate(campaign.createdAt)}
+                          </Td>
+                          <Td className="w-px text-right">
+                            <CampaignActiveSwitch
+                              campaignId={campaign.id}
+                              active={campaign.active}
+                              campaignName={campaign.name}
+                            />
+                          </Td>
+                        </RowLink>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
   );
 }
 
-/** The big-number pair every card in RepairFlow leads its metrics with. */
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
-        {value}
-      </span>
-    </div>
-  );
+// ---------------------------------------------------------------------------
+
+/** A view is a URL: shareable, bookmarkable, and back-button correct. */
+function hrefFor(view: View): string {
+  return view === "all" ? "/marketing" : `/marketing?view=${view}`;
 }

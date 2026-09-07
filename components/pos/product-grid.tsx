@@ -153,7 +153,7 @@ export function ProductGrid({
                 : "border-border-strong",
             )}
           />
-          <span className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-full bg-surface-hover px-3 py-1.5 text-[12px] font-semibold text-muted-foreground sm:inline-flex">
+          <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-md bg-surface-hover px-2 py-1 text-[12px] font-semibold text-muted-foreground sm:inline-flex">
             <ACTIONS.scan className="size-3.5" />
             Enter adds
           </span>
@@ -192,12 +192,19 @@ export function ProductGrid({
                 type="button"
                 onClick={() => setCategory(name)}
                 aria-pressed={active}
+                /*
+                 * Squared off to match every other filter in the app, but the
+                 * 40px height stays: this is the one screen worked with a
+                 * finger on a counter tablet, and a 32px target there is a
+                 * mis-tap during a queue. Density is a reading decision, not a
+                 * touch one.
+                 */
                 className={cn(
-                  "h-10 shrink-0 rounded-full px-4 text-[13.5px] font-semibold transition-colors",
+                  "h-10 shrink-0 rounded-md border px-3.5 text-[13.5px] font-semibold transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   active
-                    ? "bg-accent text-accent-foreground shadow-sm"
-                    : "border border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                    ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"
+                    : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
                 )}
               >
                 {name}

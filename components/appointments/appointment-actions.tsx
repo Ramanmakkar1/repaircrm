@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 // CalendarPlus is "book something"; it has no entry in the shared concept map.
 // the shared verb map.
@@ -21,6 +22,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AppointmentDialog,
   type AppointmentFormValues,
@@ -96,13 +104,23 @@ export function AutoAppointmentDialog({
   );
 }
 
-/** Mark done · Cancel · Reopen · Delete, on a list row. */
+/**
+ * Mark done · Cancel · Reopen · Delete, on a table row.
+ *
+ * These used to be three always-visible buttons in the last cell, which on a
+ * dense row is more chrome than content. They are a `⋯` overflow menu now,
+ * revealed on row hover on a pointer device and always visible on touch, where
+ * there is no hover to reveal anything with.
+ */
 export function AppointmentRowActions({
   appointmentId,
+  editHref,
   status,
   canDelete,
 }: {
   appointmentId: string;
+  /** The calendar URL that opens this booking's edit dialog. */
+  editHref: string;
   status: string;
   canDelete: boolean;
 }) {
@@ -124,56 +142,68 @@ export function AppointmentRowActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {status === "SCHEDULED" ? (
-          <>
-            <Button
-              size="sm"
-              variant="soft"
-              disabled={busy}
-              onClick={() => move("DONE", "Marked done.")}
-            >
-              <ACTIONS.approve />
-              Done
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => move("CANCELED", "Appointment canceled.")}
-            >
-              <ACTIONS.decline />
-              Cancel
-            </Button>
-          </>
-        ) : (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
-            size="sm"
             variant="ghost"
+            size="icon"
+            aria-label="Appointment actions"
             disabled={busy}
-            onClick={() => move("SCHEDULED", "Back on the calendar.")}
+            className="size-7 [&_svg]:size-4 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-visible:opacity-100 md:data-[state=open]:opacity-100"
           >
-            <ACTIONS.reopen />
-            Reopen
+            <ACTIONS.more />
           </Button>
-        )}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href={editHref} scroll={false}>
+              <ACTIONS.edit className="size-4 text-muted-foreground" />
+              Edit booking
+            </Link>
+          </DropdownMenuItem>
 
-        {canDelete ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive hover:bg-destructive-soft hover:text-destructive"
-            disabled={busy}
-            onClick={() => setConfirming(true)}
-          >
-            <ACTIONS.delete />
-            <span className="sr-only">Delete appointment</span>
-          </Button>
-        ) : null}
-      </div>
+          {status === "SCHEDULED" ? (
+            <>
+              <DropdownMenuItem onSelect={() => move("DONE", "Marked done.")}>
+                <ACTIONS.approve className="size-4 text-muted-foreground" />
+                Mark done
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => move("CANCELED", "Appointment canceled.")}
+              >
+                <ACTIONS.decline className="size-4 text-muted-foreground" />
+                Cancel booking
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <DropdownMenuItem
+              onSelect={() => move("SCHEDULED", "Back on the calendar.")}
+            >
+              <ACTIONS.reopen className="size-4 text-muted-foreground" />
+              Reopen
+            </DropdownMenuItem>
+          )}
+
+          {canDelete ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive-soft"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setConfirming(true);
+                }}
+              >
+                <ACTIONS.delete className="size-4" />
+                Delete appointment
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete this appointment?</DialogTitle>
             <DialogDescription>

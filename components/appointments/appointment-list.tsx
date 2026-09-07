@@ -1,14 +1,12 @@
 import Link from "next/link";
 import { format, isSameDay } from "date-fns";
-// StickyNote / UserRound have no concept in components/ui/icons.ts.
-import { StickyNote, UserRound } from "lucide-react";
 
 import { StatusPill } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
-import { ICONS } from "@/components/ui/icons";
+import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ICONS } from "@/components/ui/icons";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { AppointmentRowActions } from "./appointment-actions";
 import {
   APPOINTMENT_STATUS_META,
@@ -20,12 +18,16 @@ import {
 } from "./calendar-meta";
 
 /**
- * The same week as a plain list.
+ * The same week as a dense day-by-day table.
  *
- * Not a fallback that duplicates the grid — the grid is for reading the shape
- * of the week, and this is for *doing* things: it is where the cross-links to
- * the customer and the ticket live, and where Done / Cancel / Delete sit. On a
- * phone, where the grid hides, it becomes the whole calendar.
+ * Not a fallback that duplicates the grid — the grid is for reading the SHAPE
+ * of the week, and this is the ledger: it is where the cross-links to the
+ * customer and the ticket live, and where Done / Cancel / Delete sit behind the
+ * row's `⋯`. On a phone, where the grid hides, it becomes the whole calendar.
+ *
+ * One table per day rather than one table with a day column: the date is the
+ * heading you scan for, and repeating it down a column would be seven copies
+ * of the same word.
  */
 export function AppointmentList({
   days,
@@ -33,12 +35,15 @@ export function AppointmentList({
   editHref,
   canDelete,
   now,
+  filtered = false,
 }: {
   days: Date[];
   appointments: CalendarAppointment[];
   editHref: (id: string) => string;
   canDelete: boolean;
   now: Date;
+  /** A tech filter is on, so "nothing booked" needs a different explanation. */
+  filtered?: boolean;
 }) {
   const populated = days
     .map((day) => ({
@@ -54,33 +59,52 @@ export function AppointmentList({
       <Card>
         <EmptyState
           icon={ICONS.appointment}
-          title="Nothing booked"
-          hint="Click any empty slot on the calendar to book something into it."
+          title={filtered ? "Nothing booked for this tech" : "Nothing booked"}
+          hint={
+            filtered
+              ? "Switch the tech filter back to All to see the rest of the week."
+              : "Click any empty slot on the calendar to book something into it."
+          }
         />
       </Card>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {populated.map(({ day, items }) => (
-        <Card key={day.toISOString()}>
+        <Card key={day.toISOString()} className="overflow-hidden">
           <CardHeader
-            icon={ICONS.appointment}
             title={
               <span
-                className={cn(
-                  isSameDay(day, now) && "text-accent-soft-foreground",
-                )}
+                className={cn(isSameDay(day, now) && "text-accent-soft-foreground")}
               >
                 {format(day, "EEEE, MMMM d")}
               </span>
             }
-            action={<Chip className="tabular-nums">{items.length}</Chip>}
+            action={
+              <span className="rf-num text-[12.5px] font-medium text-muted-foreground">
+                {items.length} booked
+              </span>
+            }
           />
 
-          <CardContent className="p-0">
-            <ul className="divide-y divide-border">
+          <Table>
+            <THead>
+              <Tr>
+                <Th>Time</Th>
+                <Th>Appointment</Th>
+                <Th>Customer</Th>
+                <Th>Ticket</Th>
+                <Th>Assigned</Th>
+                <Th>Location</Th>
+                <Th>Status</Th>
+                <Th className="w-10">
+                  <span className="sr-only">Actions</span>
+                </Th>
+              </Tr>
+            </THead>
+            <TBody>
               {items.map((appointment) => (
                 <AppointmentRow
                   key={appointment.id}
@@ -89,8 +113,8 @@ export function AppointmentList({
                   canDelete={canDelete}
                 />
               ))}
-            </ul>
-          </CardContent>
+            </TBody>
+          </Table>
         </Card>
       ))}
     </div>
@@ -114,94 +138,105 @@ function AppointmentRow({
   const canceled = status === "CANCELED";
 
   return (
-    <li className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 flex-1 gap-4">
-        {/* The time is the column the eye scans down, so it gets its own gutter. */}
-        <div className="flex w-24 shrink-0 flex-col gap-0.5 pt-0.5">
+    // `group` is what lets the row's ⋯ appear on hover.
+    <Tr className="group">
+      <Td>
+        <span className="flex flex-col gap-0.5">
           <span
             className={cn(
-              "text-[13.5px] font-bold tabular-nums text-foreground",
+              "rf-num font-semibold text-foreground",
               canceled && "text-faint-foreground line-through",
             )}
           >
             {timeRange(appointment.startsAt, appointment.endsAt)}
           </span>
-          <span className="text-[12.5px] tabular-nums text-faint-foreground">
+          <span className="rf-num text-[11.5px] text-faint-foreground">
             {durationLabel(appointment.startsAt, appointment.endsAt)}
           </span>
-        </div>
+        </span>
+      </Td>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={editHref(appointment.id)}
-              scroll={false}
-              title={appointment.title}
-              className={cn(
-                "truncate rounded-sm text-[15px] font-bold text-foreground hover:text-accent hover:underline",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                canceled && "text-muted-foreground line-through",
-              )}
-            >
-              {appointment.title}
-            </Link>
-            <StatusPill
-              size="sm"
-              tone={meta.tone}
-              label={meta.label}
-              struck={meta.struck}
-              className="shrink-0"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {appointment.customer && customerName ? (
-              <Link href={`/customers/${appointment.customer.id}`}>
-                <Chip
-                  icon={UserRound}
-                  className="transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground"
-                >
-                  {customerName}
-                </Chip>
-              </Link>
-            ) : null}
-
-            {appointment.ticket ? (
-              <Link href={`/tickets/${appointment.ticket.id}`}>
-                <Chip
-                  icon={ICONS.ticket}
-                  className="transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground"
-                >
-                  #{appointment.ticket.number}
-                </Chip>
-              </Link>
-            ) : null}
-
-            <Chip icon={UserRound}>
-              {appointment.assignedTo?.name ?? "Unassigned"}
-            </Chip>
-
-            {appointment.location ? (
-              <Chip icon={ICONS.location}>{appointment.location.name}</Chip>
-            ) : null}
-          </div>
-
+      <Td>
+        <span className="flex items-center gap-1.5">
+          <Link
+            href={editHref(appointment.id)}
+            scroll={false}
+            title={appointment.notes ?? appointment.title}
+            className={cn(
+              "block max-w-[240px] truncate rounded-sm font-semibold text-foreground hover:underline",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+              canceled && "text-muted-foreground line-through",
+            )}
+          >
+            {appointment.title}
+          </Link>
           {appointment.notes ? (
-            <p className="flex gap-2 text-[13px] leading-snug text-muted-foreground">
-              <StickyNote className="mt-0.5 size-3.5 shrink-0 text-faint-foreground" />
-              <span className="line-clamp-2">{appointment.notes}</span>
-            </p>
+            <ICONS.note
+              aria-label="Has notes"
+              className="size-3.5 shrink-0 text-faint-foreground"
+            />
           ) : null}
-        </div>
-      </div>
+        </span>
+      </Td>
 
-      <div className="shrink-0 sm:pl-4">
+      <Td>
+        {appointment.customer && customerName ? (
+          <Link
+            href={`/customers/${appointment.customer.id}`}
+            className="block max-w-[160px] truncate text-muted-foreground hover:text-foreground hover:underline"
+          >
+            {customerName}
+          </Link>
+        ) : (
+          <span className="text-faint-foreground">—</span>
+        )}
+      </Td>
+
+      <Td>
+        {appointment.ticket ? (
+          <Link
+            href={`/tickets/${appointment.ticket.id}`}
+            className="rf-id font-semibold text-accent-soft-foreground hover:underline"
+          >
+            #{appointment.ticket.number}
+          </Link>
+        ) : (
+          <span className="text-faint-foreground">—</span>
+        )}
+      </Td>
+
+      <Td
+        className={
+          appointment.assignedTo ? "text-muted-foreground" : "text-faint-foreground"
+        }
+      >
+        <span className="block max-w-[130px] truncate">
+          {appointment.assignedTo?.name ?? "Unassigned"}
+        </span>
+      </Td>
+
+      <Td
+        className={
+          appointment.location ? "text-muted-foreground" : "text-faint-foreground"
+        }
+      >
+        <span className="block max-w-[130px] truncate">
+          {appointment.location?.name ?? "—"}
+        </span>
+      </Td>
+
+      <Td>
+        <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
+      </Td>
+
+      <Td className="text-right">
         <AppointmentRowActions
           appointmentId={appointment.id}
+          editHref={editHref(appointment.id)}
           status={status}
           canDelete={canDelete}
         />
-      </div>
-    </li>
+      </Td>
+    </Tr>
   );
 }

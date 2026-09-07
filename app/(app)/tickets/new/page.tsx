@@ -7,7 +7,6 @@ import { requireUser } from "@/lib/auth";
 import { activeLocations, newRecordLocationId } from "@/lib/location";
 import { readSla } from "@/lib/sla";
 import { activeWarrantiesByCustomer } from "@/lib/warranty";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   TicketForm,
@@ -114,7 +113,6 @@ export default async function NewTicketPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        icon={ICONS.ticket}
         breadcrumbs={[{ label: "Tickets", href: "/tickets" }, { label: "New ticket" }]}
         title="New ticket"
         description="Check a device in and start the repair clock."

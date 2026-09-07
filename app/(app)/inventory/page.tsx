@@ -1,19 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "lucide-react";
 
 import { plural } from "@/components/customers/format";
-import { asFilter, type InventoryFilter } from "@/components/inventory/format";
+import { RowLink } from "@/components/list/row-link";
+import {
+  FILTERS,
+  FILTER_LABELS,
+  asFilter,
+  marginPct,
+  type InventoryFilter,
+} from "@/components/inventory/format";
 import { InventoryFilters } from "@/components/inventory/inventory-filters";
-import { ProductCard } from "@/components/inventory/product-card";
+import { StockBadge } from "@/components/inventory/stock-badge";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatCents } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Inventory · RepairFlow" };
 
@@ -89,7 +101,6 @@ export default async function InventoryPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.inventory}
         title="Inventory"
         description="Every part, accessory and service the shop sells, with what's on the shelf."
         actions={
@@ -131,7 +142,7 @@ export default async function InventoryPage({
       />
 
       {/* Only worth interrupting for when nothing is filtered — inside a
-          filtered view the grid already answers the question. */}
+          filtered view the table already answers the question. */}
       {lowStockCount > 0 && !filtered ? (
         <Link
           href="/inventory?filter=low"
@@ -154,78 +165,174 @@ export default async function InventoryPage({
       ) : null}
 
       <div className="flex flex-col gap-3">
-        <InventoryFilters
-          filter={filter}
-          query={query}
-          category={category}
-          categories={categories}
+        <FilterTabs
+          aria-label="Stock views"
+          tabs={FILTERS.map((key) => ({
+            label: FILTER_LABELS[key],
+            href: hrefFor(key, category, query),
+            active: filter === key,
+            // The only count already on this page. The other three would each
+            // cost a query, and a view nobody has to chase does not need one.
+            count: key === "low" ? lowStockCount : undefined,
+          }))}
         />
-        <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
-          {total === 0
-            ? "No products"
-            : `Showing ${firstRow}–${lastRow} of ${plural(total, "product")}`}
-        </p>
+
+        <InventoryFilters filter={filter} query={query} category={category} />
+
+        {categories.length > 0 ? (
+          <FilterChips
+            label="Category"
+            options={[
+              {
+                label: "All",
+                href: hrefFor(filter, "", query),
+                active: category === "",
+              },
+              ...categories.map((name) => ({
+                label: name,
+                href: hrefFor(filter, name, query),
+                active: category === name,
+              })),
+            ]}
+          />
+        ) : null}
       </div>
 
-      {products.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={ICONS.inventory}
-            title={filtered ? "Nothing matches those filters" : "No products yet"}
-            hint={
-              filtered
-                ? "Try a shorter search, or clear the filters to see the whole catalogue."
-                : "Add the parts and services you sell so they're one click away on tickets and invoices."
-            }
-            action={
-              filtered ? (
-                <Button variant="outline" asChild>
-                  <Link href="/inventory">Clear filters</Link>
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/inventory/new">
-                    <ACTIONS.add />
-                    New Product
-                  </Link>
-                </Button>
-              )
-            }
-          />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} showCost={showCost} />
-          ))}
-        </div>
-      )}
+      <Card>
+        <CardContent className="px-0 py-0">
+          {products.length === 0 ? (
+            <EmptyState
+              icon={ICONS.inventory}
+              title={filtered ? "Nothing matches those filters" : "No products yet"}
+              hint={
+                filtered
+                  ? "Try a shorter search, or clear the filters to see the whole catalogue."
+                  : "Add the parts and services you sell so they're one click away on tickets and invoices."
+              }
+              action={
+                filtered ? (
+                  <Button variant="outline" asChild>
+                    <Link href="/inventory">Clear filters</Link>
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link href="/inventory/new">
+                      <ACTIONS.add />
+                      New Product
+                    </Link>
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <>
+              <Table>
+                <THead>
+                  <Tr>
+                    <Th>Product</Th>
+                    <Th>SKU · UPC</Th>
+                    <Th>Category</Th>
+                    <Th>Stock</Th>
+                    <Th className="text-right">Price</Th>
+                    {showCost ? <Th className="text-right">Cost</Th> : null}
+                    {showCost ? <Th className="text-right">Margin</Th> : null}
+                  </Tr>
+                </THead>
+                <TBody>
+                  {products.map((product) => {
+                    const margin = marginPct(product.priceCents, product.costCents);
+                    const identifiers = `${product.sku ?? "No SKU"}${
+                      product.upc ? ` · ${product.upc}` : ""
+                    }`;
 
-      {pageCount > 1 ? (
-        <div className="flex items-center justify-between pt-1">
-          <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
-            Page {page} of {pageCount}
-          </p>
-          <div className="flex items-center gap-2">
-            <PageLink
-              href={pageHref(params, page - 1)}
-              disabled={page <= 1}
-              label="Previous"
-            >
-              <ChevronLeft />
-              Previous
-            </PageLink>
-            <PageLink
-              href={pageHref(params, page + 1)}
-              disabled={page >= pageCount}
-              label="Next"
-            >
-              Next
-              <ChevronRight />
-            </PageLink>
-          </div>
-        </div>
-      ) : null}
+                    return (
+                      <RowLink key={product.id} href={`/inventory/${product.id}`}>
+                        <Td>
+                          <span className="flex items-center gap-2">
+                            <Link
+                              href={`/inventory/${product.id}`}
+                              title={product.name}
+                              className={cn(
+                                "block max-w-[320px] truncate font-semibold hover:underline",
+                                product.active
+                                  ? "text-foreground"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {product.name}
+                            </Link>
+                            {!product.active ? (
+                              <StatusPill tone="neutral" label="Inactive" size="sm" />
+                            ) : null}
+                          </span>
+                        </Td>
+                        <Td>
+                          <span
+                            title={identifiers}
+                            className="rf-id block max-w-[190px] truncate text-[12.5px] text-faint-foreground"
+                          >
+                            {identifiers}
+                          </span>
+                        </Td>
+                        <Td className="text-muted-foreground">
+                          {product.category ?? "—"}
+                        </Td>
+                        <Td>
+                          <StockBadge product={product} />
+                        </Td>
+                        <Td className="text-right font-semibold text-foreground">
+                          {formatCents(product.priceCents)}
+                        </Td>
+                        {showCost ? (
+                          <Td className="text-right text-muted-foreground">
+                            {product.costCents == null
+                              ? "—"
+                              : formatCents(product.costCents)}
+                          </Td>
+                        ) : null}
+                        {showCost ? (
+                          <Td className="text-right text-muted-foreground">
+                            {margin == null ? "—" : `${margin}%`}
+                          </Td>
+                        ) : null}
+                      </RowLink>
+                    );
+                  })}
+                </TBody>
+              </Table>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+                <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
+                  {`${firstRow}–${lastRow} of ${plural(total, "product")}`}
+                </p>
+                {pageCount > 1 ? (
+                  <div className="flex items-center gap-1.5">
+                    <PageLink
+                      href={pageHref(params, page - 1)}
+                      disabled={page <= 1}
+                      label="Previous"
+                    >
+                      <ACTIONS.back />
+                      Previous
+                    </PageLink>
+                    <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
+                      {page} / {pageCount}
+                    </span>
+                    <PageLink
+                      href={pageHref(params, page + 1)}
+                      disabled={page >= pageCount}
+                      label="Next"
+                    >
+                      Next
+                      <ACTIONS.next />
+                    </PageLink>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -256,7 +363,7 @@ function buildWhere(
 ): Prisma.ProductWhereInput {
   const where: Prisma.ProductWhereInput = { shopId };
 
-  // The pills mirror the badge rules exactly, so a card can never show green
+  // The views mirror the badge rules exactly, so a row can never show green
   // inside the "Low stock" view.
   if (filter === "low") {
     where.active = true;
@@ -289,6 +396,20 @@ function buildWhere(
   return where;
 }
 
+/** A view is a URL: shareable, bookmarkable, and back-button correct. */
+function hrefFor(
+  filter: InventoryFilter,
+  category: string,
+  query: string,
+): string {
+  const search = new URLSearchParams();
+  if (filter !== "all") search.set("filter", filter);
+  if (query) search.set("q", query);
+  if (category) search.set("category", category);
+  const qs = search.toString();
+  return qs ? `/inventory?${qs}` : "/inventory";
+}
+
 function pageHref(params: SearchParams, page: number): string {
   const search = new URLSearchParams();
   if (params.q?.trim()) search.set("q", params.q.trim());
@@ -312,13 +433,13 @@ function PageLink({
 }) {
   if (disabled) {
     return (
-      <Button variant="outline" disabled aria-label={label}>
+      <Button size="sm" variant="outline" disabled aria-label={label}>
         {children}
       </Button>
     );
   }
   return (
-    <Button variant="outline" asChild>
+    <Button size="sm" variant="outline" asChild>
       <Link href={href} aria-label={label} scroll={false}>
         {children}
       </Link>

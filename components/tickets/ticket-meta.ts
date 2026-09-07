@@ -37,7 +37,7 @@ export const READY_FOR_PICKUP_STATUS = "Ready for Pickup";
 /**
  * Sentinel for the "Needs reply" pill; it rides in `?status=`.
  *
- * It lives HERE, not next to the pill that renders it: ticket-filters.tsx is a
+ * It lives HERE, not next to the control that sets it: ticket-toolbar.tsx is a
  * "use client" module, so a Server Component importing a plain string from it
  * gets a client reference back rather than the string, and every comparison
  * against it silently fails.

@@ -295,7 +295,7 @@ export function SettingsTabs({
         giving a thirteen-row nav a scrollbar of its own.
       */}
       <TabsList
-        className="h-auto shrink-0 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 lg:sticky lg:top-6 lg:w-56 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-x-visible"
+        className="h-auto shrink-0 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 lg:sticky lg:top-6 lg:w-52 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-x-visible"
       >
         {groups.map((group) => (
           <div
@@ -311,7 +311,13 @@ export function SettingsTabs({
               <TabsTrigger
                 key={panel.value}
                 value={panel.value}
-                className="h-9 shrink-0 justify-start whitespace-nowrap rounded-md px-3 text-left text-[14.5px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=active]:bg-accent-soft data-[state=active]:font-semibold data-[state=active]:text-accent-soft-foreground data-[state=active]:shadow-none"
+                /*
+                 * Same row treatment as the main sidebar — faint tint, accent
+                 * ink, and a 2px bar on the left edge — so a settings rail and
+                 * the app rail read as one navigation system rather than two
+                 * that happen to sit near each other.
+                 */
+                className="relative h-8 shrink-0 justify-start whitespace-nowrap rounded-md px-3 text-left text-[13.5px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=active]:bg-surface-hover data-[state=active]:font-semibold data-[state=active]:text-accent-soft-foreground data-[state=active]:shadow-none lg:data-[state=active]:before:absolute lg:data-[state=active]:before:inset-y-1.5 lg:data-[state=active]:before:left-0 lg:data-[state=active]:before:w-[2px] lg:data-[state=active]:before:rounded-full lg:data-[state=active]:before:bg-accent"
               >
                 {panel.label}
               </TabsTrigger>
@@ -323,10 +329,10 @@ export function SettingsTabs({
       {/* The panels sit flush with the top of the rail, so no `mt-4` here. */}
       <div className="min-w-0 flex-1 [&>[role=tabpanel]]:mt-0">
         <div className="mb-4 flex flex-col gap-1">
-          <h2 className="text-[19px] font-bold leading-tight tracking-tight text-foreground">
+          <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {active.label}
           </h2>
-          <p className="text-[14.5px] leading-snug text-muted-foreground">
+          <p className="text-[13.5px] leading-snug text-muted-foreground">
             {active.blurb}
           </p>
         </div>

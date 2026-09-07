@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ImportWizard } from "@/components/import/import-wizard";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import {
@@ -27,7 +27,6 @@ export default async function ImportProductsPage() {
       </Link>
 
       <PageHeader
-        icon={ICONS.importData}
         title="Import products"
         description="Load a parts catalogue from a spreadsheet. Vendors named in the file are created as you go."
         className="mb-4"

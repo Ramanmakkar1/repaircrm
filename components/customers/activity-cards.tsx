@@ -8,7 +8,7 @@ import { cn } from "@/components/ui/cn";
 import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
 import { calcTotals, formatCents, invoiceTotals } from "@/lib/money";
 import { EM_DASH, formatDate, formatDateTime, humanizeEnum, preview } from "./format";
-import { RowLink } from "./row-link";
+import { RowLink } from "@/components/list/row-link";
 import { SectionCard } from "./section-card";
 import { EstimateStatus, InvoiceStatus, TicketStatus } from "./status-pill";
 

@@ -19,9 +19,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { CopyableId } from "@/components/ui/copyable-id";
 import { cn } from "@/components/ui/cn";
 import { ICONS } from "@/components/ui/icons";
-import { Breadcrumbs } from "@/components/ui/page-header";
+import { ObjectHeader } from "@/components/ui/object-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -100,37 +101,49 @@ export default async function PurchaseOrderPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Breadcrumbs
-          className="pb-1.5"
-          items={[
-            { label: "Inventory", href: "/inventory" },
-            { label: "Purchase orders", href: "/inventory/purchase-orders" },
-            { label: `#${order.number}` },
-          ]}
-        />
-
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-2.5">
-            <h1 className="text-[26px] font-bold leading-tight tracking-tight text-foreground tabular-nums">
-              Purchase order #{order.number}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
+      <ObjectHeader
+        back={{ label: "Purchase orders", href: "/inventory/purchase-orders" }}
+        value={formatCents(totals.totalCents)}
+        title={`Purchase order #${order.number}`}
+        subtitle={meta.hint}
+        status={
+          <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
+        }
+        id={<CopyableId value={`PO #${order.number}`} label="purchase order number" />}
+        meta={[
+          {
+            label: "Vendor",
+            value: (
               <Link
                 href={`/inventory/vendors/${order.vendor.id}`}
-                className="text-[13.5px] font-semibold text-accent-soft-foreground hover:underline"
+                className="font-medium text-accent-soft-foreground hover:underline"
               >
                 {order.vendor.name}
               </Link>
-              <Chip className="tabular-nums">
-                {totals.receivedQty} of {totals.orderedQty} received
-              </Chip>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
-            <Button variant="outline" asChild>
+            ),
+          },
+          {
+            label: "Received",
+            value: (
+              <span className="rf-num">
+                {totals.receivedQty} of {totals.orderedQty}
+              </span>
+            ),
+          },
+          { label: "Raised", value: formatDate(order.createdAt) },
+          {
+            label: "Placed",
+            value: order.orderedAt ? formatDate(order.orderedAt) : "Not yet",
+          },
+          {
+            label: "Expected",
+            value: order.expectedAt ? formatDate(order.expectedAt) : "—",
+          },
+          { label: "Account", value: order.vendor.accountNumber ?? "—" },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" size="sm" asChild>
               <Link href={`/print/purchase-orders/${order.id}`}>
                 <ICONS.print />
                 Print
@@ -149,9 +162,9 @@ export default async function PurchaseOrderPage({
                 serialized: line.product?.serialized ?? false,
               }))}
             />
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:order-2">
@@ -163,33 +176,25 @@ export default async function PurchaseOrderPage({
             <Row label="Subtotal" value={formatCents(totals.subtotalCents)} />
             <Row label="Shipping" value={formatCents(totals.shippingCents)} />
             <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
                 Total
               </span>
-              <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+              <span className="rf-num text-[22px] font-semibold leading-none tracking-[-0.02em] text-foreground">
                 {formatCents(totals.totalCents)}
               </span>
             </div>
 
-            <dl className="mt-2 flex flex-col gap-2.5 border-t border-border pt-4 text-[13.5px]">
-              <Meta label="Raised" value={formatDate(order.createdAt)} />
+            {/*
+              Raised / placed / expected / account used to be repeated here as
+              a definition list. They are columns in the header's metadata
+              strip now — one place per fact — so this card is only money.
+            */}
+            <dl className="mt-1 flex flex-col gap-2 border-t border-border pt-3 text-[13px]">
+              <Meta label="Raised by" value={order.createdBy?.name ?? "—"} />
               <Meta
-                label="Raised by"
-                value={order.createdBy?.name ?? "—"}
+                label="Fully received"
+                value={order.receivedAt ? formatDate(order.receivedAt) : "Not yet"}
               />
-              <Meta
-                label="Placed"
-                value={order.orderedAt ? formatDate(order.orderedAt) : "Not yet"}
-              />
-              <Meta
-                label="Expected"
-                value={order.expectedAt ? formatDate(order.expectedAt) : "—"}
-              />
-              <Meta
-                label="Received"
-                value={order.receivedAt ? formatDate(order.receivedAt) : "—"}
-              />
-              <Meta label="Account" value={order.vendor.accountNumber ?? "—"} />
             </dl>
           </CardContent>
         </Card>
@@ -295,7 +300,7 @@ export default async function PurchaseOrderPage({
               <Link
                 key={part.id}
                 href={`/tickets/${part.ticket.id}`}
-                className="inline-flex items-center gap-2 rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-foreground transition-colors hover:bg-surface-hover"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
               >
                 <ICONS.ticket className="size-3.5 text-faint-foreground" />
                 <span className="tabular-nums">#{part.ticket.number}</span>

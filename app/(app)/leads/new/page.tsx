@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { LeadForm } from "@/components/leads/lead-form";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 
@@ -13,7 +12,6 @@ export default async function NewLeadPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        icon={ICONS.lead}
         breadcrumbs={[{ label: "Leads", href: "/leads" }, { label: "New lead" }]}
         title="New lead"
         description="Someone rang about a repair. Take a name and a way to reach them — everything else can wait."

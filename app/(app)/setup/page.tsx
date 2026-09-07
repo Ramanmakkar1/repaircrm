@@ -5,7 +5,6 @@ import { appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { paymentsLive } from "@/lib/payments";
 import { formatBps } from "@/lib/money";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { OnboardingWizard, type WizardData } from "@/components/onboarding/wizard";
 import { readOnboarding, resumeStep } from "@/components/onboarding/steps";
@@ -90,7 +89,6 @@ export default async function SetupPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.checklist}
         title="Set up your shop"
         description="Five short steps. Skip anything you'd rather do later — none of it is locked."
       />

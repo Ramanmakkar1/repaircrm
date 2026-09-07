@@ -35,16 +35,16 @@ export function TodayStrip({
   const started = next ? next.startsAt <= now : false;
 
   return (
-    <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3.5">
-        <IconChip icon={CalendarCheck} />
+    <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <IconChip icon={CalendarCheck} size="sm" />
         <div className="flex flex-col">
-          <span className="text-[17px] font-bold leading-tight text-foreground">
+          <span className="text-[15px] font-semibold leading-tight text-foreground">
             {count === 0
               ? "Nothing booked today"
               : `${count} appointment${count === 1 ? "" : "s"} today`}
           </span>
-          <span className="text-[13.5px] text-muted-foreground">
+          <span className="text-[12.5px] text-muted-foreground">
             {format(now, "EEEE, MMMM d")}
           </span>
         </div>
@@ -55,16 +55,16 @@ export function TodayStrip({
           href={editHref(next.id)}
           scroll={false}
           className={cn(
-            "flex items-center gap-3 rounded-md border border-border bg-surface-hover/60 px-4 py-3 transition-colors",
+            "flex items-center gap-2.5 rounded-md border border-border bg-surface-hover/60 px-3 py-2 transition-colors",
             "hover:border-accent/40 hover:bg-accent-soft/50",
           )}
         >
           <Clock className="size-4 shrink-0 text-accent" />
           <div className="flex min-w-0 flex-col">
-            <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="text-[11.5px] font-semibold tracking-[0.02em] text-muted-foreground">
               {started ? "In progress" : `Next · ${shortTime(next.startsAt)}`}
             </span>
-            <span className="truncate text-[14px] font-semibold text-foreground">
+            <span className="truncate text-[13.5px] font-semibold text-foreground">
               {next.title}
               {customerName ? (
                 <span className="font-normal text-muted-foreground">
@@ -73,7 +73,7 @@ export function TodayStrip({
                 </span>
               ) : null}
             </span>
-            <span className="text-[12.5px] tabular-nums text-faint-foreground">
+            <span className="rf-num text-[12px] text-faint-foreground">
               {timeRange(next.startsAt, next.endsAt)}
               {next.assignedTo ? ` · ${next.assignedTo.name}` : ""}
             </span>

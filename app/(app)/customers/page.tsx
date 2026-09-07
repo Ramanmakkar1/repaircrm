@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { ChevronLeft, ChevronRight, Mail, Phone, Plus } from "lucide-react";
 
 import { CustomerSearch } from "@/components/customers/customer-search";
-import { formatDate, initials, plural } from "@/components/customers/format";
+import { formatDate, plural } from "@/components/customers/format";
+import { RowLink } from "@/components/list/row-link";
 import { Button } from "@/components/ui/button";
-import { StatusPill, type StatusTone } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ICONS } from "@/components/ui/icons";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -129,9 +130,8 @@ export default async function CustomersPage({
   const lastRow = Math.min(page * PAGE_SIZE, total);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        icon={ICONS.customer}
         title="Customers"
         description="Every account the shop has on file, with what they owe and what's open."
         actions={
@@ -146,7 +146,7 @@ export default async function CustomersPage({
             ) : null}
             <Button asChild>
               <Link href="/customers/new">
-                <Plus />
+                <ACTIONS.add />
                 New Customer
               </Link>
             </Button>
@@ -154,146 +154,152 @@ export default async function CustomersPage({
         }
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <CustomerSearch query={query} />
-        <p className="text-[13.5px] font-medium text-muted-foreground">
-          {total === 0
-            ? "No customers"
-            : `Showing ${firstRow}–${lastRow} of ${plural(total, "customer")}`}
-        </p>
-      </div>
+      <CustomerSearch query={query} />
 
-      {customers.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={ICONS.customer}
-            title={query ? "No matching customers" : "No customers yet"}
-            hint={
-              query
-                ? `Nothing matches \u201c${query}\u201d. Try a shorter search.`
-                : "Add your first customer to start writing tickets."
-            }
-            action={
-              query ? (
-                <Button variant="outline" asChild>
-                  <Link href="/customers">Clear search</Link>
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/customers/new">
-                    <Plus />
-                    New Customer
-                  </Link>
-                </Button>
-              )
-            }
-          />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {customers.map((customer) => {
-            const open = openTickets.get(customer.id) ?? 0;
-            const balance = balances.get(customer.id) ?? 0;
-            const phone = customer.phone ?? customer.mobile;
-            const name = `${customer.firstName} ${customer.lastName}`.trim();
-            // The stripe is the one thing worth spotting from across the list:
-            // money owed first, then work on the bench, otherwise nothing.
-            const tone: StatusTone | undefined =
-              balance > 0 ? "danger" : open > 0 ? "active" : undefined;
+      <Card className="overflow-hidden">
+        <CardContent className="px-0 py-0">
+          {customers.length === 0 ? (
+            <EmptyState
+              icon={ICONS.customer}
+              title={query ? "No matching customers" : "No customers yet"}
+              hint={
+                query
+                  ? `Nothing matches “${query}”. Try a shorter search.`
+                  : "Add your first customer to start writing tickets."
+              }
+              action={
+                query ? (
+                  <Button variant="outline" asChild>
+                    <Link href="/customers">Clear search</Link>
+                  </Button>
+                ) : (
+                  <Button asChild>
+                    <Link href="/customers/new">
+                      <ACTIONS.add />
+                      New Customer
+                    </Link>
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <>
+              <Table>
+                <THead>
+                  <Tr>
+                    <Th>Name</Th>
+                    <Th>Business</Th>
+                    <Th>Phone</Th>
+                    <Th>Email</Th>
+                    <Th>Customer since</Th>
+                    <Th className="text-right">Open</Th>
+                    <Th className="text-right">Balance</Th>
+                  </Tr>
+                </THead>
+                <TBody>
+                  {customers.map((customer) => {
+                    const open = openTickets.get(customer.id) ?? 0;
+                    const balance = balances.get(customer.id) ?? 0;
+                    const phone = customer.phone ?? customer.mobile;
+                    const name = `${customer.firstName} ${customer.lastName}`.trim();
 
-            return (
-              <Link
-                key={customer.id}
-                href={`/customers/${customer.id}`}
-                className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                <Card interactive tone={tone} className="flex h-full flex-col gap-4 p-5">
-                  <div className="flex items-center gap-3.5">
-                    <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg font-bold text-accent-soft-foreground">
-                      {initials(name)}
-                    </span>
-                    <div className="flex min-w-0 flex-col">
-                      <span
-                        className="truncate text-[17px] font-bold leading-tight text-foreground"
-                        title={name}
-                      >
-                        {name}
-                      </span>
-                      {customer.businessName ? (
-                        <span
-                          className="truncate text-[13.5px] font-medium text-muted-foreground"
-                          title={customer.businessName}
+                    return (
+                      <RowLink key={customer.id} href={`/customers/${customer.id}`}>
+                        <Td>
+                          <Link
+                            href={`/customers/${customer.id}`}
+                            className="block max-w-[200px] truncate font-semibold text-foreground hover:underline"
+                            title={name}
+                          >
+                            {name}
+                          </Link>
+                        </Td>
+
+                        <Td className={customer.businessName ? "text-muted-foreground" : "text-faint-foreground"}>
+                          <span className="block max-w-[180px] truncate">
+                            {customer.businessName ?? "—"}
+                          </span>
+                        </Td>
+
+                        <Td className={phone ? "rf-num" : "text-faint-foreground"}>
+                          {phone ?? "—"}
+                        </Td>
+
+                        <Td className={customer.email ? "text-muted-foreground" : "text-faint-foreground"}>
+                          <span className="block max-w-[220px] truncate">
+                            {customer.email ?? "—"}
+                          </span>
+                        </Td>
+
+                        <Td className="text-muted-foreground">
+                          {formatDate(customer.createdAt)}
+                        </Td>
+
+                        {/*
+                          The two facts that decide whether this row needs a
+                          phone call. On a card they were pills; in a ledger
+                          they are figures, and a figure that is zero should
+                          not be as loud as one that isn't.
+                        */}
+                        <Td
+                          className={cn(
+                            "text-right tabular-nums",
+                            open > 0
+                              ? "font-semibold text-foreground"
+                              : "text-faint-foreground",
+                          )}
                         >
-                          {customer.businessName}
-                        </span>
-                      ) : (
-                        <span className="text-[13.5px] text-faint-foreground">
-                          Since {formatDate(customer.createdAt)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                          {open > 0 ? open : "—"}
+                        </Td>
 
-                  <div className="flex flex-col gap-1.5 text-[13.5px] text-muted-foreground">
-                    <span className="flex items-center gap-2">
-                      <Phone className="size-4 shrink-0 text-faint-foreground" />
-                      <span className="truncate">{phone ?? "No phone on file"}</span>
+                        <Td
+                          className={cn(
+                            "text-right tabular-nums",
+                            balance > 0
+                              ? "font-semibold text-status-overdue-fg"
+                              : "text-faint-foreground",
+                          )}
+                        >
+                          {balance > 0 ? formatCents(balance) : "—"}
+                        </Td>
+                      </RowLink>
+                    );
+                  })}
+                </TBody>
+              </Table>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+                <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
+                  {firstRow}–{lastRow} of {plural(total, "customer")}
+                </p>
+                {pageCount > 1 ? (
+                  <div className="flex items-center gap-1.5">
+                    <PageLink
+                      href={pageHref(query, page - 1)}
+                      disabled={page <= 1}
+                      label="Previous"
+                    >
+                      <ACTIONS.back />
+                      Previous
+                    </PageLink>
+                    <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
+                      {page} / {pageCount}
                     </span>
-                    <span className="flex items-center gap-2">
-                      <Mail className="size-4 shrink-0 text-faint-foreground" />
-                      <span className="truncate">{customer.email ?? "No email on file"}</span>
-                    </span>
+                    <PageLink
+                      href={pageHref(query, page + 1)}
+                      disabled={page >= pageCount}
+                      label="Next"
+                    >
+                      Next
+                      <ACTIONS.next />
+                    </PageLink>
                   </div>
-
-                  {/* The two facts that decide whether this row needs a phone
-                      call, in the same pill language the rest of the app uses. */}
-                  <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
-                    <StatusPill
-                      tone={open > 0 ? "active" : "neutral"}
-                      label={
-                        open > 0 ? plural(open, "open ticket") : "No open tickets"
-                      }
-                    />
-                    <StatusPill
-                      tone={balance > 0 ? "danger" : "success"}
-                      label={
-                        balance > 0 ? `${formatCents(balance)} owing` : "Paid up"
-                      }
-                      className="tabular-nums"
-                    />
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {pageCount > 1 ? (
-        <div className="flex items-center justify-between pt-1">
-          <p className="text-[13.5px] font-medium text-muted-foreground">
-            Page {page} of {pageCount}
-          </p>
-          <div className="flex items-center gap-2">
-            <PageLink
-              href={pageHref(query, page - 1)}
-              disabled={page <= 1}
-              label="Previous"
-            >
-              <ChevronLeft />
-              Previous
-            </PageLink>
-            <PageLink
-              href={pageHref(query, page + 1)}
-              disabled={page >= pageCount}
-              label="Next"
-            >
-              Next
-              <ChevronRight />
-            </PageLink>
-          </div>
-        </div>
-      ) : null}
+                ) : null}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -345,13 +351,13 @@ function PageLink({
 }) {
   if (disabled) {
     return (
-      <Button variant="outline" disabled aria-label={label}>
+      <Button variant="outline" size="sm" disabled aria-label={label}>
         {children}
       </Button>
     );
   }
   return (
-    <Button variant="outline" asChild>
+    <Button variant="outline" size="sm" asChild>
       <Link href={href} aria-label={label} scroll={false}>
         {children}
       </Link>

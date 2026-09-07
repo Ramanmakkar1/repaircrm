@@ -107,7 +107,6 @@ export default async function ReportsPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.reports}
         title="Reports"
         description={`${period.label} · ${period.rangeLabel}${
           location ? ` · ${location.name}` : ""
@@ -271,7 +270,7 @@ export default async function ReportsPage({
               }
             >
               <div className="flex flex-col gap-1">
-                <span className="text-[40px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+                <span className="rf-num text-[30px] font-semibold leading-none tracking-[-0.02em] text-foreground">
                   {formatCents(money.netRevenueCents)}
                 </span>
                 <span className="text-[13.5px] text-muted-foreground">
@@ -501,7 +500,7 @@ export default async function ReportsPage({
                         {refund.reason ? ` · ${refund.reason}` : ""}
                       </span>
                     </div>
-                    <span className="shrink-0 text-[14.5px] font-bold tabular-nums text-destructive">
+                    <span className="rf-num shrink-0 text-[13.5px] font-semibold text-destructive">
                       −{formatCents(refund.amountCents)}
                     </span>
                   </li>
@@ -539,7 +538,7 @@ export default async function ReportsPage({
                 >
                   <span
                     className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-sm text-[13px] font-bold tabular-nums",
+                      "rf-num flex size-7 shrink-0 items-center justify-center rounded-sm text-[12.5px] font-semibold",
                       index === 0
                         ? "bg-accent text-accent-foreground"
                         : "bg-surface-hover text-muted-foreground",
@@ -598,19 +597,24 @@ function Figure({
   tint?: string;
   big?: boolean;
 }) {
+  /*
+   * Label above figure, same as `StatTile` on the dashboard. Reports had it
+   * the other way round, so the same number read in two different orders
+   * depending on which screen you were on.
+   */
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[12.5px] font-medium text-muted-foreground">
+        {label}
+      </span>
       <span
         className={cn(
-          "font-bold leading-none tabular-nums tracking-tight text-foreground",
-          big ? "text-[28px]" : "text-[26px]",
+          "rf-num font-semibold leading-none tracking-[-0.02em] text-foreground",
+          big ? "text-[24px]" : "text-[22px]",
           tint,
         )}
       >
         {value}
-      </span>
-      <span className="text-[13px] font-semibold text-muted-foreground">
-        {label}
       </span>
     </div>
   );

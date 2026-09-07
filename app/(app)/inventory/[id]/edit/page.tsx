@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProductForm } from "@/components/inventory/product-form";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -85,7 +85,6 @@ export default async function EditProductPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.product}
         title="Edit product"
         description="Stock on hand is adjusted from the product page, not here."
       />

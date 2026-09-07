@@ -55,11 +55,11 @@ export function StatementPeriodPicker({
                 navigate(range.from, range.to);
               }}
               className={cn(
-                "inline-flex h-10 items-center rounded-full border px-4 text-[13.5px] font-semibold transition-colors",
+                "inline-flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                 active
-                  ? "border-transparent bg-accent text-accent-foreground shadow-sm"
-                  : "border-border-strong bg-surface text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                  ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"
+                  : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
               )}
             >
               {preset.label}

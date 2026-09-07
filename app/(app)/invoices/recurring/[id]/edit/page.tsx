@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { toDateInputValue } from "@/components/billing/format";
 import { loadDocumentFormData } from "@/components/billing/queries";
@@ -47,7 +46,6 @@ export default async function EditSchedulePage({
   return (
     <div className="flex flex-col">
       <PageHeader
-        icon={ICONS.recurring}
         title={`Edit ${schedule.name}`}
         description="Changes apply to the next invoice this schedule raises — invoices already generated are untouched."
       />

@@ -1,23 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { endOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { endOfDay, format } from "date-fns";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { locationWhere } from "@/lib/location";
+import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { StatusBadge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ICONS } from "@/components/ui/icons";
+import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { TicketFilters } from "@/components/tickets/ticket-filters";
-import { TicketCard } from "@/components/tickets/ticket-card";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { RowLink } from "@/components/list/row-link";
 import {
+  TicketToolbar,
+  type TicketFilterValues,
+} from "@/components/tickets/ticket-toolbar";
+import {
+  asPriority,
+  customerLabel,
   NEEDS_REPLY_FILTER,
+  PRIORITY_META,
   RESOLVED_STATUS,
+  relativeShort,
+  STALENESS_CLASS,
+  STALENESS_LABEL,
+  stalenessLevel,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
@@ -29,6 +42,13 @@ export const metadata: Metadata = { title: "Tickets · RepairFlow" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
+
+/** The two response-target lenses, as a chip group rather than another row of pills. */
+const DUE_VIEWS: { value: string; label: string }[] = [
+  { value: "all", label: "Any" },
+  { value: "overdue", label: "Overdue" },
+  { value: "today", label: "Due today" },
+];
 
 function one(value: string | string[] | undefined, fallback: string): string {
   if (Array.isArray(value)) return value[0] ?? fallback;
@@ -43,13 +63,16 @@ export default async function TicketsPage({
   const { shopId } = await requireUser();
   const params = await searchParams;
 
-  const q = one(params.q, "").trim();
-  const status = one(params.status, "open");
-  const tech = one(params.tech, "all");
-  const problemType = one(params.problemType, "all");
-  const sort = one(params.sort, "created");
-  const due = one(params.due, "all");
-  const customerId = one(params.customerId, "");
+  const filters: TicketFilterValues = {
+    q: one(params.q, "").trim(),
+    status: one(params.status, "open"),
+    tech: one(params.tech, "all"),
+    problemType: one(params.problemType, "all"),
+    sort: one(params.sort, "created"),
+    due: one(params.due, "all"),
+    customerId: one(params.customerId, ""),
+  };
+  const { q, status, tech, problemType, sort, due, customerId } = filters;
   const page = Math.max(1, Number.parseInt(one(params.page, "1"), 10) || 1);
 
   // ------------------------------------------------------------- filters ---
@@ -59,12 +82,12 @@ export default async function TicketsPage({
   // the cookie against this shop, so it can only ever narrow to our own rows.
   const where: Prisma.TicketWhereInput = { shopId, ...(await locationWhere()) };
 
-  // One request-time clock: the due filters below and every card in the render
+  // One request-time clock: the due filters below and every row in the render
   // must agree on where "now" is.
   const requestNow = new Date();
 
   // Computed for every render, not just the filtered one: the same set draws
-  // the blue dot on each card, so one query serves both.
+  // the blue dot on each row, so one query serves both.
   const needsReply = new Set(await needsReplyTicketIds(shopId));
 
   if (status === NEEDS_REPLY_FILTER) {
@@ -92,7 +115,7 @@ export default async function TicketsPage({
   }
 
   // Due filters only ever mean anything for work that is still open, so they
-  // exclude resolved tickets regardless of which status pill is lit.
+  // exclude resolved tickets regardless of which view is selected.
   if (due === "overdue") {
     where.dueDate = { lt: requestNow };
     where.status = { not: RESOLVED_STATUS };
@@ -146,19 +169,16 @@ export default async function TicketsPage({
         priority: true,
         problemType: true,
         dueDate: true,
-        pickedUpAt: true,
         createdAt: true,
         updatedAt: true,
-        checklist: true,
         customer: {
           select: { firstName: true, lastName: true, businessName: true },
         },
         assignedTo: { select: { name: true } },
         asset: { select: { type: true, make: true, model: true } },
-        depositCents: true,
         // Only the OUTSTANDING part orders — a received or canceled one is not
-        // something the card should still be shouting about. Filtered here
-        // rather than in the component so the page never ships rows it will
+        // something the row should still be shouting about. Filtered here
+        // rather than in the render so the page never ships rows it will
         // throw away.
         partOrders: {
           where: { status: { in: [...OPEN_PART_STATUSES] } },
@@ -169,8 +189,7 @@ export default async function TicketsPage({
   ]);
 
   // Single request-time clock, so every row in this render is measured against
-  // the same instant. eslint-disable: react-hooks/purity targets Client
-  // Components; this is a Server Component that renders once per request.
+  // the same instant.
   const now = requestNow.getTime();
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isFiltered =
@@ -178,141 +197,354 @@ export default async function TicketsPage({
     status !== "open" ||
     tech !== "all" ||
     problemType !== "all" ||
-    due !== "all" ||
-    customerId !== "";
+    due !== "all";
 
-  // Preserve the active filters when paging.
-  const pageHref = (target: number) => {
-    const sp = new URLSearchParams();
-    if (q) sp.set("q", q);
-    if (status !== "open") sp.set("status", status);
-    if (tech !== "all") sp.set("tech", tech);
-    if (problemType !== "all") sp.set("problemType", problemType);
-    if (sort !== "created") sp.set("sort", sort);
-    if (due !== "all") sp.set("due", due);
-    if (customerId) sp.set("customerId", customerId);
-    if (target > 1) sp.set("page", String(target));
-    const qs = sp.toString();
-    return qs ? `/tickets?${qs}` : "/tickets";
-  };
+  // ------------------------------------------------------------- linking ---
+  /** A filter change always lands on page 1; paging keeps every filter. */
+  const filterHref = (patch: Partial<TicketFilterValues>) =>
+    ticketsHref({ ...filters, ...patch }, 1);
+  const pageHref = (target: number) => ticketsHref(filters, target);
+
+  const views = [
+    { key: "open", label: "Open jobs" },
+    { key: "all", label: "All" },
+    // Not a status — a state the shop is in. It sits with the statuses because
+    // "who is waiting on me" is the same kind of question as "what is on the
+    // bench", and a front desk asks it just as often.
+    { key: NEEDS_REPLY_FILTER, label: "Needs reply" },
+    ...ticketStatuses(shop?.settings).map((s) => ({ key: s, label: s })),
+  ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <PageHeader
-        icon={ICONS.ticket}
         title="Tickets"
         description="Track repair jobs from intake to pickup."
         actions={
           <Button asChild>
             <Link href="/tickets/new">
-              <Plus />
+              <ACTIONS.add />
               New Ticket
             </Link>
           </Button>
         }
       />
 
-      <TicketFilters
-        values={{ q, status, tech, problemType, sort, due }}
-        statuses={ticketStatuses(shop?.settings)}
-        problemTypes={problems.map((p) => p.problemType)}
-        techs={techs}
-      />
+      <div className="flex flex-col gap-3">
+        <FilterTabs
+          aria-label="Ticket views"
+          tabs={views.map((view) => ({
+            label: view.label,
+            href: filterHref({ status: view.key }),
+            active: status === view.key,
+          }))}
+        />
 
-      {tickets.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={ICONS.ticket}
-            title={
-              status === NEEDS_REPLY_FILTER
-                ? "Nobody is waiting on you"
-                : isFiltered
-                  ? "No tickets match those filters"
-                  : "No tickets yet"
-            }
-            hint={
-              status === NEEDS_REPLY_FILTER
-                ? "Every customer email and text has been answered."
-                : isFiltered
-                  ? "Try another status pill, or clear the filters to see everything."
-                  : "Create the first ticket to start tracking a repair."
-            }
-            action={
-              isFiltered ? (
-                <Button asChild variant="outline">
-                  <Link href="/tickets">Clear filters</Link>
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/tickets/new">
-                    <Plus />
-                    New Ticket
-                  </Link>
-                </Button>
-              )
-            }
+        <TicketToolbar values={filters} problemTypes={problems.map((p) => p.problemType)} />
+
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <FilterChips
+            label="Due"
+            options={DUE_VIEWS.map((view) => ({
+              label: view.label,
+              href: filterHref({ due: view.value }),
+              active: due === view.value,
+            }))}
           />
-        </Card>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {tickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={{
-                  ...ticket,
-                  checklist: checklistProgress(parseChecklist(ticket.checklist)),
-                  needsReply: needsReply.has(ticket.id),
-                }}
-                now={now}
-              />
-            ))}
-          </div>
+          {techs.length > 0 ? (
+            <FilterChips
+              label="Tech"
+              options={[
+                { label: "All", href: filterHref({ tech: "all" }), active: tech === "all" },
+                {
+                  label: "Unassigned",
+                  href: filterHref({ tech: "unassigned" }),
+                  active: tech === "unassigned",
+                },
+                ...techs.map((t) => ({
+                  label: t.name,
+                  href: filterHref({ tech: t.id }),
+                  active: tech === t.id,
+                })),
+              ]}
+            />
+          ) : null}
+        </div>
+      </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
-              Showing {(page - 1) * PAGE_SIZE + 1}–
-              {Math.min(page * PAGE_SIZE, total)} of {total}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button asChild={page > 1} variant="outline" disabled={page <= 1}>
-                {page > 1 ? (
-                  <Link href={pageHref(page - 1)}>
-                    <ChevronLeft />
-                    Previous
-                  </Link>
+      <Card className="overflow-hidden">
+        <CardContent className="px-0 py-0">
+          {tickets.length === 0 ? (
+            <EmptyState
+              icon={ICONS.ticket}
+              title={
+                status === NEEDS_REPLY_FILTER
+                  ? "Nobody is waiting on you"
+                  : isFiltered
+                    ? "No tickets match those filters"
+                    : "No tickets yet"
+              }
+              hint={
+                status === NEEDS_REPLY_FILTER
+                  ? "Every customer email and text has been answered."
+                  : isFiltered
+                    ? "Try another view, or clear the filters to see everything."
+                    : "Create the first ticket to start tracking a repair."
+              }
+              action={
+                isFiltered ? (
+                  <Button asChild variant="outline">
+                    <Link href={filterHref({ q: "", status: "open", tech: "all", problemType: "all", due: "all" })}>
+                      Clear filters
+                    </Link>
+                  </Button>
                 ) : (
-                  <span>
-                    <ChevronLeft />
-                    Previous
-                  </span>
-                )}
-              </Button>
-              <span className="px-1 text-[13.5px] font-semibold text-muted-foreground tabular-nums">
-                {page} / {pageCount}
-              </span>
-              <Button
-                asChild={page < pageCount}
-                variant="outline"
-                disabled={page >= pageCount}
-              >
-                {page < pageCount ? (
-                  <Link href={pageHref(page + 1)}>
-                    Next
-                    <ChevronRight />
-                  </Link>
-                ) : (
-                  <span>
-                    Next
-                    <ChevronRight />
-                  </span>
-                )}
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
+                  <Button asChild>
+                    <Link href="/tickets/new">
+                      <ACTIONS.add />
+                      New Ticket
+                    </Link>
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <>
+              <Table>
+                <THead>
+                  <Tr>
+                    <Th>Ticket</Th>
+                    <Th>Customer</Th>
+                    <Th>Subject</Th>
+                    <Th>Status</Th>
+                    <Th>Assigned</Th>
+                    <Th>Due</Th>
+                    <Th className="text-right">Updated</Th>
+                  </Tr>
+                </THead>
+                <TBody>
+                  {tickets.map((ticket) => {
+                    const priority = asPriority(ticket.priority);
+                    const loud = priority === "HIGH" || priority === "URGENT";
+                    const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
+                    // Quiet until the job is actually rotting: a green "touched
+                    // today" chip on nine rows out of ten is decoration, not a
+                    // signal.
+                    const heat = level === "stale" || level === "critical";
+                    const chip = dueChip(
+                      ticket.dueDate,
+                      ticket.status === RESOLVED_STATUS,
+                      now,
+                    );
+                    const device =
+                      ticket.asset && (ticket.asset.make || ticket.asset.model)
+                        ? [ticket.asset.make, ticket.asset.model]
+                            .filter(Boolean)
+                            .join(" ")
+                        : (ticket.asset?.type ?? null);
+                    const openParts = ticket.partOrders.length;
 
+                    return (
+                      <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
+                        <Td>
+                          <span className="flex items-center gap-1.5">
+                            <Link
+                              href={`/tickets/${ticket.id}`}
+                              className="rf-id font-semibold text-accent-soft-foreground hover:underline"
+                            >
+                              #{ticket.number}
+                            </Link>
+                            {/* One small blue dot: a customer message is
+                                waiting. It has to survive being scanned in half
+                                a second, so it rides on the id rather than
+                                becoming another pill further down the row. */}
+                            {needsReply.has(ticket.id) ? (
+                              <span
+                                title="Customer replied — no answer yet"
+                                className="size-[7px] shrink-0 rounded-full bg-accent"
+                              >
+                                <span className="sr-only">Needs reply</span>
+                              </span>
+                            ) : null}
+                          </span>
+                        </Td>
+
+                        <Td className="font-medium text-foreground">
+                          <span className="block max-w-[180px] truncate">
+                            {customerLabel(ticket.customer)}
+                          </span>
+                        </Td>
+
+                        {/*
+                          Subject and device shared a row and half a screen
+                          between them, which pushed "Updated" off the right
+                          edge at 1440px — the table scrolled sideways to show
+                          a column that was mostly restating the subject
+                          ("ThinkPad T14 — pop-ups" next to "Lenovo ThinkPad
+                          T14"). The device is structured data and the subject
+                          is typed by hand, so neither can be dropped; stacking
+                          them costs one column and no information.
+                        */}
+                        <Td className="whitespace-normal">
+                          <span className="flex items-center gap-2">
+                            <span
+                              className="block max-w-[320px] truncate"
+                              title={ticket.subject}
+                            >
+                              {ticket.subject}
+                            </span>
+                            {loud ? (
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded-sm px-1.5 py-0.5 text-[11.5px] font-semibold leading-none",
+                                  PRIORITY_META[priority].chip,
+                                )}
+                              >
+                                {PRIORITY_META[priority].label}
+                              </span>
+                            ) : null}
+                            {openParts > 0 ? (
+                              <span
+                                title="Part orders still outstanding"
+                                className="shrink-0 rounded-sm bg-status-waiting-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-status-waiting-fg"
+                              >
+                                {openParts} part{openParts === 1 ? "" : "s"}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-0.5 block max-w-[320px] truncate text-[12.5px] text-muted-foreground">
+                            {device ?? ticket.problemType ?? "—"}
+                          </span>
+                        </Td>
+
+                        <Td>
+                          <StatusBadge status={ticket.status} />
+                        </Td>
+
+                        <Td
+                          className={cn(
+                            ticket.assignedTo
+                              ? "text-muted-foreground"
+                              : "text-faint-foreground",
+                          )}
+                        >
+                          <span className="block max-w-[130px] truncate">
+                            {ticket.assignedTo?.name ?? "Unassigned"}
+                          </span>
+                        </Td>
+
+                        <Td>
+                          {!ticket.dueDate ? (
+                            <span className="text-faint-foreground">—</span>
+                          ) : chip && chip.tone !== "later" ? (
+                            <span
+                              className={cn(
+                                "inline-block rounded-sm px-1.5 py-0.5 text-[11.5px] leading-none",
+                                DUE_TONE_CLASS[chip.tone],
+                              )}
+                            >
+                              {chip.label}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">
+                              {format(ticket.dueDate, "MMM d")}
+                            </span>
+                          )}
+                        </Td>
+
+                        <Td className="text-right">
+                          <span
+                            title={STALENESS_LABEL[level]}
+                            className={cn(
+                              "rf-num text-[12.5px]",
+                              heat
+                                ? cn(
+                                    "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
+                                    STALENESS_CLASS[level],
+                                  )
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {relativeShort(ticket.updatedAt, now)}
+                          </span>
+                        </Td>
+                      </RowLink>
+                    );
+                  })}
+                </TBody>
+              </Table>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+                <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
+                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of{" "}
+                  {total}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Button asChild={page > 1} size="sm" variant="outline" disabled={page <= 1}>
+                    {page > 1 ? (
+                      <Link href={pageHref(page - 1)}>
+                        <ACTIONS.back />
+                        Previous
+                      </Link>
+                    ) : (
+                      <span>
+                        <ACTIONS.back />
+                        Previous
+                      </span>
+                    )}
+                  </Button>
+                  <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
+                    {page} / {pageCount}
+                  </span>
+                  <Button
+                    asChild={page < pageCount}
+                    size="sm"
+                    variant="outline"
+                    disabled={page >= pageCount}
+                  >
+                    {page < pageCount ? (
+                      <Link href={pageHref(page + 1)}>
+                        Next
+                        <ACTIONS.next />
+                      </Link>
+                    ) : (
+                      <span>
+                        Next
+                        <ACTIONS.next />
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The one place a /tickets URL is spelled. Defaults are stripped so the
+ * everyday views stay on clean, shareable links; `customerId` survives every
+ * filter change because it scopes the list rather than filtering it.
+ *
+ * `components/tickets/ticket-toolbar.tsx` carries a copy for the controls that
+ * genuinely need a client — a helper exported from a `"use client"` module
+ * cannot be called during a server render.
+ */
+function ticketsHref(values: TicketFilterValues, page: number): string {
+  const params = new URLSearchParams();
+  if (values.q) params.set("q", values.q);
+  if (values.status !== "open") params.set("status", values.status);
+  if (values.tech !== "all") params.set("tech", values.tech);
+  if (values.problemType !== "all") params.set("problemType", values.problemType);
+  if (values.sort !== "created") params.set("sort", values.sort);
+  if (values.due !== "all") params.set("due", values.due);
+  if (values.customerId) params.set("customerId", values.customerId);
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  return qs ? `/tickets?${qs}` : "/tickets";
 }

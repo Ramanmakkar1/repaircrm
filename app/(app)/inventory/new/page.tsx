@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ProductForm } from "@/components/inventory/product-form";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -42,7 +42,6 @@ export default async function NewProductPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.product}
         title="New product"
         description="Only a name and a price are required — the rest can come later."
       />

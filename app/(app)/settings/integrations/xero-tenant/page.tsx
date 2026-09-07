@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readSettings } from "@/lib/integrations/oauth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { XeroTenantPicker } from "@/components/settings/xero-tenant-picker";
 
@@ -51,7 +51,6 @@ export default async function XeroTenantPage() {
       </Link>
 
       <PageHeader
-        icon={ICONS.integration}
         title="Choose a Xero organisation"
         description="Your Xero login reaches more than one set of books. Pick the one this shop belongs in."
       />

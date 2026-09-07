@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AlertCircle } from "lucide-react";
 
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PhoneScanDialog } from "@/components/scan/phone-scan-dialog";
 import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
@@ -471,7 +471,6 @@ export function Register({
     return (
       <div className="flex flex-col gap-5">
         <PageHeader
-          icon={ICONS.pos}
           title="POS"
           description="Ring up walk-in sales at the counter."
         />
@@ -484,7 +483,6 @@ export function Register({
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        icon={ICONS.pos}
         title="POS"
         description="Ring up walk-in sales at the counter."
         actions={

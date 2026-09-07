@@ -1,15 +1,19 @@
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/components/ui/cn";
+import { Button } from "@/components/ui/button";
+import { ACTIONS } from "@/components/ui/icons";
 
 export const PAGE_SIZE = 25;
 
 /**
- * Prev/next pager for the billing lists. Server-rendered links (not buttons) so
- * a page is a real, shareable URL and the browser's back button behaves.
+ * The footer band under a billing list table: how many rows you are looking
+ * at, and one step either way.
+ *
+ * It lives INSIDE the table's card, hanging off a hairline, rather than
+ * floating below it as a second block — a pager that belongs to a table should
+ * be attached to it. Server-rendered links (not buttons) so a page is a real,
+ * shareable URL and the browser's back button behaves.
  */
 export function Pagination({
   basePath,
@@ -38,36 +42,46 @@ export function Pagination({
     return qs ? `${basePath}?${qs}` : basePath;
   };
 
-  const linkClass = cn(buttonVariants({ variant: "outline" }));
-  const disabledClass = cn(linkClass, "pointer-events-none opacity-50");
-
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-      <p className="text-[13.5px] font-medium text-muted-foreground tabular-nums">
-        {total === 0
-          ? "No results"
-          : `${from}–${to} of ${total}`}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+      <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
+        {total === 0 ? "No results" : `${from}–${to} of ${total}`}
       </p>
-      <div className="flex items-center gap-2">
-        <Link
-          href={href(page - 1)}
-          className={page <= 1 ? disabledClass : linkClass}
-          aria-disabled={page <= 1}
-          tabIndex={page <= 1 ? -1 : undefined}
-        >
-          <ChevronLeft /> Prev
-        </Link>
-        <span className="px-1 text-[13.5px] font-semibold text-muted-foreground tabular-nums">
+      <div className="flex items-center gap-1.5">
+        <Button asChild={page > 1} size="sm" variant="outline" disabled={page <= 1}>
+          {page > 1 ? (
+            <Link href={href(page - 1)} scroll={false}>
+              <ACTIONS.back />
+              Previous
+            </Link>
+          ) : (
+            <span>
+              <ACTIONS.back />
+              Previous
+            </span>
+          )}
+        </Button>
+        <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
           {page} / {pageCount}
         </span>
-        <Link
-          href={href(page + 1)}
-          className={page >= pageCount ? disabledClass : linkClass}
-          aria-disabled={page >= pageCount}
-          tabIndex={page >= pageCount ? -1 : undefined}
+        <Button
+          asChild={page < pageCount}
+          size="sm"
+          variant="outline"
+          disabled={page >= pageCount}
         >
-          Next <ChevronRight />
-        </Link>
+          {page < pageCount ? (
+            <Link href={href(page + 1)} scroll={false}>
+              Next
+              <ACTIONS.next />
+            </Link>
+          ) : (
+            <span>
+              Next
+              <ACTIONS.next />
+            </span>
+          )}
+        </Button>
       </div>
     </div>
   );

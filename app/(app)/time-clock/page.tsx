@@ -162,7 +162,6 @@ export default async function TimeClockPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={ICONS.timeClock}
         title="Time clock"
         description="Clock in when you start, clock out when you finish. That's it."
       />

@@ -118,7 +118,7 @@ export function CartPanel({
         <h2 className="text-base font-bold tracking-tight text-foreground">
           Cart
           {itemCount > 0 ? (
-            <span className="ml-2 rounded-full bg-accent-soft px-2.5 py-0.5 text-[12.5px] font-bold tabular-nums text-accent-soft-foreground">
+            <span className="rf-num ml-2 rounded-md bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent-soft-foreground">
               {itemCount}
             </span>
           ) : null}

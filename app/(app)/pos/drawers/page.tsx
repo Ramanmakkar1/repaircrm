@@ -60,7 +60,6 @@ export default async function DrawersPage() {
       </Link>
 
       <PageHeader
-        icon={ICONS.cash}
         title="Cash drawers"
         description="Every open and close, with what the till was expected to hold and what it actually held."
       />

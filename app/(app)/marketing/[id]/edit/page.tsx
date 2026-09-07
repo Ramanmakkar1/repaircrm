@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { CampaignForm } from "@/components/marketing/campaign-form";
 import { updateCampaignAction } from "../../actions";
@@ -52,7 +52,6 @@ export default async function EditCampaignPage({
       </Link>
 
       <PageHeader
-        icon={ICONS.marketing}
         title="Edit campaign"
         description="Reworded copy applies to every message still queued. A change to the wait only affects events queued from here on — already-scheduled dates stay put."
       />
