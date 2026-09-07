@@ -2,8 +2,14 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./cn";
 
+/*
+ * A status pill is a 6px RECTANGLE with a dot in it, not a lozenge. The
+ * rounded-full lozenge is what made the old UI read as consumer-friendly;
+ * squaring it off is most of what makes a row of statuses read as a ledger.
+ * `rounded-full` is still correct for avatars and bare dots — just not here.
+ */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none w-fit",
+  "inline-flex items-center gap-1.5 rounded-md px-2 py-[3px] text-[12px] font-semibold leading-none w-fit",
   {
     variants: {
       variant: {
@@ -123,8 +129,8 @@ export function StatusPill({
       className={cn(
         "inline-flex w-fit items-center leading-none",
         small
-          ? "gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium"
-          : "gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold",
+          ? "gap-1.5 rounded-sm px-1.5 py-0.5 text-[11.5px] font-medium"
+          : "gap-1.5 rounded-md px-2 py-[3px] text-[12px] font-semibold",
         meta.chip,
         className,
       )}
@@ -134,7 +140,7 @@ export function StatusPill({
         <span
           className={cn(
             "shrink-0 rounded-full",
-            small ? "size-1.5" : "size-2",
+            small ? "size-1.5" : "size-[7px]",
             meta.dot,
           )}
         />

@@ -19,8 +19,8 @@ export function Sidebar({
         single hairline on its right edge is what makes it read as a rail, and
         the brand block's own hairline lines up exactly with the topbar's.
       */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-sidebar-bg md:flex">
-        <div className="flex h-16 shrink-0 items-center border-b border-border px-3">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar-bg md:flex">
+        <div className="flex h-14 shrink-0 items-center border-b border-border px-3">
           <Brand />
         </div>
         <NavLinks />
@@ -42,7 +42,7 @@ export function Sidebar({
         )}
         aria-hidden={!mobileOpen}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-3">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3">
           <Brand />
           <button
             type="button"

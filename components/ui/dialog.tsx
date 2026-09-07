@@ -35,7 +35,7 @@ export function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "rf-dialog-content fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border border-border bg-surface p-6 shadow-xl outline-none",
+          "rf-dialog-content fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-border bg-surface p-5 shadow-xl outline-none",
           className,
         )}
         {...props}
@@ -69,7 +69,7 @@ export function DialogTitle({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-lg font-bold tracking-tight text-foreground", className)}
+      className={cn("text-[16px] font-semibold tracking-[-0.01em] text-foreground", className)}
       {...props}
     />
   );

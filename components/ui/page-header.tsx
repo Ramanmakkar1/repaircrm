@@ -70,7 +70,6 @@ export function PageHeader({
   description,
   actions,
   breadcrumbs,
-  icon: Icon,
   className,
 }: {
   title: string;
@@ -78,13 +77,6 @@ export function PageHeader({
   actions?: React.ReactNode;
   /** Optional trail rendered above the title. Existing callers pass nothing. */
   breadcrumbs?: Crumb[];
-  /**
-   * The concept this screen is about, from `components/ui/icons.ts`. Purely
-   * decorative — the title says the same thing in words — so it is hidden from
-   * assistive tech and dropped entirely on a phone, where 44px of glyph is
-   * 44px of headline that has to wrap instead.
-   */
-  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   className?: string;
 }) {
   return (
@@ -94,31 +86,23 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-3.5">
-        {Icon ? (
-          <span
-            aria-hidden
-            className="hidden size-11 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-soft-foreground sm:flex"
-          >
-            <Icon className="size-[22px]" strokeWidth={2.1} />
-          </span>
-        ) : null}
-        <div className="flex min-w-0 flex-col gap-1.5">
+      <div className="flex min-w-0 items-center">
+        <div className="flex min-w-0 flex-col gap-1">
           {breadcrumbs && breadcrumbs.length > 0 ? (
             <Breadcrumbs items={breadcrumbs} className="mb-0.5" />
           ) : null}
-          <h1 className="text-[26px] font-bold leading-tight tracking-tight text-foreground">
+          <h1 className="text-[20px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {title}
           </h1>
           {description ? (
-            <p className="text-[15px] leading-snug text-muted-foreground">
+            <p className="text-[13.5px] leading-snug text-muted-foreground">
               {description}
             </p>
           ) : null}
         </div>
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </div>
   );

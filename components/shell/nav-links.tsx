@@ -37,52 +37,99 @@ function groupNavItems(): { label: string; items: NavItem[] }[] {
     : groups;
 }
 
+/** A route owns the rail row for itself and everything nested beneath it. */
+function isUnder(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 /**
- * A white rail of quiet rows. Definition comes from typography and one accent
- * tint rather than a chip on every line: at rest a row is a gray label with a
- * gray glyph, on hover it picks up a gray-50 fill, and the current page is an
- * unmistakable soft-indigo pill with an indigo icon and a darker label.
+ * A white rail of quiet rows.
+ *
+ * The current page is marked three ways at once — a 2px accent bar on the
+ * left edge, a faint tint across the row, and the label in accent ink — which
+ * together are far quieter than the filled indigo pill this replaced, while
+ * being easier to find at a glance. The bar is what your eye tracks when you
+ * scan the rail vertically.
+ *
+ * Sub-items appear only underneath the section you are actually in. That is
+ * the whole trick behind a rail that stays short while the app keeps growing:
+ * Inventory's vendors, purchase orders and importer are one click away when
+ * you are in Inventory, and cost nothing when you are not.
  */
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const groups = groupNavItems();
 
   return (
-    <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-5">
+    <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-2.5 py-4">
       {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
+        <div key={group.label} className="flex flex-col gap-0.5">
+          <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
             {group.label}
           </p>
           {group.items.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const isActive = isUnder(pathname, item.href);
             const Icon = item.icon;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "group flex h-10 items-center gap-3 rounded-md px-3 text-[14.5px] transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                  isActive
-                    ? "bg-accent-soft font-semibold text-accent-soft-foreground"
-                    : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                )}
-              >
-                <Icon
+              <div key={item.href} className="flex flex-col gap-0.5">
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "size-[18px] shrink-0 transition-colors",
+                    "group relative flex h-8 items-center gap-2.5 rounded-md pl-3 pr-2 text-[13.5px] transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                     isActive
-                      ? "text-accent"
-                      : "text-faint-foreground group-hover:text-muted-foreground",
+                      ? "bg-surface-hover font-semibold text-accent-soft-foreground"
+                      : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                   )}
-                  strokeWidth={isActive ? 2.4 : 2}
-                />
-                <span className="truncate">{item.label}</span>
-              </Link>
+                >
+                  {isActive ? (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-accent"
+                    />
+                  ) : null}
+                  <Icon
+                    className={cn(
+                      "size-4 shrink-0 transition-colors",
+                      isActive
+                        ? "text-accent"
+                        : "text-faint-foreground group-hover:text-muted-foreground",
+                    )}
+                    strokeWidth={2}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+
+                {/*
+                  Children are words, not icons, and they only exist while you
+                  are inside their section — so the rail never grows past what
+                  the current task needs.
+                */}
+                {isActive && item.children
+                  ? item.children.map((child) => {
+                      const childActive = isUnder(pathname, child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          onClick={onNavigate}
+                          aria-current={childActive ? "page" : undefined}
+                          className={cn(
+                            "flex h-7 items-center rounded-md pl-[38px] pr-2 text-[13px] transition-colors",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                            childActive
+                              ? "font-semibold text-accent-soft-foreground"
+                              : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                          )}
+                        >
+                          <span className="truncate">{child.label}</span>
+                        </Link>
+                      );
+                    })
+                  : null}
+              </div>
             );
           })}
         </div>

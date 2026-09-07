@@ -4,6 +4,20 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /**
+   * Second-level destinations that belong to this object type.
+   *
+   * These render as indented, icon-less text under the parent — the parent
+   * keeps the glyph, the children are words. Icon-on-every-row is what makes a
+   * rail look busy, and it also flattens the hierarchy: if a vendor list and
+   * the Inventory section both carry a picture, nothing tells you one is
+   * inside the other.
+   *
+   * Everything listed here already shipped and worked; it was just unreachable
+   * without typing the URL. A feature nobody can find is a feature nobody
+   * bought.
+   */
+  children?: { label: string; href: string }[];
 }
 
 /**
@@ -19,12 +33,36 @@ export const NAV_ITEMS: NavItem[] = [
   // enquiry, booking, customer, ticket.
   { label: "Leads", href: "/leads", icon: ICONS.lead },
   { label: "Appointments", href: "/appointments", icon: ICONS.appointment },
-  { label: "Customers", href: "/customers", icon: ICONS.customer },
+  {
+    label: "Customers",
+    href: "/customers",
+    icon: ICONS.customer,
+    children: [{ label: "Import", href: "/customers/import" }],
+  },
   { label: "Tickets", href: "/tickets", icon: ICONS.ticket },
   { label: "Estimates", href: "/estimates", icon: ICONS.estimate },
-  { label: "Invoices", href: "/invoices", icon: ICONS.invoice },
-  { label: "POS", href: "/pos", icon: ICONS.pos },
-  { label: "Inventory", href: "/inventory", icon: ICONS.inventory },
+  {
+    label: "Invoices",
+    href: "/invoices",
+    icon: ICONS.invoice,
+    children: [{ label: "Recurring", href: "/invoices/recurring" }],
+  },
+  {
+    label: "POS",
+    href: "/pos",
+    icon: ICONS.pos,
+    children: [{ label: "Cash drawers", href: "/pos/drawers" }],
+  },
+  {
+    label: "Inventory",
+    href: "/inventory",
+    icon: ICONS.inventory,
+    children: [
+      { label: "Vendors", href: "/inventory/vendors" },
+      { label: "Purchase orders", href: "/inventory/purchase-orders" },
+      { label: "Import", href: "/inventory/import" },
+    ],
+  },
   { label: "Marketing", href: "/marketing", icon: ICONS.marketing },
   { label: "Reports", href: "/reports", icon: ICONS.reports },
   { label: "Shop Display", href: "/display", icon: ICONS.display },

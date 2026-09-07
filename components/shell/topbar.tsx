@@ -26,13 +26,13 @@ export function Topbar({
   onSearchClick: () => void;
 }) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             onClick={onMenuClick}
-            className="flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 md:hidden"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 md:hidden"
           >
             <Menu className="size-5" />
             <span className="sr-only">Open menu</span>

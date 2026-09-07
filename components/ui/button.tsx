@@ -4,9 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "./cn";
 
 /**
- * Chunky, friendly buttons: a 40px default target, generous horizontal padding
- * and a 12px corner so they read as tappable objects rather than dense toolbar
- * affordances. `sm` is still a real button (36px), not a link in disguise.
+ * Tight, toolbar-grade buttons: a 36px default target on a 6px corner.
+ *
+ * Stripe's own dashboard controls are 32px, but this app is worked on counter
+ * tablets and phones in the POS and the workroom, so the default keeps a 36px
+ * hit target and `sm` takes the 32px slot. That is still a real tightening —
+ * every button in the app was 40px before.
  *
  * Variants and sizes are additive — `soft` and `lg` were added for the card UI,
  * the original four variants and three sizes keep their names and meaning.
@@ -21,19 +24,19 @@ const buttonVariants = cva(
          * contact shadow seats it on the page, anything heavier reads cheap.
          */
         default:
-          "bg-accent text-accent-foreground shadow-xs hover:bg-accent-hover hover:shadow-sm",
+          "bg-accent text-accent-foreground shadow-xs hover:bg-accent-hover",
         outline:
           "border border-border-strong bg-surface text-foreground shadow-xs hover:bg-surface-hover",
         ghost: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
         soft: "bg-accent-soft text-accent-soft-foreground hover:brightness-[0.96]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive-hover hover:shadow-sm",
+          "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive-hover",
       },
       size: {
-        default: "h-10 px-4 text-sm [&_svg]:size-4",
-        sm: "h-9 px-3.5 text-[13.5px] [&_svg]:size-4",
-        lg: "h-12 px-6 text-base [&_svg]:size-5",
-        icon: "h-10 w-10 shrink-0 [&_svg]:size-[18px]",
+        default: "h-9 px-3.5 text-[13.5px] [&_svg]:size-4",
+        sm: "h-8 px-3 text-[13px] [&_svg]:size-[15px]",
+        lg: "h-10 px-5 text-sm [&_svg]:size-[18px]",
+        icon: "h-9 w-9 shrink-0 [&_svg]:size-[17px]",
       },
     },
     defaultVariants: {

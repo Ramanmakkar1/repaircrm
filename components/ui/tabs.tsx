@@ -14,7 +14,7 @@ export function TabsList({
     <TabsPrimitive.List
       className={cn(
         // gray track + hairline, so the white active chip has something to sit in
-        "inline-flex h-11 items-center gap-1 rounded-md border border-border bg-surface-hover p-1",
+        "inline-flex h-9 items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1",
         className,
       )}
       {...props}
@@ -29,8 +29,8 @@ export function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "inline-flex h-9 items-center justify-center rounded-sm px-4 text-sm font-semibold text-muted-foreground transition-colors",
-        "hover:text-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+        "inline-flex h-7 items-center justify-center rounded-sm px-3 text-[13px] font-semibold text-muted-foreground transition-colors",
+        "hover:text-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-xs",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         className,
       )}

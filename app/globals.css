@@ -22,21 +22,21 @@
  */
 
 :root {
-  /* surfaces — white canvas, white rail, white cards */
-  --background: #ffffff; /* app canvas */
-  --sidebar-bg: #ffffff; /* rail reads via its hairline border, not a tint */
+  /* surfaces — light cool canvas, white rail, white cards */
+  --background: #f6f8fa; /* app canvas: cards sit ON something now */
+  --sidebar-bg: #ffffff; /* rail is white against the gray canvas */
   --surface: #ffffff; /* cards, topbar, popovers */
-  --surface-hover: #f5f6f8; /* cool gray-50/100: hovers, chips, header bands */
+  --surface-hover: #f1f4f8; /* hovers, chips, table header bands */
   --overlay: rgb(15 18 26 / 0.4);
 
-  /* borders — crisp neutral hairlines, the main source of card definition */
-  --border: #e7e7ea;
-  --border-strong: #d3d4d9;
+  /* borders — cool hairlines, still the main source of card definition */
+  --border: #e3e8ee;
+  --border-strong: #cfd7e3;
 
-  /* text — cool neutral grays */
-  --foreground: #101114;
-  --muted-foreground: #61646c;
-  --faint-foreground: #9095a0;
+  /* text — the cool blue-gray ramp that reads as "financial software" */
+  --foreground: #1a1f36;
+  --muted-foreground: #697386;
+  --faint-foreground: #8792a2;
 
   /* accent — deep indigo */
   --accent: #4338ca;
@@ -96,34 +96,41 @@
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, "Helvetica Neue", sans-serif;
 
-  /*
-   * Chunky, friendly geometry.
-   *
-   * The scale names are Tailwind's own, so every existing `rounded-md` /
-   * `rounded-lg` in the app grows without a single class rename:
-   *   sm 8px · md 12px · lg 16px · xl 20px · 2xl 24px
-   */
-  --radius-xs: 0.375rem; /* 6px  */
-  --radius-sm: 0.5rem; /*   8px  */
-  --radius-md: 0.75rem; /*  12px */
-  --radius-lg: 1rem; /*     16px */
-  --radius-xl: 1.25rem; /*  20px */
-  --radius-2xl: 1.5rem; /*  24px */
-  --radius-3xl: 2rem; /*    32px */
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 
   /*
-   * Layered, barely-there shadows. On a pure-white canvas the hairline border
-   * draws the card's edge and the shadow only lifts it off the page — so each
-   * step is two very light layers (a tight contact shadow plus a wider,
-   * softer one) rather than a single heavy drop.
+   * Tight, engineered geometry.
+   *
+   * The scale names are Tailwind's own, so every existing `rounded-md` /
+   * `rounded-lg` in the app tightens without a single class rename:
+   *   sm 4px · md 6px · lg 8px · 2xl 12px
+   *
+   * Nothing in the app chrome goes above 12px. `rounded-full` stays legal for
+   * avatars and status dots — but NOT for status pills, which are 6px rects
+   * with a dot in them (see components/ui/badge.tsx).
    */
-  --shadow-xs: 0 1px 2px 0 rgb(var(--shadow-color) / 0.05);
-  --shadow-sm:
-    0 1px 2px 0 rgb(var(--shadow-color) / 0.04),
-    0 1px 3px 0 rgb(var(--shadow-color) / 0.06);
+  --radius-xs: 0.1875rem; /* 3px  */
+  --radius-sm: 0.25rem; /*    4px  */
+  --radius-md: 0.375rem; /*   6px  — buttons, inputs, badges */
+  --radius-lg: 0.5rem; /*     8px  — cards, tables, panels */
+  --radius-xl: 0.5rem; /*     8px  */
+  --radius-2xl: 0.75rem; /*  12px  — dialogs, the largest shape in the app */
+  --radius-3xl: 0.75rem; /*  12px  */
+
+  /*
+   * Shadow is now reserved for things that genuinely float. A card on the gray
+   * canvas is separated by its own white fill plus a hairline — it does not
+   * need to be lifted as well, so xs/sm are nearly invisible on purpose.
+   * md and up are for dropdowns, popovers and dialogs, which really do sit
+   * above the page and need to say so.
+   */
+  --shadow-xs: 0 1px 1px 0 rgb(var(--shadow-color) / 0.04);
+  --shadow-sm: 0 1px 2px 0 rgb(var(--shadow-color) / 0.05);
   --shadow-md:
-    0 2px 4px -2px rgb(var(--shadow-color) / 0.04),
-    0 4px 10px -2px rgb(var(--shadow-color) / 0.08);
+    0 2px 5px -2px rgb(var(--shadow-color) / 0.06),
+    0 4px 12px -4px rgb(var(--shadow-color) / 0.10);
   --shadow-lg:
     0 4px 6px -2px rgb(var(--shadow-color) / 0.03),
     0 12px 20px -4px rgb(var(--shadow-color) / 0.09);
@@ -193,18 +200,18 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0b0c0e;
-    --sidebar-bg: #0b0c0e;
-    --surface: #131417;
-    --surface-hover: #1c1e22;
+    --background: #0a0b0d; /* canvas sits BELOW the rail and cards */
+    --sidebar-bg: #101216;
+    --surface: #15171c;
+    --surface-hover: #1e2128;
     --overlay: rgb(0 0 0 / 0.6);
 
-    --border: #25272c;
-    --border-strong: #35383f;
+    --border: #262b33;
+    --border-strong: #363c46;
 
-    --foreground: #f1f2f4;
-    --muted-foreground: #9ba0aa;
-    --faint-foreground: #6c7079;
+    --foreground: #f0f2f6;
+    --muted-foreground: #98a1b0;
+    --faint-foreground: #6b7483;
 
     --accent: #8b85f2;
     --accent-hover: #a09af6;
@@ -273,10 +280,28 @@
     background: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Column alignment is most of what makes a dense table feel engineered
+   * rather than merely cramped, so every table in the app gets lining,
+   * fixed-width figures for free. `.rf-num` is the opt-in for money and
+   * counts that live outside a table (KPI tiles, invoice totals).
+   */
+  table,
+  .rf-num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Object ids — ticket numbers, invoice numbers, Stripe ids — read as data. */
+  .rf-id {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
   }
 
   ::selection {
@@ -407,23 +432,21 @@
 /* ---------------------------------------------------------------------- */
 
 /*
- * The hover lift shared by every clickable card in the app. Kept in CSS rather
- * than as a Tailwind class soup so a card only has to opt in with one token,
- * and so the motion respects a reduced-motion preference in one place.
+ * The hover response shared by every clickable card in the app. Kept in CSS
+ * rather than as a Tailwind class soup so a card only has to opt in with one
+ * token, and so the motion respects a reduced-motion preference in one place.
+ *
+ * It used to lift the card 2px off the page. Nothing in a ledger jumps when
+ * you point at it — a row of cards that all bob on hover reads as a toy — so
+ * the response is now the border firming up and the surface warming, in the
+ * 120ms Stripe uses for every hover in its dashboard. The class name stays
+ * because ten call sites spell it, and none of them need to know.
  */
 .rf-lift {
   transition:
-    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 160ms ease;
-}
-
-.rf-lift:hover {
-  transform: translateY(-2px);
-}
-
-.rf-lift:active {
-  transform: translateY(0);
+    background-color 120ms ease-out,
+    box-shadow 120ms ease-out,
+    border-color 120ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

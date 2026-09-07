@@ -20,7 +20,7 @@ export function Chip({
   return (
     <span
       className={cn(
-        "inline-flex w-fit max-w-full items-center gap-1.5 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-medium leading-none text-muted-foreground",
+        "inline-flex w-fit max-w-full items-center gap-1.5 rounded-md bg-surface-hover px-2 py-[3px] text-[12px] font-medium leading-none text-muted-foreground",
         className,
       )}
       {...props}
@@ -32,9 +32,10 @@ export function Chip({
 }
 
 /**
- * A soft, square-ish tile holding a single icon — the visual anchor on stat
- * cards, sidebar nav items and section headers. Colour it by passing tint
- * classes (e.g. `bg-status-ready-bg text-status-ready-fg`).
+ * A small square tile holding a single icon — the anchor on section headers
+ * and list rows. Neutral unless you say otherwise: colour it by passing tint
+ * classes (e.g. `bg-status-ready-bg text-status-ready-fg`) on the rare card
+ * that is genuinely *about* a status.
  */
 export function IconChip({
   icon: Icon,
@@ -46,13 +47,21 @@ export function IconChip({
   size?: "sm" | "md" | "lg";
 }) {
   const box =
-    size === "lg" ? "size-12 rounded-lg" : size === "sm" ? "size-8 rounded-sm" : "size-10 rounded-md";
-  const glyph = size === "lg" ? "size-6" : size === "sm" ? "size-4" : "size-5";
+    size === "lg" ? "size-10 rounded-md" : size === "sm" ? "size-7 rounded-sm" : "size-8 rounded-md";
+  const glyph = size === "lg" ? "size-5" : size === "sm" ? "size-3.5" : "size-4";
 
   return (
     <span
+      /*
+       * Neutral by default, not indigo. Nineteen call sites paint one of
+       * these, and when the default was accent-tinted every screen carrying a
+       * few of them got a scatter of purple squares that meant nothing in
+       * particular. Callers that pass their own tint — a status colour on a
+       * card that is genuinely about that status — still win, because their
+       * classes land after these.
+       */
       className={cn(
-        "flex shrink-0 items-center justify-center bg-accent-soft text-accent-soft-foreground",
+        "flex shrink-0 items-center justify-center bg-surface-hover text-muted-foreground",
         box,
         className,
       )}

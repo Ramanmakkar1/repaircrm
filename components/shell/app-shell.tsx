@@ -37,7 +37,7 @@ export function AppShell({
             onMenuClick={() => setMobileOpen(true)}
             onSearchClick={() => setSearchOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+          <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
             <div className="mx-auto w-full max-w-7xl">{children}</div>
           </main>
         </div>
