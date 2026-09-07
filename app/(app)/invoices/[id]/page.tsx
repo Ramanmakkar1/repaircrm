@@ -20,14 +20,11 @@ import {
   stripeTestMode,
 } from "@/lib/payments";
 import { refundAwareTotals } from "@/components/billing/refund-math";
-import {
-  RefundDialog,
-  type RefundablePayment,
-} from "@/components/billing/refund-dialog";
+import { InvoiceActionMenu } from "@/components/billing/invoice-action-menu";
+import type { RefundablePayment } from "@/components/billing/refund-dialog";
 import { SendDocumentDialog } from "@/components/billing/send-dialog";
 import { UnbilledTimeBanner } from "@/components/billing/unbilled-time-banner";
 import { ShareRow } from "@/components/billing/send-links";
-import { EmailReceiptButton } from "@/components/billing/send-receipt";
 import {
   channelBlockedReason,
   relativeTime,
@@ -47,11 +44,8 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { ObjectHeader } from "@/components/ui/object-header";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
-import { ConfirmActionDialog } from "@/components/billing/action-form";
 import { formatDate, formatDateTime, isOverdue } from "@/components/billing/format";
-import { ChargeCardButton } from "@/components/billing/charge-card-button";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
-import { SignatureDialog } from "@/components/billing/signature-dialog";
 import {
   InvoiceStatusBadge,
   RefundStatusBadge,
@@ -382,81 +376,75 @@ export default async function InvoiceDetailPage({
             ),
           },
         ]}
+        /*
+          TWO BUTTONS AND A `⋯`, NOT EIGHT BUTTONS.
+
+          This header could offer nine controls at once — print, edit, email a
+          receipt, collect a signature, charge the card on file, refund, void,
+          take a payment, send — and which of them exist depends on the
+          invoice's state, so the row was a different length and a different
+          shape on every invoice and wrapped onto a second line at 1280px.
+
+          What is left inline is what someone opened the invoice to do: take
+          the money, and send the bill. Everything else is in the menu, in an
+          order that does not move. Nothing was removed and no action behaves
+          differently — see components/billing/invoice-action-menu.tsx for how
+          the dialogs are driven from menu items.
+        */
         actions={
           <>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/print/invoices/${invoice.id}`} target="_blank">
-                <ACTIONS.print /> Print
-              </Link>
-            </Button>
-
-            {canEdit ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/invoices/${invoice.id}/edit`}>
-                  <ACTIONS.edit /> Edit
-                </Link>
-              </Button>
-            ) : null}
-
-            {receiptable ? (
-              <EmailReceiptButton
-                invoiceId={invoice.id}
-                action={emailInvoiceReceiptAction}
-                blockedReason={emailBlockedReason}
-                size="sm"
-              />
-            ) : null}
-
-            {!isVoid ? (
-              <SignatureDialog
-                action={saveInvoiceSignatureAction}
-                documentId={invoice.id}
-                title="Collect signature"
-                description={`Have ${customerName} sign to acknowledge invoice #${invoice.number}.`}
-                triggerLabel={
-                  invoice.signatureDataUrl ? "Re-sign" : "Collect signature"
-                }
-                triggerSize="sm"
-              />
-            ) : null}
-
-            {role === "OWNER" && !isVoid ? (
-              <ConfirmActionDialog
-                action={voidInvoiceAction}
-                fields={{ id: invoice.id }}
-                triggerLabel="Void"
-                triggerIcon={<ACTIONS.void />}
-                triggerSize="sm"
-                title={`Void invoice #${invoice.number}?`}
-                description="The invoice stays on record but stops counting as money owed. This cannot be undone."
-                confirmLabel="Void invoice"
-                disabled={hasPayments}
-                disabledReason="This invoice has payments recorded against it — refund and remove them first."
-              />
-            ) : null}
-
-            {canRefund ? (
-              <RefundDialog
-                action={refundInvoiceAction}
-                invoiceId={invoice.id}
-                refundableCents={totals.refundableCents}
-                payments={refundablePayments}
-                customerName={customerName}
-                defaultMethod={paidWithCredit ? "CREDIT" : "CARD"}
-                size="sm"
-              />
-            ) : null}
-
-            {canChargeCard && savedCard ? (
-              <ChargeCardButton
-                invoiceId={invoice.id}
-                balanceCents={totals.balanceCents}
-                cardLabel={`${savedCard.brand} ····${savedCard.last4}`}
-                customerName={customerName}
-                action={chargeCardOnFileAction}
-                size="sm"
-              />
-            ) : null}
+            <InvoiceActionMenu
+              invoiceId={invoice.id}
+              invoiceNumber={invoice.number}
+              customerName={customerName}
+              printHref={`/print/invoices/${invoice.id}`}
+              editHref={canEdit ? `/invoices/${invoice.id}/edit` : null}
+              receipt={
+                receiptable
+                  ? {
+                      action: emailInvoiceReceiptAction,
+                      blockedReason: emailBlockedReason,
+                    }
+                  : null
+              }
+              signature={
+                !isVoid
+                  ? {
+                      action: saveInvoiceSignatureAction,
+                      signed: Boolean(invoice.signatureDataUrl),
+                    }
+                  : null
+              }
+              chargeCard={
+                canChargeCard && savedCard
+                  ? {
+                      action: chargeCardOnFileAction,
+                      balanceCents: totals.balanceCents,
+                      cardLabel: `${savedCard.brand} ····${savedCard.last4}`,
+                    }
+                  : null
+              }
+              refund={
+                canRefund
+                  ? {
+                      action: refundInvoiceAction,
+                      refundableCents: totals.refundableCents,
+                      payments: refundablePayments,
+                      defaultMethod: paidWithCredit ? "CREDIT" : "CARD",
+                    }
+                  : null
+              }
+              voidInvoice={
+                role === "OWNER" && !isVoid
+                  ? {
+                      action: voidInvoiceAction,
+                      blockedReason: hasPayments
+                        ? "This invoice has payments recorded against it — refund and remove them first."
+                        : null,
+                    }
+                  : null
+              }
+            />
 
             {canTakePayment ? (
               <PaymentDialog

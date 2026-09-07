@@ -12,6 +12,8 @@ import {
   markPickedUpAction,
   notifyReadyForPickupAction,
 } from "@/app/(app)/tickets/actions";
+import { READY_FOR_PICKUP_STATUS, RESOLVED_STATUS } from "./ticket-meta";
+import { useSetOptimisticStatus } from "./ticket-status";
 
 /**
  * The two presses that close out a repair at the counter.
@@ -38,6 +40,14 @@ export function PickupActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<"notify" | "pickup" | null>(null);
+  const [, startTransition] = React.useTransition();
+  /*
+   * Both presses move the status, and both are pressed at a counter with a
+   * customer standing at it — so the badge and the tracker follow the press,
+   * not the round trip. The guess is scoped to the transition below and falls
+   * away on its own when the write settles, refused or not.
+   */
+  const setOptimisticStatus = useSetOptimisticStatus();
 
   if (pickedUp) {
     return (
@@ -48,28 +58,34 @@ export function PickupActions({
     );
   }
 
-  async function notify() {
+  function notify() {
     setBusy("notify");
-    const result = await notifyReadyForPickupAction(ticketId);
-    setBusy(null);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Customer told it's ready for pickup.");
-    router.refresh();
+    startTransition(async () => {
+      setOptimisticStatus(READY_FOR_PICKUP_STATUS);
+      const result = await notifyReadyForPickupAction(ticketId);
+      setBusy(null);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Customer told it's ready for pickup.");
+      router.refresh();
+    });
   }
 
-  async function collect() {
+  function collect() {
     setBusy("pickup");
-    const result = await markPickedUpAction(ticketId);
-    setBusy(null);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Marked picked up and closed.");
-    router.refresh();
+    startTransition(async () => {
+      setOptimisticStatus(RESOLVED_STATUS);
+      const result = await markPickedUpAction(ticketId);
+      setBusy(null);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Marked picked up and closed.");
+      router.refresh();
+    });
   }
 
   if (isReady) {

@@ -347,10 +347,56 @@ export async function setAppointmentStatusAction(
   status: string,
 ): Promise<SimpleResult> {
   const { shopId } = await requireUser();
+  const next = asAppointmentStatus(status);
+
+  /*
+    BRINGING A CANCELED APPOINTMENT BACK IS A BOOKING, SO IT HAS TO CHECK.
+
+    `findConflict` excludes CANCELED rows — which is right, a canceled slot is
+    free. But that means the moment one is canceled the slot really is free,
+    and somebody can book it. Reinstating without a check (which is exactly
+    what "undo" does, seconds later, and what the Reopen button does days
+    later) then puts two jobs on one tech at one time, silently.
+
+    Only this direction needs it. Moving TO canceled, or to done, only ever
+    releases a slot.
+  */
+  if (next !== "CANCELED") {
+    const current = await db.appointment.findFirst({
+      where: { id: appointmentId, shopId },
+      select: {
+        status: true,
+        assignedToId: true,
+        startsAt: true,
+        endsAt: true,
+      },
+    });
+    if (!current) return { ok: false, error: "Appointment not found." };
+
+    if (current.status === "CANCELED") {
+      const clash = await findConflict(
+        shopId,
+        current.assignedToId,
+        current.startsAt,
+        current.endsAt,
+        appointmentId,
+      );
+      if (clash) {
+        // `SimpleResult` carries a string, not the structured payload the
+        // booking dialog renders — so the same facts are said in one line,
+        // in the dialog's own words.
+        const { techName, title, when } = conflictPayload(clash);
+        return {
+          ok: false,
+          error: `${techName} is already booked — "${title}", ${when}. Move that one, or reassign this.`,
+        };
+      }
+    }
+  }
 
   const updated = await db.appointment.updateMany({
     where: { id: appointmentId, shopId },
-    data: { status: asAppointmentStatus(status) },
+    data: { status: next },
   });
   if (updated.count === 0) return { ok: false, error: "Appointment not found." };
 

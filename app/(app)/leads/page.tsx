@@ -20,6 +20,9 @@ import {
 } from "@/components/list/selection";
 import { LeadBulkActions } from "@/components/leads/lead-bulk-actions";
 import { RowLink } from "@/components/list/row-link";
+import { SavedViewsControl } from "@/components/list/saved-views";
+import { listSavedViews } from "@/lib/saved-views-query";
+import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +54,20 @@ export default async function LeadsPage({
 }) {
   const { shopId } = await requireUser();
   const params = await searchParams;
+
+  /*
+    This user's saved filters for this screen. `currentQuery` is normalised the
+    same way a stored one is — sorted, paging stripped — so a saved view lights
+    up whether you clicked its tab or rebuilt the same filter by hand.
+  */
+  const savedViews = await listSavedViews("/leads");
+  const currentQuery = normalizeViewQuery(
+    new URLSearchParams(
+      Object.entries(params).flatMap(([key, value]) =>
+        typeof value === "string" ? [[key, value] as [string, string]] : [],
+      ),
+    ).toString(),
+  );
 
   // "open" is the default view: NEW + CONTACTED, i.e. everything still owed a
   // phone call. Converted and closed leads are history and stay out of the way.
@@ -128,12 +145,33 @@ export default async function LeadsPage({
 
       <FilterTabs
         aria-label="Lead views"
-        tabs={views.map((view) => ({
-          label: view.label,
-          href: view.key === "open" ? "/leads" : `/leads?status=${view.key}`,
-          active: status === view.key,
-          count: counts[view.key] ?? 0,
-        }))}
+        tabs={[
+          ...views.map((view) => ({
+            label: view.label,
+            href: view.key === "open" ? "/leads" : `/leads?status=${view.key}`,
+            active: status === view.key,
+            count: counts[view.key] ?? 0,
+          })),
+          ...savedViews.map((view) => ({
+            label: view.name,
+            href: savedViewHref("/leads", view.query),
+            active: view.query === currentQuery,
+          })),
+        ]}
+        trailing={
+          <SavedViewsControl
+            path="/leads"
+            views={savedViews}
+            builtIn={views.map((view) => ({
+              label: view.label,
+              query: normalizeViewQuery(
+                new URLSearchParams(
+                  view.key === "open" ? {} : { status: view.key },
+                ).toString(),
+              ),
+            }))}
+          />
+        }
       />
 
       {/*

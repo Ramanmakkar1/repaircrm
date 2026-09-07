@@ -6,12 +6,11 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
 import { StatusPill } from "@/components/ui/badge";
-import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ObjectHeader } from "@/components/ui/object-header";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { ConfirmActionDialog } from "@/components/billing/action-form";
@@ -33,9 +32,6 @@ import {
   ScheduleActiveButton,
 } from "@/components/recurring/schedule-controls";
 import { deleteScheduleAction } from "../actions";
-
-const LINK_CHIP =
-  "transition-colors hover:bg-accent-soft hover:text-accent-soft-foreground";
 
 export async function generateMetadata({
   params,
@@ -91,120 +87,126 @@ export default async function ScheduleDetailPage({
   const generatedCount = schedule.invoices.length;
   const canDelete = role === "OWNER" && generatedCount === 0;
 
+  // The two chips the header used to carry, as one column. "Manual" rather
+  // than an empty cell: a schedule nobody automated is a fact, not a blank.
+  const automation = [
+    schedule.autoSend ? "Auto-send" : null,
+    schedule.autoCharge ? "Auto-charge" : null,
+  ].filter((label): label is string => label !== null);
+
   return (
     <div className="flex flex-col gap-5">
-      <Breadcrumbs
-        items={[
-          { label: "Invoices", href: "/invoices" },
-          { label: "Recurring", href: "/invoices/recurring" },
-          { label: schedule.name },
-        ]}
-      />
+      {/*
+        The object-page header every other money screen opens with. This was the
+        last one still on breadcrumbs over a hero card: a 30px name, the
+        customer restated under it, and a row of nine chips carrying facts that
+        are columns everywhere else in the app.
 
-      {/* ------------------------------------------------------------ header */}
-      <Card>
-        <CardContent className="flex flex-col gap-4 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex min-w-0 flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="text-3xl font-bold leading-tight tracking-tight text-foreground">
-                  {schedule.name}
-                </span>
-                <StatusPill tone={state.tone} label={state.label} />
-              </div>
+        The headline figure is the PER-RUN TOTAL — what this contract bills each
+        time it fires. It is the number someone opens a schedule to check, and
+        the only one the schedule itself owns; everything the runs have actually
+        raised lives in the generated-invoices table below.
+      */}
+      <ObjectHeader
+        back={{ label: "Recurring", href: "/invoices/recurring" }}
+        value={formatCents(totals.totalCents)}
+        title={schedule.name}
+        subtitle={`Per-run total — bills ${FREQUENCY_CADENCE[frequency]}`}
+        status={<StatusPill tone={state.tone} label={state.label} />}
+        meta={[
+          {
+            label: "Customer",
+            value: (
               <Link
                 href={`/customers/${schedule.customer.id}`}
-                className="w-fit text-lg font-semibold text-foreground transition-colors hover:text-accent"
+                className="font-medium text-accent-soft-foreground hover:underline"
               >
                 {name}
               </Link>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5">
-              <RunNowButton scheduleId={schedule.id} />
-              <Button variant="outline" asChild>
-                <Link href={`/invoices/recurring/${schedule.id}/edit`}>
-                  <ACTIONS.edit /> Edit
-                </Link>
-              </Button>
-              <ScheduleActiveButton
-                scheduleId={schedule.id}
-                active={schedule.active}
-                scheduleName={schedule.name}
-              />
-              {role === "OWNER" ? (
-                <ConfirmActionDialog
-                  action={deleteScheduleAction}
-                  fields={{ id: schedule.id }}
-                  triggerLabel="Delete"
-                  triggerIcon={<ACTIONS.delete />}
-                  title={`Delete ${schedule.name}?`}
-                  description="The schedule and its line items go for good. This can't be undone."
-                  confirmLabel="Delete schedule"
-                  disabled={!canDelete}
-                  disabledReason={
-                    generatedCount > 0
-                      ? `This schedule has raised ${generatedCount} invoice${
-                          generatedCount === 1 ? "" : "s"
-                        } — pause it instead so the billing history stays intact.`
-                      : undefined
-                  }
-                />
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Chip icon={ICONS.recurring}>
-              {frequencyLabel(frequency)} · {FREQUENCY_CADENCE[frequency]}
-            </Chip>
-            <Chip
-              icon={ICONS.dueDate}
-              className={cn(
-                due && "bg-status-overdue-bg font-bold text-status-overdue-fg",
-              )}
-            >
-              {due ? "Due " : "Next run "}
-              {formatDate(schedule.nextRunAt)}
-            </Chip>
-            <Chip icon={ICONS.deposit}>
-              {schedule.dueInDays === 0
-                ? "Due on receipt"
-                : `Net ${schedule.dueInDays} days`}
-            </Chip>
-            <Chip icon={ICONS.invoice}>
-              {generatedCount} invoice{generatedCount === 1 ? "" : "s"} generated
-            </Chip>
-            {schedule.autoSend ? <Chip icon={ICONS.email}>Auto-send</Chip> : null}
-            {schedule.autoCharge ? (
-              <Chip
-                icon={ICONS.payment}
-                className="bg-chip-accent-bg text-chip-accent-fg"
-              >
-                Auto-charge
-              </Chip>
-            ) : null}
-            <Link href={`/customers/${schedule.customer.id}`}>
-              <Chip icon={ICONS.customer} className={LINK_CHIP}>
-                {name}
-              </Chip>
-            </Link>
-          </div>
-
-          {/* The full reason, not the list page's tooltip. This is where
-              someone lands when they want to know what to do about it. */}
-          {schedule.lastChargeError ? (
-            <p className="flex items-start gap-2.5 rounded-md bg-destructive-soft px-4 py-3 text-[13.5px] font-medium leading-relaxed text-destructive">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>
-                The last automatic charge failed: {schedule.lastChargeError} The
-                invoice was still raised. This clears itself once a charge goes
-                through.
+            ),
+          },
+          { label: "Frequency", value: frequencyLabel(frequency) },
+          {
+            label: due ? "Due" : "Next run",
+            value: (
+              <span className={cn(due && "font-semibold text-status-overdue-fg")}>
+                {formatDate(schedule.nextRunAt)}
               </span>
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
+            ),
+          },
+          {
+            label: "Terms",
+            value:
+              schedule.dueInDays === 0
+                ? "Due on receipt"
+                : `Net ${schedule.dueInDays} days`,
+          },
+          {
+            label: "Raised",
+            value: (
+              <span className="rf-num">
+                {generatedCount} invoice{generatedCount === 1 ? "" : "s"}
+              </span>
+            ),
+          },
+          {
+            label: "Automation",
+            value: automation.length > 0 ? automation.join(" · ") : "Manual",
+          },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/invoices/recurring/${schedule.id}/edit`}>
+                <ACTIONS.edit /> Edit
+              </Link>
+            </Button>
+            <ScheduleActiveButton
+              size="sm"
+              scheduleId={schedule.id}
+              active={schedule.active}
+              scheduleName={schedule.name}
+            />
+            {role === "OWNER" ? (
+              <ConfirmActionDialog
+                action={deleteScheduleAction}
+                fields={{ id: schedule.id }}
+                triggerLabel="Delete"
+                triggerIcon={<ACTIONS.delete />}
+                triggerSize="sm"
+                title={`Delete ${schedule.name}?`}
+                description="The schedule and its line items go for good. This can't be undone."
+                confirmLabel="Delete schedule"
+                disabled={!canDelete}
+                disabledReason={
+                  generatedCount > 0
+                    ? `This schedule has raised ${generatedCount} invoice${
+                        generatedCount === 1 ? "" : "s"
+                      } — pause it instead so the billing history stays intact.`
+                    : undefined
+                }
+              />
+            ) : null}
+            {/* Primary last, the way the invoice and PO headers order theirs. */}
+            <RunNowButton size="sm" scheduleId={schedule.id} />
+          </>
+        }
+      />
+
+      {/* The full reason, not the list page's tooltip. This is where someone
+          lands when they want to know what to do about it. Its own block under
+          the header rather than a fourth thing inside it — the header carries
+          what the schedule IS, not what went wrong last night. */}
+      {schedule.lastChargeError ? (
+        <p className="flex items-start gap-2.5 rounded-md bg-destructive-soft px-4 py-3 text-[13.5px] font-medium leading-relaxed text-destructive">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>
+            The last automatic charge failed: {schedule.lastChargeError} The
+            invoice was still raised. This clears itself once a charge goes
+            through.
+          </span>
+        </p>
+      ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         {/* --------------------------------------------------------- lines */}
@@ -271,10 +273,10 @@ export default async function ScheduleDetailPage({
               value={formatCents(totals.taxCents)}
             />
             <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
                 Total
               </span>
-              <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight text-foreground">
+              <span className="rf-num text-[22px] font-semibold leading-none tracking-[-0.02em] text-foreground">
                 {formatCents(totals.totalCents)}
               </span>
             </div>

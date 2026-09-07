@@ -89,26 +89,45 @@ export async function saveChecklistTemplateAction(
 }
 
 /**
- * Retires a template. Tickets keep the copy of the steps they were given —
- * `Ticket.checklistTemplateId` is SetNull, and the checklist itself lives on
- * the ticket — so nothing on the bench loses its list.
+ * Retires a template, or brings one back.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS RETIRES INSTEAD OF DELETING
+ * ---------------------------------------------------------------------------
+ * This replaced a `deleteMany`, so that the settings screen can offer a real
+ * "Deleted · Undo" instead of a confirm. The delete could not honestly be
+ * undone: a template's id is REFERENCED — `Ticket.checklistTemplateId` points
+ * at it with `onDelete: SetNull` — so re-creating the row would mint a new id
+ * and leave every ticket that had used it pointing at nothing. Flipping a
+ * boolean keeps the id, and with it the provenance of every checklist already
+ * on the bench.
+ *
+ * Nothing on screen changes. Every read of this table already filters
+ * `active: true` — the settings list, the new-ticket picker, the workroom
+ * card, and the auto-attach lookup in tickets/actions.ts — so a retired
+ * template is exactly as gone as a deleted one was, and is not offered to
+ * anybody. What it stops doing is taking the ticket history with it.
  */
-export async function deleteChecklistTemplateAction(
+export async function setChecklistTemplateActiveAction(
   id: string,
+  active: boolean,
 ): Promise<SettingsResult> {
   const { session, denied } = await ownerOnly();
   if (denied) return { ok: false, error: denied };
 
   // Prisma treats `id: undefined` as "no filter"; without this guard a
-  // malformed call would delete every template in the shop.
+  // malformed call would retire every template in the shop.
   if (typeof id !== "string" || !id) {
     return { ok: false, error: "That checklist no longer exists." };
   }
 
-  const deleted = await db.checklistTemplate.deleteMany({
+  // updateMany with the shop filter — a forged id matches nothing rather than
+  // reaching into another tenant.
+  const updated = await db.checklistTemplate.updateMany({
     where: { id, shopId: session.shopId },
+    data: { active },
   });
-  if (deleted.count === 0) {
+  if (updated.count === 0) {
     return { ok: false, error: "That checklist no longer exists." };
   }
 

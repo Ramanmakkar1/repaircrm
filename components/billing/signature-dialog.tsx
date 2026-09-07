@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
+import { useDialogOpen, type ControlledDialog } from "./dialog-open";
 
 /**
  * Captures a customer signature on a canvas and posts it as a PNG data URL.
@@ -29,13 +30,15 @@ import { IDLE_FORM_STATE, type FormState } from "./types";
 export function SignatureDialog({
   action,
   documentId,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
   title,
   description,
   triggerLabel,
   triggerVariant = "outline",
   triggerSize,
   extraFields,
-}: {
+}: ControlledDialog & {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   documentId: string;
   title: string;
@@ -47,8 +50,16 @@ export function SignatureDialog({
   /** Extra hidden fields, e.g. the approve action's `approve=1`. */
   extraFields?: Record<string, string>;
 }) {
-  const [open, setOpen] = React.useState(false);
   const [dataUrl, setDataUrl] = React.useState("");
+  // Declared after `dataUrl` so the reset below can reach its setter.
+  const { open, setOpen, controlled } = useDialogOpen({
+    open: openProp,
+    onOpenChange: onOpenChangeProp,
+    // An empty pad every time it opens — from its own trigger or from the
+    // overflow menu. Reopening onto the last customer's signature would be a
+    // signature nobody gave.
+    onOpen: () => setDataUrl(""),
+  });
   // Submitting is what closes the pad, so the close lives in the action
   // itself rather than in an effect waiting for `state.done` to land.
   const [state, formAction] = useActionState(
@@ -60,11 +71,6 @@ export function SignatureDialog({
     IDLE_FORM_STATE,
   );
   const padRef = React.useRef<SignatureCanvas | null>(null);
-
-  const onOpenChange = (next: boolean) => {
-    if (next) setDataUrl("");
-    setOpen(next);
-  };
 
   const clear = () => {
     padRef.current?.clear();
@@ -81,12 +87,14 @@ export function SignatureDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant={triggerVariant} size={triggerSize}>
-          <ICONS.signature /> {triggerLabel}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button variant={triggerVariant} size={triggerSize}>
+            <ICONS.signature /> {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-w-lg">
         <DialogHeader>

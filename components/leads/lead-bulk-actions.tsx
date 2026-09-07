@@ -20,9 +20,13 @@ import type { BulkResult } from "@/lib/bulk";
 /**
  * Two verbs for a batch of enquiries: move them, or get them out of the inbox.
  *
- * The status menu offers only the two OPEN states. Closing is the Archive
- * button beside it — the same act, given the name a front desk uses for it —
- * and Converted is offered nowhere, because converting builds a customer and a
+ * The status menu offers only the two OPEN states. Closing is the Close button
+ * beside it — one word for one act, matching the "Closed" tab, the "Closed"
+ * status pill and the single-lead action bar, which all name the same
+ * `LeadStatus.CLOSED`. (This button said "Archive" while everything around it
+ * said closed; a second name for a state nobody can point at is a state staff
+ * stop trusting.) Converted is offered nowhere, because converting builds a
+ * customer and a
  * numbered ticket per lead and is not something a menu item can do to forty
  * rows. Both controls call one server action, which is also the only place the
  * allowed set is enforced.
@@ -84,7 +88,7 @@ export function LeadBulkActions() {
         onClick={() => void run(() => bulkLeadStatusAction(ids, "CLOSED"))}
       >
         <ACTIONS.archive />
-        Archive
+        Close
       </Button>
     </>
   );

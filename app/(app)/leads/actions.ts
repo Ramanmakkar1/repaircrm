@@ -216,6 +216,17 @@ export async function reopenLeadAction(leadId: string): Promise<LeadActionResult
 export async function deleteLeadAction(leadId: string): Promise<LeadActionResult> {
   const { shopId } = await requireRole("OWNER");
 
+  /*
+    Prisma reads `id: undefined` as "no filter", so `deleteMany({ where: { id,
+    shopId } })` with a missing id does not delete nothing — it deletes the
+    SHOP'S ENTIRE TABLE. This codebase has already been bitten by exactly that
+    shape once (canned responses), which is why the guard is spelled out at
+    every call site rather than assumed at the caller.
+  */
+  if (typeof leadId !== "string" || !leadId) {
+    return { ok: false, error: "Lead not found." };
+  }
+
   const deleted = await db.lead.deleteMany({ where: { id: leadId, shopId } });
   if (deleted.count === 0) return { ok: false, error: "Lead not found." };
 
@@ -391,9 +402,10 @@ export async function convertLeadAction(
  * off the lead (see `convertLeadAction`). Writing the word CONVERTED onto forty
  * rows would claim all of that happened when none of it did.
  *
- * There is no `archived` column on Lead, and this does not invent one: the
- * inbox's own archive is CLOSED — the tab is labelled "Closed", `closeLeadAction`
- * sets it, and the action bar's "Archive" button lands here with "CLOSED".
+ * There is no `archived` column on Lead, and this does not invent one. CLOSED
+ * is the only end state, and it is called "closed" everywhere it is visible:
+ * the tab, the status pill, `closeLeadAction`, the single-lead "Close" button
+ * and the bulk bar's "Close" button, which lands here with "CLOSED".
  */
 const BULK_LEAD_STATUSES = ["NEW", "CONTACTED", "CLOSED"] as const;
 
@@ -446,7 +458,7 @@ export async function bulkLeadStatusAction(
     count,
     message:
       next === "CLOSED"
-        ? `${moved} archived`
+        ? `${moved} closed`
         : `${moved} moved to ${next === "NEW" ? "New" : "Contacted"}`,
   };
 }

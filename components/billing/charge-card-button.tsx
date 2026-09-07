@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCents } from "@/lib/money";
+import { useDialogOpen, type ControlledDialog } from "./dialog-open";
 
 /**
  * "Charge card on file" — one click, one confirmation, one charge.
@@ -33,11 +34,13 @@ import { formatCents } from "@/lib/money";
 export function ChargeCardButton({
   invoiceId,
   balanceCents,
+  open: openProp,
+  onOpenChange,
   cardLabel,
   customerName,
   action,
   size,
-}: {
+}: ControlledDialog & {
   invoiceId: string;
   balanceCents: number;
   /** e.g. "Visa ····4242". */
@@ -49,7 +52,10 @@ export function ChargeCardButton({
     invoiceId: string,
   ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const { open, setOpen, controlled } = useDialogOpen({
+    open: openProp,
+    onOpenChange,
+  });
   const [pending, startTransition] = React.useTransition();
 
   const charge = () => {
@@ -68,11 +74,13 @@ export function ChargeCardButton({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size={size}>
-          <ACTIONS.pay /> Charge card on file
-        </Button>
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button variant="outline" size={size}>
+            <ACTIONS.pay /> Charge card on file
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-w-md">
         <DialogHeader>

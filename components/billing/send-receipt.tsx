@@ -1,11 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, type ButtonProps } from "@/components/ui/button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ACTIONS } from "@/components/ui/icons";
 
 /**
@@ -13,8 +11,10 @@ import { ACTIONS } from "@/components/ui/icons";
  *
  * Two surfaces, one action:
  *
- *   · `EmailReceiptButton` sits on a settled invoice, for the customer who
- *     phones a week later asking for "something for my records".
+ *   · `EmailReceiptMenuItem` sits in the settled invoice's overflow menu, for
+ *     the customer who phones a week later asking for "something for my
+ *     records". (It was a button in the header until that header grew eight of
+ *     them; the action is unchanged.)
  *
  *   · `offerReceiptToast` fires from the take-payment dialog the moment a
  *     payment clears the balance. That is the only moment both the customer and
@@ -39,45 +39,40 @@ async function runReceipt(invoiceId: string, action: ReceiptAction) {
   return result.ok;
 }
 
-export function EmailReceiptButton({
+/**
+ * The action as a menu item — the invoice header's secondary actions all live
+ * behind a `⋯`.
+ *
+ * No busy state: a menu closes the moment you pick from it, so there is nothing
+ * left on screen to spin. `runReceipt` reports the outcome as a toast, exactly
+ * as it does for the offer made at the counter.
+ */
+export function EmailReceiptMenuItem({
   invoiceId,
   action,
   blockedReason,
-  size,
 }: {
   invoiceId: string;
   action: ReceiptAction;
-  /** Rendered as the button's tooltip when the customer cannot be emailed. */
+  /** Why the customer cannot be emailed; disables the item and titles it. */
   blockedReason?: string | null;
-  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
-  size?: ButtonProps["size"];
 }) {
   const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-
-  if (blockedReason) {
-    return (
-      <Button variant="outline" size={size} disabled title={blockedReason}>
-        <ACTIONS.email /> Email receipt
-      </Button>
-    );
-  }
 
   return (
-    <Button
-      variant="outline"
-      size={size}
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        await runReceipt(invoiceId, action);
-        setBusy(false);
-        router.refresh();
+    <DropdownMenuItem
+      disabled={Boolean(blockedReason)}
+      title={blockedReason ?? undefined}
+      onSelect={() => {
+        void (async () => {
+          await runReceipt(invoiceId, action);
+          router.refresh();
+        })();
       }}
     >
-      {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
-      {busy ? "Sending…" : "Email receipt"}
-    </Button>
+      <ACTIONS.email className="size-4 text-muted-foreground" />
+      Email receipt
+    </DropdownMenuItem>
   );
 }
 

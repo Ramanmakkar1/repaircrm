@@ -55,6 +55,26 @@ export function PageHeaderSkeleton({
   );
 }
 
+/**
+ * `ObjectHeader`'s silhouette: the short "back to the list" link over the card
+ * that holds the headline figure, the status, the actions and the metadata
+ * strip.
+ *
+ * Detail routes measure their skeleton against the header they actually draw,
+ * and getting it wrong is worse than having none — a skeleton of the wrong
+ * height shunts the whole page down the moment the content lands, which is the
+ * one thing it exists to avoid. So the two heights live here once rather than
+ * being re-guessed in every `loading.tsx`.
+ */
+export function ObjectHeaderSkeleton() {
+  return (
+    <div className="flex flex-col gap-3">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-[176px] rounded-lg" />
+    </div>
+  );
+}
+
 /** The card grid the list screens use, at the same 3-up rhythm. */
 export function CardGridSkeleton({
   count = 6,

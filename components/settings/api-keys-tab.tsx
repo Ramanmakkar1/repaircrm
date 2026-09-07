@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { WebhooksCard } from "./webhooks-card";
 import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
 
@@ -42,7 +43,6 @@ import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
  */
 const KeyIcon = ICONS.apiKey;
 const AddIcon = ACTIONS.add;
-const RevokeIcon = ACTIONS.void;
 const CopyIcon = ACTIONS.copy;
 const SavedIcon = ACTIONS.save;
 
@@ -127,38 +127,61 @@ export function ApiKeysTab({
 
 function KeyRow({ item }: { item: ApiKeyItem }) {
   const router = useRouter();
-  const [active, setActive] = React.useState(item.active);
-  const [busy, setBusy] = React.useState(false);
-  const [confirming, setConfirming] = React.useState(false);
+  const [busy, startWriting] = React.useTransition();
 
-  // The switch flips optimistically, then follows the server once
-  // `router.refresh()` brings a new value down. Adjusting during render (rather
-  // than in an effect) is React's own recommendation for "derived state that
-  // has to follow a prop" — an effect here would render twice for nothing.
-  const [serverValue, setServerValue] = React.useState(item.active);
-  if (serverValue !== item.active) {
-    setServerValue(item.active);
-    setActive(item.active);
-  }
+  /*
+   * The switch flips on the press and reconciles behind the scenes.
+   *
+   * `useOptimistic` scoped to the transition below, rather than the mirrored
+   * `useState` this replaced: the guess now lives exactly as long as the write
+   * is in flight and is dropped the moment the real value arrives — including
+   * when the real value came from somebody else's tab — with no derived state
+   * to re-sync during render.
+   */
+  const [active, showActive] = React.useOptimistic(item.active);
 
-  async function toggle(next: boolean) {
-    setActive(next);
-    setBusy(true);
-    const result = await setApiKeyActiveAction(item.id, next);
-    setBusy(false);
+  /**
+   * Revoke, then offer it back — no confirm.
+   *
+   * The old dialog's own last line was "you can turn it back on here", which
+   * is the tell: it was warning about something already reversible. Revoking
+   * is a soft flip of `ApiKey.active` — the row keeps its id, its name, its
+   * prefix and its last-used stamp — so the undo is the identical call with
+   * `true` and the key starts working again. Nothing about the key is
+   * regenerated, because nothing about it was destroyed.
+   *
+   * What the toast must NOT pretend is that the eight seconds are free: every
+   * request signed with the key fails for as long as it is off, so the message
+   * says that rather than a cheerful "Revoked."
+   */
+  function toggle(next: boolean) {
+    startWriting(async () => {
+      showActive(next);
 
-    if (!result.ok) {
-      setActive(!next);
-      toast.error(result.error);
-      return;
-    }
-    setConfirming(false);
-    toast.success(
-      next
-        ? `${item.name} reactivated — it can read this shop again.`
-        : `${item.name} revoked. Anything using it will start getting 401s.`,
-    );
-    router.refresh();
+      const result = await setApiKeyActiveAction(item.id, next);
+      if (!result.ok) {
+        // The guess falls away with the transition — the switch flips back.
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+
+      if (next) {
+        toast.success(`${item.name} reactivated — it can read this shop again.`);
+        return;
+      }
+
+      toastWithUndo({
+        message: `${item.name} revoked.`,
+        description: "Anything using it is getting 401s from now on.",
+        undo: async () => {
+          const restored = await setApiKeyActiveAction(item.id, true);
+          if (!restored.ok) throw new Error(restored.error);
+          router.refresh();
+        },
+        onUndoError: "Could not turn that key back on.",
+      });
+    });
   }
 
   return (
@@ -189,53 +212,11 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
           <Switch
             checked={active}
             disabled={busy}
-            // Reactivating is harmless and fires straight away; revoking breaks
-            // somebody's live integration, so it has to be asked about first.
-            onCheckedChange={(next) =>
-              next ? toggle(true) : setConfirming(true)
-            }
+            onCheckedChange={toggle}
             aria-label={`${active ? "Revoke" : "Reactivate"} ${item.name}`}
           />
         </div>
       </Td>
-
-      <Dialog
-        open={confirming}
-        onOpenChange={(next) => {
-          if (!next && !busy) setConfirming(false);
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Revoke {item.name}?</DialogTitle>
-            <DialogDescription>
-              Every request signed with{" "}
-              <span className="font-mono text-foreground">
-                rfk_{item.prefix}…
-              </span>{" "}
-              starts failing immediately. The key stays listed so you can see
-              what it was doing, and you can turn it back on here.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={() => toggle(false)}
-            >
-              {busy ? <Loader2 className="animate-spin" /> : <RevokeIcon aria-hidden />}
-              {busy ? "Revoking…" : "Revoke key"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Tr>
   );
 }

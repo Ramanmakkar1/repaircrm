@@ -2,17 +2,18 @@
 
 import * as React from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 // Settings2 is "manage the list", which is not one of the shared verbs.
-import { Settings2 } from "lucide-react";
+import { Loader2, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ACTIONS } from "@/components/ui/icons";
-import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import {
   Dialog,
   DialogContent,
@@ -38,8 +39,43 @@ export type Canned = { id: string; title: string; body: string };
  * composer's form — which would be invalid HTML and silently break submission.
  */
 export function CannedManager({ responses }: { responses: Canned[] }) {
+  const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const [removing, setRemoving] = React.useState<string | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
+
+  /**
+   * Delete, then offer it back.
+   *
+   * This is the same record the settings screen already treats this way — see
+   * components/settings/canned-tab.tsx — and it was the one place in the app
+   * where the identical row was deleted silently, with nothing offered and no
+   * way back. The undo is real for the same reason it is there: the row is
+   * hard-deleted, but this client still holds the title and the body, and
+   * nothing references a canned response by id (its text is copied into the
+   * message at send time), so re-creating it through the same validated action
+   * restores everything anybody can see.
+   */
+  async function remove(response: Canned) {
+    setRemoving(response.id);
+    await deleteCannedResponseAction(response.id);
+    setRemoving(null);
+    router.refresh();
+
+    toastWithUndo({
+      message: `"${response.title}" deleted.`,
+      undo: async () => {
+        const form = new FormData();
+        form.set("title", response.title);
+        form.set("body", response.body);
+
+        const restored = await createCannedResponseAction(EMPTY_STATE, form);
+        if (restored.error) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not put that response back.",
+    });
+  }
 
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData): Promise<ActionState> => {
@@ -88,19 +124,23 @@ export function CannedManager({ responses }: { responses: Canned[] }) {
                     {response.body}
                   </p>
                 </div>
-                <form action={deleteCannedResponseAction.bind(null, response.id)}>
-                  {/* Empty pendingLabel so the spinner REPLACES the bin rather
-                      than crowding in beside it in a 36px icon button. */}
-                  <SubmitButton
-                    variant="ghost"
-                    size="icon"
-                    pendingLabel=""
-                    aria-label={`Delete ${response.title}`}
-                    className="text-faint-foreground hover:text-destructive"
-                  >
+                {/* The spinner REPLACES the bin rather than crowding in
+                    beside it in a 36px icon button. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={removing !== null}
+                  aria-label={`Delete ${response.title}`}
+                  className="text-faint-foreground hover:text-destructive"
+                  onClick={() => remove(response)}
+                >
+                  {removing === response.id ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
                     <ACTIONS.delete className="size-4" />
-                  </SubmitButton>
-                </form>
+                  )}
+                </Button>
               </div>
             ))
           )}

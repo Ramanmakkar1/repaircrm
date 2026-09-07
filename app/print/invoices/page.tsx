@@ -1,39 +1,25 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { formatDate, formatDateLong } from "@/components/billing/format";
-import { termsLabel } from "@/components/billing/print-chrome";
-import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
-import {
-  PrintSheet,
-  type PrintTotalRow,
-} from "@/components/billing/print-sheet";
+import { invoiceSheetProps } from "@/components/billing/print-mappers";
+import { loadPrintShop } from "@/components/billing/print-queries";
+import { PrintSheet } from "@/components/billing/print-sheet";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
 import { requireUser } from "@/lib/auth";
 import { BULK_LIMIT } from "@/lib/bulk";
 import { db } from "@/lib/db";
-import { formatCents, invoiceTotals } from "@/lib/money";
-import { taxLabel } from "@/lib/tax";
 
 export const metadata: Metadata = { title: "Invoices · RepairFlow" };
-
-const METHOD_LABELS: Record<string, string> = {
-  CASH: "Cash",
-  CARD: "Card",
-  CHECK: "Check",
-  CREDIT: "Store credit",
-  OTHER: "Other",
-};
 
 /**
  * A run of invoices as one print job — where the invoice list's bulk "Print"
  * lands.
  *
- * Same sheet, same totals function and same tax label as /print/invoices/[id];
+ * Same sheet and the same `invoiceSheetProps` mapper as /print/invoices/[id];
  * only the chrome differs (one toolbar for the run instead of one per
- * document). Scoped by the session's `shopId`, so ids in the query string are
- * guesses that only resolve against the caller's own invoices, and capped at
- * `BULK_LIMIT`.
+ * document), and that is the single prop overridden below. Scoped by the
+ * session's `shopId`, so ids in the query string are guesses that only resolve
+ * against the caller's own invoices, and capped at `BULK_LIMIT`.
  *
  * Ordered by invoice number, which is the order a shop files them.
  */
@@ -63,8 +49,6 @@ export default async function InvoiceBatchPrintPage({
   ]);
   if (invoices.length === 0 || !shop) notFound();
 
-  const contact = [shop.phone, shop.email].filter(Boolean).join("  ·  ");
-
   return (
     <>
       <style>{BATCH_CSS}</style>
@@ -75,105 +59,12 @@ export default async function InvoiceBatchPrintPage({
         title={`${invoices.length} invoice${invoices.length === 1 ? "" : "s"}`}
       />
 
-      {invoices.map((invoice) => {
-        const totals = invoiceTotals(
-          invoice.lines,
-          invoice.taxRateBps,
-          invoice.payments,
-        );
-        const customerName =
-          invoice.customer.businessName ||
-          `${invoice.customer.firstName} ${invoice.customer.lastName}`;
-
-        const paid = invoice.status === "PAID";
-        const voided = invoice.status === "VOID";
-
-        // A void invoice is not a debt, whatever its lines total — the same
-        // rule the single-document sheet applies.
-        const balanceRow: PrintTotalRow = voided
-          ? { label: "Amount payable", value: formatCents(0), emphasis: true }
-          : {
-              label: "Balance due",
-              value: formatCents(Math.max(totals.balanceCents, 0)),
-              emphasis: true,
-            };
-
-        const totalRows: PrintTotalRow[] = [
-          { label: "Subtotal", value: formatCents(totals.subtotalCents) },
-          {
-            label: taxLabel(invoice.taxRate?.name, invoice.taxRateBps),
-            value: formatCents(totals.taxCents),
-          },
-          { label: "Total", value: formatCents(totals.totalCents), strong: true },
-          {
-            label: "Payments & credits",
-            value: `-${formatCents(totals.paidCents)}`,
-          },
-          balanceRow,
-        ];
-
-        return (
-          <div key={invoice.id} className="rf-batch-item">
-            <PrintSheet
-              chrome={false}
-              docLabel="Invoice"
-              docNote={voided ? "Void — not payable" : undefined}
-              number={invoice.number}
-              shop={{ name: shop.name, lines: addressLines(shop) }}
-              logoUrl={shop.logoUrl}
-              billTo={{
-                name: customerName,
-                lines: addressLines(invoice.customer),
-              }}
-              meta={[
-                { label: "Invoice #", value: String(invoice.number) },
-                { label: "Issue date", value: formatDate(invoice.createdAt) },
-                {
-                  label: "Due date",
-                  value: invoice.dueDate
-                    ? formatDate(invoice.dueDate)
-                    : "On receipt",
-                },
-                {
-                  label: "Terms",
-                  value: termsLabel(invoice.createdAt, invoice.dueDate),
-                },
-              ]}
-              lines={invoice.lines.map((line) => ({
-                id: line.id,
-                description: line.description,
-                serial: line.serial,
-                quantity: line.quantity,
-                unitPriceCents: line.unitPriceCents,
-                taxable: line.taxable,
-                warrantyDays: line.warrantyDays,
-              }))}
-              showSerial={invoice.lines.some((line) => Boolean(line.serial))}
-              totals={totalRows}
-              payments={invoice.payments.map((payment) => ({
-                id: payment.id,
-                date: formatDate(payment.createdAt),
-                method: METHOD_LABELS[payment.method] ?? payment.method,
-                reference: payment.reference,
-                amountCents: payment.amountCents,
-              }))}
-              notes={invoice.notes}
-              signature={invoice.signatureDataUrl}
-              signatureCaption={`Received by ${customerName}`}
-              watermark={paid ? "Paid" : voided ? "Void" : null}
-              watermarkTone={voided ? "alarm" : "accent"}
-              backHref={`/invoices/${invoice.id}`}
-              backLabel={`Back to invoice #${invoice.number}`}
-              footer={
-                invoice.paidAt
-                  ? `Paid in full on ${formatDateLong(invoice.paidAt)} — thank you!`
-                  : "Thank you for your business!"
-              }
-              footerContact={contact ? `${shop.name}  ·  ${contact}` : shop.name}
-            />
-          </div>
-        );
-      })}
+      {invoices.map((invoice) => (
+        <div key={invoice.id} className="rf-batch-item">
+          {/* One toolbar for the run — each sheet's own is suppressed. */}
+          <PrintSheet {...invoiceSheetProps(invoice, shop)} chrome={false} />
+        </div>
+      ))}
     </>
   );
 }

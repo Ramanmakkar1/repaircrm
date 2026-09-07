@@ -137,7 +137,13 @@ export async function setWebhookActiveAction(
   if (denied) return { ok: false, error: denied };
 
   // updateMany with the shopId in the where: a guessed id from another shop
-  // matches nothing rather than flipping someone else's endpoint.
+  // matches nothing rather than flipping someone else's endpoint. The id guard
+  // is the other half — an undefined id would flip EVERY endpoint this shop
+  // has, silently, in one query.
+  if (typeof webhookId !== "string" || !webhookId) {
+    return { ok: false, error: "That endpoint is gone." };
+  }
+
   const result = await db.webhook.updateMany({
     where: { id: webhookId, shopId: session.shopId },
     data: { active },
@@ -154,6 +160,17 @@ export async function deleteWebhookAction(
 ): Promise<SettingsResult> {
   const { session, denied } = await ownerOnly();
   if (denied) return { ok: false, error: denied };
+
+  /*
+    Prisma reads `id: undefined` as "no filter", so `deleteMany({ where: { id,
+    shopId } })` with a missing id does not delete nothing — it deletes the
+    SHOP'S ENTIRE TABLE. This codebase has already been bitten by exactly that
+    shape once (canned responses), which is why the guard is spelled out at
+    every call site rather than assumed at the caller.
+  */
+  if (typeof webhookId !== "string" || !webhookId) {
+    return { ok: false, error: "That endpoint is gone." };
+  }
 
   const result = await db.webhook.deleteMany({
     where: { id: webhookId, shopId: session.shopId },

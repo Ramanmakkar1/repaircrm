@@ -1,6 +1,10 @@
 import * as React from "react";
 
-import { PageHeaderSkeleton, Skeleton } from "@/components/ui/skeleton";
+import {
+  ObjectHeaderSkeleton,
+  PageHeaderSkeleton,
+  Skeleton,
+} from "@/components/ui/skeleton";
 
 /**
  * The grey shapes the money screens open with.
@@ -96,10 +100,7 @@ export function DocumentDetailSkeleton({
   return (
     <div className="flex flex-col gap-5">
       {header === "object" ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-[176px] rounded-lg" />
-        </div>
+        <ObjectHeaderSkeleton />
       ) : (
         <>
           <Skeleton className="h-4 w-56" />

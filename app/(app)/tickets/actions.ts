@@ -371,6 +371,15 @@ export async function deleteTicketAction(ticketId: string): Promise<void> {
   if (role !== "OWNER") return;
 
   // Read the number before the row goes, so the audit line means something.
+  /*
+    Prisma reads `id: undefined` as "no filter", so `deleteMany({ where: { id,
+    shopId } })` with a missing id does not delete nothing — it deletes the
+    SHOP'S ENTIRE TABLE. This codebase has already been bitten by exactly that
+    shape once (canned responses), which is why the guard is spelled out at
+    every call site rather than assumed at the caller.
+  */
+  if (typeof ticketId !== "string" || !ticketId) return;
+
   const doomed = await db.ticket.findFirst({
     where: { id: ticketId, shopId },
     select: { number: true },
@@ -1030,6 +1039,12 @@ export async function createCannedResponseAction(
 
 export async function deleteCannedResponseAction(id: string): Promise<void> {
   const { shopId } = await requireUser();
+
+  // Prisma reads `id: undefined` as "no filter", so without this guard a
+  // malformed call would delete every canned response in the shop. The same
+  // guard is on the settings and checklist deletes for the same reason.
+  if (typeof id !== "string" || !id) return;
+
   await db.cannedResponse.deleteMany({ where: { id, shopId } });
   revalidatePath("/tickets", "layout");
 }

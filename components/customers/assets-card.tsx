@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { assetLabel } from "./format";
 
 export type AssetRow = {
@@ -49,7 +50,6 @@ export function AssetsCard({
   const router = useRouter();
   const [editing, setEditing] = React.useState<AssetRow | null>(null);
   const [adding, setAdding] = React.useState(false);
-  const [removing, setRemoving] = React.useState<AssetRow | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const open = adding || editing !== null;
@@ -73,19 +73,49 @@ export function AssetsCard({
     router.refresh();
   }
 
-  async function remove() {
-    if (!removing) return;
+  /**
+   * Remove, then offer it back — no confirm.
+   *
+   * A device IS referenced by id: `Ticket.assetId` points at it. What makes
+   * the undo honest anyway is that `deleteAssetAction` refuses outright when
+   * any ticket is attached ("This device is attached to 2 tickets and can't be
+   * deleted") — so the only rows that ever reach this path are ones nothing
+   * points at, and re-creating through `createAssetAction` restores everything
+   * that was on screen. The passcode rides along: it is on the row this card
+   * already renders from, and losing it to a mis-click would mean phoning the
+   * customer back for it.
+   */
+  async function remove(asset: AssetRow) {
     setBusy(true);
-    const result = await deleteAssetAction(removing.id);
+    const result = await deleteAssetAction(asset.id);
     setBusy(false);
 
     if (!result.ok) {
+      // The "attached to N tickets" refusal lands here — a message, not a
+      // dialog, because the operator has done nothing wrong yet.
       toast.error(result.error);
       return;
     }
-    toast.success("Device removed.");
-    setRemoving(null);
     router.refresh();
+
+    toastWithUndo({
+      message: `${assetLabel(asset)} removed.`,
+      description: asset.serial ?? undefined,
+      undo: async () => {
+        const form = new FormData();
+        form.set("type", asset.type);
+        if (asset.make) form.set("make", asset.make);
+        if (asset.model) form.set("model", asset.model);
+        if (asset.serial) form.set("serial", asset.serial);
+        if (asset.password) form.set("password", asset.password);
+        if (asset.notes) form.set("notes", asset.notes);
+
+        const restored = await createAssetAction(customerId, form);
+        if (!restored.ok) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not put that device back.",
+    });
   }
 
   return (
@@ -157,8 +187,9 @@ export function AssetsCard({
                   <Button
                     size="icon"
                     variant="ghost"
+                    disabled={busy}
                     aria-label={`Remove ${assetLabel(asset)}`}
-                    onClick={() => setRemoving(asset)}
+                    onClick={() => remove(asset)}
                     className="size-9 text-muted-foreground hover:text-destructive"
                   >
                     <ACTIONS.delete />
@@ -294,32 +325,6 @@ export function AssetsCard({
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm --------------------------------------------------- */}
-      <Dialog
-        open={removing !== null}
-        onOpenChange={(next) => {
-          if (!next && !busy) setRemoving(null);
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Remove device?</DialogTitle>
-            <DialogDescription>
-              {removing ? assetLabel(removing) : ""} will be removed from this
-              customer. This can&apos;t be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" disabled={busy} onClick={() => setRemoving(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={busy} onClick={remove}>
-              <ACTIONS.delete />
-              {busy ? "Removing…" : "Remove"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { useDialogOpen, type ControlledDialog } from "./dialog-open";
 
 /**
  * A one-button form for the simple status transitions (Mark sent, Approve,
@@ -62,6 +63,8 @@ export function ActionForm({
 export function ConfirmActionDialog({
   action,
   fields,
+  open: openProp,
+  onOpenChange,
   triggerLabel,
   triggerVariant = "outline",
   triggerSize,
@@ -72,7 +75,7 @@ export function ConfirmActionDialog({
   confirmVariant = "destructive",
   disabled,
   disabledReason,
-}: {
+}: ControlledDialog & {
   action: (formData: FormData) => Promise<void>;
   fields: Record<string, string>;
   triggerLabel: string;
@@ -88,10 +91,15 @@ export function ConfirmActionDialog({
   /** Rendered as the button's tooltip/title when it is blocked. */
   disabledReason?: string;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const { open, setOpen, controlled } = useDialogOpen({
+    open: openProp,
+    onOpenChange,
+  });
 
   if (disabled) {
-    return (
+    // Driven from a menu, the caller renders its own disabled item carrying the
+    // same reason — a dead button here would be a second copy of it.
+    return controlled ? null : (
       <Button variant={triggerVariant} size={triggerSize} disabled title={disabledReason}>
         {triggerIcon}
         {triggerLabel}
@@ -101,12 +109,14 @@ export function ConfirmActionDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant={triggerVariant} size={triggerSize}>
-          {triggerIcon}
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button variant={triggerVariant} size={triggerSize}>
+            {triggerIcon}
+            {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

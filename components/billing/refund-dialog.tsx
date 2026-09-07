@@ -28,6 +28,7 @@ import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
+import { useDialogOpen, type ControlledDialog } from "./dialog-open";
 
 const METHODS = [
   { value: "CARD", label: "Card" },
@@ -73,13 +74,15 @@ export type RefundablePayment = {
 export function RefundDialog({
   action,
   invoiceId,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
   refundableCents,
   payments,
   customerName,
   /** Pre-selects store credit — used when the invoice was paid with credit. */
   defaultMethod = "CARD",
   size,
-}: {
+}: ControlledDialog & {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
   refundableCents: number;
@@ -89,17 +92,6 @@ export function RefundDialog({
   /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
   size?: ButtonProps["size"];
 }) {
-  const [open, setOpen] = React.useState(false);
-  // Submitting is what closes the dialog, so the close lives in the action
-  // itself rather than in an effect waiting for `state.done` to land.
-  const [state, formAction] = useActionState(
-    async (previous: FormState, formData: FormData) => {
-      const result = await action(previous, formData);
-      if (result.done) setOpen(false);
-      return result;
-    },
-    IDLE_FORM_STATE,
-  );
   const [method, setMethod] = React.useState(defaultMethod);
   const [paymentId, setPaymentId] = React.useState(NO_PAYMENT);
   // "Send it back to the card" vs "write down a refund that happened
@@ -110,16 +102,34 @@ export function RefundDialog({
     (Math.max(refundableCents, 0) / 100).toFixed(2),
   );
 
-  // Reset to a fresh default every time the dialog is opened.
-  const onOpenChange = (next: boolean) => {
-    if (next) {
+  // The declaration order in this block is load-bearing: the reset closure
+  // below reaches the field setters above it, and the submit handler below
+  // reaches `setOpen`. Both would be a temporal-dead-zone read the other way
+  // round, which is a runtime crash the compiler lint catches for us.
+  const { open, setOpen, controlled } = useDialogOpen({
+    open: openProp,
+    onOpenChange: onOpenChangeProp,
+    // Reset to a fresh default every time the dialog opens — from its own
+    // trigger or from the overflow menu, which flips `open` without ever
+    // calling `onOpenChange`.
+    onOpen: () => {
       setAmount((Math.max(refundableCents, 0) / 100).toFixed(2));
       setMethod(defaultMethod);
       setPaymentId(NO_PAYMENT);
       setViaStripe(true);
-    }
-    setOpen(next);
-  };
+    },
+  });
+
+  // Submitting is what closes the dialog, so the close lives in the action
+  // itself rather than in an effect waiting for `state.done` to land.
+  const [state, formAction] = useActionState(
+    async (previous: FormState, formData: FormData) => {
+      const result = await action(previous, formData);
+      if (result.done) setOpen(false);
+      return result;
+    },
+    IDLE_FORM_STATE,
+  );
 
   const typedCents = Math.round(Number(amount.replace(/[^0-9.\-]/g, "")) * 100);
   const overCeiling = Number.isFinite(typedCents) && typedCents > refundableCents;
@@ -137,12 +147,14 @@ export function RefundDialog({
     (linked ? linked.isStripe : payments.some((payment) => payment.isStripe));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size={size}>
-          <ACTIONS.refund /> Refund
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button variant="outline" size={size}>
+            <ACTIONS.refund /> Refund
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent>
         <DialogHeader>

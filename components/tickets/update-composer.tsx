@@ -24,6 +24,7 @@ import { DraftReplyControls } from "@/components/ai/draft-reply";
 import { postUpdateAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE, type ActionState } from "./action-state";
 import { CannedManager, type Canned } from "./canned-manager";
+import { useSetOptimisticStatus } from "./ticket-status";
 
 /**
  * One card, one submit: change the status AND leave the note explaining why.
@@ -51,11 +52,27 @@ export function UpdateComposer({
   const [subject, setSubject] = React.useState("");
   const [cannedValue, setCannedValue] = React.useState("none");
 
+  /*
+   * The header badge and the pipeline tracker move the instant this is
+   * submitted, rather than a round trip later. The guess is set INSIDE the
+   * action — `useActionState` runs it as a transition, and that is what scopes
+   * the optimistic value to it: React holds the guess until the action settles
+   * (by which point `revalidatePath` has already sent the real status down)
+   * and drops it either way, so a refused post rolls the badge back on its own
+   * with nothing here to remember to undo.
+   */
+  const setOptimisticStatus = useSetOptimisticStatus();
+
   // Clearing the composer belongs to the submit, not to an effect watching state:
   // an effect would also re-fire whenever this component re-rendered for an
   // unrelated reason, and could wipe a note the user had started retyping.
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData): Promise<ActionState> => {
+      // From the FormData, not from the closure: this is the value actually
+      // being posted, hidden input and all.
+      const submitted = formData.get("status");
+      if (typeof submitted === "string" && submitted) setOptimisticStatus(submitted);
+
       const result = await postUpdateAction(ticketId, previous, formData);
       if (result.ok) {
         setBody("");

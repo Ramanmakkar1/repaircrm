@@ -96,6 +96,7 @@ model Shop {
   /// Why automatic setup did not finish, in the words the tab shows.
   stripeWebhookError     String?
   auditLogs              AuditLog[]
+  savedViews             SavedView[]
   taxRates               TaxRate[]
   vendors                Vendor[]
   purchaseOrders         PurchaseOrder[]
@@ -199,6 +200,7 @@ model User {
   defaultLocation    Location?            @relation(fields: [defaultLocationId], references: [id], onDelete: SetNull)
   passwordResets     PasswordResetToken[]
   auditLogs          AuditLog[]
+  savedViews         SavedView[]
   purchaseOrders     PurchaseOrder[]
   depositsTaken      Deposit[]
   timeClockEntries   TimeClockEntry[]
@@ -1472,4 +1474,47 @@ model ScanEvent {
 
   @@index([sessionId, seq])
   @@index([shopId, createdAt])
+}
+
+/// A filter someone uses often enough to name.
+///
+/// The built-in tabs on each list ("Open jobs", "Waiting for Parts") are the
+/// same five for everybody, but a queue is personal: "my open jobs", "waiting
+/// on parts more than three days", "unpaid over $500". A saved view is just a
+/// query string with a name on it, so it costs nothing to store and it can
+/// express anything the list's own filters can — no new filtering engine.
+///
+/// Scoped to ONE user, not the shop. A shared view is a different feature with
+/// different questions (who may edit it, what happens when they leave), and
+/// guessing that everyone wants a colleague's saved filters is how a five-tab
+/// list becomes a thirty-tab one.
+model SavedView {
+  id     String @id @default(cuid())
+  shopId String
+  userId String
+
+  /// Which list this belongs to — "/tickets", "/invoices", "/leads".
+  /// A path, not an enum, so a new list screen needs no migration.
+  path String
+  name String
+  /// The search params, WITHOUT the leading "?" — e.g. "status=waiting&tech=x".
+  /// Storing the query rather than parsed filters means a view keeps working
+  /// when a screen gains a filter, and degrades to "ignored param" rather than
+  /// to a crash when one is removed.
+  query String
+
+  /// Hand ordering within a list. Ties break on createdAt.
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The list query: this user's views for this screen, in order.
+  @@index([userId, path, sortOrder])
+  /// Two views with the same name on one screen would be indistinguishable in
+  /// the tab strip, which is the whole interface for them.
+  @@unique([userId, path, name])
 }

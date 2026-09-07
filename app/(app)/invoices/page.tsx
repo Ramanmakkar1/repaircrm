@@ -15,6 +15,9 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { customerLabel } from "@/components/customers/format";
 import { RowLink } from "@/components/list/row-link";
+import { SavedViewsControl } from "@/components/list/saved-views";
+import { listSavedViews } from "@/lib/saved-views-query";
+import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
 import {
   BulkBar,
   SelectAll,
@@ -43,6 +46,20 @@ export default async function InvoicesPage({
 }) {
   const { shopId } = await requireUser();
   const params = await searchParams;
+
+  /*
+    This user's saved filters for this screen. `currentQuery` is normalised the
+    same way a stored one is — sorted, paging stripped — so a saved view lights
+    up whether you clicked its tab or rebuilt the same filter by hand.
+  */
+  const savedViews = await listSavedViews("/invoices");
+  const currentQuery = normalizeViewQuery(
+    new URLSearchParams(
+      Object.entries(params).flatMap(([key, value]) =>
+        typeof value === "string" ? [[key, value] as [string, string]] : [],
+      ),
+    ).toString(),
+  );
 
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const statusParam = typeof params.status === "string" ? params.status : "";
@@ -121,13 +138,37 @@ export default async function InvoicesPage({
       <div className="flex flex-col gap-3">
         <FilterTabs
           aria-label="Invoice views"
-          tabs={[{ value: "", label: "All" }, ...INVOICE_STATUS_OPTIONS].map(
-            (view) => ({
-              label: view.label,
-              href: hrefFor(view.value, q, customerId),
-              active: status === view.value,
-            }),
-          )}
+          tabs={[
+            ...[{ value: "", label: "All" }, ...INVOICE_STATUS_OPTIONS].map(
+              (view) => ({
+                label: view.label,
+                href: hrefFor(view.value, q, customerId),
+                active: status === view.value,
+              }),
+            ),
+            ...savedViews.map((view) => ({
+              label: view.name,
+              href: savedViewHref("/invoices", view.query),
+              active: view.query === currentQuery,
+            })),
+          ]}
+          trailing={
+            <SavedViewsControl
+              path="/invoices"
+              views={savedViews}
+              builtIn={[
+                { value: "", label: "All" },
+                ...INVOICE_STATUS_OPTIONS,
+              ].map((view) => ({
+                label: view.label,
+                query: normalizeViewQuery(
+                  new URLSearchParams(
+                    view.value ? { status: view.value } : {},
+                  ).toString(),
+                ),
+              }))}
+            />
+          }
         />
 
         <BillingFilterBar

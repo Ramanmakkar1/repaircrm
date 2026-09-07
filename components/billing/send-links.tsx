@@ -118,7 +118,14 @@ export function ShareRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {/*
+        The same label treatment `ObjectHeader`'s metadata strip uses — 11.5px,
+        medium, 0.04em — so the one caption on the invoice and estimate pages
+        that is not a column heading still reads as one. It was the last
+        `text-xs font-semibold tracking-wide` left on those screens, a size and
+        a weight heavier than every label beside it.
+      */}
+      <span className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
         Share
       </span>
 

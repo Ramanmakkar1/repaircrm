@@ -30,14 +30,23 @@ export interface FilterTab {
 
 export function FilterTabs({
   tabs,
+  trailing,
   className,
   "aria-label": ariaLabel = "Views",
 }: {
   tabs: FilterTab[];
+  /**
+   * Rendered at the end of the strip, on the same hairline.
+   *
+   * This is where the saved-views control lives. It belongs ON the strip
+   * rather than beside it, because saving a view is an act about this row of
+   * tabs — anywhere else and it reads as a page-level action.
+   */
+  trailing?: React.ReactNode;
   className?: string;
   "aria-label"?: string;
 }) {
-  if (tabs.length === 0) return null;
+  if (tabs.length === 0 && !trailing) return null;
 
   return (
     <div
@@ -52,7 +61,19 @@ export function FilterTabs({
     >
       {tabs.map((tab) => (
         <Link
-          key={tab.href}
+          /*
+            Keyed on href AND label, because href alone is not unique. A saved
+            view can point at exactly the same URL as a built-in tab — save
+            "Waiting for Parts" under your own name for it and the strip has
+            two entries with one href. React then warns about duplicate keys
+            and is free to drop or duplicate one of them, which it did.
+
+            The product prevents that duplicate being created in the first
+            place (see components/list/saved-views.tsx), but data that already
+            exists does not care what the product decided afterwards, and a
+            primitive should not fall over because two things agree.
+          */
+          key={`${tab.href}|${tab.label}`}
           href={tab.href}
           aria-current={tab.active ? "page" : undefined}
           className={cn(
@@ -83,6 +104,7 @@ export function FilterTabs({
           ) : null}
         </Link>
       ))}
+      {trailing ? <div className="ml-1 shrink-0 pb-1.5">{trailing}</div> : null}
     </div>
   );
 }

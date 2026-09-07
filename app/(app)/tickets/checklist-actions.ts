@@ -5,7 +5,11 @@ import { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { checklistFromTemplate, parseChecklist } from "@/lib/checklist";
+import {
+  checklistFromTemplate,
+  parseChecklist,
+  type ChecklistItem,
+} from "@/lib/checklist";
 import type { ActionState } from "@/components/tickets/action-state";
 
 /**
@@ -108,6 +112,66 @@ export async function removeChecklistAction(
   await db.ticket.update({
     where: { id: ticket.id },
     data: { checklist: Prisma.DbNull, checklistTemplateId: null },
+  });
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
+}
+
+/**
+ * Puts a removed checklist back exactly as it was — steps, ticks and stamps.
+ *
+ * This exists so `removeChecklistAction` can be a "Removed · Undo" toast
+ * instead of a confirm dialog. `attachChecklistAction` is NOT that reverse:
+ * it copies the template fresh, so every tick the bench had already earned
+ * would come back unticked, and an Undo that silently unticks eleven steps is
+ * a worse outcome than the deletion it claimed to fix.
+ *
+ * THREE THINGS IT REFUSES TO TRUST
+ *
+ *   · The rows. They made a round trip through a browser, so they go back
+ *     through `parseChecklist` — the same gate the read path uses, which caps
+ *     the count and the label length and coerces `done` to a boolean.
+ *   · The template id. It is provenance, not substance: an id belonging to
+ *     another shop must never be written, and one whose template has since
+ *     been deleted must not fail the restore. Either way the steps go back
+ *     and the pointer is simply dropped.
+ *   · The ticket still being empty. Somebody may have attached a different
+ *     checklist in the seconds the toast was up, and an undo that overwrites
+ *     newer work is not an undo.
+ */
+export async function restoreChecklistAction(
+  ticketId: string,
+  items: ChecklistItem[],
+  templateId: string | null,
+): Promise<ActionState> {
+  const { shopId } = await requireUser();
+
+  const restored = parseChecklist(items);
+  if (restored.length === 0) return { error: "There is no checklist to put back." };
+
+  const ticket = await findTicket(shopId, ticketId);
+  if (!ticket) return { error: "Ticket not found." };
+
+  if (parseChecklist(ticket.checklist).length > 0) {
+    return { error: "This ticket already has a checklist on it." };
+  }
+
+  let checklistTemplateId: string | null = null;
+  if (templateId) {
+    const template = await db.checklistTemplate.findFirst({
+      where: { id: templateId, shopId },
+      select: { id: true },
+    });
+    checklistTemplateId = template?.id ?? null;
+  }
+
+  await db.ticket.update({
+    where: { id: ticket.id },
+    data: {
+      checklist: restored as unknown as Prisma.InputJsonValue,
+      checklistTemplateId,
+    },
   });
 
   revalidateTicket(ticket.id);

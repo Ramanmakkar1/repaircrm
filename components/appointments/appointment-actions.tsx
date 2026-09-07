@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import {
   AppointmentDialog,
   type AppointmentFormValues,
@@ -128,7 +129,24 @@ export function AppointmentRowActions({
   const [busy, setBusy] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
 
+  /**
+   * A status move, with the way back attached.
+   *
+   * All three moves here are the same single-column write, and the reverse is
+   * literally the same action with the old value — so each one gets an Undo
+   * rather than a "are you sure you want to cancel?" that would ask twice
+   * about a booking somebody has already decided about.
+   *
+   * The important thing this checks is that CANCELLING SENDS NOTHING.
+   * `setAppointmentStatusAction` writes one enum column; the confirmation
+   * email lives in `saveAppointmentAction`, the create/edit path, and the
+   * reminder job only ever looks at SCHEDULED rows with no `reminderSentAt`.
+   * So an undone cancellation neither un-sends anything nor re-sends anything,
+   * which is exactly what makes this honest.
+   */
   async function move(next: string, message: string) {
+    const previous = status;
+
     setBusy(true);
     const result = await setAppointmentStatusAction(appointmentId, next);
     setBusy(false);
@@ -136,8 +154,17 @@ export function AppointmentRowActions({
       toast.error(result.error);
       return;
     }
-    toast.success(message);
     router.refresh();
+
+    toastWithUndo({
+      message,
+      undo: async () => {
+        const restored = await setAppointmentStatusAction(appointmentId, previous);
+        if (!restored.ok) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not move that booking back.",
+    });
   }
 
   return (

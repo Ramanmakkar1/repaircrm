@@ -144,24 +144,36 @@ export default async function InventoryPage({
       {/* Only worth interrupting for when nothing is filtered — inside a
           filtered view the table already answers the question. */}
       {lowStockCount > 0 && !filtered ? (
-        <Link
-          href="/inventory?filter=low"
-          className="rf-lift flex items-center gap-4 rounded-lg border border-status-in-progress/25 bg-status-in-progress-bg p-5 shadow-sm hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-md bg-status-in-progress/15 text-status-in-progress-fg">
-            <TriangleAlert className="size-5" strokeWidth={2.25} />
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <span className="text-[15px] font-bold text-status-in-progress-fg">
-              {plural(lowStockCount, "product")} at or below{" "}
-              {lowStockCount === 1 ? "its" : "their"} reorder point
+        /*
+          A `tone` card, which is what this app's one card surface does with a
+          state (see components/ui/card.tsx): a 3px amber stripe down the left
+          edge and white everywhere else. It used to be a filled amber panel
+          with its own icon tile, 20px of padding, a shadow and `rf-lift` — the
+          chunky-card idiom the rest of the app left behind, sitting directly
+          above a hairline table and reading as a leftover.
+
+          It is a prompt, not a section, so it takes the same slim strip the
+          unbilled-time banner does: one line at 14px, the fact in semibold and
+          the advice muted beside it.
+        */
+        <Card tone="active" interactive>
+          <Link
+            href="/inventory?filter=low"
+            className="flex items-center gap-2.5 rounded-lg px-4 py-3 text-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            <TriangleAlert className="size-4 shrink-0 text-status-in-progress-fg" />
+            <span className="min-w-0">
+              <strong className="font-semibold text-foreground">
+                {plural(lowStockCount, "product")} at or below{" "}
+                {lowStockCount === 1 ? "its" : "their"} reorder point
+              </strong>{" "}
+              <span className="text-muted-foreground">
+                Review what needs ordering before the bench runs dry.
+              </span>
             </span>
-            <span className="text-[13.5px] text-status-in-progress-fg/80">
-              Review what needs ordering before the bench runs dry.
-            </span>
-          </span>
-          <ChevronRight className="ml-auto size-5 shrink-0 text-status-in-progress-fg" />
-        </Link>
+            <ChevronRight className="ml-auto size-4 shrink-0 text-faint-foreground" />
+          </Link>
+        </Card>
       ) : null}
 
       <div className="flex flex-col gap-3">

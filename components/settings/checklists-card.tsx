@@ -6,8 +6,8 @@ import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  deleteChecklistTemplateAction,
   saveChecklistTemplateAction,
+  setChecklistTemplateActiveAction,
 } from "@/app/(app)/settings/checklist-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,6 +24,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import {
   Select,
   SelectContent,
@@ -131,19 +132,38 @@ function TemplateRow({
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
-  const [confirming, setConfirming] = React.useState(false);
 
+  /**
+   * Delete, then offer it back — no confirm.
+   *
+   * The undo is as real as an undo gets: the row is retired rather than
+   * deleted (see `setChecklistTemplateActiveAction`), so putting it back is
+   * the same call with `true` and the SAME id comes back — every ticket that
+   * was built from this checklist still points at it. A re-create could not
+   * have said that.
+   */
   async function remove() {
     setBusy(true);
-    const result = await deleteChecklistTemplateAction(template.id);
+    const result = await setChecklistTemplateActiveAction(template.id, false);
     setBusy(false);
-    setConfirming(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    toast.success(`"${template.name}" deleted.`);
     router.refresh();
+
+    toastWithUndo({
+      message: `"${template.name}" deleted.`,
+      description: `${template.items.length} step${
+        template.items.length === 1 ? "" : "s"
+      }.`,
+      undo: async () => {
+        const restored = await setChecklistTemplateActiveAction(template.id, true);
+        if (!restored.ok) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not put that checklist back.",
+    });
   }
 
   return (
@@ -164,32 +184,25 @@ function TemplateRow({
         <Button variant="outline" size="sm" onClick={onEdit} disabled={busy}>
           <EditIcon aria-hidden /> Edit
         </Button>
-        {confirming ? (
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" size="sm" onClick={remove} disabled={busy}>
-              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
-              {busy ? "Deleting…" : "Delete"}
-            </Button>
-          </>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label={`Delete ${template.name}`}
-                className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                onClick={() => setConfirming(true)}
-              >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              aria-label={`Delete ${template.name}`}
+              className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
+              onClick={remove}
+            >
+              {busy ? (
+                <Loader2 className="animate-spin" />
+              ) : (
                 <DeleteIcon className="size-4" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Delete checklist</TooltipContent>
-          </Tooltip>
-        )}
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete checklist</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

@@ -3,18 +3,11 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatDate, formatDateTime } from "@/components/billing/format";
-import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
+import { loadPrintShop } from "@/components/billing/print-queries";
+import { ticketSheetProps } from "@/components/billing/print-mappers";
 import { TicketSheet } from "@/components/billing/print-ticket-sheet";
 
 export const metadata: Metadata = { title: "Work order · RepairFlow" };
-
-const PRIORITY_LABELS: Record<string, string> = {
-  LOW: "Low",
-  NORMAL: "Normal",
-  HIGH: "High",
-  URGENT: "Urgent",
-};
 
 /**
  * The printable work order for one ticket.
@@ -25,6 +18,10 @@ const PRIORITY_LABELS: Record<string, string> = {
  * this is exactly as protected as the rest of the app, and the query is scoped
  * by `shopId` so a guessed id from another tenant 404s rather than printing
  * somebody else's customer, device and passcode.
+ *
+ * The sheet's props are derived by `ticketSheetProps`, which the batch page at
+ * /print/tickets also calls — the stack off the printer cannot disagree with
+ * the single sheet.
  */
 export default async function TicketPrintPage({
   params,
@@ -48,67 +45,5 @@ export default async function TicketPrintPage({
   ]);
   if (!ticket || !shop) notFound();
 
-  const customerName =
-    ticket.customer.businessName ||
-    `${ticket.customer.firstName} ${ticket.customer.lastName}`;
-
-  return (
-    <TicketSheet
-      number={ticket.number}
-      shop={{ name: shop.name, lines: addressLines(shop) }}
-      shopPhone={shop.phone}
-      logoUrl={shop.logoUrl}
-      customer={{
-        name: customerName,
-        lines: addressLines(ticket.customer),
-      }}
-      meta={[
-        { label: "Ticket #", value: String(ticket.number) },
-        { label: "Opened", value: formatDate(ticket.createdAt) },
-        { label: "Status", value: ticket.status },
-        {
-          label: "Priority",
-          value: PRIORITY_LABELS[ticket.priority] ?? ticket.priority,
-        },
-        { label: "Technician", value: ticket.assignedTo?.name ?? "Unassigned" },
-        {
-          label: "Promised",
-          value: ticket.dueDate ? formatDate(ticket.dueDate) : "—",
-        },
-      ]}
-      subject={ticket.subject}
-      problemType={ticket.problemType}
-      device={
-        ticket.asset
-          ? {
-              type: ticket.asset.type,
-              make: ticket.asset.make,
-              model: ticket.asset.model,
-              serial: ticket.asset.serial,
-              password: ticket.asset.password,
-              notes: ticket.asset.notes,
-            }
-          : null
-      }
-      diagnosis={ticket.diagnosticNotes}
-      charges={ticket.charges.map((charge) => ({
-        id: charge.id,
-        description: charge.description,
-        quantity: charge.quantity,
-        unitPriceCents: charge.unitPriceCents,
-        taxable: charge.taxable,
-      }))}
-      taxRateBps={shop.taxRateBps}
-      intakeSignature={ticket.intakeSignatureDataUrl}
-      intakeSignedCaption={
-        ticket.intakeSignedAt
-          ? `Authorised at intake · ${formatDateTime(ticket.intakeSignedAt)}`
-          : "Customer authorisation (intake)"
-      }
-      resolved={ticket.status === "Resolved"}
-      backHref={`/tickets/${ticket.id}`}
-      backLabel={`Back to ticket #${ticket.number}`}
-      terms="Charges shown are work recorded to date and are not a final invoice. Devices not collected within 30 days of completion may incur storage fees. Please present the claim check below when collecting."
-    />
-  );
+  return <TicketSheet {...ticketSheetProps(ticket, shop)} />;
 }

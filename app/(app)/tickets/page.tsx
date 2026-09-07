@@ -17,6 +17,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { RowLink } from "@/components/list/row-link";
+import { SavedViewsControl } from "@/components/list/saved-views";
 import {
   BulkBar,
   SelectAll,
@@ -42,6 +43,8 @@ import {
 } from "@/components/tickets/ticket-meta";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
+import { listSavedViews } from "@/lib/saved-views-query";
+import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
 
 export const metadata: Metadata = { title: "Tickets · RepairFlow" };
 
@@ -216,6 +219,21 @@ export default async function TicketsPage({
   // "Status" menu, so the two can never offer different words.
   const statuses = ticketStatuses(shop?.settings);
 
+  /*
+    This user's saved filters for this screen. `currentQuery` is normalised the
+    same way a saved one is — sorted, and stripped of paging — so a view
+    highlights whether you reached it by clicking its tab or by rebuilding the
+    same filter by hand.
+  */
+  const savedViews = await listSavedViews("/tickets");
+  const currentQuery = normalizeViewQuery(
+    new URLSearchParams(
+      Object.entries(params).flatMap(([key, value]) =>
+        typeof value === "string" ? [[key, value] as [string, string]] : [],
+      ),
+    ).toString(),
+  );
+
   const views = [
     { key: "open", label: "Open jobs" },
     { key: "all", label: "All" },
@@ -242,13 +260,39 @@ export default async function TicketsPage({
       />
 
       <div className="flex flex-col gap-3">
+        {/*
+          The built-in views, then this user's saved ones, in one strip. A
+          saved view IS a view — rendering it as a different kind of control
+          would say it was a different kind of thing.
+        */}
         <FilterTabs
           aria-label="Ticket views"
-          tabs={views.map((view) => ({
-            label: view.label,
-            href: filterHref({ status: view.key }),
-            active: status === view.key,
-          }))}
+          tabs={[
+            ...views.map((view) => ({
+              label: view.label,
+              href: filterHref({ status: view.key }),
+              active: status === view.key,
+            })),
+            ...savedViews.map((view) => ({
+              label: view.name,
+              href: savedViewHref("/tickets", view.query),
+              active: view.query === currentQuery,
+            })),
+          ]}
+          trailing={
+            <SavedViewsControl
+              path="/tickets"
+              views={savedViews}
+              builtIn={views.map((view) => ({
+                label: view.label,
+                query: normalizeViewQuery(
+                  new URLSearchParams(
+                    view.key ? { status: view.key } : {},
+                  ).toString(),
+                ),
+              }))}
+            />
+          }
         />
 
         <TicketToolbar values={filters} problemTypes={problems.map((p) => p.problemType)} />

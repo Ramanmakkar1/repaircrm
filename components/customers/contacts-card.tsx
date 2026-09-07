@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { EM_DASH } from "./format";
 
 export type ContactRow = {
@@ -48,7 +49,6 @@ export function ContactsCard({
   const router = useRouter();
   const [editing, setEditing] = React.useState<ContactRow | null>(null);
   const [adding, setAdding] = React.useState(false);
-  const [removing, setRemoving] = React.useState<ContactRow | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const open = adding || editing !== null;
@@ -72,19 +72,42 @@ export function ContactsCard({
     router.refresh();
   }
 
-  async function remove() {
-    if (!removing) return;
+  /**
+   * Remove, then offer it back — no confirm.
+   *
+   * The undo is real. `Contact` is a leaf: nothing in the schema holds a
+   * contactId, and the row carries no history of its own, so re-creating it
+   * through `createContactAction` — the same validated action the Add dialog
+   * uses — restores everything a person can see. The new row gets a new id,
+   * which is invisible precisely because nothing was pointing at the old one.
+   */
+  async function remove(contact: ContactRow) {
     setBusy(true);
-    const result = await deleteContactAction(removing.id);
+    const result = await deleteContactAction(contact.id);
     setBusy(false);
 
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    toast.success("Contact removed.");
-    setRemoving(null);
     router.refresh();
+
+    toastWithUndo({
+      message: `${contact.name} removed.`,
+      description: contact.label ?? undefined,
+      undo: async () => {
+        const form = new FormData();
+        form.set("name", contact.name);
+        if (contact.email) form.set("email", contact.email);
+        if (contact.phone) form.set("phone", contact.phone);
+        if (contact.label) form.set("label", contact.label);
+
+        const restored = await createContactAction(customerId, form);
+        if (!restored.ok) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not put that contact back.",
+    });
   }
 
   return (
@@ -169,8 +192,9 @@ export function ContactsCard({
                   <Button
                     size="icon"
                     variant="ghost"
+                    disabled={busy}
                     aria-label={`Remove ${contact.name}`}
-                    onClick={() => setRemoving(contact)}
+                    onClick={() => remove(contact)}
                     className="size-9 text-muted-foreground hover:text-destructive"
                   >
                     <ACTIONS.delete />
@@ -267,32 +291,6 @@ export function ContactsCard({
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm --------------------------------------------------- */}
-      <Dialog
-        open={removing !== null}
-        onOpenChange={(next) => {
-          if (!next && !busy) setRemoving(null);
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Remove contact?</DialogTitle>
-            <DialogDescription>
-              {removing?.name} will be removed from this customer. This can&apos;t be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" disabled={busy} onClick={() => setRemoving(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={busy} onClick={remove}>
-              <ACTIONS.delete />
-              {busy ? "Removing…" : "Remove"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }

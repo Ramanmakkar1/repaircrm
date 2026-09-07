@@ -10,7 +10,7 @@ import {
   runRecurringInvoice,
   setScheduleActiveAction,
 } from "@/app/(app)/invoices/recurring/actions";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
@@ -77,10 +77,13 @@ export function ScheduleActiveButton({
   scheduleId,
   active,
   scheduleName,
+  size,
 }: {
   scheduleId: string;
   active: boolean;
   scheduleName: string;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -99,7 +102,7 @@ export function ScheduleActiveButton({
   }
 
   return (
-    <Button variant="outline" disabled={busy} onClick={toggle}>
+    <Button variant="outline" size={size} disabled={busy} onClick={toggle}>
       {busy ? (
         <Loader2 className="animate-spin" />
       ) : active ? (
@@ -113,7 +116,14 @@ export function ScheduleActiveButton({
 }
 
 /** "Run now" — bills this period immediately and links straight to the draft. */
-export function RunNowButton({ scheduleId }: { scheduleId: string }) {
+export function RunNowButton({
+  scheduleId,
+  size,
+}: {
+  scheduleId: string;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -136,7 +146,7 @@ export function RunNowButton({ scheduleId }: { scheduleId: string }) {
   }
 
   return (
-    <Button disabled={busy} onClick={run}>
+    <Button size={size} disabled={busy} onClick={run}>
       {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.run />}
       Run now
     </Button>

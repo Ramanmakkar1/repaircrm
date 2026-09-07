@@ -590,7 +590,7 @@ describe("leads — bulk status change", () => {
 
     const result = await leads.bulkLeadStatusAction(IDS, "CLOSED");
 
-    expect(result).toEqual({ ok: true, count: 3, message: "3 leads archived" });
+    expect(result).toEqual({ ok: true, count: 3, message: "3 leads closed" });
     expect(whereOf("lead.updateMany")).toEqual({
       id: { in: IDS },
       shopId: SHOP,
