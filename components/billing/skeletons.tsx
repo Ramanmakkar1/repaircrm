@@ -76,14 +76,36 @@ export function BillingListSkeleton({
 }
 
 /**
- * A document detail: breadcrumb trail, the header card carrying the status and
- * every action, then the two-column body with the aside on the right.
+ * A document detail: the header carrying the status and every action, then the
+ * two-column body with the aside on the right.
+ *
+ * `header` picks which of the two silhouettes the route above actually draws.
+ * `object` is the `ObjectHeader` shape — a short "back to the list" link over a
+ * card that is the headline figure plus one row of metadata columns. `card` is
+ * the older breadcrumb-over-hero-card shape the screens still on it use. They
+ * are different heights, and a skeleton that is the wrong height shunts the
+ * page the moment the content lands, which is the one thing it exists to avoid.
  */
-export function DocumentDetailSkeleton({ aside = true }: { aside?: boolean }) {
+export function DocumentDetailSkeleton({
+  aside = true,
+  header = "card",
+}: {
+  aside?: boolean;
+  header?: "card" | "object";
+}) {
   return (
     <div className="flex flex-col gap-5">
-      <Skeleton className="h-4 w-56" />
-      <Skeleton className="h-[210px] rounded-lg" />
+      {header === "object" ? (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-[176px] rounded-lg" />
+        </div>
+      ) : (
+        <>
+          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-[210px] rounded-lg" />
+        </>
+      )}
 
       <div className={aside ? "grid gap-5 lg:grid-cols-3" : "flex flex-col gap-5"}>
         <div className={aside ? "flex flex-col gap-5 lg:col-span-2" : "flex flex-col gap-5"}>

@@ -87,16 +87,19 @@ export function LeadActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2.5">
+      {/* The lead header's action row: `sm` throughout, like every other
+          object page. */}
+      <div className="flex flex-wrap items-center gap-2">
         {isOpen ? (
           <>
-            <Button onClick={() => setConverting(true)} disabled={busy}>
+            <Button size="sm" onClick={() => setConverting(true)} disabled={busy}>
               <Sparkles />
               Convert
             </Button>
             {lead.status === "NEW" ? (
               <Button
                 variant="outline"
+                size="sm"
                 disabled={busy}
                 onClick={() =>
                   run(() => markContactedAction(lead.id), "Marked as contacted.")
@@ -110,14 +113,24 @@ export function LeadActions({
         ) : null}
 
         {!isConverted ? (
-          <Button variant="outline" onClick={() => setEditing(true)} disabled={busy}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditing(true)}
+            disabled={busy}
+          >
             <ACTIONS.edit />
             Edit
           </Button>
         ) : null}
 
         {isOpen ? (
-          <Button variant="ghost" onClick={() => setClosing(true)} disabled={busy}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setClosing(true)}
+            disabled={busy}
+          >
             <ACTIONS.archive />
             Close
           </Button>
@@ -126,6 +139,7 @@ export function LeadActions({
         {isClosed ? (
           <Button
             variant="outline"
+            size="sm"
             disabled={busy}
             onClick={() => run(() => reopenLeadAction(lead.id), "Lead reopened.")}
           >
@@ -137,6 +151,7 @@ export function LeadActions({
         {canDelete && !isConverted ? (
           <Button
             variant="ghost"
+            size="sm"
             className="text-destructive hover:bg-destructive-soft hover:text-destructive"
             onClick={() => setDeleting(true)}
             disabled={busy}

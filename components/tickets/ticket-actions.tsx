@@ -280,7 +280,14 @@ export function DeleteTicketDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Delete ticket">
+        {/* size-8, not the 36px `icon` default: it sits in a header row of
+            `sm` buttons and a 4px height difference reads as a mistake. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          aria-label="Delete ticket"
+        >
           <ACTIONS.delete className="size-4 text-faint-foreground" />
         </Button>
       </DialogTrigger>

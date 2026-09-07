@@ -59,7 +59,10 @@ export function TicketsCard({
                 <Td className="font-semibold tabular-nums text-muted-foreground">
                   {ticket.number}
                 </Td>
-                <Td className="max-w-[18rem]">
+                {/* 13rem, not 18: this table lives in the hub's right
+                    column, and a wider subject pushed the status and date
+                    columns into a horizontal scroll. */}
+                <Td className="max-w-[13rem]">
                   <Link
                     href={`/tickets/${ticket.id}`}
                     className="block truncate font-semibold text-foreground hover:text-accent hover:underline"

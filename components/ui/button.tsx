@@ -23,14 +23,28 @@ const buttonVariants = cva(
          * A solid indigo block on white needs almost no shadow — an xs
          * contact shadow seats it on the page, anything heavier reads cheap.
          */
+        /*
+         * NOTE: written as an explicit `background-image`, not Tailwind's
+         * `bg-gradient-to-b`. In Tailwind v4 that utility wiped the button's
+         * `background-color` outright, leaving white text on white — an
+         * invisible primary button. Setting only `background-image` cannot
+         * touch the fill underneath it.
+         *
+         * Stripe's primary button is not a flat rectangle of brand colour: it
+         * carries a barely-there top-down gradient and a 1px inset highlight
+         * along its top edge, so it reads as a raised, pressable object rather
+         * than a filled div. At these opacities you cannot point at the effect
+         * — you only notice its absence, which is what made the old flat fill
+         * look like a prototype.
+         */
         default:
-          "bg-accent text-accent-foreground shadow-xs hover:bg-accent-hover",
+          "bg-accent [background-image:linear-gradient(to_bottom,rgb(255_255_255/0.13),rgb(255_255_255/0))] text-accent-foreground shadow-xs ring-1 ring-inset ring-white/15 hover:bg-accent-hover",
         outline:
           "border border-border-strong bg-surface text-foreground shadow-xs hover:bg-surface-hover",
         ghost: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
         soft: "bg-accent-soft text-accent-soft-foreground hover:brightness-[0.96]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive-hover",
+          "bg-destructive [background-image:linear-gradient(to_bottom,rgb(255_255_255/0.13),rgb(255_255_255/0))] text-destructive-foreground shadow-xs ring-1 ring-inset ring-white/15 hover:bg-destructive-hover",
       },
       size: {
         default: "h-9 px-3.5 text-[13.5px] [&_svg]:size-4",

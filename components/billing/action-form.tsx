@@ -64,6 +64,7 @@ export function ConfirmActionDialog({
   fields,
   triggerLabel,
   triggerVariant = "outline",
+  triggerSize,
   triggerIcon,
   title,
   description,
@@ -76,6 +77,8 @@ export function ConfirmActionDialog({
   fields: Record<string, string>;
   triggerLabel: string;
   triggerVariant?: ButtonProps["variant"];
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  triggerSize?: ButtonProps["size"];
   triggerIcon?: React.ReactNode;
   title: string;
   description: string;
@@ -89,7 +92,7 @@ export function ConfirmActionDialog({
 
   if (disabled) {
     return (
-      <Button variant={triggerVariant} disabled title={disabledReason}>
+      <Button variant={triggerVariant} size={triggerSize} disabled title={disabledReason}>
         {triggerIcon}
         {triggerLabel}
       </Button>
@@ -99,7 +102,7 @@ export function ConfirmActionDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={triggerVariant}>
+        <Button variant={triggerVariant} size={triggerSize}>
           {triggerIcon}
           {triggerLabel}
         </Button>

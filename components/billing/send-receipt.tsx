@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { ACTIONS } from "@/components/ui/icons";
 
 /**
@@ -43,18 +43,21 @@ export function EmailReceiptButton({
   invoiceId,
   action,
   blockedReason,
+  size,
 }: {
   invoiceId: string;
   action: ReceiptAction;
   /** Rendered as the button's tooltip when the customer cannot be emailed. */
   blockedReason?: string | null;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
   if (blockedReason) {
     return (
-      <Button variant="outline" disabled title={blockedReason}>
+      <Button variant="outline" size={size} disabled title={blockedReason}>
         <ACTIONS.email /> Email receipt
       </Button>
     );
@@ -63,6 +66,7 @@ export function EmailReceiptButton({
   return (
     <Button
       variant="outline"
+      size={size}
       disabled={busy}
       onClick={async () => {
         setBusy(true);

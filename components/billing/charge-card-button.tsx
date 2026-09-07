@@ -4,7 +4,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { ACTIONS } from "@/components/ui/icons";
 import {
   Dialog,
@@ -36,12 +36,15 @@ export function ChargeCardButton({
   cardLabel,
   customerName,
   action,
+  size,
 }: {
   invoiceId: string;
   balanceCents: number;
   /** e.g. "Visa ····4242". */
   cardLabel: string;
   customerName: string;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
   action: (
     invoiceId: string,
   ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
@@ -66,7 +69,7 @@ export function ChargeCardButton({
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" size={size}>
           <ACTIONS.pay /> Charge card on file
         </Button>
       </DialogTrigger>

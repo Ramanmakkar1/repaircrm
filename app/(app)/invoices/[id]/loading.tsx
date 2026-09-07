@@ -1,5 +1,5 @@
 import { DocumentDetailSkeleton } from "@/components/billing/skeletons";
 
 export default function InvoiceDetailLoading() {
-  return <DocumentDetailSkeleton />;
+  return <DocumentDetailSkeleton header="object" />;
 }

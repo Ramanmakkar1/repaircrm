@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -66,10 +66,13 @@ export function SendDocumentDialog({
   doc,
   previewAction,
   sendAction,
+  size,
 }: {
   doc: SendDocument;
   previewAction: (input: SendRequest) => Promise<SendPreviewState>;
   sendAction: (input: SendRequest) => Promise<SendResultState>;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
 }) {
   const router = useRouter();
 
@@ -183,6 +186,7 @@ export function SendDocumentDialog({
       <div className="flex flex-col items-start gap-1">
         <div className="flex items-stretch">
           <Button
+            size={size}
             className="rounded-r-none"
             onClick={() =>
               openWith({ email: !emailBlocked, sms: Boolean(emailBlocked) })
@@ -195,6 +199,7 @@ export function SendDocumentDialog({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                size={size}
                 className="rounded-l-none border-l border-accent-foreground/25 px-2"
                 aria-label="More send options"
               >

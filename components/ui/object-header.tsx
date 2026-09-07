@@ -103,8 +103,19 @@ export function ObjectHeader({
             </div>
           </div>
 
+          {/*
+            `min-w-0`, NOT `shrink-0`.
+
+            shrink-0 stopped this slot from ever giving ground, so a header
+            with six or seven actions contributed its full min-content width to
+            the flex row and pushed the entire page into a horizontal scroll on
+            a phone. The detail pages had each grown a `max-w-[calc(100vw-…)]`
+            wrapper to clamp it back — three copies of a workaround for one
+            line in here. Letting the slot shrink lets its own flex-wrap do the
+            job it was always supposed to do.
+          */}
           {actions ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               {actions}
             </div>
           ) : null}
@@ -114,15 +125,26 @@ export function ObjectHeader({
           The metadata strip. Columns, not a stacked definition list — a
           stacked list is taller than the facts deserve and makes you read
           downward for something you should be able to take in sideways.
-          The hairline grid is the same gap-px-over-border-fill trick the
-          dashboard's status strip uses, so the two read as one idea.
+
+          Flex-wrap, NOT the gap-px-over-border-fill grid the dashboard band
+          uses. That trick only works when the cell count divides evenly into
+          the column count: five facts in a six-column grid leave a sixth cell
+          empty, and an empty cell there is not blank — the fill shows through
+          as a grey rectangle at the end of the row that reads as a rendering
+          bug. It reappears at every breakpoint the count doesn't divide into.
+          Flexing the cells means the last row always fills itself, at any
+          count and any width, and the hairlines ride on the cells.
         */}
         {meta.length > 0 ? (
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-b-lg border-t border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+          <div className="flex flex-wrap overflow-hidden rounded-b-lg border-t border-border">
             {meta.map((item) => (
               <div
                 key={item.label}
-                className="flex min-w-0 flex-col gap-1 bg-surface px-4 py-2.5"
+                // basis sets the wrap threshold; min-w-0 is what lets the value truncate
+                className={cn(
+                  "flex flex-1 basis-[150px] flex-col gap-1 border-l border-border px-4 py-2.5",
+                  "min-w-0 first:border-l-0",
+                )}
               >
                 <p className="truncate text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
                   {item.label}

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
 import { formatBps } from "@/lib/money";
-import { EM_DASH, addressLines, formatDate } from "./format";
+import { EM_DASH, addressLines } from "./format";
 
 export type CustomerInfo = {
   email: string | null;
@@ -97,7 +97,9 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
             }
           />
           <Row label="Referred by" value={customer.referredBy ?? EM_DASH} />
-          <Row label="Customer since" value={formatDate(customer.createdAt)} />
+          {/* "Customer since" is a column in the header's metadata strip now.
+              One fact, one place — repeating it here just made the reader
+              check whether the two agreed. */}
         </dl>
       </CardContent>
     </Card>

@@ -33,6 +33,7 @@ export function SignatureDialog({
   description,
   triggerLabel,
   triggerVariant = "outline",
+  triggerSize,
   extraFields,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -41,6 +42,8 @@ export function SignatureDialog({
   description: string;
   triggerLabel: string;
   triggerVariant?: ButtonProps["variant"];
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  triggerSize?: ButtonProps["size"];
   /** Extra hidden fields, e.g. the approve action's `approve=1`. */
   extraFields?: Record<string, string>;
 }) {
@@ -80,7 +83,7 @@ export function SignatureDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant={triggerVariant}>
+        <Button variant={triggerVariant} size={triggerSize}>
           <ICONS.signature /> {triggerLabel}
         </Button>
       </DialogTrigger>

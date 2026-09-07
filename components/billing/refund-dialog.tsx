@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { AlertCircle, Info } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -78,6 +78,7 @@ export function RefundDialog({
   customerName,
   /** Pre-selects store credit — used when the invoice was paid with credit. */
   defaultMethod = "CARD",
+  size,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
@@ -85,6 +86,8 @@ export function RefundDialog({
   payments: RefundablePayment[];
   customerName: string;
   defaultMethod?: string;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
 }) {
   const [open, setOpen] = React.useState(false);
   // Submitting is what closes the dialog, so the close lives in the action
@@ -136,7 +139,7 @@ export function RefundDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" size={size}>
           <ACTIONS.refund /> Refund
         </Button>
       </DialogTrigger>

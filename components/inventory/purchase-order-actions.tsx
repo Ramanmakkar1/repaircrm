@@ -44,6 +44,7 @@ export function PurchaseOrderActions({
   lines,
   vendorEmail,
   expectedAt,
+  size,
 }: {
   purchaseOrderId: string;
   status: string;
@@ -52,6 +53,16 @@ export function PurchaseOrderActions({
   vendorEmail: string | null;
   /** yyyy-mm-dd, to seed the "mark ordered" date field. */
   expectedAt: string;
+  /**
+   * Height of the buttons this renders into a page header's action row.
+   *
+   * Defaults to undefined, i.e. the Button default — every existing call site
+   * keeps exactly what it had. The PO detail page passes "sm" so these line up
+   * with the Print button beside them and with the invoice and estimate action
+   * rows two screens over; a header row of mixed-height buttons is the kind of
+   * thing nobody can name but everybody sees.
+   */
+  size?: "sm";
 }) {
   const current = asPoStatus(status);
   const [busy, startTransition] = React.useTransition();
@@ -83,11 +94,12 @@ export function PurchaseOrderActions({
         <MarkOrderedDialog
           purchaseOrderId={purchaseOrderId}
           expectedAt={expectedAt}
+          size={size}
         />
       ) : null}
 
       {vendorEmail ? (
-        <Button variant="outline" disabled={busy} onClick={email}>
+        <Button variant="outline" size={size} disabled={busy} onClick={email}>
           {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
           Email to Vendor
         </Button>
@@ -98,7 +110,7 @@ export function PurchaseOrderActions({
           purchaseOrderId={purchaseOrderId}
           lines={lines}
           trigger={
-            <Button>
+            <Button size={size}>
               <ACTIONS.receive />
               Receive
             </Button>
@@ -114,6 +126,7 @@ export function PurchaseOrderActions({
           <DialogTrigger asChild>
             <Button
               variant="ghost"
+              size={size}
               disabled={busy}
               className="text-faint-foreground hover:text-destructive"
             >
@@ -160,9 +173,12 @@ export function PurchaseOrderActions({
 function MarkOrderedDialog({
   purchaseOrderId,
   expectedAt,
+  size,
 }: {
   purchaseOrderId: string;
   expectedAt: string;
+  /** Passed straight through to the trigger, so it matches the row it sits in. */
+  size?: "sm";
 }) {
   const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState(expectedAt);
@@ -186,7 +202,7 @@ function MarkOrderedDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" size={size}>
           <Truck />
           Mark Ordered
         </Button>

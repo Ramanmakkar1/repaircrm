@@ -66,7 +66,14 @@ export function CustomerActionsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon" aria-label="More actions">
+          {/* size-8, not the 36px `icon` default: it closes a header row of
+              `sm` buttons and has to end level with them. */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8"
+            aria-label="More actions"
+          >
             <ACTIONS.more className="size-4" />
           </Button>
         </DropdownMenuTrigger>

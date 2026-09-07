@@ -2,17 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import {
-  ArrowUpRight,
-  Clock,
-  Mail,
-  MessageSquareText,
-  Phone,
-  Tag,
-  UserRound,
-  Wrench,
-} from "lucide-react";
+import { MessageSquareText } from "lucide-react";
 
+import { TicketStatus } from "@/components/customers/status-pill";
 import { LeadActions } from "@/components/leads/lead-actions";
 import {
   LEAD_STATUS_META,
@@ -25,9 +17,11 @@ import {
 import type { LeadMatch } from "@/components/leads/lead-state";
 import { problemTypes } from "@/components/tickets/ticket-meta";
 import { StatusPill } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IconChip } from "@/components/ui/chip";
-import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { CopyableId } from "@/components/ui/copyable-id";
+import { ICONS } from "@/components/ui/icons";
+import { ObjectHeader } from "@/components/ui/object-header";
+import { TBody, THead, Table, Td, Th, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -94,158 +88,171 @@ export default async function LeadDetailPage({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <PageHeader
-        breadcrumbs={[{ label: "Leads", href: "/leads" }, { label: lead.name }]}
+      {/*
+        No headline figure: a lead is a name and a phone number, and inventing
+        a number for it would put a zero where the object's identity belongs.
+        `ObjectHeader` promotes the title into the top slot instead, so the
+        page still opens exactly like a ticket or a customer does.
+      */}
+      <ObjectHeader
+        back={{ label: "Leads", href: "/leads" }}
         title={lead.name}
-        description={`${lead.source ?? "Unknown source"} · ${leadAge(lead.createdAt)}`}
+        status={<StatusPill tone={meta.tone} label={meta.label} />}
+        id={<CopyableId value={lead.id} label="lead id" />}
+        meta={[
+          {
+            label: "Phone",
+            value: lead.phone ? (
+              <a href={`tel:${lead.phone}`} className="text-foreground hover:underline">
+                {lead.phone}
+              </a>
+            ) : (
+              <span className="text-faint-foreground">Not given</span>
+            ),
+          },
+          {
+            label: "Email",
+            value: lead.email ? (
+              <a
+                href={`mailto:${lead.email}`}
+                title={lead.email}
+                className="text-accent-soft-foreground hover:underline"
+              >
+                {lead.email}
+              </a>
+            ) : (
+              <span className="text-faint-foreground">Not given</span>
+            ),
+          },
+          { label: "Source", value: lead.source ?? "Unknown" },
+          { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
+          { label: "Last touched", value: leadAge(lead.updatedAt) },
+          // The one question a lead exists to answer: did anything come of
+          // it? At a glance here; the table below carries what it became and
+          // what state that record is in now.
+          {
+            label: "Converted",
+            value: lead.customer ? (
+              <Link
+                href={`/customers/${lead.customer.id}`}
+                className="font-medium text-accent-soft-foreground hover:underline"
+              >
+                {lead.customer.businessName ||
+                  `${lead.customer.firstName} ${lead.customer.lastName}`.trim()}
+              </Link>
+            ) : (
+              <span className="text-faint-foreground">Not yet</span>
+            ),
+          },
+        ]}
         actions={
-          <LeadActions
-            lead={{
-              id: lead.id,
-              status: lead.status,
-              values: {
-                name: lead.name,
-                email: lead.email ?? "",
-                phone: lead.phone ?? "",
-                source: lead.source ?? "Other",
-                message: lead.message ?? "",
-              },
-            }}
-            matches={matches}
-            problemTypes={problemTypes(shop?.settings)}
-            defaultSubject={ticketSubjectFromLead(lead)}
-            canDelete={role === "OWNER"}
-          />
+          // Same width cap as the ticket and customer headers — see the note
+          // there. `ObjectHeader`'s actions slot cannot wrap on its own.
+          <div className="flex flex-wrap items-center gap-2">
+            <LeadActions
+              lead={{
+                id: lead.id,
+                status: lead.status,
+                values: {
+                  name: lead.name,
+                  email: lead.email ?? "",
+                  phone: lead.phone ?? "",
+                  source: lead.source ?? "Other",
+                  message: lead.message ?? "",
+                },
+              }}
+              matches={matches}
+              problemTypes={problemTypes(shop?.settings)}
+              defaultSubject={ticketSubjectFromLead(lead)}
+              canDelete={role === "OWNER"}
+            />
+          </div>
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="flex flex-col gap-5">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <IconChip icon={UserRound} size="sm" />
-                <CardTitle className="truncate">Enquiry</CardTitle>
-              </div>
-              <StatusPill
-                tone={meta.tone}
-                label={meta.label}
-                className="shrink-0"
-              />
-            </CardHeader>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        {/*
+          The whole reason the page exists. Phone, email, source and received
+          are columns in the header now, so nothing sits between the enquiry
+          and the person reading it.
+        */}
+        <Card>
+          <CardHeader icon={MessageSquareText} title="What they said" />
+          <CardContent>
+            {lead.message ? (
+              <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">
+                {lead.message}
+              </p>
+            ) : (
+              <p className="text-[13.5px] text-muted-foreground">
+                Nothing was written down with this enquiry.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-            <CardContent className="flex flex-col gap-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Detail icon={Phone} label="Phone">
-                  {lead.phone ? (
-                    <a
-                      href={`tel:${lead.phone}`}
-                      className="font-semibold text-foreground hover:text-accent hover:underline"
-                    >
-                      {lead.phone}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">Not given</span>
-                  )}
-                </Detail>
+        {/*
+          Related records as a small embedded table, not a stack of cards
+          inside a card — the same shape the customer hub uses for its tickets
+          and invoices, at two rows instead of eight.
+        */}
+        <Card>
+          <CardHeader icon={ICONS.customer} title="Converted to" />
+          {lead.customer || lead.ticket ? (
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Record</Th>
+                  <Th className="text-right">Type</Th>
+                </Tr>
+              </THead>
+              <TBody>
+                {lead.customer ? (
+                  <Tr>
+                    <Td className="max-w-[10.5rem]">
+                      <Link
+                        href={`/customers/${lead.customer.id}`}
+                        className="block truncate font-medium text-foreground hover:text-accent hover:underline"
+                      >
+                        {lead.customer.businessName ||
+                          `${lead.customer.firstName} ${lead.customer.lastName}`.trim()}
+                      </Link>
+                    </Td>
+                    <Td className="text-right text-muted-foreground">
+                      Customer
+                    </Td>
+                  </Tr>
+                ) : null}
 
-                <Detail icon={Mail} label="Email">
-                  {lead.email ? (
-                    <a
-                      href={`mailto:${lead.email}`}
-                      className="break-all font-semibold text-foreground hover:text-accent hover:underline"
-                    >
-                      {lead.email}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">Not given</span>
-                  )}
-                </Detail>
-
-                <Detail icon={Tag} label="Source">
-                  <span className="font-semibold text-foreground">
-                    {lead.source ?? "Unknown"}
-                  </span>
-                </Detail>
-
-                <Detail icon={Clock} label="Received">
-                  <span className="font-semibold text-foreground">
-                    {format(lead.createdAt, "MMM d, yyyy · h:mm a")}
-                  </span>
-                </Detail>
-              </div>
-
-              <div className="flex flex-col gap-2 border-t border-border pt-5">
-                <span className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  <MessageSquareText className="size-4" />
-                  What they said
-                </span>
-                {lead.message ? (
-                  <p className="whitespace-pre-wrap text-[14.5px] leading-relaxed text-foreground">
-                    {lead.message}
-                  </p>
-                ) : (
-                  <p className="text-[14.5px] text-muted-foreground">
-                    Nothing was written down with this enquiry.
-                  </p>
-                )}
-              </div>
+                {lead.ticket ? (
+                  <Tr>
+                    <Td className="max-w-[10.5rem]">
+                      <Link
+                        href={`/tickets/${lead.ticket.id}`}
+                        className="block truncate font-medium text-foreground hover:text-accent hover:underline"
+                      >
+                        <span className="rf-num">#{lead.ticket.number}</span>{" "}
+                        {lead.ticket.subject}
+                      </Link>
+                    </Td>
+                    <Td className="text-right">
+                      <span className="inline-flex justify-end">
+                        <TicketStatus status={lead.ticket.status} />
+                      </span>
+                    </Td>
+                  </Tr>
+                ) : null}
+              </TBody>
+            </Table>
+          ) : (
+            <CardContent>
+              <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+                Nothing yet. Converting this lead creates (or links) a customer
+                and can open a ticket in the same step.
+              </p>
             </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>Converted to</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {lead.customer ? (
-                <RecordChip
-                  href={`/customers/${lead.customer.id}`}
-                  icon={UserRound}
-                  title={
-                    lead.customer.businessName ||
-                    `${lead.customer.firstName} ${lead.customer.lastName}`.trim()
-                  }
-                  meta="Customer"
-                />
-              ) : null}
-
-              {lead.ticket ? (
-                <RecordChip
-                  href={`/tickets/${lead.ticket.id}`}
-                  icon={Wrench}
-                  title={`#${lead.ticket.number} · ${lead.ticket.subject}`}
-                  meta={lead.ticket.status}
-                />
-              ) : null}
-
-              {!lead.customer && !lead.ticket ? (
-                <p className="py-2 text-[13.5px] text-muted-foreground">
-                  Nothing yet. Converting this lead creates (or links) a customer
-                  and can open a ticket in the same step.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>History</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 text-[13.5px]">
-              <TimelineRow
-                label="Received"
-                value={format(lead.createdAt, "MMM d, yyyy · h:mm a")}
-              />
-              <TimelineRow
-                label="Last touched"
-                value={format(lead.updatedAt, "MMM d, yyyy · h:mm a")}
-              />
-            </CardContent>
-          </Card>
-        </div>
+          )}
+        </Card>
       </div>
     </div>
   );
@@ -305,10 +312,7 @@ async function findMatches(
   const out: LeadMatch[] = [];
   const seen = new Set<string>();
 
-  const push = (
-    customer: (typeof byEmail)[number],
-    on: LeadMatch["on"],
-  ) => {
+  const push = (customer: (typeof byEmail)[number], on: LeadMatch["on"]) => {
     if (seen.has(customer.id)) return;
     seen.add(customer.id);
     out.push({
@@ -324,71 +328,13 @@ async function findMatches(
 
   for (const customer of byEmail) push(customer, "email");
   for (const customer of phoneCandidates) {
-    if (samePhone(customer.phone, lead.phone) || samePhone(customer.mobile, lead.phone)) {
+    if (
+      samePhone(customer.phone, lead.phone) ||
+      samePhone(customer.mobile, lead.phone)
+    ) {
       push(customer, "phone");
     }
   }
 
   return out.slice(0, 5);
-}
-
-// ---------------------------------------------------------------------------
-
-function Detail({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="flex items-center gap-2 text-[12.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Icon className="size-3.5" />
-        {label}
-      </span>
-      <span className="text-[14.5px]">{children}</span>
-    </div>
-  );
-}
-
-function RecordChip({
-  href,
-  icon: Icon,
-  title,
-  meta,
-}: {
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  meta: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-md border border-border bg-surface p-3 transition-colors hover:bg-surface-hover"
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
-        <Icon className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[13.5px] font-semibold text-foreground">
-          {title}
-        </span>
-        <span className="text-[12.5px] text-muted-foreground">{meta}</span>
-      </span>
-      <ArrowUpRight className="size-4 shrink-0 text-faint-foreground" />
-    </Link>
-  );
-}
-
-function TimelineRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold text-foreground">{value}</span>
-    </div>
-  );
 }

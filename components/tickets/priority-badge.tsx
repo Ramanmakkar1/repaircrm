@@ -1,7 +1,14 @@
 import { cn } from "@/components/ui/cn";
 import { asPriority, PRIORITY_META } from "./ticket-meta";
 
-/** Full chip — used in the ticket header. URGENT reads red, HIGH amber. */
+/**
+ * Full chip — used in the ticket header. URGENT reads red, HIGH amber.
+ *
+ * Geometry is `StatusPill`'s md size to the pixel (6px corner, 7px dot, 12px
+ * semibold), because it sits directly beside one: priority is a second state
+ * on the same object, so it has to be the same shape of thing. Only the
+ * palette is its own, and that comes from PRIORITY_META.
+ */
 export function PriorityBadge({
   priority,
   className,
@@ -13,12 +20,12 @@ export function PriorityBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold leading-none",
+        "inline-flex w-fit items-center gap-1.5 rounded-md px-2 py-[3px] text-[12px] font-semibold leading-none",
         meta.chip,
         className,
       )}
     >
-      <span className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
+      <span className={cn("size-[7px] shrink-0 rounded-full", meta.dot)} />
       {meta.label}
     </span>
   );

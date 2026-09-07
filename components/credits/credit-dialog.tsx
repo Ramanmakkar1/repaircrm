@@ -98,7 +98,8 @@ export function CreditDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline">
+        {/* `sm`: this sits in the customer header's action row. */}
+        <Button variant="outline" size="sm">
           <ICONS.credit />
           Add Credit
         </Button>

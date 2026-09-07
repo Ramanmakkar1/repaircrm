@@ -150,6 +150,7 @@ export default async function PurchaseOrderPage({
               </Link>
             </Button>
             <PurchaseOrderActions
+              size="sm"
               purchaseOrderId={order.id}
               status={order.status}
               vendorEmail={order.vendor.email}

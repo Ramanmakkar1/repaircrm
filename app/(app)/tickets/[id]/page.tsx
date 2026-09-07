@@ -8,14 +8,16 @@ import { requireUser } from "@/lib/auth";
 import { parseChecklist } from "@/lib/checklist";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { activeLocations } from "@/lib/location";
-import { formatCents } from "@/lib/money";
+import { calcTotals, formatCents } from "@/lib/money";
+import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { customerWarranties } from "@/lib/warranty";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge, StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
+import { CopyableId } from "@/components/ui/copyable-id";
 import { ICONS } from "@/components/ui/icons";
-import { Breadcrumbs } from "@/components/ui/page-header";
+import { ObjectHeader } from "@/components/ui/object-header";
 import { SummarizeTicketButton } from "@/components/ai/summarize-dialog";
 import {
   AttachmentsCard,
@@ -43,8 +45,9 @@ import {
   assetLabel,
   customerLabel,
   isReadyForPickup,
+  isResolved,
   problemTypes,
-  RESOLVED_STATUS,
+  relativeShort,
   STALENESS_CLASS,
   STALENESS_LABEL,
   stalenessLevel,
@@ -299,11 +302,13 @@ export default async function TicketDetailPage({
   const statuses = ticketStatuses(shop?.settings);
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
   const uninvoicedCount = ticket.charges.filter((c) => c.invoiceId === null).length;
-  const overdue =
-    ticket.dueDate !== null &&
-    ticket.dueDate.getTime() < now &&
-    ticket.status !== RESOLVED_STATUS;
+  const due = dueChip(ticket.dueDate, isResolved(ticket.status), now);
   const checklist = parseChecklist(ticket.checklist);
+
+  // The headline figure. Exactly the number the charges card foots to — the
+  // header never runs its own arithmetic on money, it just shows the total
+  // that is already the ticket's own.
+  const chargeTotals = calcTotals(ticket.charges, shop?.taxRateBps ?? 0);
 
   // The claimed purchase, so the badge can link straight at the invoice it
   // was sold on. Looked up through the invoice, which carries the shopId.
@@ -420,154 +425,210 @@ export default async function TicketDetailPage({
     // gap-6 between page sections, gap-5 inside the two card stacks below —
     // the same rhythm the customer and lead hubs use.
     <div className="flex flex-col gap-6">
-      <Breadcrumbs
-        items={[
-          { label: "Tickets", href: "/tickets" },
-          { label: `#${ticket.number}` },
-        ]}
-      />
-
       {/* ------------------------------------------------------------ header */}
-      <Card>
-        <CardContent className="flex flex-col gap-4 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
-                  #{ticket.number}
-                </span>
-                <StatusBadge status={ticket.status} />
-                <PriorityBadge priority={ticket.priority} />
-                {ticket.isWarranty ? (
-                  warrantyClaim ? (
-                    <Link
-                      href={`/invoices/${warrantyClaim.invoice.id}`}
-                      title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
-                      className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <StatusPill
-                        tone="ready"
-                        dot={false}
-                        label={`Warranty · #${warrantyClaim.invoice.number}`}
-                        className="hover:underline"
-                      />
-                    </Link>
-                  ) : (
-                    <StatusPill tone="ready" dot={false} label="Warranty" />
-                  )
-                ) : null}
-                <span
-                  title={STALENESS_LABEL[level]}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[12.5px] font-semibold",
-                    STALENESS_CLASS[level],
-                  )}
+      <ObjectHeader
+        back={{ label: "Tickets", href: "/tickets" }}
+        /*
+          No charges yet, no headline. A ticket that has not been worked has
+          nothing to say in the money slot, and rendering "$0.00" at 26px made
+          the emptiest fact on the screen the loudest thing on it — on the
+          intake screen a tech opens most often. With the slot empty the
+          primitive promotes the subject, which is the answer to "what is this
+          ticket?" anyway. The number reappears the moment a charge is added.
+        */
+        value={
+          ticket.charges.length > 0
+            ? formatCents(chargeTotals.totalCents)
+            : undefined
+        }
+        title={ticket.subject}
+        subtitle={`${ticket.problemType} · opened ${format(ticket.createdAt, "MMM d, yyyy")}`}
+        status={
+          <>
+            <StatusBadge status={ticket.status} />
+            <PriorityBadge priority={ticket.priority} />
+            {ticket.isWarranty ? (
+              warrantyClaim ? (
+                <Link
+                  href={`/invoices/${warrantyClaim.invoice.id}`}
+                  title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
+                  className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
-                  {STALENESS_LABEL[level]}
-                </span>
-              </div>
-              <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground">
-                {ticket.subject}
-              </h1>
-            </div>
-
-            {/* No `shrink-0`: on a phone this row is six buttons wide, and
-                refusing to shrink pushed the whole page into a horizontal
-                scroll instead of wrapping. */}
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {/* First in the row on purpose: this is the button the counter
-                  reaches for more than any other. */}
-              <PickupActions
-                ticketId={ticket.id}
-                isReady={isReadyForPickup(ticket.status)}
-                pickedUp={ticket.pickedUpAt !== null}
-              />
-              <Button asChild variant="outline">
-                <Link href={`/print/tickets/${ticket.id}`}>
-                  <ICONS.print />
-                  Work Order
+                  <StatusPill
+                    tone="ready"
+                    dot={false}
+                    label={`Warranty · #${warrantyClaim.invoice.number}`}
+                    className="hover:underline"
+                  />
                 </Link>
-              </Button>
-              <SummarizeTicketButton ticketId={ticket.id} />
-              <MakeInvoiceButton
-                ticketId={ticket.id}
-                chargeCount={uninvoicedCount}
-                unbilledTimeCount={unbilledTime.length}
-                unbilledTimeLabel={formatHm(unbilledTimeSeconds)}
-                unbilledTimeValue={formatCents(unbilledTimeCents)}
-              />
-              <EditTicketDialog
-                ticketId={ticket.id}
-                values={{
-                  subject: ticket.subject,
-                  problemType: ticket.problemType,
-                  priority: ticket.priority,
-                  assignedToId: ticket.assignedToId,
-                  assetId: ticket.assetId,
-                  dueDate: ticket.dueDate
-                    ? format(ticket.dueDate, "yyyy-MM-dd")
-                    : "",
-                  diagnosticNotes: ticket.diagnosticNotes ?? "",
-                  warrantyInvoiceLineId: ticket.warrantyInvoiceLineId,
-                }}
-                warranties={warranties.map((row) => ({
-                  value: row.id,
-                  label: row.description,
-                  hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
-                }))}
-                problemTypes={problemTypes(shop?.settings)}
-                techs={techs.map((t) => ({ value: t.id, label: t.name }))}
-                assets={customerAssets.map((asset) => ({
-                  value: asset.id,
-                  label: assetLabel(asset),
-                }))}
-              />
-              {role === "OWNER" ? (
-                <DeleteTicketDialog
-                  ticketId={ticket.id}
-                  ticketNumber={ticket.number}
-                />
-              ) : null}
-            </div>
-          </div>
-
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border pt-4 text-sm sm:grid-cols-3 lg:grid-cols-6">
-            <Fact label="Customer" title={customerLabel(ticket.customer)}>
+              ) : (
+                <StatusPill tone="ready" dot={false} label="Warranty" />
+              )
+            ) : null}
+          </>
+        }
+        id={<CopyableId value={`#${ticket.number}`} label="ticket number" />}
+        meta={[
+          {
+            label: "Customer",
+            value: (
               <Link
                 href={`/customers/${ticket.customer.id}`}
-                className="text-accent hover:underline"
+                title={customerLabel(ticket.customer)}
+                className="font-medium text-accent-soft-foreground hover:underline"
               >
                 {customerLabel(ticket.customer)}
               </Link>
-            </Fact>
-            <Fact
-              label="Device"
-              title={ticket.asset ? assetLabel(ticket.asset) : undefined}
-            >
-              {ticket.asset ? assetLabel(ticket.asset) : "—"}
-            </Fact>
-            <Fact label="Problem">{ticket.problemType}</Fact>
-            <Fact label="Tech">
-              {ticket.assignedTo?.name ?? (
-                <span className="text-faint-foreground">Unassigned</span>
-              )}
-            </Fact>
-            <Fact label="Created">
-              {format(ticket.createdAt, "MMM d, yyyy")}
-            </Fact>
-            <Fact label="Due">
-              {ticket.dueDate ? (
-                <span className={overdue ? "font-medium text-status-overdue" : ""}>
-                  {format(ticket.dueDate, "MMM d, yyyy")}
-                  {overdue ? " · overdue" : ""}
-                </span>
+            ),
+          },
+          {
+            label: "Device",
+            value: ticket.asset ? (
+              <span title={assetLabel(ticket.asset)}>
+                {assetLabel(ticket.asset)}
+              </span>
+            ) : (
+              <span className="text-faint-foreground">—</span>
+            ),
+          },
+          {
+            label: "Assigned",
+            value: ticket.assignedTo?.name ?? (
+              <span className="text-faint-foreground">Unassigned</span>
+            ),
+          },
+          {
+            label: "Due",
+            value: !ticket.dueDate ? (
+              <span className="text-faint-foreground">—</span>
+            ) : due && due.tone !== "later" ? (
+              // Same chip, same words as the tickets table — a due date must
+              // not read one way in the list and another way here.
+              <span
+                className={cn(
+                  "inline-block rounded-sm px-1.5 py-0.5 text-[12.5px] leading-none",
+                  DUE_TONE_CLASS[due.tone],
+                )}
+              >
+                {due.label}
+              </span>
+            ) : (
+              format(ticket.dueDate, "MMM d, yyyy")
+            ),
+          },
+          {
+            label: "Location",
+            value:
+              locations.length > 1 ? (
+                // The one editable cell in the strip: which branch the device
+                // is physically at is a fact people change from this screen,
+                // and duplicating it into the body just to host the control
+                // would put the same fact in two places.
+                <TicketLocation
+                  ticketId={ticket.id}
+                  locationId={ticket.locationId}
+                  locations={locations}
+                />
               ) : (
-                "—"
-              )}
-            </Fact>
-          </dl>
-        </CardContent>
-      </Card>
+                (ticket.location?.name ?? (
+                  <span className="text-faint-foreground">—</span>
+                ))
+              ),
+          },
+          {
+            label: "Last touched",
+            value: (
+              <span
+                title={STALENESS_LABEL[level]}
+                className={cn(
+                  "rf-num text-[12.5px]",
+                  level === "none" || level === "fresh"
+                    ? "text-muted-foreground"
+                    : cn(
+                        "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
+                        STALENESS_CLASS[level],
+                      ),
+                )}
+              >
+                {relativeShort(ticket.updatedAt, now)}
+              </span>
+            ),
+          },
+        ]}
+        actions={
+          /*
+            LOCAL WORKAROUND, and the only one on these three screens.
+
+            `ObjectHeader` pins its actions slot with `shrink-0`, so a row of
+            six buttons keeps its full max-content width, refuses to wrap, and
+            pushes the whole page into a horizontal scroll on a phone. The
+            width cap below is what forces the wrap: `max-width` clamps an
+            element's max-content contribution, so the header's slot stops
+            asking for more room than the screen has. The subtracted figures
+            are the app shell's own — 240px rail (md and up) plus the main and
+            card padding.
+
+            The real repair is one line in `components/ui/object-header.tsx`
+            (`shrink-0` → `min-w-0`), which is off limits here; delete this
+            wrapper the day that lands.
+          */
+          <div className="flex flex-wrap items-center gap-2">
+            {/* First in the row on purpose: this is the button the counter
+                reaches for more than any other. */}
+            <PickupActions
+              ticketId={ticket.id}
+              isReady={isReadyForPickup(ticket.status)}
+              pickedUp={ticket.pickedUpAt !== null}
+            />
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/print/tickets/${ticket.id}`}>
+                <ICONS.print />
+                Work Order
+              </Link>
+            </Button>
+            <SummarizeTicketButton ticketId={ticket.id} />
+            <MakeInvoiceButton
+              ticketId={ticket.id}
+              chargeCount={uninvoicedCount}
+              unbilledTimeCount={unbilledTime.length}
+              unbilledTimeLabel={formatHm(unbilledTimeSeconds)}
+              unbilledTimeValue={formatCents(unbilledTimeCents)}
+            />
+            <EditTicketDialog
+              ticketId={ticket.id}
+              values={{
+                subject: ticket.subject,
+                problemType: ticket.problemType,
+                priority: ticket.priority,
+                assignedToId: ticket.assignedToId,
+                assetId: ticket.assetId,
+                dueDate: ticket.dueDate
+                  ? format(ticket.dueDate, "yyyy-MM-dd")
+                  : "",
+                diagnosticNotes: ticket.diagnosticNotes ?? "",
+                warrantyInvoiceLineId: ticket.warrantyInvoiceLineId,
+              }}
+              warranties={warranties.map((row) => ({
+                value: row.id,
+                label: row.description,
+                hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
+              }))}
+              problemTypes={problemTypes(shop?.settings)}
+              techs={techs.map((t) => ({ value: t.id, label: t.name }))}
+              assets={customerAssets.map((asset) => ({
+                value: asset.id,
+                label: assetLabel(asset),
+              }))}
+            />
+            {role === "OWNER" ? (
+              <DeleteTicketDialog
+                ticketId={ticket.id}
+                ticketNumber={ticket.number}
+              />
+            ) : null}
+          </div>
+        }
+      />
 
       {/* ---------------------------------------------------------- progress */}
       <Card>
@@ -636,12 +697,12 @@ export default async function TicketDetailPage({
             <CardHeader>
               <CardTitle>Details</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4 text-sm">
+            <CardContent className="flex flex-col gap-3.5 text-sm">
               <Fact label="Email" title={ticket.customer.email ?? undefined}>
                 {ticket.customer.email ? (
                   <a
                     href={`mailto:${ticket.customer.email}`}
-                    className="text-accent hover:underline"
+                    className="text-accent-soft-foreground hover:underline"
                   >
                     {ticket.customer.email}
                   </a>
@@ -654,28 +715,17 @@ export default async function TicketDetailPage({
                   <span className="text-faint-foreground">None on file</span>
                 )}
               </Fact>
-              <Fact label="Location">
-                {locations.length > 1 ? (
-                  <TicketLocation
-                    ticketId={ticket.id}
-                    locationId={ticket.locationId}
-                    locations={locations}
-                  />
-                ) : (
-                  (ticket.location?.name ?? "—")
-                )}
-              </Fact>
               {ticket.resolvedAt ? (
                 <Fact label="Resolved">
                   {format(ticket.resolvedAt, "MMM d, yyyy h:mm a")}
                 </Fact>
               ) : null}
               {ticket.diagnosticNotes ? (
-                <div className="border-t border-border pt-4">
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="border-t border-border pt-3.5">
+                  <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
                     Diagnostic notes
                   </p>
-                  <p className="whitespace-pre-wrap leading-relaxed text-foreground">
+                  <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground">
                     {ticket.diagnosticNotes}
                   </p>
                 </div>
@@ -721,6 +771,15 @@ export default async function TicketDetailPage({
   );
 }
 
+/**
+ * A key/value line in the sidebar's Details card.
+ *
+ * Wears the same label as the header's metadata columns — 11.5px, medium,
+ * faint — so the two read as the same kind of fact rather than two competing
+ * typographies. The facts that belong to the object itself (customer, device,
+ * tech, due, location, staleness) live in the header strip; what is left here
+ * is the contact detail you dial while the ticket is open.
+ */
 function Fact({
   label,
   title,
@@ -732,14 +791,11 @@ function Fact({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="flex min-w-0 flex-col gap-1">
+      <dt className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
         {label}
       </dt>
-      <dd
-        title={title}
-        className="truncate text-[14.5px] font-semibold text-foreground"
-      >
+      <dd title={title} className="truncate text-[13.5px] text-foreground">
         {children}
       </dd>
     </div>

@@ -38,14 +38,21 @@
   --muted-foreground: #697386;
   --faint-foreground: #8792a2;
 
-  /* accent — deep indigo */
-  --accent: #4338ca;
-  --accent-hover: #372ea8;
+  /*
+   * Accent — blue-violet.
+   *
+   * This was #4338ca: Tailwind's indigo-700, which reads as "admin panel"
+   * because half the internet's dashboards ship with it. Stripe's sits lighter
+   * and bluer, and that hue is most of what makes a screen read as theirs at a
+   * glance — before you have taken in a single control.
+   */
+  --accent: #5b54e6;
+  --accent-hover: #4d46d4;
   --accent-foreground: #ffffff;
-  --accent-soft: #ecebfd;
-  --accent-soft-foreground: #3a30a8;
+  --accent-soft: #eeedfe;
+  --accent-soft-foreground: #4a43c4;
 
-  --ring: #4338ca;
+  --ring: #5b54e6;
 
   /* destructive (also doubles as the "overdue" status color) */
   --destructive: #dc2626;
@@ -87,8 +94,8 @@
   --shadow-color: 16 24 40;
 
   /* soft tinted "chip" surfaces for icon badges on cards */
-  --chip-accent-bg: #ecebfd;
-  --chip-accent-fg: #3a30a8;
+  --chip-accent-bg: #eeedfe;
+  --chip-accent-fg: #4a43c4;
 }
 
 @theme inline {
@@ -213,13 +220,13 @@
     --muted-foreground: #98a1b0;
     --faint-foreground: #6b7483;
 
-    --accent: #8b85f2;
-    --accent-hover: #a09af6;
-    --accent-foreground: #0f0d24;
-    --accent-soft: #211f42;
-    --accent-soft-foreground: #c6c2f7;
+    --accent: #9b95fa;
+    --accent-hover: #b0abfc;
+    --accent-foreground: #12102e;
+    --accent-soft: #221f47;
+    --accent-soft-foreground: #cdc9fb;
 
-    --ring: #8b85f2;
+    --ring: #9b95fa;
 
     --destructive: #f4736c;
     --destructive-hover: #f78e88;
@@ -252,8 +259,8 @@
 
     --shadow-color: 0 0 0;
 
-    --chip-accent-bg: #211f42;
-    --chip-accent-fg: #c6c2f7;
+    --chip-accent-bg: #221f47;
+    --chip-accent-fg: #cdc9fb;
   }
 }
 
@@ -503,12 +510,12 @@ body:has(.rf-landing) {
   --muted-foreground: #61646c;
   --faint-foreground: #9095a0;
 
-  --accent: #4338ca;
-  --accent-hover: #372ea8;
+  --accent: #5b54e6;
+  --accent-hover: #4d46d4;
   --accent-foreground: #ffffff;
-  --accent-soft: #ecebfd;
-  --accent-soft-foreground: #3a30a8;
-  --ring: #4338ca;
+  --accent-soft: #eeedfe;
+  --accent-soft-foreground: #4a43c4;
+  --ring: #5b54e6;
 
   --destructive: #dc2626;
   --destructive-hover: #b91c1c;
@@ -535,8 +542,8 @@ body:has(.rf-landing) {
   --status-overdue-fg: #b91c1c;
 
   --shadow-color: 16 24 40;
-  --chip-accent-bg: #ecebfd;
-  --chip-accent-fg: #3a30a8;
+  --chip-accent-bg: #eeedfe;
+  --chip-accent-fg: #4a43c4;
 
   background: var(--background);
   color: var(--foreground);

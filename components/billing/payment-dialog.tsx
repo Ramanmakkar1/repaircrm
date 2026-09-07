@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { AlertCircle, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -79,12 +79,15 @@ export function PaymentDialog({
   customerName,
   receiptAction,
   terminal,
+  size,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
   balanceCents: number;
   customerCreditCents: number;
   customerName: string;
+  /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
+  size?: ButtonProps["size"];
   /** Absent when this shop has no card machine connected. */
   terminal?: PaymentTerminal;
   /**
@@ -139,7 +142,7 @@ export function PaymentDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button>
+        <Button size={size}>
           <ACTIONS.pay /> Take payment
         </Button>
       </DialogTrigger>

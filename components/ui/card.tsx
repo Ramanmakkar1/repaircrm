@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { TONE_CLASS, type StatusTone } from "./badge";
 import { cn } from "./cn";
 
@@ -172,6 +173,89 @@ export function CardFooter({
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * A row of metrics as ONE band, not a scatter of floating boxes.
+ *
+ * `StatTile` is right for three or four figures inside a page section. It is
+ * wrong for the five or six that summarise a whole screen: six bordered cards
+ * with gaps between them read as six unrelated things, when they are one
+ * reading of one moment. Stripe puts that kind of summary in a single
+ * container split by hairlines — which is also about half the height.
+ *
+ * The hairlines are `gap-px` over a border-coloured fill, the same trick the
+ * detail-page metadata strip uses, so the two read as one idea.
+ */
+export function StatBand({
+  items,
+  className,
+}: {
+  items: {
+    label: React.ReactNode;
+    value: React.ReactNode;
+    hint?: React.ReactNode;
+    tone?: StatusTone;
+    /** Whole cell becomes a link. */
+    href?: string;
+    icon?: React.ComponentType<{ className?: string }>;
+  }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn("overflow-hidden rounded-lg border border-border", className)}>
+      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
+        {items.map((item, index) => {
+          const Icon = item.icon;
+          const tone = item.tone ?? "neutral";
+          const body = (
+            <>
+              <span className="flex min-w-0 items-center gap-1.5">
+                {tone !== "neutral" ? (
+                  <span
+                    aria-hidden
+                    className={cn("size-1.5 shrink-0 rounded-full", TONE_CLASS[tone].dot)}
+                  />
+                ) : null}
+                {Icon ? (
+                  <Icon aria-hidden className="size-3.5 shrink-0 text-faint-foreground" />
+                ) : null}
+                <span className="truncate text-[12.5px] font-medium text-muted-foreground">
+                  {item.label}
+                </span>
+              </span>
+              <span className="rf-num text-[24px] font-semibold leading-none tracking-[-0.02em] text-foreground">
+                {item.value}
+              </span>
+              {item.hint ? (
+                <span className="truncate text-[12px] leading-snug text-muted-foreground">
+                  {item.hint}
+                </span>
+              ) : null}
+            </>
+          );
+
+          const cell = "flex flex-col gap-2 bg-surface px-4 py-3.5";
+          return item.href ? (
+            <Link
+              key={index}
+              href={item.href}
+              className={cn(
+                cell,
+                "transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+              )}
+            >
+              {body}
+            </Link>
+          ) : (
+            <div key={index} className={cell}>
+              {body}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-// Building2 / Pencil / ScrollText have no concept in components/ui/icons.ts;
-// everything else on this screen comes from the shared map.
-import { Building2, Mail, Pencil, Phone, ScrollText } from "lucide-react";
+// Pencil / ScrollText have no concept in components/ui/icons.ts; everything
+// else on this screen comes from the shared map.
+import { Pencil, ScrollText } from "lucide-react";
 
 import {
   CommunicationsCard,
@@ -27,17 +27,17 @@ import {
 } from "@/components/customers/format";
 import { InfoCard } from "@/components/customers/info-card";
 import { NotesCard } from "@/components/customers/notes-card";
-import { StatsRow } from "@/components/customers/stats-row";
 import { WarrantiesCard } from "@/components/customers/warranties-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
-import { Breadcrumbs } from "@/components/ui/page-header";
+import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Chip } from "@/components/ui/chip";
+import { cn } from "@/components/ui/cn";
+import { CopyableId } from "@/components/ui/copyable-id";
 import { ICONS } from "@/components/ui/icons";
+import { ObjectHeader } from "@/components/ui/object-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
+import { formatCents, invoiceTotals } from "@/lib/money";
 import { customerWarranties } from "@/lib/warranty";
 import { cardExpired, cardOnFile, paymentsLive } from "@/lib/payments";
 import {
@@ -287,63 +287,122 @@ export default async function CustomerHubPage({
     <div className="flex flex-col gap-6">
       <FlashToast flash={flash} />
 
-      <div className="flex flex-col gap-4">
-        <Breadcrumbs
-          items={[{ label: "Customers", href: "/customers" }, { label: name }]}
-        />
-
-        {/*
-          Seven actions live in this hero, and side-by-side they squeezed the
-          customer's own name down to "Priscill…". The identity gets the full
-          width and the actions wrap under it — the name is the one thing on
-          this page that must never truncate.
-        */}
-        <Card className="flex flex-col gap-5 p-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar className="size-16">
-              <AvatarFallback className="text-xl font-bold">
+      {/*
+        The same object header every detail screen in the app opens with. What
+        the customer owes is the headline, because it is the one number that
+        changes what you say when you pick up the phone; the five-tile stats
+        strip that used to sit under the hero is gone — its numbers are the
+        headline, four of these columns, and the counts already carried by each
+        section card's own header.
+      */}
+      <ObjectHeader
+        back={{ label: "Customers", href: "/customers" }}
+        value={formatCents(unpaidBalanceCents)}
+        title={
+          <span className="flex min-w-0 items-center gap-2.5">
+            <Avatar className="size-6 shrink-0">
+              <AvatarFallback className="text-[10px] font-semibold">
                 {initials(name)}
               </AvatarFallback>
             </Avatar>
-            <div className="flex min-w-0 flex-col gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                {name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2">
-                {customer.businessName ? (
-                  <Chip icon={Building2}>{customer.businessName}</Chip>
-                ) : null}
-                {(customer.phone ?? customer.mobile) ? (
-                  <Chip icon={Phone}>{customer.phone ?? customer.mobile}</Chip>
-                ) : null}
-                {customer.email ? <Chip icon={Mail}>{customer.email}</Chip> : null}
-                <Chip icon={ICONS.appointment}>
-                  Since {formatDate(customer.createdAt)}
-                </Chip>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
-            <Button asChild>
+            <span className="truncate">{name}</span>
+          </span>
+        }
+        subtitle={customer.businessName ?? undefined}
+        status={
+          unpaidBalanceCents > 0 ? (
+            <StatusPill tone="danger" label="Balance due" />
+          ) : (
+            <StatusPill tone="neutral" label="Nothing outstanding" />
+          )
+        }
+        id={<CopyableId value={customer.id} label="customer id" />}
+        meta={[
+          {
+            label: "Phone",
+            value: (customer.phone ?? customer.mobile) ? (
+              <a
+                href={`tel:${customer.phone ?? customer.mobile}`}
+                className="text-foreground hover:underline"
+              >
+                {customer.phone ?? customer.mobile}
+              </a>
+            ) : (
+              <span className="text-faint-foreground">—</span>
+            ),
+          },
+          {
+            label: "Email",
+            value: customer.email ? (
+              <a
+                href={`mailto:${customer.email}`}
+                title={customer.email}
+                className="text-accent-soft-foreground hover:underline"
+              >
+                {customer.email}
+              </a>
+            ) : (
+              <span className="text-faint-foreground">—</span>
+            ),
+          },
+          {
+            label: "Open tickets",
+            value: (
+              <span className="rf-num">
+                {openTicketCount} of {customer._count.tickets}
+              </span>
+            ),
+          },
+          {
+            label: "Lifetime",
+            value: (
+              <span className="rf-num">
+                {formatCents(paymentTotals._sum.amountCents ?? 0)}
+              </span>
+            ),
+          },
+          {
+            label: "Store credit",
+            value: (
+              <span
+                className={cn(
+                  "rf-num",
+                  customer.creditBalanceCents > 0
+                    ? "font-medium text-status-resolved-fg"
+                    : "text-muted-foreground",
+                )}
+              >
+                {formatCents(customer.creditBalanceCents)}
+              </span>
+            ),
+          },
+          { label: "Customer since", value: formatDate(customer.createdAt) },
+        ]}
+        actions={
+          // The width cap is the same local workaround the ticket page
+          // carries, and for the same reason: `ObjectHeader` pins its actions
+          // slot with `shrink-0`, so seven buttons would scroll the page
+          // sideways on a phone instead of wrapping.
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" asChild>
               <Link href={`/tickets/new?customerId=${customer.id}`}>
                 <ICONS.ticket />
                 New Ticket
               </Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link href={`/invoices/new?customerId=${customer.id}`}>
                 <ICONS.invoice />
                 New Invoice
               </Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link href={`/estimates/new?customerId=${customer.id}`}>
                 <ICONS.estimate />
                 New Estimate
               </Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link href={`/customers/${customer.id}/statement`}>
                 <ScrollText />
                 Statement
@@ -363,7 +422,7 @@ export default async function CustomerHubPage({
                 }))}
               />
             ) : null}
-            <Button variant="outline" asChild>
+            <Button variant="outline" size="sm" asChild>
               <Link href={`/customers/${customer.id}/edit`}>
                 <Pencil />
                 Edit
@@ -376,16 +435,7 @@ export default async function CustomerHubPage({
               blockedReason={blockedReason}
             />
           </div>
-        </Card>
-      </div>
-
-      <StatsRow
-        ticketCount={customer._count.tickets}
-        openTicketCount={openTicketCount}
-        invoiceCount={customer._count.invoices}
-        lifetimeRevenueCents={paymentTotals._sum.amountCents ?? 0}
-        unpaidBalanceCents={unpaidBalanceCents}
-        creditBalanceCents={customer.creditBalanceCents}
+        }
       />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">

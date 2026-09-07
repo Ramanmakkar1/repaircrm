@@ -9,16 +9,18 @@ import {
   Card,
   CardContent,
   CardHeader,
-  StatTile,
+  StatBand,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { STATUS_META, normalizeStatus, type StatusTone } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
-import { TicketCard } from "@/components/tickets/ticket-card";
+import { RowLink } from "@/components/list/row-link";
+import { customerLabel, relativeShort } from "@/components/tickets/ticket-meta";
+import { StatusBadge } from "@/components/ui/badge";
+import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { requireUser } from "@/lib/auth";
-import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -197,28 +199,25 @@ export default async function DashboardPage() {
       {/* Renders nothing once the shop is set up, or once it is dismissed. */}
       <SetupChecklist />
 
-      {/* The six numbers that answer "how is today going?" */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {stats.map((stat) => (
-          <Link
-            key={stat.label}
-            href={stat.href}
-            // `StatTile` is a div, so the link wraps it and owns the focus
-            // ring; the tile itself carries the shared interactive treatment.
-            className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            <StatTile
-              interactive
-              icon={stat.icon}
-              tone={stat.tone}
-              value={stat.value}
-              label={stat.label}
-              hint={stat.hint}
-              className="h-full"
-            />
-          </Link>
-        ))}
-      </div>
+      {/*
+        The six numbers that answer "how is today going?".
+
+        One summary band, not six floating boxes. Six separate bordered cards
+        with gaps between them made the top of the shop's home screen read as
+        six unrelated things; they are one reading of one moment, so they share
+        one container and are separated by hairlines — the band Stripe puts
+        across the top of Payments and Balance. Same six links, same six
+        numbers, roughly half the vertical space.
+      */}
+      <StatBand
+        items={stats.map((stat) => ({
+          label: stat.label,
+          value: stat.value,
+          hint: stat.hint,
+          tone: stat.tone,
+          href: stat.href,
+        }))}
+      />
 
       {/* Where the work stands: six counts on one hairline grid. */}
       <Card>
@@ -303,18 +302,66 @@ export default async function DashboardPage() {
             />
           </Card>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {recentTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={{
-                  ...ticket,
-                  checklist: checklistProgress(parseChecklist(ticket.checklist)),
-                }}
-                now={clock}
-              />
-            ))}
-          </div>
+          /*
+            Nine tickets as a table, not nine cards.
+            ----------------------------------------
+            The card grid put three tickets on a row, each in its own box with
+            a 3px coloured stripe down the side, and pushed everything below it
+            off the screen. Nine of anything shouting at once is nine things
+            you skip. As rows they are scannable in one pass — number, who,
+            what, state, when — which is the actual question this block answers
+            ("what has the shop been touching?"), and the same nine tickets now
+            take about a third of the height.
+
+            `TicketCard` is untouched and still correct where a card is the
+            right object: the kanban board.
+          */
+          <Card className="overflow-hidden">
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Ticket</Th>
+                  <Th>Customer</Th>
+                  <Th>Subject</Th>
+                  <Th>Status</Th>
+                  <Th className="text-right">Updated</Th>
+                </Tr>
+              </THead>
+              <TBody>
+                {recentTickets.map((ticket) => (
+                  <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
+                    <Td>
+                      <Link
+                        href={`/tickets/${ticket.id}`}
+                        className="rf-id font-semibold text-accent-soft-foreground hover:underline"
+                      >
+                        #{ticket.number}
+                      </Link>
+                    </Td>
+                    <Td className="font-medium text-foreground">
+                      <span className="block max-w-[180px] truncate">
+                        {customerLabel(ticket.customer)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span
+                        className="block max-w-[380px] truncate"
+                        title={ticket.subject}
+                      >
+                        {ticket.subject}
+                      </span>
+                    </Td>
+                    <Td>
+                      <StatusBadge status={ticket.status} />
+                    </Td>
+                    <Td className="text-right text-muted-foreground">
+                      {relativeShort(ticket.updatedAt, clock)}
+                    </Td>
+                  </RowLink>
+                ))}
+              </TBody>
+            </Table>
+          </Card>
         )}
       </div>
     </div>

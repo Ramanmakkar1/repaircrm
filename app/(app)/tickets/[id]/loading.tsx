@@ -8,9 +8,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function TicketDetailLoading() {
   return (
     <div className="flex flex-col gap-6">
-      <Skeleton className="h-4 w-28" />
+      {/* The object header: back link, then the one card that carries the
+          headline figure, the status and the metadata strip. */}
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-[172px] rounded-lg" />
+      </div>
 
-      <Skeleton className="h-[196px] rounded-lg" />
       <Skeleton className="h-[112px] rounded-lg" />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
