@@ -56,9 +56,12 @@ export type TicketFilterValues = {
 export function TicketToolbar({
   values,
   problemTypes,
+  techs,
 }: {
   values: TicketFilterValues;
   problemTypes: string[];
+  /** For the Tech filter, which now lives inside the Filters dialog. */
+  techs: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -77,8 +80,14 @@ export function TicketToolbar({
     [router, values],
   );
 
+  // Due and Tech are inside the dialog now, so they have to count towards the
+  // badge — a filter you cannot see and cannot tell is set is worse than one
+  // taking up a row of the page.
   const advancedCount =
-    (values.problemType !== "all" ? 1 : 0) + (values.sort !== "created" ? 1 : 0);
+    (values.problemType !== "all" ? 1 : 0) +
+    (values.sort !== "created" ? 1 : 0) +
+    (values.due !== "all" ? 1 : 0) +
+    (values.tech !== "all" ? 1 : 0);
 
   const isFiltered =
     values.q !== "" ||
@@ -126,6 +135,7 @@ export function TicketToolbar({
         <AdvancedFilters
           values={values}
           problemTypes={problemTypes}
+          techs={techs}
           onApply={(patch) => {
             setAdvancedOpen(false);
             push(patch);
@@ -184,28 +194,74 @@ function ticketsHref(values: TicketFilterValues): string {
   return qs ? `/tickets?${qs}` : "/tickets";
 }
 
+/**
+ * Due and Tech used to be two rows of chips ON the page, under the tab strip
+ * and the search box. Three rows of controls stood between the page title and
+ * the first ticket, and the owner's word for the result was "complicated".
+ *
+ * They are secondary axes — you pick a view, then occasionally narrow it — so
+ * they belong behind the button that already says "Filters". The button shows
+ * a count when any of them is set, which is what stops a hidden filter from
+ * being a confusing one.
+ */
 function AdvancedFilters({
   values,
   problemTypes,
+  techs,
   onApply,
 }: {
   values: TicketFilterValues;
   problemTypes: string[];
+  techs: { id: string; name: string }[];
   onApply: (patch: Partial<TicketFilterValues>) => void;
 }) {
   const [problemType, setProblemType] = React.useState(values.problemType);
   const [sort, setSort] = React.useState(values.sort);
+  const [due, setDue] = React.useState(values.due);
+  const [tech, setTech] = React.useState(values.tech);
 
   return (
     <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>More filters</DialogTitle>
         <DialogDescription>
-          Narrow the table to one kind of problem, or reorder it.
+          Narrow the board to one tech, one kind of problem, or what is due.
         </DialogDescription>
       </DialogHeader>
 
       <div className="flex flex-col gap-4">
+        <FilterField label="Due">
+          <Select value={due} onValueChange={setDue}>
+            <SelectTrigger aria-label="Due">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any date</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="today">Due today</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        {techs.length > 0 ? (
+          <FilterField label="Tech">
+            <Select value={tech} onValueChange={setTech}>
+              <SelectTrigger aria-label="Tech">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Everyone</SelectItem>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {techs.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+        ) : null}
+
         <FilterField label="Problem type">
           <Select value={problemType} onValueChange={setProblemType}>
             <SelectTrigger aria-label="Problem type">
@@ -242,11 +298,16 @@ function AdvancedFilters({
           onClick={() => {
             setProblemType("all");
             setSort("created");
+            setDue("all");
+            setTech("all");
           }}
         >
           Reset
         </Button>
-        <Button type="button" onClick={() => onApply({ problemType, sort })}>
+        <Button
+          type="button"
+          onClick={() => onApply({ problemType, sort, due, tech })}
+        >
           <ACTIONS.filter />
           Show tickets
         </Button>

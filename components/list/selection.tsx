@@ -205,6 +205,52 @@ export function SelectRowCell({
 }
 
 /**
+ * A bare selection checkbox, for a CARD rather than a table row.
+ *
+ * `SelectRowCell` renders a `<Td>` and only makes sense inside a `<Tr>`. A card
+ * grid needs the same behaviour with no cell around it — positioned by the
+ * caller, usually pinned to the card's top-left and revealed on hover so a
+ * quiet grid stays quiet until you start choosing.
+ *
+ * `stopPropagation` matters even more here than in a table: the whole card is
+ * wrapped in a `<Link>`, so without it ticking a box would also navigate, and
+ * selecting five tickets would open five pages.
+ */
+export function SelectBox({
+  selection,
+  id,
+  label,
+  className,
+}: {
+  selection: Selection;
+  id: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn("inline-flex", className)}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+      }}
+    >
+      <Checkbox
+        checked={selection.isSelected(id)}
+        onClick={(event) => {
+          if ((event as React.MouseEvent).shiftKey) {
+            event.preventDefault();
+            selection.toggleRange(id);
+          }
+        }}
+        onCheckedChange={() => selection.toggle(id)}
+        aria-label={`Select ${label}`}
+      />
+    </span>
+  );
+}
+
+/**
  * The bar that rises when rows are chosen.
  *
  * Fixed to the bottom of the viewport rather than inserted above the table, so
@@ -332,5 +378,25 @@ export function BulkBar({
     <BulkActionBar selection={useRowSelection()} noun={noun}>
       {children}
     </BulkActionBar>
+  );
+}
+
+/** A card checkbox, reading the selection from `<SelectionScope>`. */
+export function SelectCard({
+  id,
+  label,
+  className,
+}: {
+  id: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <SelectBox
+      selection={useRowSelection()}
+      id={id}
+      label={label}
+      className={className}
+    />
   );
 }

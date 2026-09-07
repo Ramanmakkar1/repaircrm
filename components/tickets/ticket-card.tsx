@@ -1,3 +1,4 @@
+import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 // BellRing and HandCoins have no concept in components/ui/icons.ts.
@@ -93,11 +94,18 @@ export type TicketCardData = {
 export function TicketCard({
   ticket,
   now,
+  selectSlot,
   className,
 }: {
   ticket: TicketCardData;
   /** One request-time clock, so every card in a render agrees on "now". */
   now: number;
+  /**
+   * A selection checkbox, pinned to the top-right corner above the link
+   * overlay. Omitted on the boards and the dashboard, where there is nothing
+   * to select.
+   */
+  selectSlot?: React.ReactNode;
   className?: string;
 }) {
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
@@ -120,18 +128,42 @@ export function TicketCard({
     isReadyForPickup(ticket.status) && !ticket.pickedUpAt;
 
   return (
-    <Link
-      href={`/tickets/${ticket.id}`}
+    /*
+      A STRETCHED LINK, not a card wrapped in one.
+      ----------------------------------------------------------------------
+      The whole card used to be inside an `<a>`. That is fine until something
+      inside it needs to be clickable itself — a selection checkbox, a quick
+      action — because an interactive element inside an anchor is invalid HTML
+      and ambiguous to a screen reader and a mouse alike.
+
+      So the anchor is now an overlay: it covers the card, sits above the
+      static text (which nobody needs to click), and anything genuinely
+      interactive sits above IT on `z-20`. Same click target, same keyboard
+      focus, no nesting.
+    */
+    <Card
+      interactive
+      tone={STATUS_TONE[normalizeStatus(ticket.status)]}
       className={cn(
-        "rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "group relative flex h-full flex-col gap-3 p-5",
+        "focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-2 focus-within:ring-offset-background",
         className,
       )}
     >
-      <Card
-        interactive
-        tone={STATUS_TONE[normalizeStatus(ticket.status)]}
-        className="flex h-full flex-col gap-3 p-5"
+      <Link
+        href={`/tickets/${ticket.id}`}
+        className="absolute inset-0 z-10 rounded-lg focus:outline-none"
       >
+        <span className="sr-only">
+          Open ticket #{ticket.number} — {customerLabel(ticket.customer)}
+        </span>
+      </Link>
+
+      {selectSlot ? (
+        <span className="absolute right-3 top-3 z-20">{selectSlot}</span>
+      ) : null}
+
+      <>
         <div className="flex items-start justify-between gap-3">
           <span className="flex items-center gap-2">
             <span className="text-2xl font-bold leading-none tabular-nums tracking-tight text-foreground">
@@ -267,7 +299,7 @@ export function TicketCard({
             {relativeShort(ticket.updatedAt, now)}
           </span>
         </div>
-      </Card>
-    </Link>
+      </>
+    </Card>
   );
 }
