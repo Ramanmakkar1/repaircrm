@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import { LocationSwitcher, type SwitcherLocation } from "./location-switcher";
 import { NewMenu } from "./new-menu";
+import type { Density } from "@/lib/prefs";
 import { UserMenu, type CurrentUser } from "./user-menu";
 
 export function Topbar({
@@ -17,8 +18,11 @@ export function Topbar({
   currentLocationId,
   onMenuClick,
   onSearchClick,
+  density,
 }: {
   user: CurrentUser;
+  /** Passed through to the user menu, which hosts the density control. */
+  density: Density;
   /** Active branches. Fewer than two and the switcher is not rendered. */
   locations: SwitcherLocation[];
   currentLocationId: string;
@@ -55,7 +59,7 @@ export function Topbar({
           />
         ) : null}
         <NewMenu />
-        <UserMenu user={user} />
+        <UserMenu user={user} density={density} />
       </div>
     </header>
   );

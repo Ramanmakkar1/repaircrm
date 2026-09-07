@@ -1,4 +1,5 @@
 import { activeLocations, currentLocationId } from "@/lib/location";
+import { readUiPrefs } from "@/lib/prefs";
 import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
@@ -15,9 +16,13 @@ export default async function AppLayout({
 
   // The branch switcher's data. A single-location shop gets a one-item list,
   // and the topbar renders nothing at all for it.
-  const [locations, locationId] = await Promise.all([
+  // Display preferences come off the request cookie, so the shell renders at
+  // the right density and the rail at the right width on the FIRST byte — no
+  // hydrate-then-snap.
+  const [locations, locationId, prefs] = await Promise.all([
     activeLocations(user.shopId),
     currentLocationId(),
+    readUiPrefs(),
   ]);
 
   return (
@@ -25,6 +30,7 @@ export default async function AppLayout({
       user={{ name: user.name, email: user.email, role: user.role }}
       locations={locations}
       currentLocationId={locationId}
+      prefs={prefs}
     >
       {/* Production only; see the note in the component. */}
       <RegisterServiceWorker />

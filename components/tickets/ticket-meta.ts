@@ -251,3 +251,39 @@ export function formatClock(totalSeconds: number): string {
   const ss = String(s % 60).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
+
+// ---------------------------------------------------------------------------
+// Dates
+// ---------------------------------------------------------------------------
+
+/**
+ * A `<input type="date">` value read as LOCAL midnight.
+ *
+ * `new Date("2026-08-24")` is specified to parse a bare date as *UTC* midnight,
+ * which renders as the 23rd for anyone west of UTC — so a due date typed as the
+ * 24th would read back as the 23rd. Splitting the parts and using the
+ * multi-arg Date constructor pins it to the shop's own calendar day. The same
+ * trap is defused inside `optionalDate` in the tickets form actions; this is
+ * the version the inline field and its server action share, so the date a tech
+ * picks in the header and the date the row stores are parsed by one rule.
+ *
+ * Returns null for anything that is not a real calendar day — including
+ * 2026-02-31, which the Date constructor would silently roll forward to March
+ * 3 — so a caller can REFUSE rather than quietly storing the wrong day or
+ * clearing the field.
+ */
+export function parseDateInput(value: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!parts) return null;
+
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const date = new Date(year, month - 1, day);
+
+  return date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+    ? date
+    : null;
+}

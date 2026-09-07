@@ -5,9 +5,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
 import { formatBps } from "@/lib/money";
+import { CustomerField } from "./customer-field";
 import { EM_DASH, addressLines } from "./format";
 
 export type CustomerInfo = {
+  /** Needed by the inline "Referred by" field, which writes one column. */
+  id: string;
   email: string | null;
   phone: string | null;
   mobile: string | null;
@@ -96,7 +99,27 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
                   : "Shop default"
             }
           />
-          <Row label="Referred by" value={customer.referredBy ?? EM_DASH} />
+          {/*
+            The one editable line in this card. "How did they hear about us"
+            is answered at the counter, weeks after the record was made, and
+            walking the whole customer form to write four words was the reason
+            it was so often left blank. The contact lines above stay read-only
+            on purpose: they are `tel:`/`mailto:` links, and the header strip
+            now carries the editors for phone and email.
+          */}
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted-foreground">Referred by</dt>
+            <dd className="flex min-w-0 justify-end font-medium text-foreground">
+              <CustomerField
+                customerId={customer.id}
+                field="referredBy"
+                label="Referred by"
+                value={customer.referredBy ?? ""}
+                placeholder={EM_DASH}
+                className="items-end"
+              />
+            </dd>
+          </div>
           {/* "Customer since" is a column in the header's metadata strip now.
               One fact, one place — repeating it here just made the reader
               check whether the two agreed. */}

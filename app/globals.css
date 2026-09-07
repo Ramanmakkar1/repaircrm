@@ -435,6 +435,77 @@
 }
 
 /* ---------------------------------------------------------------------- */
+/* Keyboard navigation of a list                                            */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * The row `j`/`k` has landed on. See components/list/keyboard-nav.tsx.
+ *
+ * `:focus`, not `:focus-visible`. These rows are given `tabindex="-1"` and
+ * focused programmatically, and a browser does not consider that a
+ * keyboard-visible focus — so `:focus-visible` would never match and the
+ * highlight would never appear, which is exactly the bug this rule exists to
+ * fix. `:focus` is safe here because nothing else can focus a table row: it is
+ * not in the tab order, and a mouse click lands on the row's own link.
+ *
+ * The 2px inset bar is the same mark the rail uses for the current page, so
+ * "where am I" reads the same everywhere in the app.
+ */
+[data-row-nav]:focus {
+  outline: none;
+  background-color: var(--color-surface-hover);
+  box-shadow: inset 2px 0 0 0 var(--color-accent);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Density                                                                  */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * `data-density="compact"` is set once, on the shell (components/shell/
+ * app-shell.tsx), from a per-device cookie. Nothing else in the app asks what
+ * density it is in — a screen inherits tighter rows the same way it inherits a
+ * colour.
+ *
+ * WHY THIS IS A PREFERENCE AND NOT A DECISION
+ * The same technician wants compact on a back-office monitor showing sixty
+ * tickets and comfortable on the shared counter tablet they tap with a thumb.
+ * Picking one for both is picking wrong for one of them.
+ *
+ * WHY IT ONLY TOUCHES ROWS AND CARD PADDING
+ * Those are almost all of perceived density, and they are the two places where
+ * tightening costs nothing. Control heights deliberately do NOT shrink: a 36px
+ * button is already at the floor for a finger, and "compact" must never mean
+ * "harder to hit". Density changes how much you can see, not how hard it is to
+ * use.
+ *
+ * These rules are UNLAYERED on purpose, so they win over the Tailwind
+ * utilities they override. Kept to `td`/`th` and the card's own data hooks —
+ * a broad unlayered selector here would silently kill utilities across the
+ * app, which has bitten this file before (see the `border-color` note above).
+ */
+[data-density="compact"] td {
+  padding-top: 0.3125rem;
+  padding-bottom: 0.3125rem;
+}
+
+[data-density="compact"] th {
+  height: 2rem;
+}
+
+[data-density="compact"] [data-card="content"] {
+  padding: 0.625rem 0.75rem;
+}
+
+[data-density="compact"] [data-card="header"],
+[data-density="compact"] [data-card="footer"] {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+/* ---------------------------------------------------------------------- */
 /* Card behaviour helpers                                                   */
 /* ---------------------------------------------------------------------- */
 

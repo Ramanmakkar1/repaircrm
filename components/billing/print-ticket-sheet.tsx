@@ -67,6 +67,7 @@ export function TicketSheet({
   resolved,
   backHref,
   backLabel,
+  chrome = true,
   terms,
 }: {
   number: number;
@@ -87,6 +88,8 @@ export function TicketSheet({
   resolved?: boolean;
   backHref: string;
   backLabel: string;
+  /** See the note on `PrintSheet.chrome` — off when a batch page stacks sheets. */
+  chrome?: boolean;
   terms: string;
 }) {
   const totals = calcTotals(charges, taxRateBps);
@@ -94,11 +97,13 @@ export function TicketSheet({
 
   return (
     <>
-      <PrintToolbar
-        backHref={backHref}
-        backLabel={backLabel}
-        title={`Work order #${number}`}
-      />
+      {chrome ? (
+        <PrintToolbar
+          backHref={backHref}
+          backLabel={backLabel}
+          title={`Work order #${number}`}
+        />
+      ) : null}
 
       <article className="rf-sheet">
         {resolved ? <Stamp label="Resolved" /> : null}

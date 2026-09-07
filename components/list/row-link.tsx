@@ -30,8 +30,11 @@ import { Tr } from "@/components/ui/table";
  * It is the ONE clickable-row component in the app: it used to be two —
  * `components/customers/row-link.tsx` and a near-identical
  * `components/tickets/ticket-row.tsx` — which is exactly the duplication a
- * shared list pattern is supposed to end. It really belongs beside `Tr` in
- * `components/ui/table.tsx`, and should move there.
+ * shared list pattern is supposed to end.
+ *
+ * It also carries `data-row-nav`, which is how keyboard navigation finds the
+ * rows on any list without every page having to wire it up — see
+ * `components/list/keyboard-nav.tsx`.
  */
 export function RowLink({
   href,
@@ -46,6 +49,7 @@ export function RowLink({
 
   return (
     <Tr
+      data-row-nav={href}
       className={cn("cursor-pointer", className)}
       onMouseEnter={() => router.prefetch(href)}
       onClick={(event) => {

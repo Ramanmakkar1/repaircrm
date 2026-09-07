@@ -83,6 +83,7 @@ export function CardHeader({
   if (title === undefined && children !== undefined) {
     return (
       <div
+        data-card="header"
         className={cn(
           "flex flex-col gap-1 border-b border-border px-4 py-3",
           className,
@@ -96,6 +97,7 @@ export function CardHeader({
 
   return (
     <div
+      data-card="header"
       className={cn(
         "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2.5",
         className,
@@ -158,7 +160,9 @@ export function CardContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-4 py-4", className)} {...props} />;
+  return (
+    <div data-card="content" className={cn("px-4 py-4", className)} {...props} />
+  );
 }
 
 export function CardFooter({
@@ -167,6 +171,7 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      data-card="footer"
       className={cn(
         "flex items-center gap-3 border-t border-border px-4 py-3",
         className,

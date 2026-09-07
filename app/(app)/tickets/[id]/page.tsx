@@ -9,7 +9,6 @@ import { parseChecklist } from "@/lib/checklist";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { activeLocations } from "@/lib/location";
 import { calcTotals, formatCents } from "@/lib/money";
-import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { customerWarranties } from "@/lib/warranty";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +30,12 @@ import { DepositCard, type DepositRow } from "@/components/tickets/deposit-card"
 import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
 import { PickupActions } from "@/components/tickets/pickup-actions";
-import { PriorityBadge } from "@/components/tickets/priority-badge";
+import {
+  TicketAssignee,
+  TicketDueDate,
+  TicketPriority,
+  TicketProblemType,
+} from "@/components/tickets/ticket-fields";
 import { StatusProgress } from "@/components/tickets/status-progress";
 import {
   DeleteTicketDialog,
@@ -302,7 +306,6 @@ export default async function TicketDetailPage({
   const statuses = ticketStatuses(shop?.settings);
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
   const uninvoicedCount = ticket.charges.filter((c) => c.invoiceId === null).length;
-  const due = dueChip(ticket.dueDate, isResolved(ticket.status), now);
   const checklist = parseChecklist(ticket.checklist);
 
   // The headline figure. Exactly the number the charges card foots to — the
@@ -442,11 +445,30 @@ export default async function TicketDetailPage({
             : undefined
         }
         title={ticket.subject}
-        subtitle={`${ticket.problemType} · opened ${format(ticket.createdAt, "MMM d, yyyy")}`}
+        /*
+          The problem type is editable where it already sat, rather than being
+          promoted into the metadata strip to host a control. Six columns is
+          the strip's ceiling and it is already at six — and moving the fact
+          would have left the subtitle reading "opened Sep 4" on its own, which
+          answers a question nobody asks.
+        */
+        subtitle={
+          <span className="inline-flex flex-wrap items-baseline gap-x-1">
+            <TicketProblemType
+              ticketId={ticket.id}
+              value={ticket.problemType}
+              problemTypes={problemTypes(shop?.settings)}
+            />
+            <span>· opened {format(ticket.createdAt, "MMM d, yyyy")}</span>
+          </span>
+        }
         status={
           <>
             <StatusBadge status={ticket.status} />
-            <PriorityBadge priority={ticket.priority} />
+            {/* Status keeps the update composer — a status change is paired
+                with the note that explains it. Priority has no such pairing:
+                it is one value, and this is where it is read. */}
+            <TicketPriority ticketId={ticket.id} value={ticket.priority} />
             {ticket.isWarranty ? (
               warrantyClaim ? (
                 <Link
@@ -493,37 +515,42 @@ export default async function TicketDetailPage({
           },
           {
             label: "Assigned",
-            value: ticket.assignedTo?.name ?? (
-              <span className="text-faint-foreground">Unassigned</span>
+            value: (
+              <TicketAssignee
+                ticketId={ticket.id}
+                value={ticket.assignedToId ?? ""}
+                currentLabel={ticket.assignedTo?.name ?? null}
+                techs={techs.map((tech) => ({
+                  value: tech.id,
+                  label: tech.name,
+                }))}
+              />
             ),
           },
           {
             label: "Due",
-            value: !ticket.dueDate ? (
-              <span className="text-faint-foreground">—</span>
-            ) : due && due.tone !== "later" ? (
-              // Same chip, same words as the tickets table — a due date must
-              // not read one way in the list and another way here.
-              <span
-                className={cn(
-                  "inline-block rounded-sm px-1.5 py-0.5 text-[12.5px] leading-none",
-                  DUE_TONE_CLASS[due.tone],
-                )}
-              >
-                {due.label}
-              </span>
-            ) : (
-              format(ticket.dueDate, "MMM d, yyyy")
+            // Reads exactly as it did — the overdue chip, then the plain date
+            // — but a day is now one click away instead of a round trip
+            // through the edit form. `now` is the page's single request-time
+            // clock, handed down so the chip means the same thing after
+            // hydration as it did on the server.
+            value: (
+              <TicketDueDate
+                ticketId={ticket.id}
+                value={ticket.dueDate ? format(ticket.dueDate, "yyyy-MM-dd") : ""}
+                resolved={isResolved(ticket.status)}
+                nowMs={now}
+              />
             ),
           },
           {
             label: "Location",
             value:
               locations.length > 1 ? (
-                // The one editable cell in the strip: which branch the device
-                // is physically at is a fact people change from this screen,
-                // and duplicating it into the body just to host the control
-                // would put the same fact in two places.
+                // Which branch the device is physically at is a fact people
+                // change from this screen, and duplicating it into the body
+                // just to host the control would put the same fact in two
+                // places.
                 <TicketLocation
                   ticketId={ticket.id}
                   locationId={ticket.locationId}

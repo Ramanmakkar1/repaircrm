@@ -12,6 +12,13 @@ import {
   leadAge,
   messagePreview,
 } from "@/components/leads/lead-meta";
+import {
+  BulkBar,
+  SelectAll,
+  SelectRow,
+  SelectionScope,
+} from "@/components/list/selection";
+import { LeadBulkActions } from "@/components/leads/lead-bulk-actions";
 import { RowLink } from "@/components/list/row-link";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,124 +136,137 @@ export default async function LeadsPage({
         }))}
       />
 
-      <Card className="overflow-hidden">
-        <CardContent className="px-0 py-0">
-          {leads.length === 0 ? (
-            <EmptyState
-              icon={ICONS.inbound}
-              title={nothingAtAll ? "No leads yet" : "Nothing in this view"}
-              hint={
-                nothingAtAll
-                  ? "Log a phone enquiry, or drop the form below onto your website so the inbox fills itself."
-                  : "Try another view — the enquiries are all still here."
-              }
-              action={
-                nothingAtAll ? (
-                  <Button asChild>
-                    <Link href="/leads/new">
-                      <ACTIONS.add />
-                      New Lead
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button variant="outline" asChild>
-                    <Link href="/leads">Show open leads</Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <Table>
-              <THead>
-                <Tr>
-                  <Th>Name</Th>
-                  <Th>Phone</Th>
-                  <Th>Email</Th>
-                  <Th>Source</Th>
-                  <Th>Enquiry</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Received</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {leads.map((lead) => {
-                  const meta = LEAD_STATUS_META[asLeadStatus(lead.status)];
-                  const fresh = isFreshLead(lead, now);
+      {/*
+        Selection wraps the table AND the bar: both read the same ids, and the
+        provider itself renders no element, so the card stays a direct child of
+        the page's flex column.
+      */}
+      <SelectionScope ids={leads.map((lead) => lead.id)}>
+        <Card className="overflow-hidden">
+          <CardContent className="px-0 py-0">
+            {leads.length === 0 ? (
+              <EmptyState
+                icon={ICONS.inbound}
+                title={nothingAtAll ? "No leads yet" : "Nothing in this view"}
+                hint={
+                  nothingAtAll
+                    ? "Log a phone enquiry, or drop the form below onto your website so the inbox fills itself."
+                    : "Try another view — the enquiries are all still here."
+                }
+                action={
+                  nothingAtAll ? (
+                    <Button asChild>
+                      <Link href="/leads/new">
+                        <ACTIONS.add />
+                        New Lead
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" asChild>
+                      <Link href="/leads">Show open leads</Link>
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <Table>
+                <THead>
+                  <Tr>
+                    <SelectAll />
+                    <Th>Name</Th>
+                    <Th>Phone</Th>
+                    <Th>Email</Th>
+                    <Th>Source</Th>
+                    <Th>Enquiry</Th>
+                    <Th>Status</Th>
+                    <Th className="text-right">Received</Th>
+                  </Tr>
+                </THead>
+                <TBody>
+                  {leads.map((lead) => {
+                    const meta = LEAD_STATUS_META[asLeadStatus(lead.status)];
+                    const fresh = isFreshLead(lead, now);
 
-                  return (
-                    <RowLink key={lead.id} href={`/leads/${lead.id}`}>
-                      <Td>
-                        <span className="flex items-center gap-1.5">
-                          {/* A NEW lead under a day old. The cheapest possible
-                              "this one is still warm, call them" mark, and it
-                              disappears on its own once the lead is answered
-                              or goes cold. */}
-                          {fresh ? (
-                            <span
-                              title="New today — nobody has called them yet"
-                              className="size-[7px] shrink-0 rounded-full bg-accent"
+                    return (
+                      <RowLink key={lead.id} href={`/leads/${lead.id}`}>
+                        <SelectRow id={lead.id} label={lead.name} />
+                        <Td>
+                          <span className="flex items-center gap-1.5">
+                            {/* A NEW lead under a day old. The cheapest possible
+                                "this one is still warm, call them" mark, and it
+                                disappears on its own once the lead is answered
+                                or goes cold. */}
+                            {fresh ? (
+                              <span
+                                title="New today — nobody has called them yet"
+                                className="size-[7px] shrink-0 rounded-full bg-accent"
+                              >
+                                <span className="sr-only">New today</span>
+                              </span>
+                            ) : null}
+                            <Link
+                              href={`/leads/${lead.id}`}
+                              className="block max-w-[180px] truncate font-semibold text-foreground hover:underline"
+                              title={lead.name}
                             >
-                              <span className="sr-only">New today</span>
-                            </span>
-                          ) : null}
-                          <Link
-                            href={`/leads/${lead.id}`}
-                            className="block max-w-[180px] truncate font-semibold text-foreground hover:underline"
-                            title={lead.name}
+                              {lead.name}
+                            </Link>
+                            {lead.customerId ? (
+                              <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
+                                Customer
+                              </span>
+                            ) : null}
+                            {lead.ticketId ? (
+                              <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
+                                Ticket
+                              </span>
+                            ) : null}
+                          </span>
+                        </Td>
+
+                        <Td className={lead.phone ? "rf-num" : "text-faint-foreground"}>
+                          {lead.phone ?? "—"}
+                        </Td>
+
+                        <Td className={lead.email ? "text-muted-foreground" : "text-faint-foreground"}>
+                          <span className="block max-w-[200px] truncate">
+                            {lead.email ?? "—"}
+                          </span>
+                        </Td>
+
+                        <Td className="text-muted-foreground">
+                          {lead.source ?? "—"}
+                        </Td>
+
+                        <Td className="text-muted-foreground">
+                          <span
+                            className="block max-w-[280px] truncate"
+                            title={lead.message ?? undefined}
                           >
-                            {lead.name}
-                          </Link>
-                          {lead.customerId ? (
-                            <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
-                              Customer
-                            </span>
-                          ) : null}
-                          {lead.ticketId ? (
-                            <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
-                              Ticket
-                            </span>
-                          ) : null}
-                        </span>
-                      </Td>
+                            {lead.message ? messagePreview(lead.message, 90) : "—"}
+                          </span>
+                        </Td>
 
-                      <Td className={lead.phone ? "rf-num" : "text-faint-foreground"}>
-                        {lead.phone ?? "—"}
-                      </Td>
+                        <Td>
+                          <StatusPill tone={meta.tone} label={meta.label} />
+                        </Td>
 
-                      <Td className={lead.email ? "text-muted-foreground" : "text-faint-foreground"}>
-                        <span className="block max-w-[200px] truncate">
-                          {lead.email ?? "—"}
-                        </span>
-                      </Td>
+                        <Td className="rf-num text-right text-[12.5px] text-muted-foreground">
+                          {leadAge(lead.createdAt, now)}
+                        </Td>
+                      </RowLink>
+                    );
+                  })}
+                </TBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
-                      <Td className="text-muted-foreground">
-                        {lead.source ?? "—"}
-                      </Td>
-
-                      <Td className="text-muted-foreground">
-                        <span
-                          className="block max-w-[280px] truncate"
-                          title={lead.message ?? undefined}
-                        >
-                          {lead.message ? messagePreview(lead.message, 90) : "—"}
-                        </span>
-                      </Td>
-
-                      <Td>
-                        <StatusPill tone={meta.tone} label={meta.label} />
-                      </Td>
-
-                      <Td className="rf-num text-right text-[12.5px] text-muted-foreground">
-                        {leadAge(lead.createdAt, now)}
-                      </Td>
-                    </RowLink>
-                  );
-                })}
-              </TBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        <BulkBar noun="lead">
+          <LeadBulkActions />
+        </BulkBar>
+      </SelectionScope>
 
       {/*
         The embed snippet is the whole point of the public endpoint, so it is

@@ -18,6 +18,7 @@ import { ContactsCard } from "@/components/customers/contacts-card";
 import { CardOnFileCard } from "@/components/billing/card-on-file-card";
 import { CreditDialog } from "@/components/credits/credit-dialog";
 import { CustomerActionsMenu } from "@/components/customers/customer-actions-menu";
+import { CustomerField } from "@/components/customers/customer-field";
 import { FlashToast } from "@/components/customers/flash-toast";
 import {
   deleteBlockedReason,
@@ -319,30 +320,40 @@ export default async function CustomerHubPage({
         id={<CopyableId value={customer.id} label="customer id" />}
         meta={[
           {
+            /*
+              Editable in place, which costs the `tel:`/`mailto:` links these
+              two cells used to be — a link inside `InlineEdit`'s read button
+              would be invalid markup and an ambiguous click. Both are still
+              dialable in the Details card below, which is where somebody
+              reaching for the phone already looks.
+
+              It also costs the old `phone ?? mobile` fallback: the cell now
+              writes `phone`, so it has to show `phone`. A mobile-only customer
+              reads as "—" here and keeps their number in Details, one column
+              lower. Showing `mobile` under a control that writes `phone` would
+              have been the worse trade.
+            */
             label: "Phone",
-            value: (customer.phone ?? customer.mobile) ? (
-              <a
-                href={`tel:${customer.phone ?? customer.mobile}`}
-                className="text-foreground hover:underline"
-              >
-                {customer.phone ?? customer.mobile}
-              </a>
-            ) : (
-              <span className="text-faint-foreground">—</span>
+            value: (
+              <CustomerField
+                customerId={customer.id}
+                field="phone"
+                label="Phone"
+                value={customer.phone ?? ""}
+                className="whitespace-normal"
+              />
             ),
           },
           {
             label: "Email",
-            value: customer.email ? (
-              <a
-                href={`mailto:${customer.email}`}
-                title={customer.email}
-                className="text-accent-soft-foreground hover:underline"
-              >
-                {customer.email}
-              </a>
-            ) : (
-              <span className="text-faint-foreground">—</span>
+            value: (
+              <CustomerField
+                customerId={customer.id}
+                field="email"
+                label="Email"
+                value={customer.email ?? ""}
+                className="whitespace-normal"
+              />
             ),
           },
           {

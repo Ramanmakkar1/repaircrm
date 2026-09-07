@@ -17,6 +17,7 @@ import { emitTicketEvent } from "@/lib/events";
 import { withNextNumber } from "@/lib/sequence";
 import { applyTicketDeposits } from "@/lib/deposits";
 import { readLabourSettings } from "@/lib/labour";
+import { bulkIds, plural, type BulkResult } from "@/lib/bulk";
 import { calcTotals, parseCents } from "@/lib/money";
 import { labourLinesFor, loadBillableTime } from "@/lib/time-billing";
 import { resolveDocumentTax } from "@/components/billing/queries";
@@ -26,6 +27,7 @@ import {
   isResolved,
   READY_FOR_PICKUP_STATUS,
   RESOLVED_STATUS,
+  ticketStatuses,
 } from "@/components/tickets/ticket-meta";
 import {
   IN_PROGRESS_STATUS,
@@ -1421,4 +1423,156 @@ export async function markPickedUpAction(ticketId: string): Promise<ActionState>
 
   revalidateTicket(ticket.id);
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk — the same moves, applied to a selection
+// ---------------------------------------------------------------------------
+
+/**
+ * THE THREE RULES EVERY ACTION BELOW OBEYS
+ * ----------------------------------------
+ *   1. `shopId` comes from the session and rides in EVERY `where`. An id list
+ *      that arrived over the wire is a list of guesses; the tenant filter is
+ *      what turns a foreign guess into zero affected rows instead of a leak.
+ *   2. The role check is the one the single-record path uses. Assigning and
+ *      moving a status are both `requireUser()` here because
+ *      `updateTicketAction` and `postUpdateAction` are — a bulk endpoint that
+ *      is more permissive than its single-record twin is a privilege
+ *      escalation with a nicer button.
+ *   3. The list is validated before a query is built (see lib/bulk.ts). An
+ *      empty selection writes nothing at all rather than degenerating into an
+ *      unfiltered `updateMany`.
+ *
+ * They also emit what the single path emits. A status moved in bulk writes the
+ * same timeline comment and fires the same webhook as one moved on its own —
+ * a history with a hole in it where the batch went is worse than no history.
+ */
+
+/** Invalidates the list and every ticket page, without N calls for N ids. */
+function revalidateTicketList(): void {
+  revalidatePath("/tickets");
+  revalidatePath("/tickets/[id]", "page");
+}
+
+/**
+ * Hands a selection of tickets to one technician — or to nobody.
+ *
+ * `assigneeId` is re-resolved against this shop's active roster before it is
+ * written, so a posted user id from another tenant is refused outright rather
+ * than quietly writing a foreign key across the tenant boundary. An explicit
+ * null is the "Unassign" case and is the only way to clear it.
+ */
+export async function bulkAssignTicketsAction(
+  ticketIds: string[],
+  assigneeId: string | null,
+): Promise<BulkResult> {
+  const { shopId } = await requireUser();
+
+  const parsed = bulkIds(ticketIds);
+  if (!parsed.ok) return parsed;
+
+  // An unresolvable id is an ERROR, never a silent unassign: "assign these
+  // nine to Marcus" must not quietly mean "clear the tech on these nine".
+  let assignee: { id: string; name: string } | null = null;
+  if (assigneeId !== null) {
+    assignee = await db.user.findFirst({
+      where: { id: assigneeId, shopId, active: true },
+      select: { id: true, name: true },
+    });
+    if (!assignee) return { ok: false, error: "That technician is not on this team." };
+  }
+
+  const { count } = await db.ticket.updateMany({
+    where: { id: { in: parsed.ids }, shopId },
+    data: { assignedToId: assignee?.id ?? null },
+  });
+
+  revalidateTicketList();
+
+  return {
+    ok: true,
+    count,
+    message: assignee
+      ? `${plural(count, "ticket")} assigned to ${assignee.name}`
+      : `${plural(count, "ticket")} unassigned`,
+  };
+}
+
+/**
+ * Moves a selection of tickets to one status.
+ *
+ * Mirrors `postUpdateAction` exactly, minus the composer: the resolution stamp
+ * follows the status in and out, every moved ticket gets its own timeline
+ * comment, and every moved ticket fires its own webhook. Tickets already IN the
+ * target status are left alone rather than re-stamped — otherwise "mark these
+ * twelve Ready" would rewrite `resolvedAt` and post twelve identical notes on
+ * the three that were already there.
+ */
+export async function bulkTicketStatusAction(
+  ticketIds: string[],
+  status: string,
+): Promise<BulkResult> {
+  const { shopId, userId } = await requireUser();
+
+  const parsed = bulkIds(ticketIds);
+  if (!parsed.ok) return parsed;
+
+  // The shop's own list, not the client's word for it — a status is a free
+  // string column, so an unchecked value would write anything at all into it.
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { settings: true },
+  });
+  const allowed = ticketStatuses(shop?.settings);
+  const next = allowed.find((candidate) => candidate === status);
+  if (!next) return { ok: false, error: "That is not one of this shop's statuses." };
+
+  const targets = await db.ticket.findMany({
+    where: { id: { in: parsed.ids }, shopId },
+    select: { id: true, status: true },
+  });
+  const moving = targets.filter((ticket) => ticket.status !== next).map((t) => t.id);
+
+  if (moving.length === 0) {
+    return { ok: true, count: 0, message: `Already ${next}` };
+  }
+
+  const resolvedAt = isResolved(next) ? new Date() : null;
+
+  await db.$transaction(async (tx) => {
+    await tx.ticket.updateMany({
+      // Scoped again inside the transaction. The ids came from a scoped read a
+      // moment ago, but the filter costs nothing and means this statement is
+      // safe read in isolation.
+      where: { id: { in: moving }, shopId },
+      data: { status: next, resolvedAt },
+    });
+
+    await tx.ticketComment.createMany({
+      data: moving.map((ticketId) => ({
+        shopId,
+        ticketId,
+        authorId: userId,
+        body: `Status changed to ${next}.`,
+        isPublic: false,
+        updateType: next,
+        channel: "NOTE" as const,
+      })),
+    });
+  });
+
+  // After the commit, never inside it — see the note on postUpdateAction.
+  for (const ticketId of moving) {
+    await emitTicketEvent(shopId, "ticket.status_changed", ticketId);
+    if (resolvedAt) await emitTicketEvent(shopId, "ticket.resolved", ticketId);
+  }
+
+  revalidateTicketList();
+
+  return {
+    ok: true,
+    count: moving.length,
+    message: `${plural(moving.length, "ticket")} moved to ${next}`,
+  };
 }

@@ -11,6 +11,7 @@ import type {
 } from "@/components/leads/lead-state";
 import { splitName, ticketSubjectFromLead } from "@/components/leads/lead-meta";
 import { requireRole, requireUser } from "@/lib/auth";
+import { bulkIds, plural, type BulkResult } from "@/lib/bulk";
 import { db } from "@/lib/db";
 import { emitLeadEvent } from "@/lib/events";
 import { newRecordLocationId } from "@/lib/location";
@@ -376,4 +377,76 @@ export async function convertLeadAction(
   if (ticketId) revalidatePath("/tickets");
 
   return { ok: true, customerId, ticketId };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk — the same moves, applied to a selection
+// ---------------------------------------------------------------------------
+
+/**
+ * The statuses a batch may be moved to.
+ *
+ * CONVERTED is absent and must stay absent. Converting is not a status change —
+ * it creates a Customer, optionally opens a numbered Ticket, and hangs both ids
+ * off the lead (see `convertLeadAction`). Writing the word CONVERTED onto forty
+ * rows would claim all of that happened when none of it did.
+ *
+ * There is no `archived` column on Lead, and this does not invent one: the
+ * inbox's own archive is CLOSED — the tab is labelled "Closed", `closeLeadAction`
+ * sets it, and the action bar's "Archive" button lands here with "CLOSED".
+ */
+const BULK_LEAD_STATUSES = ["NEW", "CONTACTED", "CLOSED"] as const;
+
+/**
+ * Moves a selection of leads to one status.
+ *
+ * `requireUser()`, matching `markContactedAction` / `closeLeadAction` /
+ * `reopenLeadAction` — every single-lead status move is open to any signed-in
+ * member of the shop, and a bulk endpoint must not be more permissive than the
+ * one-at-a-time path it stands in for. (Deleting a lead is still OWNER-only and
+ * has no bulk twin.)
+ *
+ * Three things ride in the `where`, and all three matter: `shopId` from the
+ * session so a forged id from another tenant matches nothing, the id list
+ * itself, and `status: { not: CONVERTED }` so a lead that already became a
+ * customer and a ticket cannot be dragged back into the inbox. `updateMany`
+ * doubles as the ownership check — a foreign id contributes zero to the count.
+ *
+ * Neither the single-lead path nor this one writes an audit row or emits an
+ * event: `lead.created` is the only lead event the catalogue has, so there is
+ * nothing here for a bulk move to skip.
+ */
+export async function bulkLeadStatusAction(
+  leadIds: string[],
+  status: string,
+): Promise<BulkResult> {
+  const { shopId } = await requireUser();
+
+  const parsed = bulkIds(leadIds);
+  if (!parsed.ok) return parsed;
+
+  const next = BULK_LEAD_STATUSES.find((candidate) => candidate === status);
+  if (!next) return { ok: false, error: "That is not a status a batch can be moved to." };
+
+  const { count } = await db.lead.updateMany({
+    where: { id: { in: parsed.ids }, shopId, status: { not: "CONVERTED" } },
+    data: { status: next },
+  });
+
+  revalidatePath("/leads");
+  revalidatePath("/leads/[id]", "page");
+
+  if (count === 0) {
+    return { ok: false, error: "Nothing moved — those leads are already converted." };
+  }
+
+  const moved = plural(count, "lead");
+  return {
+    ok: true,
+    count,
+    message:
+      next === "CLOSED"
+        ? `${moved} archived`
+        : `${moved} moved to ${next === "NEW" ? "New" : "Contacted"}`,
+  };
 }

@@ -18,6 +18,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { RowLink } from "@/components/list/row-link";
 import {
+  BulkBar,
+  SelectAll,
+  SelectRow,
+  SelectionScope,
+} from "@/components/list/selection";
+import { TicketBulkActions } from "@/components/tickets/ticket-bulk-actions";
+import {
   TicketToolbar,
   type TicketFilterValues,
 } from "@/components/tickets/ticket-toolbar";
@@ -205,6 +212,10 @@ export default async function TicketsPage({
     ticketsHref({ ...filters, ...patch }, 1);
   const pageHref = (target: number) => ticketsHref(filters, target);
 
+  // The shop's own status list. It feeds both the view tabs and the bulk
+  // "Status" menu, so the two can never offer different words.
+  const statuses = ticketStatuses(shop?.settings);
+
   const views = [
     { key: "open", label: "Open jobs" },
     { key: "all", label: "All" },
@@ -212,7 +223,7 @@ export default async function TicketsPage({
     // "who is waiting on me" is the same kind of question as "what is on the
     // bench", and a front desk asks it just as often.
     { key: NEEDS_REPLY_FILTER, label: "Needs reply" },
-    ...ticketStatuses(shop?.settings).map((s) => ({ key: s, label: s })),
+    ...statuses.map((s) => ({ key: s, label: s })),
   ];
 
   return (
@@ -272,254 +283,270 @@ export default async function TicketsPage({
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <CardContent className="px-0 py-0">
-          {tickets.length === 0 ? (
-            <EmptyState
-              icon={ICONS.ticket}
-              title={
-                status === NEEDS_REPLY_FILTER
-                  ? "Nobody is waiting on you"
-                  : isFiltered
-                    ? "No tickets match those filters"
-                    : "No tickets yet"
-              }
-              hint={
-                status === NEEDS_REPLY_FILTER
-                  ? "Every customer email and text has been answered."
-                  : isFiltered
-                    ? "Try another view, or clear the filters to see everything."
-                    : "Create the first ticket to start tracking a repair."
-              }
-              action={
-                isFiltered ? (
-                  <Button asChild variant="outline">
-                    <Link href={filterHref({ q: "", status: "open", tech: "all", problemType: "all", due: "all" })}>
-                      Clear filters
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link href="/tickets/new">
-                      <ACTIONS.add />
-                      New Ticket
-                    </Link>
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <>
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th>Ticket</Th>
-                    <Th>Customer</Th>
-                    <Th>Subject</Th>
-                    <Th>Status</Th>
-                    <Th>Assigned</Th>
-                    <Th>Due</Th>
-                    <Th className="text-right">Updated</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {tickets.map((ticket) => {
-                    const priority = asPriority(ticket.priority);
-                    const loud = priority === "HIGH" || priority === "URGENT";
-                    const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
-                    // Quiet until the job is actually rotting: a green "touched
-                    // today" chip on nine rows out of ten is decoration, not a
-                    // signal.
-                    const heat = level === "stale" || level === "critical";
-                    const chip = dueChip(
-                      ticket.dueDate,
-                      ticket.status === RESOLVED_STATUS,
-                      now,
-                    );
-                    const device =
-                      ticket.asset && (ticket.asset.make || ticket.asset.model)
-                        ? [ticket.asset.make, ticket.asset.model]
-                            .filter(Boolean)
-                            .join(" ")
-                        : (ticket.asset?.type ?? null);
-                    const openParts = ticket.partOrders.length;
+      {/*
+        The selection covers the table and the bar together. Ids are the rows
+        as rendered, in render order — the primitive prunes anything that
+        leaves the list and reads shift-click ranges out of this array.
+      */}
+      <SelectionScope ids={tickets.map((ticket) => ticket.id)}>
+        <Card className="overflow-hidden">
+          <CardContent className="px-0 py-0">
+            {tickets.length === 0 ? (
+              <EmptyState
+                icon={ICONS.ticket}
+                title={
+                  status === NEEDS_REPLY_FILTER
+                    ? "Nobody is waiting on you"
+                    : isFiltered
+                      ? "No tickets match those filters"
+                      : "No tickets yet"
+                }
+                hint={
+                  status === NEEDS_REPLY_FILTER
+                    ? "Every customer email and text has been answered."
+                    : isFiltered
+                      ? "Try another view, or clear the filters to see everything."
+                      : "Create the first ticket to start tracking a repair."
+                }
+                action={
+                  isFiltered ? (
+                    <Button asChild variant="outline">
+                      <Link href={filterHref({ q: "", status: "open", tech: "all", problemType: "all", due: "all" })}>
+                        Clear filters
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button asChild>
+                      <Link href="/tickets/new">
+                        <ACTIONS.add />
+                        New Ticket
+                      </Link>
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <>
+                <Table>
+                  <THead>
+                    <Tr>
+                      <SelectAll />
+                      <Th>Ticket</Th>
+                      <Th>Customer</Th>
+                      <Th>Subject</Th>
+                      <Th>Status</Th>
+                      <Th>Assigned</Th>
+                      <Th>Due</Th>
+                      <Th className="text-right">Updated</Th>
+                    </Tr>
+                  </THead>
+                  <TBody>
+                    {tickets.map((ticket) => {
+                      const priority = asPriority(ticket.priority);
+                      const loud = priority === "HIGH" || priority === "URGENT";
+                      const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
+                      // Quiet until the job is actually rotting: a green "touched
+                      // today" chip on nine rows out of ten is decoration, not a
+                      // signal.
+                      const heat = level === "stale" || level === "critical";
+                      const chip = dueChip(
+                        ticket.dueDate,
+                        ticket.status === RESOLVED_STATUS,
+                        now,
+                      );
+                      const device =
+                        ticket.asset && (ticket.asset.make || ticket.asset.model)
+                          ? [ticket.asset.make, ticket.asset.model]
+                              .filter(Boolean)
+                              .join(" ")
+                          : (ticket.asset?.type ?? null);
+                      const openParts = ticket.partOrders.length;
 
-                    return (
-                      <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
-                        <Td>
-                          <span className="flex items-center gap-1.5">
-                            <Link
-                              href={`/tickets/${ticket.id}`}
-                              className="rf-id font-semibold text-accent-soft-foreground hover:underline"
-                            >
-                              #{ticket.number}
-                            </Link>
-                            {/* One small blue dot: a customer message is
-                                waiting. It has to survive being scanned in half
-                                a second, so it rides on the id rather than
-                                becoming another pill further down the row. */}
-                            {needsReply.has(ticket.id) ? (
-                              <span
-                                title="Customer replied — no answer yet"
-                                className="size-[7px] shrink-0 rounded-full bg-accent"
+                      return (
+                        <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
+                          <SelectRow
+                            id={ticket.id}
+                            label={`ticket #${ticket.number}`}
+                          />
+                          <Td>
+                            <span className="flex items-center gap-1.5">
+                              <Link
+                                href={`/tickets/${ticket.id}`}
+                                className="rf-id font-semibold text-accent-soft-foreground hover:underline"
                               >
-                                <span className="sr-only">Needs reply</span>
-                              </span>
-                            ) : null}
-                          </span>
-                        </Td>
-
-                        <Td className="font-medium text-foreground">
-                          <span className="block max-w-[180px] truncate">
-                            {customerLabel(ticket.customer)}
-                          </span>
-                        </Td>
-
-                        {/*
-                          Subject and device shared a row and half a screen
-                          between them, which pushed "Updated" off the right
-                          edge at 1440px — the table scrolled sideways to show
-                          a column that was mostly restating the subject
-                          ("ThinkPad T14 — pop-ups" next to "Lenovo ThinkPad
-                          T14"). The device is structured data and the subject
-                          is typed by hand, so neither can be dropped; stacking
-                          them costs one column and no information.
-                        */}
-                        <Td className="whitespace-normal">
-                          <span className="flex items-center gap-2">
-                            <span
-                              className="block max-w-[320px] truncate"
-                              title={ticket.subject}
-                            >
-                              {ticket.subject}
+                                #{ticket.number}
+                              </Link>
+                              {/* One small blue dot: a customer message is
+                                  waiting. It has to survive being scanned in half
+                                  a second, so it rides on the id rather than
+                                  becoming another pill further down the row. */}
+                              {needsReply.has(ticket.id) ? (
+                                <span
+                                  title="Customer replied — no answer yet"
+                                  className="size-[7px] shrink-0 rounded-full bg-accent"
+                                >
+                                  <span className="sr-only">Needs reply</span>
+                                </span>
+                              ) : null}
                             </span>
-                            {loud ? (
+                          </Td>
+
+                          <Td className="font-medium text-foreground">
+                            <span className="block max-w-[180px] truncate">
+                              {customerLabel(ticket.customer)}
+                            </span>
+                          </Td>
+
+                          {/*
+                            Subject and device shared a row and half a screen
+                            between them, which pushed "Updated" off the right
+                            edge at 1440px — the table scrolled sideways to show
+                            a column that was mostly restating the subject
+                            ("ThinkPad T14 — pop-ups" next to "Lenovo ThinkPad
+                            T14"). The device is structured data and the subject
+                            is typed by hand, so neither can be dropped; stacking
+                            them costs one column and no information.
+                          */}
+                          <Td className="whitespace-normal">
+                            <span className="flex items-center gap-2">
                               <span
-                                className={cn(
-                                  "shrink-0 rounded-sm px-1.5 py-0.5 text-[11.5px] font-semibold leading-none",
-                                  PRIORITY_META[priority].chip,
-                                )}
+                                className="block max-w-[320px] truncate"
+                                title={ticket.subject}
                               >
-                                {PRIORITY_META[priority].label}
+                                {ticket.subject}
                               </span>
-                            ) : null}
-                            {openParts > 0 ? (
-                              <span
-                                title="Part orders still outstanding"
-                                className="shrink-0 rounded-sm bg-status-waiting-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-status-waiting-fg"
-                              >
-                                {openParts} part{openParts === 1 ? "" : "s"}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="mt-0.5 block max-w-[320px] truncate text-[12.5px] text-muted-foreground">
-                            {device ?? ticket.problemType ?? "—"}
-                          </span>
-                        </Td>
-
-                        <Td>
-                          <StatusBadge status={ticket.status} />
-                        </Td>
-
-                        <Td
-                          className={cn(
-                            ticket.assignedTo
-                              ? "text-muted-foreground"
-                              : "text-faint-foreground",
-                          )}
-                        >
-                          <span className="block max-w-[130px] truncate">
-                            {ticket.assignedTo?.name ?? "Unassigned"}
-                          </span>
-                        </Td>
-
-                        <Td>
-                          {!ticket.dueDate ? (
-                            <span className="text-faint-foreground">—</span>
-                          ) : chip && chip.tone !== "later" ? (
-                            <span
-                              className={cn(
-                                "inline-block rounded-sm px-1.5 py-0.5 text-[11.5px] leading-none",
-                                DUE_TONE_CLASS[chip.tone],
-                              )}
-                            >
-                              {chip.label}
+                              {loud ? (
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-sm px-1.5 py-0.5 text-[11.5px] font-semibold leading-none",
+                                    PRIORITY_META[priority].chip,
+                                  )}
+                                >
+                                  {PRIORITY_META[priority].label}
+                                </span>
+                              ) : null}
+                              {openParts > 0 ? (
+                                <span
+                                  title="Part orders still outstanding"
+                                  className="shrink-0 rounded-sm bg-status-waiting-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-status-waiting-fg"
+                                >
+                                  {openParts} part{openParts === 1 ? "" : "s"}
+                                </span>
+                              ) : null}
                             </span>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              {format(ticket.dueDate, "MMM d")}
+                            <span className="mt-0.5 block max-w-[320px] truncate text-[12.5px] text-muted-foreground">
+                              {device ?? ticket.problemType ?? "—"}
                             </span>
-                          )}
-                        </Td>
+                          </Td>
 
-                        <Td className="text-right">
-                          <span
-                            title={STALENESS_LABEL[level]}
+                          <Td>
+                            <StatusBadge status={ticket.status} />
+                          </Td>
+
+                          <Td
                             className={cn(
-                              "rf-num text-[12.5px]",
-                              heat
-                                ? cn(
-                                    "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
-                                    STALENESS_CLASS[level],
-                                  )
-                                : "text-muted-foreground",
+                              ticket.assignedTo
+                                ? "text-muted-foreground"
+                                : "text-faint-foreground",
                             )}
                           >
-                            {relativeShort(ticket.updatedAt, now)}
-                          </span>
-                        </Td>
-                      </RowLink>
-                    );
-                  })}
-                </TBody>
-              </Table>
+                            <span className="block max-w-[130px] truncate">
+                              {ticket.assignedTo?.name ?? "Unassigned"}
+                            </span>
+                          </Td>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
-                <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of{" "}
-                  {total}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <Button asChild={page > 1} size="sm" variant="outline" disabled={page <= 1}>
-                    {page > 1 ? (
-                      <Link href={pageHref(page - 1)}>
-                        <ACTIONS.back />
-                        Previous
-                      </Link>
-                    ) : (
-                      <span>
-                        <ACTIONS.back />
-                        Previous
-                      </span>
-                    )}
-                  </Button>
-                  <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
-                    {page} / {pageCount}
-                  </span>
-                  <Button
-                    asChild={page < pageCount}
-                    size="sm"
-                    variant="outline"
-                    disabled={page >= pageCount}
-                  >
-                    {page < pageCount ? (
-                      <Link href={pageHref(page + 1)}>
-                        Next
-                        <ACTIONS.next />
-                      </Link>
-                    ) : (
-                      <span>
-                        Next
-                        <ACTIONS.next />
-                      </span>
-                    )}
-                  </Button>
+                          <Td>
+                            {!ticket.dueDate ? (
+                              <span className="text-faint-foreground">—</span>
+                            ) : chip && chip.tone !== "later" ? (
+                              <span
+                                className={cn(
+                                  "inline-block rounded-sm px-1.5 py-0.5 text-[11.5px] leading-none",
+                                  DUE_TONE_CLASS[chip.tone],
+                                )}
+                              >
+                                {chip.label}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {format(ticket.dueDate, "MMM d")}
+                              </span>
+                            )}
+                          </Td>
+
+                          <Td className="text-right">
+                            <span
+                              title={STALENESS_LABEL[level]}
+                              className={cn(
+                                "rf-num text-[12.5px]",
+                                heat
+                                  ? cn(
+                                      "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
+                                      STALENESS_CLASS[level],
+                                    )
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {relativeShort(ticket.updatedAt, now)}
+                            </span>
+                          </Td>
+                        </RowLink>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+                  <p className="rf-num text-[12.5px] font-medium text-muted-foreground">
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of{" "}
+                    {total}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button asChild={page > 1} size="sm" variant="outline" disabled={page <= 1}>
+                      {page > 1 ? (
+                        <Link href={pageHref(page - 1)}>
+                          <ACTIONS.back />
+                          Previous
+                        </Link>
+                      ) : (
+                        <span>
+                          <ACTIONS.back />
+                          Previous
+                        </span>
+                      )}
+                    </Button>
+                    <span className="rf-num px-1 text-[12.5px] font-medium text-muted-foreground">
+                      {page} / {pageCount}
+                    </span>
+                    <Button
+                      asChild={page < pageCount}
+                      size="sm"
+                      variant="outline"
+                      disabled={page >= pageCount}
+                    >
+                      {page < pageCount ? (
+                        <Link href={pageHref(page + 1)}>
+                          Next
+                          <ACTIONS.next />
+                        </Link>
+                      ) : (
+                        <span>
+                          Next
+                          <ACTIONS.next />
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <BulkBar noun="ticket">
+          <TicketBulkActions techs={techs} statuses={statuses} />
+        </BulkBar>
+      </SelectionScope>
     </div>
   );
 }

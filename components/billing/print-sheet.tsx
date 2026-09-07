@@ -88,6 +88,7 @@ export function PrintSheet({
   watermarkTone = "accent",
   backHref,
   backLabel,
+  chrome = true,
   footer,
   footerContact,
   barcodeValue,
@@ -120,6 +121,14 @@ export function PrintSheet({
   watermarkTone?: "accent" | "alarm";
   backHref: string;
   backLabel: string;
+  /**
+   * Draws the dark preview toolbar above the sheet. Off for a BATCH page, which
+   * stacks many sheets under a single toolbar of its own — one back link and
+   * one Print button per document would be nine of each on a nine-document
+   * print run. `@media print` removes the toolbar either way; this is a screen
+   * concern only.
+   */
+  chrome?: boolean;
   footer: string;
   footerContact?: string | null;
   barcodeValue?: string;
@@ -138,11 +147,13 @@ export function PrintSheet({
 
   return (
     <>
-      <PrintToolbar
-        backHref={backHref}
-        backLabel={backLabel}
-        title={`${docLabel} #${number}`}
-      />
+      {chrome ? (
+        <PrintToolbar
+          backHref={backHref}
+          backLabel={backLabel}
+          title={`${docLabel} #${number}`}
+        />
+      ) : null}
 
       <article className="rf-sheet">
         {watermark ? <Stamp label={watermark} tone={watermarkTone} /> : null}

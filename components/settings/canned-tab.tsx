@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 
 import {
   deleteCannedResponseAction,
@@ -50,9 +51,21 @@ export function CannedTab({
   const router = useRouter();
   const [editing, setEditing] = React.useState<CannedResponseItem | null>(null);
   const [creating, setCreating] = React.useState(false);
-  const [removing, setRemoving] = React.useState<CannedResponseItem | null>(null);
   const [busy, setBusy] = React.useState(false);
 
+  /**
+   * Delete, then offer it back — no confirm dialog.
+   *
+   * A confirm taxes every deletion to protect the rare mistake, and after the
+   * twentieth one nobody reads it, so it stops protecting anything while still
+   * costing everybody two clicks. Undo inverts that.
+   *
+   * The undo is real, not decorative: the row is hard-deleted, but this client
+   * still holds the title and body, so restoring is a genuine re-create
+   * through the same validated action the editor uses. The restored response
+   * gets a new id — which is harmless here, because nothing references a
+   * canned response by id; its text is copied into a message at send time.
+   */
   async function remove(item: CannedResponseItem) {
     setBusy(true);
     const result = await deleteCannedResponseAction(item.id);
@@ -62,9 +75,21 @@ export function CannedTab({
       toast.error(result.error);
       return;
     }
-    toast.success(`"${item.title}" deleted.`);
-    setRemoving(null);
+
     router.refresh();
+
+    toastWithUndo({
+      message: `"${item.title}" deleted.`,
+      undo: async () => {
+        const restored = await saveCannedResponseAction({
+          title: item.title,
+          body: item.body,
+        });
+        if (!restored.ok) throw new Error(restored.error);
+        router.refresh();
+      },
+      onUndoError: "Could not put that response back.",
+    });
   }
 
   return (
@@ -127,11 +152,16 @@ export function CannedTab({
                           <Button
                             variant="ghost"
                             size="icon"
+                            disabled={busy}
                             aria-label={`Delete ${item.title}`}
                             className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                            onClick={() => setRemoving(item)}
+                            onClick={() => remove(item)}
                           >
-                            <DeleteIcon aria-hidden />
+                            {busy ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <DeleteIcon aria-hidden />
+                            )}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Delete response</TooltipContent>
@@ -160,35 +190,6 @@ export function CannedTab({
         }}
       />
 
-      <Dialog
-        open={removing !== null}
-        onOpenChange={(next) => {
-          if (!next && !busy) setRemoving(null);
-        }}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete &ldquo;{removing?.title}&rdquo;?</DialogTitle>
-            <DialogDescription>
-              Messages already sent keep their text — this only removes the
-              shortcut. It can&rsquo;t be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" disabled={busy} onClick={() => setRemoving(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={() => removing && remove(removing)}
-            >
-              {busy ? <Loader2 className="animate-spin" /> : <DeleteIcon aria-hidden />}
-              {busy ? "Deleting…" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

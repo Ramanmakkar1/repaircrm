@@ -149,7 +149,23 @@ export function ObjectHeader({
                 <p className="truncate text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
                   {item.label}
                 </p>
-                <div className="min-w-0 truncate text-[13.5px] text-foreground">
+                {/*
+                  `truncate` is right for a plain value — a long customer name
+                  should ellipsis rather than blow the column open. It is wrong
+                  the moment the cell holds an `InlineEdit`, because truncate
+                  is `overflow:hidden` + `white-space:nowrap`, which clips the
+                  refusal message the field puts under itself: the one moment
+                  it has something to say is the one moment you cannot read it.
+
+                  `has-[[data-inline-edit]]` lets the cell notice, so neither
+                  case has to be configured by the caller.
+                */}
+                <div
+                  className={cn(
+                    "min-w-0 truncate text-[13.5px] text-foreground",
+                    "has-[[data-inline-edit]]:overflow-visible has-[[data-inline-edit]]:whitespace-normal",
+                  )}
+                >
                   {item.value}
                 </div>
               </div>

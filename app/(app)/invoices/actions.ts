@@ -6,6 +6,12 @@ import type { Prisma } from "@prisma/client";
 
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import {
+  BULK_SEND_LIMIT,
+  bulkIds,
+  plural,
+  type BulkResult,
+} from "@/lib/bulk";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { invoiceMessage, receiptMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
@@ -1288,3 +1294,137 @@ const RECEIPT_METHOD_LABELS: Record<string, string> = {
   CREDIT: "Store credit",
   OTHER: "Other",
 };
+
+// ---------------------------------------------------------------------------
+// Bulk — the same moves, applied to a selection
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT IS DELIBERATELY NOT HERE: "mark paid".
+ *
+ * Every other bulk verb on this screen is a document act — it moves a status or
+ * puts a PDF in front of somebody. Taking money is not: a payment needs an
+ * amount, a method and a reference, and a bulk button that guesses all three
+ * mis-books the shop's own takings in a way that only surfaces at reconciliation
+ * time. `takePaymentAction` stays a one-invoice, one-dialog affair.
+ *
+ * The rest of the file's rules hold: `shopId` from the session in every `where`,
+ * the same `requireUser()` the single-record twin uses, and an id list that is
+ * bounded and non-empty before a query is built (lib/bulk.ts).
+ */
+
+function revalidateInvoiceList(): void {
+  revalidatePath("/invoices");
+  revalidatePath("/invoices/[id]", "page");
+}
+
+/**
+ * Emails a selection of invoices, using the one delivery core.
+ *
+ * This is `sendInvoiceAction` in a loop, on purpose — same pre-flight, same
+ * `deliverInvoice`, same "only a delivery that actually left the shop earns
+ * SENT". Nothing about being in a batch relaxes any of it.
+ *
+ * Serial rather than concurrent: twenty-five parallel provider calls is how a
+ * shop's sending reputation gets spent, and the operator is watching a spinner
+ * either way. Skips are counted and reported rather than swallowed — a
+ * customer with no email on file is the single most common reason a "sent"
+ * invoice never arrives, and staff need to see the number.
+ */
+export async function bulkSendInvoicesAction(
+  invoiceIds: string[],
+): Promise<BulkResult> {
+  const { shopId } = await requireUser();
+
+  const parsed = bulkIds(invoiceIds, BULK_SEND_LIMIT);
+  if (!parsed.ok) return parsed;
+
+  const request: SendRequest = {
+    id: "",
+    subject: "",
+    message: "",
+    email: true,
+    sms: false,
+  };
+
+  let sent = 0;
+  let skipped = 0;
+
+  for (const id of parsed.ids) {
+    // Re-read per invoice, scoped. A foreign id simply finds nothing.
+    const invoice = await loadInvoiceForSend(shopId, id);
+    if (
+      !invoice ||
+      invoice.status === "VOID" ||
+      invoice.lines.length === 0 ||
+      unreachableReason(invoice.customer, request)
+    ) {
+      skipped += 1;
+      continue;
+    }
+
+    const result = await deliverInvoice(shopId, invoice, { ...request, id });
+    const delivered = result.outcomes.some(
+      (outcome) => outcome.status === "sent" || outcome.status === "logged",
+    );
+    if (delivered) sent += 1;
+    else skipped += 1;
+  }
+
+  revalidateInvoiceList();
+  revalidatePath("/customers/[id]", "page");
+
+  if (sent === 0) {
+    return {
+      ok: false,
+      error: `Nothing was sent — ${plural(skipped, "invoice")} had no reachable customer, no lines, or was void.`,
+    };
+  }
+
+  return {
+    ok: true,
+    count: sent,
+    message:
+      skipped === 0
+        ? `${plural(sent, "invoice")} emailed`
+        : `${plural(sent, "invoice")} emailed · ${skipped} skipped`,
+  };
+}
+
+/**
+ * DRAFT → SENT without sending anything.
+ *
+ * The counter case the send path cannot serve: the invoice was printed and
+ * handed over, or posted, and the record needs to catch up with what already
+ * happened. It is a claim the OPERATOR is making, which is why it exists
+ * separately from `deliverInvoice`'s automatic transition — that one only ever
+ * fires when a message genuinely left the building.
+ *
+ * Only DRAFT rows move. A SENT/PARTIAL/PAID/VOID invoice in the selection is
+ * left exactly where it is, so this can never walk a status backwards.
+ */
+export async function bulkMarkInvoicesSentAction(
+  invoiceIds: string[],
+): Promise<BulkResult> {
+  const { shopId } = await requireUser();
+
+  const parsed = bulkIds(invoiceIds);
+  if (!parsed.ok) return parsed;
+
+  const { count } = await db.invoice.updateMany({
+    where: { id: { in: parsed.ids }, shopId, status: "DRAFT" },
+    data: { status: "SENT" },
+  });
+
+  revalidateInvoiceList();
+
+  if (count === 0) {
+    return { ok: false, error: "None of those are still drafts." };
+  }
+
+  return {
+    ok: true,
+    count,
+    message: `${plural(count, "invoice")} marked sent`,
+  };
+}
