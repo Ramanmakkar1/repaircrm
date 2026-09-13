@@ -126,16 +126,16 @@ export function Hero() {
           <div className="max-w-2xl text-white">
             <span className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-black/30 px-3 py-1.5 text-[12.5px] font-semibold text-white/90 backdrop-blur-sm">
               <span className="size-1.5 rounded-full bg-white" />
-              Repair shop software · Free in early access
+              Repair shop CRM · $0 during early access
             </span>
 
             <h1 className="mt-5 text-balance text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-[68px]">
-              Keep every repair moving.
+              Run every repair from intake to pickup.
             </h1>
 
             <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-white/80 sm:text-lg">
-              Tickets, estimates, inventory, invoices and customer updates in
-              one clear view — from intake to pickup.
+              Keep the diagnosis, parts, estimate, customer approval and invoice
+              together on the job, so everyone knows what happens next.
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -155,7 +155,7 @@ export function Hero() {
                 size="lg"
                 className="border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
               >
-                <a href="#features">Explore the platform</a>
+                <a href="#how-it-works">See how it works</a>
               </Button>
             </div>
             <p className="mt-3 text-[13px] text-white/65">
@@ -171,8 +171,30 @@ export function Hero() {
         </BrowserFrame>
       </div>
       <p className="mx-auto mt-5 max-w-5xl px-5 text-[12px] font-medium text-faint-foreground sm:px-8">
-        Dashboard preview · one clear view from intake to pickup.
+        Product preview · illustrative sample shop data.
       </p>
+
+      <section
+        id="how-it-works"
+        className="mx-auto mt-12 grid w-full max-w-5xl grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:mt-16 sm:grid-cols-4"
+      >
+        <h2 className="sr-only">A repair from check-in to pickup</h2>
+        {[
+          ["01", "Check in"],
+          ["02", "Diagnose & assign"],
+          ["03", "Approve & update"],
+          ["04", "Invoice & hand back"],
+        ].map(([number, label]) => (
+          <div key={number} className="bg-[#111214] px-4 py-4 sm:px-5 sm:py-5">
+            <p className="rf-nums text-[11px] font-semibold tracking-[0.12em] text-white/45">
+              {number}
+            </p>
+            <p className="mt-2 text-[13.5px] font-semibold tracking-tight text-white sm:text-[14px]">
+              {label}
+            </p>
+          </div>
+        ))}
+      </section>
     </section>
   );
 }

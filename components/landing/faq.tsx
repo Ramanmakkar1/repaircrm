@@ -11,11 +11,15 @@ import { ChevronIcon } from "./icons";
 const FAQS = [
   {
     q: "Is my data mine?",
-    a: "Yes. Your customers, tickets, invoices and payments belong to your shop, and the owner account can export customers, invoices and payments to CSV from the Reports page at any time — no ticket to raise, no waiting. Nothing in your shop's records is sold or shared.",
+    a: "Your shop's records belong to you. Owners can export customers, invoices, payments and report data to CSV. A complete archive of every record is not available yet. RepairPilot does not sell your shop records.",
   },
   {
     q: "Can customers pay online?",
-    a: "Yes — connect your own Stripe account and every emailed invoice gets a pay link, with a Pay Online button in the customer portal. Payments settle straight onto the invoice automatically. Until you connect Stripe, you take payment at the counter and record it as cash, card, cheque or store credit.",
+    a: "Stripe and Square payment connections are implemented, but they must be configured and tested before activation. Stripe supports our target countries (New Zealand, the US, Canada and the UK); Square supports the US, Canada and UK. Until a provider is connected, record counter payments as cash, card, cheque or store credit.",
+  },
+  {
+    q: "Will my existing EFTPOS terminal update the invoice automatically?",
+    a: "Only if it is a compatible terminal connected through a supported payment provider. Stripe Terminal and Square Terminal workflows are implemented; a generic EFTPOS machine will not automatically report its payment to RepairPilot. Confirm your provider and reader model before relying on automatic settlement.",
   },
   {
     q: "Does it work on a tablet at the counter?",
@@ -27,11 +31,11 @@ const FAQS = [
   },
   {
     q: "Can I import my data from RepairShopr or another system?",
-    a: "Not automatically yet — there's no self-serve importer in the product, and pretending otherwise would waste your afternoon. It's on the roadmap. In the meantime, get in touch and we'll help move your customer list across by hand; most shops start by entering only their open repairs and letting the history stay where it is.",
+    a: "There is no one-click migration from another repair platform yet. You can import customer and product lists from CSV. Repair tickets and their history must be recreated manually or left in the previous system for now.",
   },
   {
     q: "Do the emails and text messages actually go out?",
-    a: "Once you connect your own email or SMS provider in Settings, yes — public ticket updates, portal sign-in links, statements and follow-ups all send through it. Before you connect one, RepairPilot logs what it would have sent instead of sending it, so you can try the whole flow without messaging a real customer by accident.",
+    a: "The messaging workflows are implemented, but email and SMS providers must be configured on the service before real messages leave. The current test setup logs messages instead of delivering them. Verify password recovery, portal links, customer updates and follow-ups after a sender is configured.",
   },
 ];
 

@@ -13,16 +13,18 @@ import { ArrowRightIcon, CheckIcon } from "./icons";
  */
 
 const INCLUDED = [
-  "Every feature — nothing locked behind a tier",
-  "Unlimited tickets, invoices, customers and products",
+  "All core repair, inventory, customer and invoicing tools",
   "Your whole team, with owner, tech and front-desk roles",
   "Customer portal and the wall display included",
-  "CSV export of your customers, invoices and payments, whenever",
+  "CSV import for customer and product lists",
+  "CSV exports for customers, invoices and payments",
+  "No feature tiers or per-seat charges during early access",
 ];
 
 const NOT_YET = [
-  "A one-click importer from another system — ask us and we'll help by hand",
-  "Built-in card processing — online payments run through your own Stripe account",
+  "One-click migration with repair history from another system; customers and products can be imported by CSV",
+  "Stripe and Square connections need provider credentials and test verification before activation",
+  "Email and SMS need provider setup; the current test configuration logs messages instead of delivering them",
 ];
 
 export function Pricing() {
@@ -54,7 +56,7 @@ export function Pricing() {
 
             <div className="mt-8 rounded-lg border border-border bg-surface-hover p-5">
               <p className="text-[13px] font-bold tracking-tight text-foreground">
-                What isn&rsquo;t here yet
+                Before you rely on these workflows
               </p>
               <ul className="mt-3 space-y-2">
                 {NOT_YET.map((item) => (

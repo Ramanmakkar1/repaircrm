@@ -253,7 +253,7 @@ export function DeepDives() {
         <Row
           eyebrow="The workroom"
           heading={<>Everything about the repair, on the repair.</>}
-          body="Open a ticket and the job is all there: where it sits in your workflow, the timer that's running, the parts and labour added so far, the photos taken at intake. Updates come in two kinds — the ones your customer receives, and the ones only your techs ever see."
+          body="Open a ticket and the job is all there: its workflow status, running timer, parts and labour, and intake photos. Keep customer-facing updates separate from internal notes, so shop-only details stay with the team."
           points={[
             "Workflow steps you define, not ours",
             "Public updates reach the customer; internal notes stay internal",
@@ -273,21 +273,21 @@ export function DeepDives() {
             "Ticket charges become a draft invoice in one click",
             "Cash, card, cheque and store credit recorded against the invoice",
             "Recurring invoices for the managed-IT clients you bill monthly",
-            "Per-customer statements, printable or emailed",
+            "Per-customer statements, printable or emailed after sender setup",
             "CSV exports of customers, invoices and payments, QuickBooks-shaped",
           ]}
-          caveat="Online payments run on your own Stripe account — connect it and invoice emails carry a pay link that settles onto the invoice by itself. No Stripe? Record counter payments as cash, card, cheque or store credit."
+          caveat="Stripe (NZ, US, Canada and UK) and Square (US, Canada and UK) payment connections need provider credentials and a verified test before activation. Otherwise, record counter payments as cash, card, cheque or store credit."
           vignette={<MoneyVignette />}
         />
 
         <Row
           eyebrow="Both sides of the counter"
           heading={<>What the shop sees. What the customer sees.</>}
-          body="Put the display board on a spare monitor and the whole bench can tell what's ready and what's gone quiet without asking anyone. Customers get the calm version: a link in their inbox, no password, and the state of their own device."
+          body="Put the display board on a spare monitor and the whole bench can tell what's ready and what's gone quiet without asking anyone. Once outbound email is configured, customers can use a passwordless link to check the status of their own device."
           points={[
             "Full-screen wall display, grouped by status, refreshing itself",
             "Ageing repairs colour up on the board before anyone complains",
-            "Customers sign in with an emailed link — nothing to remember",
+            "Customers sign in with an emailed link once email delivery is configured",
             "Estimates approved or declined with a signature, on their phone",
             "Their invoices and a printable receipt, without a phone call",
           ]}

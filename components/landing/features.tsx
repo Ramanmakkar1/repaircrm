@@ -25,33 +25,33 @@ type Feature = {
 const FEATURES: Feature[] = [
   {
     icon: BoardIcon,
-    title: "Tickets that raise their hand",
-    body: "Every repair is a ticket with a status, an owner, a timeline and the customer attached. Tickets that have gone quiet colour themselves in as they age, so the one nobody has touched since Tuesday is the one you notice first.",
+    title: "A clear next step for every repair",
+    body: "Track status, owner, due date and history together. Aging tickets stand out, so stalled jobs are easier to spot.",
   },
   {
     icon: DocumentIcon,
-    title: "Estimates and invoices, no retyping",
-    body: "Write an estimate, get it approved, turn it into an invoice without keying the parts in twice. Customers sign on the screen with a finger, and every document prints — or saves as a PDF — straight from the browser.",
+    title: "Estimates through to invoices",
+    body: "Create estimates from the job, capture customer approval, and carry charges into invoices without typing them twice. Print or save documents as PDFs.",
   },
   {
     icon: BarcodeIcon,
-    title: "A counter that knows the stockroom",
-    body: "A proper register with a cart, tender and change due, drawing on the same inventory your repairs pull parts from. Print Code 128 barcode labels for any product and scan them back at the till.",
+    title: "Counter and stock in sync",
+    body: "Sell at the register, use stock on repair jobs, and keep both in one inventory. Print Code 128 barcode labels and scan them at the till.",
   },
   {
     icon: KeyLinkIcon,
-    title: "A portal customers will actually open",
-    body: "Customers get a sign-in link by email — no password to forget — and can see where their device is up to, plus their estimates and invoices. Approving or declining an estimate takes a signature and lands straight on your ticket.",
+    title: "A portal customers can check",
+    body: "After email delivery is configured, customers can sign in without a password to check repair progress and documents, then approve or decline estimates online.",
   },
   {
     icon: SendIcon,
-    title: "Follow-ups that send themselves",
-    body: "Set a rule like “two weeks after a repair is resolved” and RepairPilot builds the list from your real tickets, invoices and new customers, then sends on schedule — every fifteen minutes while the app is running. Guard rails built in: it never double-sends, and it never blasts old history.",
+    title: "Follow-ups on schedule",
+    body: "Build outreach from repair, invoice and customer records. The scheduler checks every 15 minutes; email or SMS delivery requires a configured provider.",
   },
   {
     icon: SparkIcon,
-    title: "AI drafting, and reports that add up",
-    body: "Optional AI writes the first draft of a customer update or boils a long ticket down to a summary. It stays switched off until you turn it on, and personal details are stripped before anything leaves. The reports are plain arithmetic over your own numbers.",
+    title: "AI drafts when you ask",
+    body: "With an AI provider enabled, get a first draft of a customer update or a ticket summary. AI is off by default; email, phone, street address, last name, device serials and unlock codes are excluded from prompts.",
   },
 ];
 

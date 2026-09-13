@@ -13,7 +13,7 @@ import { Showcase } from "@/components/landing/showcase";
 
 const TITLE = "RepairPilot — repair shop software";
 const DESCRIPTION =
-  "Tickets, estimates and invoices, a point-of-sale counter with inventory, a customer portal and follow-ups — one system for phone, computer, console, mail-in and on-site repair shops. Free while in early access.";
+  "Repair shop CRM for phone, computer and console teams. Track repairs, parts, estimates, invoices and customer updates in one workspace. Free during early access.";
 
 export const metadata: Metadata = {
   title: TITLE,
