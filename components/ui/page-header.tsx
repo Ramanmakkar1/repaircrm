@@ -91,11 +91,11 @@ export function PageHeader({
           {breadcrumbs && breadcrumbs.length > 0 ? (
             <Breadcrumbs items={breadcrumbs} className="mb-0.5" />
           ) : null}
-          <h1 className="text-[20px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
+          <h1 className="text-balance text-[22px] font-semibold leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[24px]">
             {title}
           </h1>
           {description ? (
-            <p className="text-[13.5px] leading-snug text-muted-foreground">
+            <p className="max-w-[65ch] text-[14px] leading-relaxed text-muted-foreground">
               {description}
             </p>
           ) : null}

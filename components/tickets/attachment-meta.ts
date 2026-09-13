@@ -34,7 +34,7 @@ const ALLOWED_EXACT = new Set([
 /**
  * Types that pass the prefix test but must never be stored.
  *
- * Uploads are served from /uploads on RepairFlow's OWN origin, so an SVG or an
+ * Uploads are served from /uploads on RepairPilot's OWN origin, so an SVG or an
  * HTML file is not an attachment — it is a script the shop hosts for us, with
  * access to the session cookie of whoever clicks it. `image/` and `text/` are
  * otherwise fine; these specific members of those families are stored XSS.

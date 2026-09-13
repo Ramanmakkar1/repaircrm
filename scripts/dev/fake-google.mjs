@@ -117,9 +117,9 @@ const codes = new Map();
 const pending = new Map();
 
 const PRESETS = [
-  { sub: "google-owner-1", email: "demo@repairflow.app", name: "Demo Owner" },
-  { sub: "google-tech-1", email: "tech@repairflow.app", name: "Demo Tech" },
-  { sub: "google-desk-1", email: "frontdesk@repairflow.app", name: "Demo Front Desk" },
+  { sub: "google-owner-1", email: "demo@repairpilot.app", name: "Demo Owner" },
+  { sub: "google-tech-1", email: "tech@repairpilot.app", name: "Demo Tech" },
+  { sub: "google-desk-1", email: "frontdesk@repairpilot.app", name: "Demo Front Desk" },
   { sub: "google-stranger-1", email: "stranger@example.com", name: "A Stranger" },
 ];
 
@@ -298,7 +298,7 @@ const server = createServer(async (req, res) => {
     if (q.get("x_auto") === "1") {
       return approve(res, request, {
         sub: q.get("x_sub") || "google-auto-1",
-        email: q.get("x_email") || "demo@repairflow.app",
+        email: q.get("x_email") || "demo@repairpilot.app",
         name: q.get("x_name") || "Auto Person",
         picture: q.get("x_picture") || "",
         verified: q.get("x_verified") !== "0",

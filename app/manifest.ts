@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
  * The web app manifest, served at /manifest.webmanifest.
  *
  * What it buys a repair shop: the counter machine and the tech's phone can
- * install RepairFlow to the home screen and open it without browser chrome, so
+ * install RepairPilot to the home screen and open it without browser chrome, so
  * the ticket board fills the screen and nobody navigates away by mistake.
  *
  * `start_url` is /dashboard rather than /: the marketing page is not what an
@@ -16,8 +16,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RepairFlow",
-    short_name: "RepairFlow",
+    name: "RepairPilot",
+    short_name: "RepairPilot",
     description: "Repair shop management, done right.",
     start_url: "/dashboard",
     scope: "/",

@@ -14,7 +14,7 @@ import {
 import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
-  title: "Create your shop · RepairFlow",
+  title: "Create your shop · RepairPilot",
 };
 
 export default async function SignupPage({

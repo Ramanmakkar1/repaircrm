@@ -1,5 +1,5 @@
 /**
- * Demo data for RepairFlow.
+ * Demo data for RepairPilot.
  *
  * Idempotent: drops and rebuilds the `demo` shop on every run (every tenant-owned
  * table cascades from Shop), so it is safe to re-run at any time.
@@ -7,9 +7,9 @@
  *   npm run db:seed
  *
  * Logins (all use the password `demo1234`):
- *   demo@repairflow.app       OWNER
- *   tech@repairflow.app       TECH
- *   frontdesk@repairflow.app  FRONT_DESK
+ *   demo@repairpilot.app       OWNER
+ *   tech@repairpilot.app       TECH
+ *   frontdesk@repairpilot.app  FRONT_DESK
  */
 
 import { createHash } from "node:crypto";
@@ -88,7 +88,13 @@ const labourDescription = (techName: string, startedAt: Date, seconds: number) =
 const uploadsRoot = path.join(process.cwd(), "public", "uploads");
 
 async function main() {
-  console.log("Seeding RepairFlow demo data…");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Refusing to seed demo accounts and data in production. Use a non-production database.",
+    );
+  }
+
+  console.log("Seeding RepairPilot demo data…");
 
   // ---------------------------------------------------------------- reset ---
   // Deleting the Shop cascades almost everything, but not quite everything:
@@ -268,7 +274,7 @@ async function main() {
   const owner = await db.user.create({
     data: {
       shopId: shop.id,
-      email: "demo@repairflow.app",
+      email: "demo@repairpilot.app",
       passwordHash,
       defaultLocationId: mainLocation.id,
       name: "Dana Ortiz",
@@ -280,7 +286,7 @@ async function main() {
   const tech = await db.user.create({
     data: {
       shopId: shop.id,
-      email: "tech@repairflow.app",
+      email: "tech@repairpilot.app",
       passwordHash,
       defaultLocationId: mainLocation.id,
       name: "Marcus Webb",
@@ -292,7 +298,7 @@ async function main() {
   const frontDesk = await db.user.create({
     data: {
       shopId: shop.id,
-      email: "frontdesk@repairflow.app",
+      email: "frontdesk@repairpilot.app",
       passwordHash,
       defaultLocationId: kiosk.id,
       name: "Priya Shah",
@@ -3490,7 +3496,7 @@ async function main() {
   const webhook = await db.webhook.create({
     data: {
       shopId: shop.id,
-      url: "https://hooks.demorepair.shop/repairflow",
+      url: "https://hooks.demorepair.shop/repairpilot",
       secret: "whsec_demo_4f1c8ab26d3e5079b1ca47e2d0f83b96",
       events: ["ticket.created", "invoice.paid", "estimate.approved"],
       active: true,
@@ -3590,7 +3596,7 @@ async function main() {
       { shopId: shop.id, userId: owner.id, action: "settings.updated", entity: "settings", entityId: shop.id, summary: "Tax rates saved", meta: { section: "tax", rates: 3 }, ip: "198.51.100.24", createdAt: daysAgo(4, 10) },
       { shopId: shop.id, userId: tech.id, action: "ticket.deleted", entity: "ticket", entityId: null, summary: "Deleted ticket #10 — opened against the wrong device", ip: "203.0.113.77", createdAt: daysAgo(3, 16) },
       { shopId: shop.id, userId: frontDesk.id, action: "user.login", entity: "user", entityId: frontDesk.id, summary: "Signed in", ip: "203.0.113.51", createdAt: daysAgo(1, 9) },
-      { shopId: shop.id, userId: null, action: "user.login_locked", entity: "user", entityId: null, summary: "Sign-in locked after five failed attempts for tech@repairflow.app", ip: "192.0.2.144", createdAt: daysAgo(1, 22) },
+      { shopId: shop.id, userId: null, action: "user.login_locked", entity: "user", entityId: null, summary: "Sign-in locked after five failed attempts for tech@repairpilot.app", ip: "192.0.2.144", createdAt: daysAgo(1, 22) },
       { shopId: shop.id, userId: tech.id, action: "user.login", entity: "user", entityId: tech.id, summary: "Signed in", ip: "203.0.113.77", createdAt: hoursAgo(5) },
       { shopId: shop.id, userId: owner.id, action: "user.login", entity: "user", entityId: owner.id, summary: "Signed in", ip: "198.51.100.24", createdAt: hoursAgo(2) },
     ],
@@ -3964,9 +3970,9 @@ async function main() {
 
   console.table(counts);
   console.log("\nSign in at /login with:");
-  console.log("  demo@repairflow.app       / demo1234   (OWNER)");
-  console.log("  tech@repairflow.app       / demo1234   (TECH)");
-  console.log("  frontdesk@repairflow.app  / demo1234   (FRONT_DESK)");
+  console.log("  demo@repairpilot.app       / demo1234   (OWNER)");
+  console.log("  tech@repairpilot.app       / demo1234   (TECH)");
+  console.log("  frontdesk@repairpilot.app  / demo1234   (FRONT_DESK)");
   console.log("\nPublic check-in:  /checkin/" + SHOP_SLUG);
   console.log("Customer portal:  /portal?token=demo-portal-token-okonkwo");
   console.log("API key:          " + demoApiKey);

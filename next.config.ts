@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  // Self-contained server bundle for Docker / bare-VPS deploys
-  // (node .next/standalone/server.js). `npm run start` keeps working too.
-  output: "standalone",
+  // Keep the standalone output for Docker while allowing OpenNext to produce
+  // the Worker bundle for Cloudflare.
+  output: process.env.CLOUDFLARE_BUILD === "1" ? undefined : "standalone",
+  serverExternalPackages: ["@prisma/client", ".prisma/client"],
 
   async headers() {
     return [
@@ -69,5 +71,10 @@ const nextConfig: NextConfig = {
     ];
   },
 };
+
+// Enables Cloudflare bindings in the dev server only. Production builds must be
+// independent of local Hyperdrive credentials; Wrangler injects its binding
+// into the OpenNext Worker at runtime.
+if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();
 
 export default nextConfig;

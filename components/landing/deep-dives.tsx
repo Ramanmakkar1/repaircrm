@@ -65,74 +65,7 @@ function Row({
 /* Inset cards                                                                */
 /* -------------------------------------------------------------------------- */
 
-/*
- * These are the survivors of the hand-built vignettes this page used before it
- * had screenshots. They are kept — shrunk to a corner card — because each one
- * shows something a still frame cannot: the shape of a workflow moving, and the
- * arithmetic at the bottom of an invoice. Everything else that used to be drawn
- * in divs is now the real screen behind them.
- *
- * Decorative: the prose beside each row already makes the claim, so neither
- * card is read out as a wall of orphaned numbers.
- */
-
-function WorkflowCard() {
-  const steps = ["Intake", "Diagnosed", "Repair", "QC"];
-  const current = 2; // zero-indexed: "Repair" is in flight
-
-  return (
-    <div
-      aria-hidden="true"
-      className="rf-shot rounded-xl border border-border bg-surface p-4"
-    >
-      <p className="rf-nums text-[10.5px] font-bold uppercase tracking-[0.12em] text-faint-foreground">
-        #1038 · workflow
-      </p>
-
-      <div className="mt-3 flex items-center">
-        {steps.map((step, i) => (
-          <div key={step} className="flex flex-1 items-center last:flex-none">
-            <span
-              className={[
-                "flex size-[17px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
-                i < current
-                  ? "bg-accent text-accent-foreground"
-                  : i === current
-                    ? "bg-accent-soft text-accent-soft-foreground ring-2 ring-accent"
-                    : "border border-border-strong bg-surface text-faint-foreground",
-              ].join(" ")}
-            >
-              {i < current ? "✓" : i + 1}
-            </span>
-            {i < steps.length - 1 ? (
-              <span
-                className={`mx-1.5 h-[2px] flex-1 rounded-full ${
-                  i < current ? "bg-accent" : "bg-border"
-                }`}
-              />
-            ) : null}
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-2 flex justify-between">
-        {steps.map((step) => (
-          <span
-            key={step}
-            className="text-[9.5px] font-semibold text-muted-foreground"
-          >
-            {step}
-          </span>
-        ))}
-      </div>
-
-      <p className="mt-3.5 flex items-center gap-1.5 border-t border-border pt-3 text-[11px] font-semibold text-accent-soft-foreground">
-        <span className="size-1.5 shrink-0 rounded-full bg-accent" />
-        Public update emailed to Priya
-      </p>
-    </div>
-  );
-}
+/* Small interface details support the workshop photography. */
 
 function InvoiceCard() {
   return (
@@ -172,41 +105,27 @@ function InvoiceCard() {
 
 function PortalCard() {
   return (
-    <div
-      aria-hidden="true"
-      className="rf-shot mt-5 rounded-xl border border-border bg-surface p-4"
-    >
-      <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-faint-foreground">
-        Customer portal
-      </p>
-      <p className="mt-1.5 text-[14px] font-bold tracking-tight text-foreground">
-        Your Galaxy S22 is waiting on a part
-      </p>
-      <p className="mt-1 text-[12px] leading-snug text-muted-foreground">
-        Estimate for a replacement battery — $89.00
-      </p>
-      <div className="mt-3 flex items-center gap-2">
-        <span className="flex h-8 flex-1 items-center justify-center rounded-md bg-accent text-[12px] font-semibold text-accent-foreground shadow-xs">
-          Approve &amp; sign
-        </span>
-        <span className="flex h-8 items-center justify-center rounded-md border border-border-strong px-3 text-[12px] font-semibold text-muted-foreground">
-          Decline
-        </span>
+    <div aria-hidden="true" className="rf-shot mt-4 rounded-xl border border-border bg-surface p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Customer portal</p>
+          <p className="mt-1 text-[14px] font-semibold text-foreground">Your repair is ready</p>
+        </div>
+        <span className="rounded-sm bg-status-ready-bg px-2 py-1 text-[10px] font-semibold text-status-ready-fg">Ready for pickup</span>
+      </div>
+      <div className="mt-4 flex items-center gap-2 text-[11.5px] text-muted-foreground">
+        <span className="size-2 rounded-full bg-status-resolved" />
+        Repair completed · We&rsquo;re open until 6 pm
       </div>
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Vignettes — a real crop of the app, with one card layered over it          */
+/* Vignettes — repair photography paired with compact product previews        */
 /* -------------------------------------------------------------------------- */
 
-/*
- * These rows render in a ~544px column, where a whole 1512px window would
- * shrink into unreadable texture. So each one shows a tight crop of the real
- * screen instead — cropped from the same captures used at full width further
- * down the page, and displayed at ~1.4x density so the type stays crisp.
- */
+/* Images are rendered at their natural aspect ratio in a two-column layout. */
 
 const DETAIL_SIZES = "(max-width: 1023px) 100vw, 544px";
 
@@ -217,15 +136,24 @@ function WorkroomVignette() {
       shot={
         <Panel>
           <Shot
-            src="/marketing/detail-ticket.jpg"
-            width={780}
-            height={460}
+            src="/marketing/diagnostics.jpg"
+            width={1600}
+            height={1000}
             sizes={DETAIL_SIZES}
-            alt="Two RepairFlow ticket cards side by side: an iPhone 14 Pro with an intermittent charging port, marked Waiting and Urgent, due Aug 28 and assigned to Marcus Webb; and an unassigned ThinkPad T14 with pop-ups and browser redirects, marked New. Each card shows its device tags and how long it has been open."
+            alt="A repair technician diagnosing a phone at a tidy electronics workbench."
           />
         </Panel>
       }
-      inset={<WorkflowCard />}
+      inset={
+        <div aria-hidden="true" className="rf-shot rounded-xl border border-border bg-surface p-4">
+          <div className="flex items-center justify-between gap-2">
+            <p className="rf-nums text-[10px] font-bold uppercase tracking-[0.12em] text-faint-foreground">Ticket #1042</p>
+            <span className="rounded-sm bg-status-in-progress-bg px-2 py-0.5 text-[9px] font-semibold text-status-in-progress-fg">In progress</span>
+          </div>
+          <p className="mt-3 text-[12.5px] font-semibold text-foreground">iPhone 13 · charging fault</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">Diagnostic notes, parts and customer updates stay with the repair.</p>
+        </div>
+      }
     />
   );
 }
@@ -237,11 +165,11 @@ function MoneyVignette() {
       shot={
         <Panel>
           <Shot
-            src="/marketing/detail-pos.jpg"
-            width={780}
-            height={505}
+            src="/marketing/repair-bench.jpg"
+            width={1600}
+            height={900}
             sizes={DETAIL_SIZES}
-            alt="The RepairFlow point-of-sale product grid: filters for accessories, labour and parts, above tiles for a tempered glass protector at $24.99, a bench diagnostic at $95.00 per hour and level one data recovery at $175.00, each showing the stock left."
+            alt="A clean electronics repair bench with tools and a phone ready for service."
           />
         </Panel>
       }
@@ -254,22 +182,60 @@ function DisplayVignette() {
   return (
     <div>
       <ScreenFrame>
-        <Shot
-          src="/marketing/display-wall.jpg"
-          width={1180}
-          height={708}
-          sizes={DETAIL_SIZES}
-          alt="The RepairFlow shop display running full screen on a dark monitor: a headline count of nine open jobs, tallies for each status, a live clock, and a tile per repair showing its ticket number, device, customer surname, current status and how long it has been open."
-        />
+        <div aria-label="Shop display preview with ten repairs grouped by status" role="img" className="bg-[#111214] p-5 text-white sm:p-6">
+          <div className="flex items-center justify-between border-b border-white/15 pb-4">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">RepairPilot · Live board</p>
+              <p className="mt-1 text-[16px] font-semibold tracking-tight sm:text-[19px]">Today&apos;s repair queue</p>
+            </div>
+            <span className="flex items-center gap-2 text-[10px] font-medium text-white/65">
+              <span className="size-2 rounded-full bg-emerald-400" />
+              Updating
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["New", "3", "bg-status-new"],
+              ["In progress", "4", "bg-status-in-progress"],
+              ["Waiting", "1", "bg-status-waiting"],
+              ["Ready", "2", "bg-status-ready"],
+            ].map(([label, count, color]) => (
+              <div key={label} className="rounded-md border border-white/10 bg-white/[0.06] p-3">
+                <p className="flex items-center gap-1.5 text-[9px] font-medium text-white/65">
+                  <span aria-hidden="true" className={"size-1.5 rounded-full " + color} />
+                  {label}
+                </p>
+                <p className="mt-2 text-[24px] font-semibold leading-none tabular-nums">{count}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded-md border border-white/10 bg-white/[0.06] px-3 py-2.5">
+              <p className="text-[9px] font-semibold text-white/45">#1042 · IPHONE 13</p>
+              <p className="mt-1 text-[11px] font-semibold">Charging port repair</p>
+            </div>
+            <div className="hidden rounded-md border border-white/10 bg-white/[0.06] px-3 py-2.5 sm:block">
+              <p className="text-[9px] font-semibold text-white/45">#1046 · MACBOOK AIR</p>
+              <p className="mt-1 text-[11px] font-semibold">Ready for pickup</p>
+            </div>
+          </div>
+        </div>
       </ScreenFrame>
 
       {/*
        * The customer's half of the same story, stacked under the shop's half
-       * rather than overlapping it: the row's whole point is two audiences
-       * seeing two different things, which reads better as two surfaces than
-       * as one card obscuring the board it's meant to contrast with. No
-       * screenshot exists for a one-off emailed link, so this stays hand-built.
+       * The customer's view sits under the shop's board. Both previews stay
+       * visible so the two sides of the counter are easy to compare.
        */}
+      <Panel>
+        <Shot
+          src="/marketing/customer-handoff.jpg"
+          width={1600}
+          height={1000}
+          sizes={DETAIL_SIZES}
+          alt="A technician hands a repaired laptop back to a customer across a neighborhood repair shop counter."
+        />
+      </Panel>
       <PortalCard />
     </div>
   );
@@ -280,7 +246,7 @@ function DisplayVignette() {
 export function DeepDives() {
   return (
     <section
-      aria-label="How RepairFlow works"
+      aria-label="How RepairPilot works"
       className="border-t border-border bg-surface-hover/50 py-20 sm:py-28"
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-24 px-5 sm:gap-32 sm:px-8">

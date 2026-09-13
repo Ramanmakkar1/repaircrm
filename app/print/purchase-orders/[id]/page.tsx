@@ -14,7 +14,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Purchase order · RepairFlow" };
+export const metadata: Metadata = { title: "Purchase order · RepairPilot" };
 
 /**
  * The vendor-facing sheet.

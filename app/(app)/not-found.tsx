@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
-export const metadata = { title: "Page not found · RepairFlow" };
+export const metadata = { title: "Page not found · RepairPilot" };
 
 /**
  * The catch-all inside the signed-in app: a URL that matches no route, or a

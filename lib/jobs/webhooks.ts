@@ -17,16 +17,16 @@ import {
  * ---------------------------------------------------------------------------
  *   POST <hook.url>
  *   Content-Type: application/json
- *   User-Agent: RepairFlow-Webhooks/1
- *   X-RepairFlow-Event: invoice.paid
- *   X-RepairFlow-Delivery: <delivery id>
- *   X-RepairFlow-Signature: t=<unix>,v1=<hex HMAC-SHA256 of `${t}.${body}`>
+ *   User-Agent: RepairPilot-Webhooks/1
+ *   X-RepairPilot-Event: invoice.paid
+ *   X-RepairPilot-Delivery: <delivery id>
+ *   X-RepairPilot-Signature: t=<unix>,v1=<hex HMAC-SHA256 of `${t}.${body}`>
  *
  * The signature covers the timestamp AND the body, so a captured request
  * cannot be replayed tomorrow with a fresh timestamp, and the body cannot be
  * edited without breaking the digest. It is the same construction Stripe uses,
  * which means a consumer can reuse verification code they may already have.
- * `X-RepairFlow-Delivery` is the idempotency key: a redelivered attempt repeats
+ * `X-RepairPilot-Delivery` is the idempotency key: a redelivered attempt repeats
  * it, so a consumer can dedupe.
  *
  * ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ const BATCH_SIZE = 100;
 /** A slow endpoint is abandoned rather than allowed to eat the whole pass. */
 const TIMEOUT_MS = 10_000;
 
-export const USER_AGENT = "RepairFlow-Webhooks/1";
+export const USER_AGENT = "RepairPilot-Webhooks/1";
 
 export type WebhookRunResult = { delivered: number; failed: number };
 
@@ -215,9 +215,9 @@ async function attempt(input: {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": USER_AGENT,
-        "X-RepairFlow-Event": input.event,
-        "X-RepairFlow-Delivery": input.deliveryId,
-        "X-RepairFlow-Signature": await signBody(body, input.secret, timestamp),
+        "X-RepairPilot-Event": input.event,
+        "X-RepairPilot-Delivery": input.deliveryId,
+        "X-RepairPilot-Signature": await signBody(body, input.secret, timestamp),
       },
       body,
       // No redirects: a 302 to an attacker-chosen host would forward a signed

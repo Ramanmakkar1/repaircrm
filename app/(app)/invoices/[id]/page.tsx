@@ -19,6 +19,7 @@ import {
   readTerminalLocationId,
   stripeTestMode,
 } from "@/lib/payments";
+import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 import { refundAwareTotals } from "@/components/billing/refund-math";
 import { InvoiceActionMenu } from "@/components/billing/invoice-action-menu";
 import type { RefundablePayment } from "@/components/billing/refund-dialog";
@@ -80,7 +81,10 @@ function paymentLabel(
   method: string,
   reference: string | null,
   source?: string | null,
+  gateway?: string | null,
 ): string {
+  if (gateway === "square" && source === "terminal") return "Card (Square Terminal)";
+  if (gateway === "square") return "Card (Square online)";
   // Wave 8 stamps the journey onto the row; older rows are recognised by their
   // `cs_…` reference alone.
   if (source === "terminal") return "Card (reader)";
@@ -102,8 +106,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Invoice #${invoice.number} · RepairFlow`
-      : "Invoice · RepairFlow",
+      ? `Invoice #${invoice.number} · RepairPilot`
+      : "Invoice · RepairPilot",
   };
 }
 
@@ -163,6 +167,8 @@ export default async function InvoiceDetailPage({
   const hasRefunds = invoice.refunds.length > 0;
   const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
   const settled = !isVoid && totals.balanceCents <= 0;
+  const square = await squareConnectionStatus(shopId);
+  const squareDevices = square.connected ? await listSquareDevices(shopId) : [];
 
   // Refunding is a till operation, not a bench one — same guard as store-credit
   // adjustments. There is nothing to refund until money has actually come in,
@@ -178,7 +184,8 @@ export default async function InvoiceDetailPage({
       label: `${paymentLabel(
         payment.method,
         payment.reference,
-        payment.stripeSource
+        payment.stripeSource ?? payment.gatewaySource,
+        payment.gateway,
       )} · ${formatCents(payment.amountCents)} · ${formatDate(payment.createdAt)}`,
       amountCents: payment.amountCents,
       isStripe:
@@ -194,7 +201,7 @@ export default async function InvoiceDetailPage({
   const paidWithCredit = invoice.payments.some((p) => p.method === "CREDIT");
   // Shown only when it is true. "Online payments: off" on every invoice of
   // every shop that never enabled Stripe is an advert, not a status.
-  const onlinePayments = paymentsLive() && canTakePayment;
+  const onlinePayments = (paymentsLive() || square.connected) && canTakePayment;
 
   // The saved card, and whether a reader is paired. Both drive buttons that
   // move money, so both are decided here on the server.
@@ -463,6 +470,17 @@ export default async function InvoiceDetailPage({
                         // The way out when the machine is unplugged: the
                         // same hosted link the Share row hands out.
                         paymentLink: invoicePaymentLinkAction,
+                      }
+                    : undefined
+                }
+                squareTerminal={
+                  squareDevices.length > 0
+                    ? {
+                        devices: squareDevices.map((device) => ({
+                          id: device.deviceId ?? device.id,
+                          name: device.name,
+                          status: device.status,
+                        })),
                       }
                     : undefined
                 }

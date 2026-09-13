@@ -27,7 +27,7 @@
  * are closed shifts nobody scans to reopen).
  */
 
-/** The document kinds a printed RepairFlow barcode can name. */
+/** The document kinds a printed RepairPilot barcode can name. */
 export type DocKind = "ticket" | "invoice" | "estimate" | "purchase-order";
 
 /** Longest first, so "PO" wins over "P"-anything and never reads as one letter. */

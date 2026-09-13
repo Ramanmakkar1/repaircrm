@@ -46,7 +46,7 @@ const FEATURES: Feature[] = [
   {
     icon: SendIcon,
     title: "Follow-ups that send themselves",
-    body: "Set a rule like “two weeks after a repair is resolved” and RepairFlow builds the list from your real tickets, invoices and new customers, then sends on schedule — every fifteen minutes while the app is running. Guard rails built in: it never double-sends, and it never blasts old history.",
+    body: "Set a rule like “two weeks after a repair is resolved” and RepairPilot builds the list from your real tickets, invoices and new customers, then sends on schedule — every fifteen minutes while the app is running. Guard rails built in: it never double-sends, and it never blasts old history.",
   },
   {
     icon: SparkIcon,

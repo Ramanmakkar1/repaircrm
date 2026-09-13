@@ -10,7 +10,7 @@
  * every row written before object storage existed keeps working untouched.
  */
 
-export type StorageDriverName = "local" | "s3";
+export type StorageDriverName = "local" | "s3" | "r2";
 
 export type PutInput = {
   key: string;

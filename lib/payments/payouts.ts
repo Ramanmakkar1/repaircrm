@@ -139,7 +139,7 @@ export async function payoutSummary(input: {
   if (!account) {
     return {
       scheduleText:
-        "This shop has not connected its own Stripe account yet, so card payments land in the account of whoever runs this RepairFlow server — not in your bank.",
+        "This shop has not connected its own Stripe account yet, so card payments land in the account of whoever runs this RepairPilot server — not in your bank.",
       bankText: null,
       available: [],
       pending: [],

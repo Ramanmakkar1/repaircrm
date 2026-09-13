@@ -61,7 +61,7 @@ export function UserMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/settings">
+          <Link href="/settings?tab=profile">
             <ProfileIcon className="size-4 text-muted-foreground" />
             Profile
           </Link>

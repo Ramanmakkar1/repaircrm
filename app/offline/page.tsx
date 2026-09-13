@@ -3,7 +3,7 @@ import { WifiOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { RetryButton } from "@/components/pwa/retry-button";
 
-export const metadata = { title: "Offline · RepairFlow" };
+export const metadata = { title: "Offline · RepairPilot" };
 
 /**
  * What the service worker shows when a navigation cannot reach the network.
@@ -13,7 +13,7 @@ export const metadata = { title: "Offline · RepairFlow" };
  * precached by public/sw.js, so it has to render with nothing — no session, no
  * data, no fetch.
  *
- * The copy says what RepairFlow is rather than apologising: a shop staring at
+ * The copy says what RepairPilot is rather than apologising: a shop staring at
  * this needs to know their tickets are fine and their connection is not.
  */
 export default function OfflinePage() {
@@ -30,7 +30,7 @@ export default function OfflinePage() {
               You&rsquo;re offline
             </h1>
             <p className="text-[14.5px] leading-relaxed text-muted-foreground">
-              RepairFlow needs a connection to show live tickets. Nothing has
+              RepairPilot needs a connection to show live tickets. Nothing has
               been lost — reconnect and everything will be where you left it.
             </p>
           </div>

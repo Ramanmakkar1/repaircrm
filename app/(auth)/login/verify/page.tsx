@@ -8,7 +8,7 @@ import { readPending2fa } from "@/lib/pending-2fa";
 import { VerifyForm } from "./verify-form";
 
 export const metadata: Metadata = {
-  title: "Two-step verification · RepairFlow",
+  title: "Two-step verification · RepairPilot",
 };
 
 /**
@@ -36,7 +36,7 @@ export default async function VerifyPage({
           Enter your code
         </h1>
         <p className="text-[15px] leading-relaxed text-muted-foreground">
-          Open your authenticator app and type the 6-digit code for RepairFlow.
+          Open your authenticator app and type the 6-digit code for RepairPilot.
         </p>
       </div>
 

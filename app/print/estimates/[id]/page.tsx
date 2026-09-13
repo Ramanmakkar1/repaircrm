@@ -13,7 +13,7 @@ import {
   type PrintTotalRow,
 } from "@/components/billing/print-sheet";
 
-export const metadata: Metadata = { title: "Estimate · RepairFlow" };
+export const metadata: Metadata = { title: "Estimate · RepairPilot" };
 
 export default async function EstimatePrintPage({
   params,

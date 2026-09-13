@@ -259,7 +259,7 @@ export function PhoneScanDialog({
               <p className="rounded-md border border-status-in-progress/30 bg-status-in-progress-bg px-3.5 py-2.5 text-[13px] font-medium text-status-in-progress-fg">
                 This till is on <span className="font-mono">localhost</span>, which
                 a phone cannot reach. Set NEXT_PUBLIC_APP_URL to an address the
-                phone can open, or use RepairFlow from the shop&apos;s own URL.
+                phone can open, or use RepairPilot from the shop&apos;s own URL.
               </p>
             )}
 

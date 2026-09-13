@@ -66,6 +66,6 @@ export async function GET(request: Request) {
 
   return csvResponse(
     rows,
-    `repairflow-payments-${range.fromValue}-to-${range.toValue}.csv`,
+    `repairpilot-payments-${range.fromValue}-to-${range.toValue}.csv`,
   );
 }

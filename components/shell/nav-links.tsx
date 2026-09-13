@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Gauge } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import {
   Tooltip,
@@ -21,9 +22,9 @@ const NAV_GROUPS: { label: string; hrefs: string[] }[] = [
     label: "Work",
     hrefs: ["/dashboard", "/leads", "/appointments", "/customers", "/tickets"],
   },
-  { label: "Money", hrefs: ["/estimates", "/invoices", "/pos", "/inventory"] },
+  { label: "Money", hrefs: ["/estimates", "/invoices", "/pos"] },
   { label: "Grow", hrefs: ["/marketing", "/reports"] },
-  { label: "Shop", hrefs: ["/display", "/time-clock", "/settings"] },
+  { label: "Shop", hrefs: ["/inventory", "/display", "/time-clock", "/settings"] },
 ];
 
 function groupNavItems(): { label: string; items: NavItem[] }[] {
@@ -50,11 +51,9 @@ function isUnder(pathname: string, href: string) {
 /**
  * A white rail of quiet rows.
  *
- * The current page is marked three ways at once — a 2px accent bar on the
- * left edge, a faint tint across the row, and the label in accent ink — which
- * together are far quieter than the filled indigo pill this replaced, while
- * being easier to find at a glance. The bar is what your eye tracks when you
- * scan the rail vertically.
+ * The current page gets a solid dark row with a white icon and label. It is
+ * the strongest, fastest-to-scan wayfinding cue in a long sidebar and stays
+ * clear in both the expanded rail and the icon-only rail.
  *
  * Sub-items appear only underneath the section you are actually in. That is
  * the whole trick behind a rail that stays short while the app keeps growing:
@@ -64,6 +63,7 @@ function isUnder(pathname: string, href: string) {
 export function NavLinks({
   onNavigate,
   collapsed = false,
+  showPlatformAdmin = false,
 }: {
   onNavigate?: () => void;
   /**
@@ -72,12 +72,14 @@ export function NavLinks({
    * text sub-item has nothing to indent from.
    */
   collapsed?: boolean;
+  showPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const groups = groupNavItems();
 
   return (
     <nav
+      aria-label="Primary navigation"
       className={cn(
         "flex flex-1 flex-col overflow-y-auto py-4",
         collapsed ? "items-center gap-3 px-2" : "gap-5 px-2.5",
@@ -105,25 +107,19 @@ export function NavLinks({
                 onClick={onNavigate}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "group relative flex h-8 items-center rounded-md text-[13.5px] transition-colors",
+                  "group relative flex h-9 items-center rounded-md text-[13.5px] transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                   collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
                   isActive
-                    ? "bg-surface-hover font-semibold text-accent-soft-foreground"
+                    ? "bg-accent font-semibold text-accent-foreground shadow-xs"
                     : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                 )}
               >
-                {isActive && !collapsed ? (
-                  <span
-                    aria-hidden
-                    className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-accent"
-                  />
-                ) : null}
                 <Icon
                   className={cn(
                     "size-4 shrink-0 transition-colors",
                     isActive
-                      ? "text-accent"
+                      ? "text-accent-foreground"
                       : "text-faint-foreground group-hover:text-muted-foreground",
                   )}
                   strokeWidth={2}
@@ -181,6 +177,50 @@ export function NavLinks({
           })}
         </div>
       ))}
+      {showPlatformAdmin ? (
+        <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
+          {!collapsed ? (
+            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
+              Administration
+            </p>
+          ) : (
+            <span aria-hidden className="mb-2 h-px w-6 bg-border" />
+          )}
+          {(() => {
+            const isActive = isUnder(pathname, "/platform");
+            const row = (
+              <Link
+                href="/platform"
+                onClick={onNavigate}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "group relative flex h-9 items-center rounded-md text-[13.5px] transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
+                  isActive
+                    ? "bg-accent font-semibold text-accent-foreground shadow-xs"
+                    : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                )}
+              >
+                <Gauge
+                  aria-hidden="true"
+                  className={cn(
+                    "size-4 shrink-0",
+                    isActive ? "text-accent-foreground" : "text-faint-foreground",
+                  )}
+                />
+                {collapsed ? <span className="sr-only">Platform operations</span> : <span>Platform operations</span>}
+              </Link>
+            );
+            return collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>{row}</TooltipTrigger>
+                <TooltipContent side="right">Platform operations</TooltipContent>
+              </Tooltip>
+            ) : row;
+          })()}
+        </div>
+      ) : null}
     </nav>
   );
 }

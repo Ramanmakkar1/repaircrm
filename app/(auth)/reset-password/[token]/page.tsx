@@ -16,7 +16,7 @@ import {
 import { ResetForm } from "./reset-form";
 
 export const metadata: Metadata = {
-  title: "Choose a new password · RepairFlow",
+  title: "Choose a new password · RepairPilot",
 };
 
 /**

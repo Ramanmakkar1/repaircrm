@@ -29,5 +29,5 @@ export async function GET(request: Request) {
     rows.push([product.name, product.quantity, csvAmount(product.cents)]);
   }
 
-  return csvResponse(rows, `repairflow-products-${scope.fileRange}.csv`);
+  return csvResponse(rows, `repairpilot-products-${scope.fileRange}.csv`);
 }

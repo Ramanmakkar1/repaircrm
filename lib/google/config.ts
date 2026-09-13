@@ -37,7 +37,7 @@
 
 import { appUrl } from "@/lib/comms/config";
 
-/** Everything RepairFlow needs: who you are, and the name to put on tickets. */
+/** Everything RepairPilot needs: who you are, and the name to put on tickets. */
 export const GOOGLE_SCOPE = "openid email profile";
 
 /**
@@ -88,9 +88,10 @@ export function googleJwksUrl(): string {
 
 /**
  * The redirect URI, which must match the one registered in Google Cloud
- * Console character for character. Built from NEXT_PUBLIC_APP_URL so a deploy
- * that forgot to set it fails visibly rather than at the far end of a round
- * trip through Google.
+ * Console character for character. APP_URL is a server-only runtime variable
+ * on Workers, so it is not frozen to a developer's localhost value by the
+ * Next.js build. NEXT_PUBLIC_APP_URL remains the local-development fallback in
+ * appUrl().
  */
 export function googleRedirectUri(): string {
   return `${appUrl()}/api/auth/google/callback`;

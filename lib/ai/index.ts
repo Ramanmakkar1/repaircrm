@@ -4,7 +4,7 @@
  * ONE WAY OUT
  * -----------
  * Every AI call in the app goes through `generate()`. That matters more here
- * than it does for email: this is the only code path that hands RepairFlow's
+ * than it does for email: this is the only code path that hands RepairPilot's
  * ticket text to a third party, so it is the only place that needs auditing for
  * what actually leaves — and the only place that can be switched off.
  *

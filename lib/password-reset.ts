@@ -116,7 +116,7 @@ function esc(value: string): string {
 /**
  * A plain staff notice: one heading, one sentence, one button, the raw URL
  * underneath for the mail clients that eat buttons. No shop branding — this is
- * about the RepairFlow account, not about the shop's customers.
+ * about the RepairPilot account, not about the shop's customers.
  */
 function staffEmail(input: {
   heading: string;
@@ -134,21 +134,21 @@ function staffEmail(input: {
     "",
     input.footer,
     "",
-    "— RepairFlow",
+    "— RepairPilot",
   ].join("\n");
 
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f6f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#18181b">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e7ea;border-radius:12px">
     <tr><td style="padding:28px">
-      <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280">RepairFlow</p>
+      <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280">RepairPilot</p>
       <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3">${esc(input.heading)}</h1>
       <p style="margin:0 0 22px;font-size:15px;line-height:1.55;color:#3f3f46">${esc(input.intro)}</p>
       <p style="margin:0 0 22px">
-        <a href="${esc(input.url)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none">${esc(input.buttonLabel)}</a>
+        <a href="${esc(input.url)}" style="display:inline-block;padding:12px 22px;border-radius:8px;background:#111214;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none">${esc(input.buttonLabel)}</a>
       </p>
       <p style="margin:0 0 6px;font-size:13px;color:#6b7280">Or paste this into your browser:</p>
-      <p style="margin:0 0 22px;font-size:13px;word-break:break-all"><a href="${esc(input.url)}" style="color:#4f46e5">${esc(input.url)}</a></p>
+      <p style="margin:0 0 22px;font-size:13px;word-break:break-all"><a href="${esc(input.url)}" style="color:#111214">${esc(input.url)}</a></p>
       <p style="margin:0;padding-top:18px;border-top:1px solid #e7e7ea;font-size:13px;line-height:1.55;color:#6b7280">${esc(input.footer)}</p>
     </td></tr>
   </table>
@@ -165,7 +165,7 @@ export async function sendResetEmail(input: {
 }): Promise<string> {
   const body = staffEmail({
     heading: "Reset your password",
-    intro: `Hi ${input.name} — use the link below to choose a new RepairFlow password. It stops working in one hour.`,
+    intro: `Hi ${input.name} — use the link below to choose a new RepairPilot password. It stops working in one hour.`,
     buttonLabel: "Choose a new password",
     url: input.url,
     footer:
@@ -174,7 +174,7 @@ export async function sendResetEmail(input: {
 
   return deliverEmail({
     to: input.to,
-    subject: "Reset your RepairFlow password",
+    subject: "Reset your RepairPilot password",
     text: body.text,
     html: body.html,
   });
@@ -188,7 +188,7 @@ export async function sendInviteEmail(input: {
 }): Promise<string> {
   const body = staffEmail({
     heading: `You've been invited to ${input.shopName}`,
-    intro: `Hi ${input.name} — your RepairFlow account is ready. Set a password to sign in. This link works for three days.`,
+    intro: `Hi ${input.name} — your RepairPilot account is ready. Set a password to sign in. This link works for three days.`,
     buttonLabel: "Set your password",
     url: input.url,
     footer:
@@ -197,7 +197,7 @@ export async function sendInviteEmail(input: {
 
   return deliverEmail({
     to: input.to,
-    subject: `Set your password for ${input.shopName} · RepairFlow`,
+    subject: `Set your password for ${input.shopName} · RepairPilot`,
     text: body.text,
     html: body.html,
   });

@@ -1,0 +1,48 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "repairpilot",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-12",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "vars": {
+    "DATABASE_DRIVER": "hyperdrive",
+    "STORAGE_DRIVER": "r2",
+    "APP_URL": "https://repairpilot.townmedialabs.workers.dev",
+    "NEXT_PUBLIC_APP_URL": "https://repairpilot.townmedialabs.workers.dev",
+    "JOBS_INTERVAL_MIN": "0",
+    "CLOUDFLARE_ACCOUNT_ID": "4056308adc2ced0072049e5283ffc072",
+    "CF_WORKER_NAME": "repairpilot",
+    "PLATFORM_MONTHLY_BUDGET_USD": "10",
+    "PAYMENTS_DRIVER": "off",
+    "SQUARE_DRIVER": "off",
+    "SQUARE_ENVIRONMENT": "sandbox",
+    "PLANETSCALE_ORGANIZATION": "townmedialabs",
+    "PLANETSCALE_DATABASE": "repairpilot-prod",
+    "PLANETSCALE_BRANCH": "main"
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "2823d25269e04680b92cc38e07a25400"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "REPAIRPILOT_UPLOADS",
+      "bucket_name": "repairpilot-uploads-prod"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 0.1 },
+    "traces": { "enabled": false }
+  }
+}

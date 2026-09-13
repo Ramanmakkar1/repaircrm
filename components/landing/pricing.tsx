@@ -45,7 +45,7 @@ export function Pricing() {
               Free while it&rsquo;s early.
             </h2>
             <p className="mt-5 text-[16.5px] leading-relaxed text-muted-foreground">
-              RepairFlow is new. Rather than guess at a price for software that
+              RepairPilot is new. Rather than guess at a price for software that
               is still growing, it costs nothing while it&rsquo;s in early
               access. Paid plans will come later, once it has earned them —
               we&rsquo;ll tell you well before anything changes, and your data
@@ -109,7 +109,7 @@ export function Pricing() {
               </Link>
             </Button>
             <p className="mt-3 text-center text-[13px] text-faint-foreground">
-              No credit card. Nothing in RepairFlow asks for one.
+              No credit card. Nothing in RepairPilot asks for one.
             </p>
           </div>
         </div>

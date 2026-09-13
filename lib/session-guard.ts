@@ -29,7 +29,12 @@ export async function requireLiveUser(): Promise<SessionUser> {
 
   const user = await db.user.findFirst({
     where: { id: session.userId, shopId: session.shopId },
-    select: { active: true, passwordChangedAt: true, mustChangePassword: true },
+    select: {
+      active: true,
+      passwordChangedAt: true,
+      mustChangePassword: true,
+      email: true,
+    },
   });
 
   // The row is gone (shop deleted, user purged) — treat it as signed out.
@@ -40,5 +45,8 @@ export async function requireLiveUser(): Promise<SessionUser> {
   }
   if (user.mustChangePassword) redirect("/change-password");
 
-  return session;
+  // Email is part of the platform-admin allowlist check in the app shell. Use
+  // the verified database value so a changed account email cannot leave a
+  // stale platform-navigation link in an otherwise valid session.
+  return { ...session, email: user.email };
 }

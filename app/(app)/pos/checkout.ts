@@ -10,6 +10,7 @@ import {
 } from "@/lib/deposits";
 import { calcTotals, formatCents } from "@/lib/money";
 import { verifyPosTerminalIntent } from "@/lib/payments";
+import { verifySquarePosTerminalCheckout } from "@/lib/payments/square";
 import { withNextNumber } from "@/lib/sequence";
 import { resolveTaxRate } from "@/lib/tax";
 import {
@@ -114,6 +115,7 @@ const checkoutSchema = z.object({
    * and refuses the sale unless Stripe agrees on the shop and the amount.
    */
   terminalPaymentIntentId: z.string().trim().min(1).nullable().optional().default(null),
+  squareTerminalCheckoutId: z.string().trim().min(1).nullable().optional().default(null),
 });
 
 /** Errors safe to show at the counter. Anything else becomes a generic message. */
@@ -452,6 +454,28 @@ export async function performCheckout(
     if (!verified.ok) return { ok: false, error: verified.reason };
     terminal = verified;
   }
+  if (sale.terminalPaymentIntentId && sale.squareTerminalCheckoutId) {
+    return { ok: false, error: "Choose one card machine provider for this sale." };
+  }
+  let squareTerminal: { checkoutId: string; paymentId: string; amountCents: number } | null = null;
+  if (sale.squareTerminalCheckoutId) {
+    if (sale.method !== "CARD") {
+      return { ok: false, error: "A reader payment has to be tendered as a card." };
+    }
+    const verified = await verifySquarePosTerminalCheckout({
+      shopId,
+      checkoutId: sale.squareTerminalCheckoutId,
+    });
+    if (!verified.ok) return { ok: false, error: verified.reason };
+    if (verified.status !== "completed" || !verified.paymentId || !verified.amountCents) {
+      return { ok: false, error: "Square has not completed that payment." };
+    }
+    squareTerminal = {
+      checkoutId: sale.squareTerminalCheckoutId,
+      paymentId: verified.paymentId,
+      amountCents: verified.amountCents,
+    };
+  }
 
   try {
     const result = await withNextNumber(shopId, "invoice", (number) =>
@@ -495,6 +519,20 @@ export async function performCheckout(
             throw new SaleError(
               `That card payment was already rung up as invoice #${already.invoice.number}.`,
             );
+          }
+        }
+        if (squareTerminal) {
+          if (squareTerminal.amountCents !== dueCents) {
+            throw new SaleError(
+              `Square took ${formatCents(squareTerminal.amountCents)} but this cart now comes to ${formatCents(dueCents)}. Refund that payment in Square and ring the sale up again.`,
+            );
+          }
+          const already = await tx.payment.findFirst({
+            where: { gateway: "square", gatewayPaymentId: squareTerminal.paymentId },
+            select: { invoice: { select: { number: true } } },
+          });
+          if (already) {
+            throw new SaleError(`That Square payment was already rung up as invoice #${already.invoice.number}.`);
           }
         }
 
@@ -584,6 +622,8 @@ export async function performCheckout(
               method: sale.method as TenderMethod,
               reference: terminal
                 ? terminal.intentId
+                : squareTerminal
+                  ? squareTerminal.paymentId
                 : buildReference(sale.method, sale.reference, sale.tenderedCents),
               takenById: userId,
               // Only set on a reader sale. These are what tie the till back to a
@@ -592,6 +632,10 @@ export async function performCheckout(
               stripePaymentIntentId: terminal?.intentId ?? null,
               stripeChargeId: terminal?.chargeId ?? null,
               stripeSource: terminal ? "terminal" : null,
+              gateway: squareTerminal ? "square" : null,
+              gatewayPaymentId: squareTerminal?.paymentId ?? null,
+              gatewayChargeId: squareTerminal?.checkoutId ?? null,
+              gatewaySource: squareTerminal ? "terminal" : null,
             },
           });
 

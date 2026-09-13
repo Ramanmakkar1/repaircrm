@@ -15,6 +15,13 @@ import {
 import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/components/ui/cn";
 import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
@@ -47,6 +54,15 @@ export type TenderTerminal = {
   record: (paymentIntentId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
+export type TenderSquareTerminal = {
+  devices: { id: string; name: string; status: string }[];
+  createCheckout: (deviceId: string) => Promise<
+    | { ok: true; checkoutId: string }
+    | { ok: false; error: string }
+  >;
+  record: (checkoutId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+};
+
 /**
  * The tender step — the last thing between a full cart and a finished sale.
  *
@@ -68,6 +84,7 @@ export function TenderDialog({
   pending,
   error,
   terminal,
+  squareTerminal,
   onClose,
   onConfirm,
 }: {
@@ -79,6 +96,7 @@ export function TenderDialog({
   error: string | null;
   /** Absent when this shop cannot take a card at a reader. */
   terminal?: TenderTerminal;
+  squareTerminal?: TenderSquareTerminal;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
@@ -107,6 +125,7 @@ export function TenderDialog({
             pending={pending}
             error={error}
             terminal={terminal}
+            squareTerminal={squareTerminal}
             onClose={onClose}
             onConfirm={onConfirm}
           />
@@ -123,6 +142,7 @@ function TenderForm({
   pending,
   error,
   terminal,
+  squareTerminal,
   onClose,
   onConfirm,
 }: {
@@ -132,6 +152,7 @@ function TenderForm({
   pending: boolean;
   error: string | null;
   terminal?: TenderTerminal;
+  squareTerminal?: TenderSquareTerminal;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
@@ -140,8 +161,8 @@ function TenderForm({
   // the auth code) or taken on a machine wired to this shop's Stripe account.
   // Only the second one moves money from in here, so the two are separate
   // choices rather than one button that does different things.
-  const canUseReader = method === "CARD" && Boolean(terminal);
-  const [useReader, setUseReader] = React.useState(false);
+  const canUseReader = method === "CARD" && Boolean(terminal || squareTerminal);
+  const [useReader, setUseReader] = React.useState<"stripe" | "square" | null>(null);
   // Opening on the exact amount makes the overwhelmingly common "card, done"
   // and "exact change" paths a single click.
   const [received, setReceived] = React.useState(() =>
@@ -164,13 +185,25 @@ function TenderForm({
     });
   };
 
-  if (canUseReader && useReader && terminal) {
+  if (canUseReader && useReader === "stripe" && terminal) {
     return (
       <ReaderTender
         totalCents={totalCents}
         terminal={terminal}
         error={error}
-        onKeyIn={() => setUseReader(false)}
+        onKeyIn={() => setUseReader(null)}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (canUseReader && useReader === "square" && squareTerminal) {
+    return (
+      <SquareReaderTender
+        totalCents={totalCents}
+        terminal={squareTerminal}
+        error={error}
+        onKeyIn={() => setUseReader(null)}
         onClose={onClose}
       />
     );
@@ -188,15 +221,27 @@ function TenderForm({
         </div>
       ) : null}
 
-      {canUseReader ? (
+      {terminal && method === "CARD" ? (
         <Button
           type="button"
           variant="soft"
           size="lg"
           className="h-14 text-[15px]"
-          onClick={() => setUseReader(true)}
+          onClick={() => setUseReader("stripe")}
         >
-          <ACTIONS.pay /> Take it on the card machine
+          <ACTIONS.pay /> Take it on Stripe Terminal
+        </Button>
+      ) : null}
+
+      {squareTerminal && method === "CARD" ? (
+        <Button
+          type="button"
+          variant="soft"
+          size="lg"
+          className="h-14 text-[15px]"
+          onClick={() => setUseReader("square")}
+        >
+          <ACTIONS.pay /> Take it on Square Terminal
         </Button>
       ) : null}
 
@@ -405,6 +450,86 @@ function ReaderTender({
         >
           Cancel
         </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function SquareReaderTender({
+  totalCents,
+  terminal,
+  error,
+  onKeyIn,
+  onClose,
+}: {
+  totalCents: number;
+  terminal: TenderSquareTerminal;
+  error: string | null;
+  onKeyIn: () => void;
+  onClose: () => void;
+}) {
+  const [deviceId, setDeviceId] = React.useState(terminal.devices[0]?.id ?? "");
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState("Ready when you are.");
+  const alive = React.useRef(true);
+  React.useEffect(() => () => { alive.current = false; }, []);
+
+  const start = async () => {
+    setBusy(true);
+    setMessage("Sending the sale to Square Terminal…");
+    try {
+      const created = await terminal.createCheckout(deviceId);
+      if (!created.ok) throw new Error(created.error);
+      setMessage("Present card on Square Terminal…");
+      for (let attempt = 0; attempt < 150 && alive.current; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const response = await fetch(`/api/payments/square/terminal/pos-status?id=${encodeURIComponent(created.checkoutId)}`, { cache: "no-store" });
+        const status = await response.json().catch(() => null) as { status?: string; error?: string } | null;
+        if (!response.ok) throw new Error(status?.error ?? "Could not verify the Square payment.");
+        if (status?.status === "canceled") throw new Error("Square Terminal canceled the payment.");
+        if (status?.status === "completed") {
+          setMessage("Approved — finishing the sale…");
+          const recorded = await terminal.record(created.checkoutId);
+          if (!recorded.ok) throw new Error(recorded.error);
+          setBusy(false);
+          return;
+        }
+      }
+      throw new Error("Square Terminal did not finish in time. Check the invoice list before retrying.");
+    } catch (problem) {
+      if (!alive.current) return;
+      setMessage(problem instanceof Error ? problem.message : "Square Terminal could not finish the payment.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {error ? (
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive">{error}</div>
+      ) : null}
+      <div className="rounded-lg border border-border bg-surface-hover p-4">
+        <p className="text-sm font-semibold text-foreground">Square Terminal</p>
+        <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+        {terminal.devices.length > 1 && !busy ? (
+          <div className="mt-4">
+            <Label htmlFor="pos-square-device">Machine</Label>
+            <Select value={deviceId} onValueChange={setDeviceId}>
+              <SelectTrigger id="pos-square-device" className="mt-2"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {terminal.devices.map((device) => <SelectItem key={device.id} value={device.id}>{device.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        <Button type="button" size="lg" className="mt-4 w-full" disabled={busy || !deviceId} onClick={() => void start()}>
+          {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.pay />}
+          {busy ? "Waiting for customer…" : `Charge ${formatCents(totalCents)}`}
+        </Button>
+      </div>
+      <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onKeyIn}>Key it in instead</Button>
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>
       </DialogFooter>
     </div>
   );

@@ -28,7 +28,7 @@ import {
   ScheduleActiveSwitch,
 } from "@/components/recurring/schedule-controls";
 
-export const metadata = { title: "Recurring billing · RepairFlow" };
+export const metadata = { title: "Recurring billing · RepairPilot" };
 
 /**
  * The saved views. Every schedule is already in memory — this list is small by
@@ -137,7 +137,7 @@ export default async function RecurringSchedulesPage({
               }
               hint={
                 schedules.length === 0
-                  ? "Set one up for a managed-service retainer or a monthly support contract, and RepairFlow will draft the invoice for you."
+                  ? "Set one up for a managed-service retainer or a monthly support contract, and RepairPilot will draft the invoice for you."
                   : "Every schedule is on one of the other tabs."
               }
               action={

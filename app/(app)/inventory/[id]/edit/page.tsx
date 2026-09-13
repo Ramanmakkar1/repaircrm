@@ -22,7 +22,7 @@ export async function generateMetadata({
   });
 
   return {
-    title: product ? `Edit ${product.name} · RepairFlow` : "Product · RepairFlow",
+    title: product ? `Edit ${product.name} · RepairPilot` : "Product · RepairPilot",
   };
 }
 

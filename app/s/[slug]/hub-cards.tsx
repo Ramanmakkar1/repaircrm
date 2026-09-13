@@ -73,7 +73,7 @@ export function HubCards({
 
     const post = () => {
       window.parent.postMessage(
-        { type: "repairflow:size", height: Math.ceil(root.getBoundingClientRect().height) },
+        { type: "repairpilot:size", height: Math.ceil(root.getBoundingClientRect().height) },
         "*",
       );
     };
@@ -303,7 +303,7 @@ function ExpandingCard({
 // ---------------------------------------------------------------------------
 
 /**
- * The honeypot every public form in RepairFlow carries. Positioned off screen
+ * The honeypot every public form in RepairPilot carries. Positioned off screen
  * rather than `display:none` because some bots skip hidden inputs, with
  * `tabindex="-1"` and `aria-hidden` to keep it away from keyboards and screen
  * readers. Both endpoints answer success when it is filled.

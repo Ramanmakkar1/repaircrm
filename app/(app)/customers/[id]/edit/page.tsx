@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Edit customer · RepairFlow" };
+export const metadata: Metadata = { title: "Edit customer · RepairPilot" };
 
 /** The shop's named tax rates, for the customer form's preferred-rate picker. */
 async function loadTaxRates(shopId: string) {

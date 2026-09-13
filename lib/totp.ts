@@ -133,12 +133,12 @@ function timingSafeEqualString(a: string, b: string): boolean {
   return crypto.timingSafeEqual(left, right);
 }
 
-/** The string behind the QR code. Label and issuer both read "RepairFlow". */
+/** The string behind the QR code. Label and issuer both read "RepairPilot". */
 export function otpauthUrl(email: string, secret: string): string {
-  const label = encodeURIComponent(`RepairFlow:${email}`);
+  const label = encodeURIComponent(`RepairPilot:${email}`);
   const params = new URLSearchParams({
     secret,
-    issuer: "RepairFlow",
+    issuer: "RepairPilot",
     algorithm: "SHA1",
     digits: String(DIGITS),
     period: String(STEP_SECONDS),

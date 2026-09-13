@@ -58,10 +58,10 @@ export const WEBHOOK_EVENTS = [
 ] as const;
 
 /** The event type the health check sends itself. Never sent by Stripe. */
-export const PING_EVENT_TYPE = "repairflow.setup.check";
+export const PING_EVENT_TYPE = "repairpilot.setup.check";
 
 /** Marks the endpoints this app created, so cleanup never touches a stranger's. */
-const OWNER_TAG = "repairflow";
+const OWNER_TAG = "repairpilot";
 
 /** Where Stripe is told to post. Derived from the app's own address. */
 export function webhookEndpointUrl(): string {
@@ -233,7 +233,7 @@ export async function ensureShopWebhook(
         body: {
           enabled_events: [...WEBHOOK_EVENTS],
           disabled: false,
-          description: "RepairFlow payment confirmations",
+          description: "RepairPilot payment confirmations",
         },
       },
     );
@@ -258,7 +258,7 @@ export async function ensureShopWebhook(
       body: {
         url: address.url,
         enabled_events: [...WEBHOOK_EVENTS],
-        description: "RepairFlow payment confirmations",
+        description: "RepairPilot payment confirmations",
         metadata: { [OWNER_TAG]: shopId },
       },
     },
@@ -297,7 +297,7 @@ export async function ensureShopWebhook(
  * completely unusable opening line.
  */
 async function fail(shopId: string, reason: string): Promise<WebhookSetupResult> {
-  const message = `RepairFlow couldn't finish setting this up with Stripe. Stripe said: ${reason}`;
+  const message = `RepairPilot couldn't finish setting this up with Stripe. Stripe said: ${reason}`;
   await db.shop.updateMany({
     where: { id: shopId },
     data: { stripeWebhookError: message },

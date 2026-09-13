@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { taxLabel } from "@/lib/tax";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
+import { squareConnectionStatus } from "@/lib/payments/square";
 import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import { warrantyLabel } from "@/lib/warranty";
 import { PayOnlineButton } from "../../_components/pay-online";
@@ -44,7 +45,7 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const session = await getPortalSession();
-  if (!session) return { title: "Invoice · RepairFlow" };
+  if (!session) return { title: "Invoice · RepairPilot" };
 
   const invoice = await db.invoice.findFirst({
     where: {
@@ -58,8 +59,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Invoice #${invoice.number} · RepairFlow`
-      : "Invoice · RepairFlow",
+      ? `Invoice #${invoice.number} · RepairPilot`
+      : "Invoice · RepairPilot",
   };
 }
 
@@ -84,6 +85,7 @@ export default async function PortalInvoicePage({
     },
     select: {
       id: true,
+      shopId: true,
       number: true,
       status: true,
       createdAt: true,
@@ -124,11 +126,12 @@ export default async function PortalInvoicePage({
     invoice.payments,
   );
   const balance = Math.max(totals.balanceCents, 0);
+  const square = await squareConnectionStatus(invoice.shopId);
 
   // The button only exists when a real processor is behind it, the invoice is
   // one the customer has been shown, and something is actually owed.
   const canPayOnline =
-    paymentsLive() && balance > 0 && PAYABLE.has(invoice.status);
+    (paymentsLive() || square.connected) && balance > 0 && PAYABLE.has(invoice.status);
 
   const justPaid = first(query.paid) === "1";
   const canceled = first(query.canceled) === "1";

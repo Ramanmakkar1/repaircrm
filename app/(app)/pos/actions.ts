@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { newRecordLocationId } from "@/lib/location";
 import { createPosTerminalIntent } from "@/lib/payments";
+import { createSquarePosTerminalCheckout } from "@/lib/payments/square";
 import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
 import { performCheckout, priceCart } from "./checkout";
 
@@ -103,4 +104,35 @@ export async function posTerminalIntentAction(
     clientSecret: result.intent.clientSecret,
     amountCents: result.intent.amountCents,
   };
+}
+
+export async function posSquareTerminalCheckoutAction(
+  input: CheckoutInput,
+  deviceId: string,
+): Promise<
+  | { ok: true; checkoutId: string; amountCents: number }
+  | { ok: false; error: string }
+> {
+  const { shopId } = await requireUser();
+  const priced = await priceCart(shopId, input);
+  if (!priced.ok) return { ok: false, error: priced.error };
+  const key = createHash("sha1")
+    .update(JSON.stringify(input.lines.map((line) => [
+      line.productId,
+      line.ticketChargeId ?? null,
+      line.quantity,
+      line.description,
+      line.unitPriceCents,
+    ])))
+    .digest("hex")
+    .slice(0, 16);
+  const result = await createSquarePosTerminalCheckout({
+    shopId,
+    amountCents: priced.totalCents,
+    deviceId: String(deviceId ?? ""),
+    cartKey: key,
+  });
+  return result.ok
+    ? { ok: true, checkoutId: result.checkoutId, amountCents: result.amountCents }
+    : { ok: false, error: result.reason };
 }

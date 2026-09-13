@@ -55,6 +55,10 @@ export type PaymentTerminal = {
   ) => Promise<{ ok: true; url: string } | { ok: false; reason: string }>;
 };
 
+export type SquarePaymentTerminal = {
+  devices: { id: string; name: string; status: string }[];
+};
+
 const METHODS = [
   { value: "CARD", label: "Card" },
   { value: "CASH", label: "Cash" },
@@ -79,6 +83,7 @@ export function PaymentDialog({
   customerName,
   receiptAction,
   terminal,
+  squareTerminal,
   size,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -90,6 +95,8 @@ export function PaymentDialog({
   size?: ButtonProps["size"];
   /** Absent when this shop has no card machine connected. */
   terminal?: PaymentTerminal;
+  /** Square Terminal devices connected to this shop through Square OAuth. */
+  squareTerminal?: SquarePaymentTerminal;
   /**
    * Optional. When the payment just recorded clears the balance, the success
    * toast carries an "Email receipt" button — the one moment the customer is
@@ -121,7 +128,7 @@ export function PaymentDialog({
     IDLE_FORM_STATE,
   );
   const [method, setMethod] = React.useState<string>("CARD");
-  const [readerMode, setReaderMode] = React.useState(false);
+  const [readerMode, setReaderMode] = React.useState<"stripe" | "square" | null>(null);
   const [amount, setAmount] = React.useState(() =>
     (Math.max(balanceCents, 0) / 100).toFixed(2),
   );
@@ -131,7 +138,7 @@ export function PaymentDialog({
     if (next) {
       setAmount((Math.max(balanceCents, 0) / 100).toFixed(2));
       setMethod("CARD");
-      setReaderMode(false);
+      setReaderMode(null);
     }
     setOpen(next);
   };
@@ -155,12 +162,20 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {terminal && readerMode ? (
+        {terminal && readerMode === "stripe" ? (
           <ReaderPayment
             invoiceId={invoiceId}
             balanceCents={balanceCents}
             terminal={terminal}
-            onKeyIn={() => setReaderMode(false)}
+            onKeyIn={() => setReaderMode(null)}
+            onDone={() => setOpen(false)}
+          />
+        ) : squareTerminal && readerMode === "square" ? (
+          <SquareReaderPayment
+            invoiceId={invoiceId}
+            balanceCents={balanceCents}
+            terminal={squareTerminal}
+            onKeyIn={() => setReaderMode(null)}
             onDone={() => setOpen(false)}
           />
         ) : (
@@ -173,9 +188,21 @@ export function PaymentDialog({
               variant="soft"
               size="lg"
               className="h-13"
-              onClick={() => setReaderMode(true)}
+              onClick={() => setReaderMode("stripe")}
             >
-              <ACTIONS.pay /> Take it on the card machine
+              <ACTIONS.pay /> Take it on Stripe Terminal
+            </Button>
+          ) : null}
+
+          {squareTerminal && squareTerminal.devices.length > 0 ? (
+            <Button
+              type="button"
+              variant="soft"
+              size="lg"
+              className="h-13"
+              onClick={() => setReaderMode("square")}
+            >
+              <ACTIONS.pay /> Take it on Square Terminal
             </Button>
           ) : null}
 
@@ -252,6 +279,108 @@ export function PaymentDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SquareReaderPayment({
+  invoiceId,
+  balanceCents,
+  terminal,
+  onKeyIn,
+  onDone,
+}: {
+  invoiceId: string;
+  balanceCents: number;
+  terminal: SquarePaymentTerminal;
+  onKeyIn: () => void;
+  onDone: () => void;
+}) {
+  const [deviceId, setDeviceId] = React.useState(terminal.devices[0]?.id ?? "");
+  const [message, setMessage] = React.useState("Ready when you are.");
+  const [busy, setBusy] = React.useState(false);
+  const [approved, setApproved] = React.useState(false);
+  const alive = React.useRef(true);
+
+  React.useEffect(() => () => {
+    alive.current = false;
+  }, []);
+
+  const start = async () => {
+    if (!deviceId) return;
+    setBusy(true);
+    setMessage("Sending the amount to Square Terminal…");
+    try {
+      const response = await fetch("/api/payments/square/terminal/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId, deviceId }),
+      });
+      const created = await response.json().catch(() => null) as { checkoutId?: string; error?: string } | null;
+      if (!response.ok || !created?.checkoutId) throw new Error(created?.error ?? "Could not start Square Terminal.");
+      setMessage("Present card on Square Terminal…");
+
+      for (let attempt = 0; attempt < 150 && alive.current; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const statusResponse = await fetch(`/api/payments/square/terminal/checkout?id=${encodeURIComponent(created.checkoutId)}`, {
+          cache: "no-store",
+        });
+        const status = await statusResponse.json().catch(() => null) as { status?: string; error?: string } | null;
+        if (!statusResponse.ok) throw new Error(status?.error ?? "Could not verify the Square payment.");
+        if (status?.status === "completed") {
+          setMessage("Approved");
+          setApproved(true);
+          setBusy(false);
+          toast.success(`Approved — ${formatCents(balanceCents)} recorded from Square.`);
+          return;
+        }
+        if (status?.status === "canceled") throw new Error("Square Terminal canceled the payment.");
+      }
+      throw new Error("Square Terminal did not finish in time. Check the invoice before trying again.");
+    } catch (error) {
+      if (!alive.current) return;
+      setMessage(error instanceof Error ? error.message : "Square Terminal could not complete the payment.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-border bg-surface-hover p-4">
+        <p className="text-sm font-semibold text-foreground">Square Terminal</p>
+        <p className="mt-1 text-sm text-muted-foreground">{message}</p>
+        {terminal.devices.length > 1 && !busy ? (
+          <div className="mt-4">
+            <Label htmlFor="square-terminal-device">Machine</Label>
+            <Select value={deviceId} onValueChange={setDeviceId}>
+              <SelectTrigger id="square-terminal-device" className="mt-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {terminal.devices.map((device) => (
+                  <SelectItem key={device.id} value={device.id}>{device.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {!approved ? (
+          <Button type="button" size="lg" className="mt-4 w-full" disabled={busy || !deviceId} onClick={() => void start()}>
+            {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.pay />}
+            {busy ? "Waiting for customer…" : `Charge ${formatCents(balanceCents)}`}
+          </Button>
+        ) : null}
+      </div>
+      <DialogFooter>
+        {approved ? (
+          <Button type="button" onClick={onDone}>Done</Button>
+        ) : (
+          <>
+            <Button type="button" variant="outline" disabled={busy} onClick={onKeyIn}>Record it by hand instead</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={onDone}>Cancel</Button>
+          </>
+        )}
+      </DialogFooter>
+    </div>
   );
 }
 

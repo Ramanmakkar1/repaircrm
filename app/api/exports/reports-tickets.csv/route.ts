@@ -47,5 +47,5 @@ export async function GET(request: Request) {
   rows.push(["Fastest", formatDuration(resolveTime.fastestMs)]);
   rows.push(["Slowest", formatDuration(resolveTime.slowestMs)]);
 
-  return csvResponse(rows, `repairflow-tickets-${scope.fileRange}.csv`);
+  return csvResponse(rows, `repairpilot-tickets-${scope.fileRange}.csv`);
 }

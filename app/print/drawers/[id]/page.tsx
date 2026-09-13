@@ -43,7 +43,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const session = await getSession();
-  if (!session) return { title: "Cash drawer Z-report · RepairFlow" };
+  if (!session) return { title: "Cash drawer Z-report · RepairPilot" };
 
   const drawer = await db.cashDrawerSession.findFirst({
     where: { id, shopId: session.shopId },
@@ -51,8 +51,8 @@ export async function generateMetadata({
   });
   return {
     title: drawer
-      ? `Z-report ${format(drawer.openedAt, "d MMM yyyy")} · RepairFlow`
-      : "Cash drawer Z-report · RepairFlow",
+      ? `Z-report ${format(drawer.openedAt, "d MMM yyyy")} · RepairPilot`
+      : "Cash drawer Z-report · RepairPilot",
   };
 }
 

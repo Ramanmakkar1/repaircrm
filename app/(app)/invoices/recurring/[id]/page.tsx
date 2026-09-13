@@ -46,8 +46,8 @@ export async function generateMetadata({
   });
   return {
     title: schedule
-      ? `${schedule.name} · RepairFlow`
-      : "Recurring schedule · RepairFlow",
+      ? `${schedule.name} · RepairPilot`
+      : "Recurring schedule · RepairPilot",
   };
 }
 

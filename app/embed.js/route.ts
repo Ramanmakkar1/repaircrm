@@ -6,7 +6,7 @@
  * That is the entire integration. No account on our side to create, no key to
  * copy, no library to install, no build step, nothing to keep up to date — the
  * shop's web person adds one tag and the widget follows whatever the shop later
- * switches on in RepairFlow.
+ * switches on in RepairPilot.
  *
  * ---------------------------------------------------------------------------
  * WHY IT LOOKS LIKE THIS
@@ -20,7 +20,7 @@
  *        page's CSS cannot reach in (so a theme's `button { … }` cannot restyle
  *        our launcher) and our styles cannot reach out (so nothing we write can
  *        move the shop's own layout).
- *     2. The RepairFlow UI itself is an IFRAME. The app's stylesheet, fonts and
+ *     2. The RepairPilot UI itself is an IFRAME. The app's stylesheet, fonts and
  *        JavaScript never enter the host document at all — the only thing we
  *        add to their page is one empty <div> and this script.
  *   Between them, the worst a broken host page can do is make our button ugly,
@@ -50,7 +50,7 @@ const SCRIPT = String.raw`(function () {
   if (!shop) {
     // Nothing to point at. Say so once, in their console, and stop — a widget
     // that silently does nothing is a support call for somebody.
-    if (window.console) console.warn("[RepairFlow] embed.js needs a data-shop attribute.");
+    if (window.console) console.warn("[RepairPilot] embed.js needs a data-shop attribute.");
     return;
   }
 
@@ -65,7 +65,7 @@ const SCRIPT = String.raw`(function () {
   // default: this string goes straight into a stylesheet, and "; } body {" is
   // not a colour.
   var raw = (tag.getAttribute("data-color") || "").trim();
-  var color = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw) ? raw : "#4338ca";
+  var color = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw) ? raw : "#111214";
 
   var origin = new URL(tag.src, location.href).origin;
   var slug = encodeURIComponent(shop);
@@ -76,8 +76,8 @@ const SCRIPT = String.raw`(function () {
   // A dash-named custom element rather than a <div>: it is still a legal
   // attachShadow host, and it means a host page's own "div { … }" rules cannot
   // put a border or a margin on the one element we add to their document.
-  var host = document.createElement("repairflow-embed");
-  host.setAttribute("data-repairflow", mode);
+  var host = document.createElement("repairpilot-embed");
+  host.setAttribute("data-repairpilot", mode);
   var root = host.attachShadow({ mode: "open" });
 
   var style = document.createElement("style");
@@ -124,7 +124,7 @@ const SCRIPT = String.raw`(function () {
     el.style.height = "560px";
     window.addEventListener("message", function (event) {
       if (event.origin !== origin) return;
-      if (!event.data || event.data.type !== "repairflow:size") return;
+      if (!event.data || event.data.type !== "repairpilot:size") return;
       if (el.contentWindow && event.source !== el.contentWindow) return;
       var height = Number(event.data.height);
       if (height > 120 && height < 20000) el.style.height = Math.ceil(height) + "px";

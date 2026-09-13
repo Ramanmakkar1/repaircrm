@@ -10,7 +10,7 @@ import { OnboardingWizard, type WizardData } from "@/components/onboarding/wizar
 import { readOnboarding, resumeStep } from "@/components/onboarding/steps";
 import { readPublicHub } from "@/components/settings/hub-meta";
 
-export const metadata = { title: "Set up your shop · RepairFlow" };
+export const metadata = { title: "Set up your shop · RepairPilot" };
 export const dynamic = "force-dynamic";
 
 /**

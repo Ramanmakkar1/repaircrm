@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  */
 /**
  * The shop's own name in the tab, because this page is the shop's front
- * counter, not RepairFlow's. `noindex` stays whatever the slug turns out to be
+ * counter, not RepairPilot's. `noindex` stays whatever the slug turns out to be
  * — an unknown one must not look different from a disabled one.
  */
 export async function generateMetadata({

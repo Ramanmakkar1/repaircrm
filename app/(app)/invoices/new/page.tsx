@@ -5,7 +5,7 @@ import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { createInvoiceAction } from "../actions";
 
-export const metadata = { title: "New invoice · RepairFlow" };
+export const metadata = { title: "New invoice · RepairPilot" };
 
 export default async function NewInvoicePage({
   searchParams,

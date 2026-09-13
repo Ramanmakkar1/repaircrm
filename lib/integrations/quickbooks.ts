@@ -240,7 +240,7 @@ async function incomeAccountRef(
 /**
  * The Item an invoice line falls back to when it sold no catalogue product.
  *
- * `SalesItemLineDetail` requires an `ItemRef`, and plenty of RepairFlow lines
+ * `SalesItemLineDetail` requires an `ItemRef`, and plenty of RepairPilot lines
  * are free text ("diagnostic fee", "labour, 45 min"). Rather than refuse those
  * invoices, one generic Service item is found-or-created per company and every
  * such line points at it, with the shop's own wording kept in the line
@@ -252,7 +252,7 @@ async function fallbackItemRef(
 ): Promise<Ref> {
   if (settings.qboServiceItemRef) return settings.qboServiceItemRef;
 
-  const name = "RepairFlow Services";
+  const name = "RepairPilot Services";
   const existing = await query(
     connection,
     `select Id, Name from Item where Name = '${escapeQuery(name)}' maxresults 1`,
@@ -270,7 +270,7 @@ async function fallbackItemRef(
         Name: name,
         Type: "Service",
         IncomeAccountRef: { value: income.value },
-        Description: "Labour and one-off charges billed from RepairFlow.",
+        Description: "Labour and one-off charges billed from RepairPilot.",
       },
     });
     const item = created.Item as Json | undefined;
@@ -441,7 +441,7 @@ async function createCustomer(
 
 /**
  * Sparse update: only the fields listed are touched, so a bookkeeper's own
- * edits to columns RepairFlow knows nothing about survive the sync. SyncToken
+ * edits to columns RepairPilot knows nothing about survive the sync. SyncToken
  * is QuickBooks' optimistic concurrency check and must be the current one,
  * which is why the link carries it.
  *
@@ -519,7 +519,7 @@ type ProductRow = Awaited<ReturnType<typeof db.product.findMany>>[number];
  * Service vs NonInventory.
  *
  * QuickBooks' third type, Inventory, needs an asset account and an inventory
- * start date — a stock ledger RepairFlow does not hand it — so a physical part
+ * start date — a stock ledger RepairPilot does not hand it — so a physical part
  * is a NonInventory item and labour is a Service. Anything the shop tracks a
  * quantity, a serial or a part number for is physical; everything else is work.
  */
@@ -771,7 +771,7 @@ async function createInvoice(
   if (row.dueDate) body.DueDate = day(row.dueDate);
   if (row.notes) body.CustomerMemo = { value: row.notes.slice(0, 1000) };
   if (totals.taxCents > 0) {
-    // The total only — RepairFlow rounds tax once on the taxable subtotal
+    // The total only — RepairPilot rounds tax once on the taxable subtotal
     // (lib/money.ts), and handing QuickBooks the same single figure is what
     // keeps the two systems penny-identical.
     body.TxnTaxDetail = { TotalTax: money(totals.taxCents) };

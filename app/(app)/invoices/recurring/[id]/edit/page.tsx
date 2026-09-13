@@ -21,8 +21,8 @@ export async function generateMetadata({
   });
   return {
     title: schedule
-      ? `Edit ${schedule.name} · RepairFlow`
-      : "Edit schedule · RepairFlow",
+      ? `Edit ${schedule.name} · RepairPilot`
+      : "Edit schedule · RepairPilot",
   };
 }
 

@@ -35,8 +35,8 @@ export function smsDriverName(): SmsDriverName {
  */
 export function appUrl(): string {
   const raw =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     "http://localhost:3020";
   return raw.replace(/\/+$/, "");
 }

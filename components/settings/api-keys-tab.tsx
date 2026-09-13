@@ -321,7 +321,7 @@ function RevealDialog({
           <DialogTitle>Copy your key now</DialogTitle>
           <DialogDescription>
             {minted ? `"${minted.name}" is ready.` : null} This is the only time
-            it will be shown — RepairFlow stores a hash, not the key.
+            it will be shown — RepairPilot stores a hash, not the key.
           </DialogDescription>
         </DialogHeader>
 

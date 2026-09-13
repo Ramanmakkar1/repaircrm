@@ -52,7 +52,7 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const session = await getPortalSession();
-  if (!session) return { title: "Your repair · RepairFlow" };
+  if (!session) return { title: "Your repair · RepairPilot" };
 
   const ticket = await db.ticket.findFirst({
     where: { id, customerId: session.customerId, shopId: session.shopId },
@@ -60,8 +60,8 @@ export async function generateMetadata({
   });
   return {
     title: ticket
-      ? `Repair #${ticket.number} · RepairFlow`
-      : "Your repair · RepairFlow",
+      ? `Repair #${ticket.number} · RepairPilot`
+      : "Your repair · RepairPilot",
   };
 }
 

@@ -96,5 +96,5 @@ export async function GET() {
     ]);
   }
 
-  return csvResponse(rows, "repairflow-customers.csv");
+  return csvResponse(rows, "repairpilot-customers.csv");
 }

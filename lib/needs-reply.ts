@@ -33,11 +33,18 @@ import { db } from "@/lib/db";
  * ways at once — as a filter (`where: { id: { in: [...] } }`) and as a lookup
  * for the dot on each card — from a single query.
  */
-export async function needsReplyTicketIds(shopId: string): Promise<string[]> {
+export async function needsReplyTicketIds(
+  shopId: string,
+  locationId?: string,
+): Promise<string[]> {
+  const locationFilter = locationId
+    ? Prisma.sql`AND t."locationId" = ${locationId}`
+    : Prisma.empty;
   const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT t."id"
     FROM "Ticket" t
     WHERE t."shopId" = ${shopId}
+      ${locationFilter}
       AND t."lastInboundAt" IS NOT NULL
       AND t."lastInboundAt" > COALESCE(
         (

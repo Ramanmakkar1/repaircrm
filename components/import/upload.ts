@@ -96,7 +96,7 @@ export function sampleCsvResponse(kind: ImportKind): Response {
   return new Response(SAMPLE_CSV[kind], {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="repairflow-${kind}-sample.csv"`,
+      "Content-Disposition": `attachment; filename="repairpilot-${kind}-sample.csv"`,
       "Cache-Control": "no-store",
     },
   });

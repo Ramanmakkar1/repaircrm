@@ -1,5 +1,5 @@
 /**
- * The only builder of AI prompt bodies in RepairFlow.
+ * The only builder of AI prompt bodies in RepairPilot.
  *
  * ============================================================================
  *  PROMPT PRIVACY CONTRACT — READ BEFORE ADDING A FIELD

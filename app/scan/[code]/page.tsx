@@ -5,7 +5,7 @@ import { PhoneScanner } from "@/components/scan/phone-scanner";
 import { getSession } from "@/lib/auth";
 import { claimScanSession, pairingMessage } from "@/lib/scan/pairing";
 
-export const metadata: Metadata = { title: "Scan · RepairFlow" };
+export const metadata: Metadata = { title: "Scan · RepairPilot" };
 
 /** A phone held in one hand: no zooming, and the viewfinder fills the screen. */
 export const viewport: Viewport = {

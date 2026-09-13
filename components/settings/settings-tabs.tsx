@@ -38,7 +38,9 @@ import type {
   WebhookItem,
 } from "./types";
 import {
+  createSquareDeviceCodeAction,
   disconnectStripeAction,
+  disconnectSquareAction,
   forgetReaderAction,
   pairPracticeReaderAction,
   registerReaderAction,
@@ -123,7 +125,7 @@ const OWNER_PANELS: SettingsPanel[] = [
   {
     value: "messaging",
     label: "Messaging",
-    blurb: "How email and text messages leave RepairFlow, and replies come back.",
+    blurb: "How email and text messages leave RepairPilot, and replies come back.",
     group: "Connections",
   },
   {
@@ -136,14 +138,14 @@ const OWNER_PANELS: SettingsPanel[] = [
     value: "integrations",
     label: "Integrations",
     blurb:
-      "Accounting sync, and where every other connection in RepairFlow is set up.",
+      "Accounting sync, and where every other connection in RepairPilot is set up.",
     group: "Connections",
   },
   {
     // Webhooks live on this panel too, and nobody found them under "API keys".
     value: "api-keys",
     label: "API & webhooks",
-    blurb: "Keys for the RepairFlow API, and where events get posted to.",
+    blurb: "Keys for the RepairPilot API, and where events get posted to.",
     group: "Connections",
   },
   {
@@ -379,6 +381,8 @@ export function SettingsTabs({
             <PaymentsTab
               config={payments}
               disconnectAction={disconnectStripeAction}
+              disconnectSquareAction={disconnectSquareAction}
+              createSquareDeviceCodeAction={createSquareDeviceCodeAction}
               registerReaderAction={registerReaderAction}
               pairPracticeReaderAction={pairPracticeReaderAction}
               renameReaderAction={renameReaderAction}

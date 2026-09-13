@@ -8,7 +8,7 @@ import {
   previewCustomerImportAction,
 } from "./actions";
 
-export const metadata: Metadata = { title: "Import customers · RepairFlow" };
+export const metadata: Metadata = { title: "Import customers · RepairPilot" };
 
 export default async function ImportCustomersPage() {
   // Front desk keeps the customer book, so they can bring one in too.

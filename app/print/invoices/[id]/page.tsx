@@ -7,7 +7,7 @@ import { loadPrintShop } from "@/components/billing/print-queries";
 import { invoiceSheetProps } from "@/components/billing/print-mappers";
 import { PrintSheet } from "@/components/billing/print-sheet";
 
-export const metadata: Metadata = { title: "Invoice · RepairFlow" };
+export const metadata: Metadata = { title: "Invoice · RepairPilot" };
 
 export default async function InvoicePrintPage({
   params,

@@ -551,7 +551,7 @@ export async function emailPurchaseOrderAction(poId: string): Promise<PoActionSt
     unit: line.unitCostCents,
   }));
 
-  const heading = `Purchase Order #${order.number} — ${shop?.name ?? "RepairFlow"}`;
+  const heading = `Purchase Order #${order.number} — ${shop?.name ?? "RepairPilot"}`;
   const textBody = [
     heading,
     order.vendor.accountNumber ? `Account: ${order.vendor.accountNumber}` : null,

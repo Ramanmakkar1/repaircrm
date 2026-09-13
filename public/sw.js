@@ -1,10 +1,10 @@
 /*
- * RepairFlow service worker.
+ * RepairPilot service worker.
  *
  * ---------------------------------------------------------------------------
  * WHAT IT IS FOR, AND WHAT IT IS DELIBERATELY NOT FOR
  * ---------------------------------------------------------------------------
- * RepairFlow is a live view of a shop's tickets, invoices and stock. A cached
+ * RepairPilot is a live view of a shop's tickets, invoices and stock. A cached
  * ticket list is a LIE — it shows a job as "In Progress" that was picked up an
  * hour ago. So this worker does not try to make the app work offline. It does
  * exactly two things:
@@ -35,7 +35,7 @@
  */
 
 const VERSION = "v2";
-const CACHE = `repairflow-${VERSION}`;
+const CACHE = `repairpilot-${VERSION}`;
 
 /** Fetched during install, alongside whatever the offline page itself needs. */
 const PRECACHE = ["/offline", "/icons/icon-192.png"];

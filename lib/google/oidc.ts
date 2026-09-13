@@ -16,7 +16,7 @@ import {
 
 /**
  * The OpenID Connect protocol half of "Sign in with Google", written out by
- * hand with `fetch`. No auth framework: RepairFlow's session layer is
+ * hand with `fetch`. No auth framework: RepairPilot's session layer is
  * hand-rolled (lib/session.ts), and bolting NextAuth on beside it would give
  * the app two ideas about what "signed in" means.
  *
@@ -137,7 +137,7 @@ export type StartedFlow = { authorizeUrl: string; flowToken: string };
  * Mints the nonce, the PKCE pair and the signed `state`, and builds the
  * authorize URL. The caller sets `flowToken` as GOOGLE_FLOW_COOKIE.
  *
- * `access_type=online` because RepairFlow never acts on a person's Google
+ * `access_type=online` because RepairPilot never acts on a person's Google
  * account — it only wants to know who they are, so a refresh token would be a
  * long-lived credential kept for no reason. `prompt=select_account` because a
  * shared workstation at a front desk is the normal case, and silently reusing

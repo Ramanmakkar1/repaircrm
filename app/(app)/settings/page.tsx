@@ -49,8 +49,9 @@ import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
 import { readSla } from "@/lib/sla";
 import { parseTemplateItems } from "@/lib/checklist";
 import { readLabourSettings } from "@/lib/labour";
+import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 
-export const metadata = { title: "Settings · RepairFlow" };
+export const metadata = { title: "Settings · RepairPilot" };
 
 /**
  * Everything a shop can configure, in one place.
@@ -356,16 +357,22 @@ export default async function SettingsPage({
   };
 
   const shouldQueryStripe = isOwner && paymentsLive();
-  const [connection, readers, setup, payout] = await Promise.all([
+  const [connection, readers, setup, payout, square] = await Promise.all([
     shouldQueryStripe ? connectStatus(session.shopId) : Promise.resolve(null),
     shouldQueryStripe ? listReaders(session.shopId) : Promise.resolve(null),
     isOwner ? webhookSetupStatus(session.shopId) : Promise.resolve(null),
     shouldQueryStripe
       ? payoutSummary({ shopId: session.shopId, testMode: stripeTestMode() })
       : Promise.resolve(null),
+    isOwner ? squareConnectionStatus(session.shopId) : Promise.resolve(null),
   ]);
+  const squareDevices =
+    isOwner && square?.connected
+      ? await listSquareDevices(session.shopId)
+      : [];
 
   const payments: PaymentsTabConfig = {
+    country: shop.country ?? "",
     env: paymentsEnv,
     connectConfigured: connectConfigured(),
     connected: connection?.connected ?? false,
@@ -405,6 +412,20 @@ export default async function SettingsPage({
     // keys, and labelled as practice everywhere it appears.
     canPairPractice: stripeTestMode() && paymentsLive(),
     confirmationEvents: [...WEBHOOK_EVENTS],
+    square: {
+      configured: square?.configured ?? false,
+      webhookReady: square?.webhookReady ?? false,
+      connected: square?.connected ?? false,
+      merchantName: square?.merchantName ?? null,
+      country: square?.country ?? null,
+      locationName: square?.locationName ?? null,
+      hasError: Boolean(square?.error),
+      devices: squareDevices.map(({ id, name, status }) => ({
+        id,
+        name,
+        status,
+      })),
+    },
   };
 
   // Scheduler state. Like the messaging config above, this is read from
@@ -499,7 +520,7 @@ export default async function SettingsPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Settings"
-        description="Your shop, your team, how you get paid, and everything RepairFlow connects to."
+        description="Your shop, your team, how you get paid, and everything RepairPilot connects to."
       />
 
       <SettingsTabs

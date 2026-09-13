@@ -19,7 +19,7 @@ import {
   problemTypes,
 } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "New ticket · RepairFlow" };
+export const metadata: Metadata = { title: "New ticket · RepairPilot" };
 
 export const dynamic = "force-dynamic";
 

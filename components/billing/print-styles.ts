@@ -1,5 +1,5 @@
 /**
- * The one visual family every printable RepairFlow document shares.
+ * The one visual family every printable RepairPilot document shares.
  *
  * This is a plain string of CSS — no imports, no server code — precisely so the
  * two print roots that live on opposite sides of an auth boundary can both use

@@ -162,7 +162,7 @@ function staffAlert(input: {
   <p style="margin:0 0 6px;font-weight:700;">${esc(input.shopName)}</p>
   <p style="margin:0 0 14px;font-size:18px;font-weight:700;">${esc(input.subject)}</p>
   ${input.lines.map((line) => `<p style="margin:0 0 8px;">${esc(line)}</p>`).join("")}
-  <p style="margin:14px 0 0;"><a href="${esc(input.link)}" style="color:#4f46e5;font-weight:600;">Open the ticket</a></p>
+  <p style="margin:14px 0 0;"><a href="${esc(input.link)}" style="color:#111214;font-weight:600;">Open the ticket</a></p>
 </div>`;
 
   return { text, html };

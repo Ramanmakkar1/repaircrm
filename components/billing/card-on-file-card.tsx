@@ -130,7 +130,7 @@ export function CardOnFileCard({
         {!paymentsConfigured ? (
           <p className="rounded-md bg-surface-hover px-3.5 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
             Online payments aren&rsquo;t set up on this server yet, so there is
-            nowhere to keep a card. Ask whoever runs RepairFlow to add a Stripe
+            nowhere to keep a card. Ask whoever runs RepairPilot to add a Stripe
             key, then connect the shop under Settings → Payments.
           </p>
         ) : card ? (
@@ -197,7 +197,7 @@ export function CardOnFileCard({
           <>
             <p className="text-[13.5px] leading-relaxed text-muted-foreground">
               No card on file. The customer enters it on Stripe&rsquo;s own
-              page; RepairFlow only ever sees the brand and last four digits.
+              page; RepairPilot only ever sees the brand and last four digits.
             </p>
             {canManage ? (
               <Button disabled={pending} onClick={save}>

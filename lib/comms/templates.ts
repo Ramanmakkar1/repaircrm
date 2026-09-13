@@ -159,13 +159,13 @@ export function renderEmail({
             : ""
         }
         <p style="margin:22px 0 0;">
-          <a href="${esc(portalUrl)}" style="display:inline-block;background:#4338ca;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 18px;border-radius:12px;">${esc(cta)}</a>
+          <a href="${esc(portalUrl)}" style="display:inline-block;background:#111214;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 18px;border-radius:12px;">${esc(cta)}</a>
         </p>
       </td>
     </tr>
     <tr>
       <td style="padding:16px 24px;border-top:1px solid #e6e2dc;font-size:12px;color:#736c62;">
-        Sent by ${esc(shopName)}. <a href="${esc(portalUrl)}" style="color:#4338ca;">${esc(portalUrl)}</a>
+        Sent by ${esc(shopName)}. <a href="${esc(portalUrl)}" style="color:#111214;">${esc(portalUrl)}</a>
       </td>
     </tr>
   </table>

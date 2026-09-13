@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { WrenchIcon } from "./icons";
+import { RepairPilotMark, RepairPilotWordmark } from "@/components/brand/repairpilot";
 
 /**
  * The year is computed on the server at render time. The landing page is
@@ -16,13 +16,9 @@ export function LandingFooter() {
         <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-sm">
             <div className="flex items-center gap-2.5">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-xs">
-                <WrenchIcon className="size-[18px]" />
-              </span>
+              <RepairPilotMark className="size-9" />
               <span className="flex flex-col leading-tight">
-                <span className="text-base font-bold tracking-tight text-foreground">
-                  RepairFlow
-                </span>
+                <RepairPilotWordmark className="text-base text-foreground" />
                 <span className="text-xs font-medium text-muted-foreground">
                   Repair shop
                 </span>
@@ -79,10 +75,22 @@ export function LandingFooter() {
           </nav>
         </div>
 
-        <div className="mt-10 border-t border-border pt-6">
-          <p className="text-[13px] text-faint-foreground">
-            © {year} RepairFlow
-          </p>
+        <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13px] text-faint-foreground">© {year} RepairPilot</p>
+          <nav aria-label="Legal" className="flex gap-5">
+            <Link
+              href="/privacy"
+              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Terms
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>

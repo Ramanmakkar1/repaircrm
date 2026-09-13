@@ -184,7 +184,7 @@ function CameraMessage({
         <p className="text-[13.5px] font-semibold">This needs HTTPS</p>
         <p className="max-w-[19rem] text-[12.5px] text-white/70">
           Browsers only hand over the camera on a secure address. Open
-          RepairFlow over https — or on this machine&apos;s own localhost — and
+          RepairPilot over https — or on this machine&apos;s own localhost — and
           the scanner will work. You can still type the code in.
         </p>
       </Shade>

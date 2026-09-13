@@ -10,7 +10,7 @@ import {
   previewProductImportAction,
 } from "./actions";
 
-export const metadata: Metadata = { title: "Import products · RepairFlow" };
+export const metadata: Metadata = { title: "Import products · RepairPilot" };
 
 export default async function ImportProductsPage() {
   // Owner only: a product row carries cost.

@@ -51,7 +51,7 @@ export async function generateMetadata({
     select: { name: true },
   });
   return {
-    title: campaign ? `${campaign.name} · RepairFlow` : "Campaign · RepairFlow",
+    title: campaign ? `${campaign.name} · RepairPilot` : "Campaign · RepairPilot",
   };
 }
 

@@ -78,7 +78,7 @@ export async function generateMetadata({
   });
 
   return {
-    title: ticket ? `Ticket #${ticket.number} · RepairFlow` : "Ticket · RepairFlow",
+    title: ticket ? `Ticket #${ticket.number} · RepairPilot` : "Ticket · RepairPilot",
   };
 }
 

@@ -4,7 +4,7 @@ import { LeadForm } from "@/components/leads/lead-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 
-export const metadata: Metadata = { title: "New lead · RepairFlow" };
+export const metadata: Metadata = { title: "New lead · RepairPilot" };
 
 export default async function NewLeadPage() {
   await requireUser();

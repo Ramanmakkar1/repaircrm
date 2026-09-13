@@ -1,6 +1,6 @@
-# RepairFlow — full stack for a single-box deploy.
+# RepairPilot — full stack for a single-box deploy.
 #
-#   cp .env.example .env   (fill in AUTH_SECRET at minimum)
+#   cp .env.example .env   (set AUTH_SECRET and POSTGRES_PASSWORD)
 #   docker compose up -d
 #
 # App: http://localhost:3020 — create your shop at /signup.
@@ -10,13 +10,13 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: repairflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-repairflow}
-      POSTGRES_DB: repairflow
+      POSTGRES_USER: repairpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (generate with openssl rand -hex 32)}
+      POSTGRES_DB: repairpilot
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U repairflow"]
+      test: ["CMD-SHELL", "pg_isready -U repairpilot"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,7 +26,7 @@ services:
     restart: "no"
     command: ["npx", "prisma", "migrate", "deploy"]
     environment:
-      DATABASE_URL: postgresql://repairflow:${POSTGRES_PASSWORD:-repairflow}@db:5432/repairflow
+      DATABASE_URL: postgresql://repairpilot:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (generate with openssl rand -hex 32)}@db:5432/repairpilot
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
     env_file: .env
     environment:
       # Overrides the .env value so the container talks to the db service.
-      DATABASE_URL: postgresql://repairflow:${POSTGRES_PASSWORD:-repairflow}@db:5432/repairflow
+      DATABASE_URL: postgresql://repairpilot:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (generate with openssl rand -hex 32)}@db:5432/repairpilot
     volumes:
       - uploads:/app/public/uploads
     depends_on:

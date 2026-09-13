@@ -222,6 +222,8 @@ export type PayoutState = {
  * no readers.
  */
 export type PaymentsTabConfig = {
+  /** Country saved in the shop profile, used to show regional provider support. */
+  country: string;
   env: PaymentsConfig;
   /** True when both STRIPE_SECRET_KEY and STRIPE_CLIENT_ID are present. */
   connectConfigured: boolean;
@@ -258,6 +260,23 @@ export type PaymentsTabConfig = {
   canPairPractice: boolean;
   /** The events Stripe is asked to send, for the by-hand fallback. */
   confirmationEvents: string[];
+  /** Safe Square account metadata only; access and refresh tokens stay server-side. */
+  square: {
+    configured: boolean;
+    connected: boolean;
+    merchantName: string | null;
+    country: string | null;
+    locationName: string | null;
+    hasError: boolean;
+    webhookReady: boolean;
+    devices: SquareTerminalDevice[];
+  };
+};
+
+export type SquareTerminalDevice = {
+  id: string;
+  name: string;
+  status: string;
 };
 
 /**

@@ -1,19 +1,36 @@
-import { BrowserFrame, Shot } from "./shot";
+import { Shot, Panel } from "./shot";
+
+const MOMENTS = [
+  {
+    src: "/marketing/repair-bench.jpg",
+    width: 1600,
+    height: 900,
+    alt: "A phone ready for service on a clean electronics repair bench.",
+    title: "At the workbench",
+    copy: "Keep the diagnosis, parts, photos and technician notes with each repair.",
+  },
+  {
+    src: "/marketing/diagnostics.jpg",
+    width: 1600,
+    height: 1000,
+    alt: "A technician carefully diagnosing a smartphone at a well-lit workbench.",
+    title: "In the middle of the job",
+    copy: "See what's moving, what's blocked and what needs the next update.",
+  },
+  {
+    src: "/marketing/customer-handoff.jpg",
+    width: 1600,
+    height: 1000,
+    alt: "A technician returns a repaired laptop to a customer at the counter.",
+    title: "At pickup",
+    copy: "Give customers a clear status and a simple path from estimate to handoff.",
+  },
+] as const;
 
 /**
- * The proof band, sitting between the detailed rows and the price.
- *
- * The deep dives above show tight crops, so this is deliberately the opposite:
- * two whole windows, at rest, with a sentence under each. Coming after the
- * close-ups it reads as stepping back rather than as repeating them — and it
- * puts an unedited view of the product immediately before the one place the
- * page asks for anything.
- *
- * Both images lazy-load; neither is above the fold on any width.
+ * Show the moments RepairPilot supports using original workshop photography.
+ * The product preview lives in the hero, where sample UI is clearly labeled.
  */
-
-const SHOT_SIZES = "(max-width: 1023px) 100vw, 560px";
-
 export function Showcase() {
   return (
     <section
@@ -23,55 +40,40 @@ export function Showcase() {
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
         <div className="max-w-2xl">
           <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-accent">
-            See it working
+            From intake to pickup
           </p>
           <h2
             id="showcase-heading"
             className="mt-3 text-[32px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-[44px]"
           >
-            Real screens, not a rendering.
+            Every repair has a clear next step.
           </h2>
           <p className="mt-5 text-[16.5px] leading-relaxed text-muted-foreground">
-            Every screenshot on this page is the app itself, running against a
-            demo shop&rsquo;s data. Nothing here is a drawing of something we
-            plan to build later.
+            Bring work orders, parts, invoices and customer updates together so
+            the whole shop knows what happens next.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-2 lg:gap-8">
-          <figure>
-            <BrowserFrame url="app.repairflow.com/tickets">
-              <Shot
-                src="/marketing/tickets.jpg"
-                width={1512}
-                height={805}
-                sizes={SHOT_SIZES}
-                alt="The RepairFlow tickets board: filter pills across the top for open jobs and each status, then a grid of ticket cards, each with a coloured status edge, the customer, the device and fault, its tags, who it is assigned to and how many hours it has been open."
-              />
-            </BrowserFrame>
-            <figcaption className="mt-4 text-[14.5px] leading-relaxed text-muted-foreground">
-              <span className="font-semibold text-foreground">Tickets.</span>{" "}
-              Every open job on one board, coloured by status — and filtered
-              down to whichever pile you&rsquo;re trying to clear.
-            </figcaption>
-          </figure>
-
-          <figure>
-            <BrowserFrame url="app.repairflow.com/pos">
-              <Shot
-                src="/marketing/pos.jpg"
-                width={1512}
-                height={805}
-                sizes={SHOT_SIZES}
-                alt="The RepairFlow point-of-sale register: a barcode and product search, category filters, a grid of product tiles showing price and stock remaining, and a cart panel on the right with subtotal, sales tax, total and buttons for cash, card, check or other payment."
-              />
-            </BrowserFrame>
-            <figcaption className="mt-4 text-[14.5px] leading-relaxed text-muted-foreground">
-              <span className="font-semibold text-foreground">The counter.</span>{" "}
-              Scan or tap a product, take cash or card, and sell from the same
-              stock your repairs pull their parts from.
-            </figcaption>
-          </figure>
+        <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {MOMENTS.map((moment) => (
+            <figure key={moment.title} className="min-w-0">
+              <Panel>
+                <Shot
+                  src={moment.src}
+                  width={moment.width}
+                  height={moment.height}
+                  sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 360px"
+                  alt={moment.alt}
+                />
+              </Panel>
+              <figcaption className="mt-4">
+                <h3 className="text-[15px] font-semibold text-foreground">{moment.title}</h3>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">
+                  {moment.copy}
+                </p>
+              </figcaption>
+            </figure>
+          ))}
         </div>
       </div>
     </section>

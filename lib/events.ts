@@ -37,7 +37,7 @@ import { WILDCARD_EVENT, type WebhookEvent } from "@/components/settings/webhook
  *
  * `id` identifies the EVENT, and is shared by every hook that receives it —
  * a consumer subscribing two endpoints can tell they saw the same fact twice.
- * The per-hook attempt is identified separately by `X-RepairFlow-Delivery`.
+ * The per-hook attempt is identified separately by `X-RepairPilot-Delivery`.
  */
 export type EventPayload = {
   id: string;

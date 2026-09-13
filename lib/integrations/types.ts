@@ -10,7 +10,7 @@ import type { ProviderName } from "./config";
 
 export type { ProviderName };
 
-/** The four things RepairFlow pushes, in the order it pushes them. */
+/** The four things RepairPilot pushes, in the order it pushes them. */
 export const SYNC_ENTITIES = [
   "customer",
   "product",

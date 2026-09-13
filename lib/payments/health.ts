@@ -78,7 +78,7 @@ export async function runPaymentsHealthCheck(
       id: "server",
       label: "Card payments switched on",
       status: "fail",
-      detail: "This RepairFlow server has no Stripe key, so no card can be charged.",
+      detail: "This RepairPilot server has no Stripe key, so no card can be charged.",
       fix: `Ask whoever runs this server to set ${
         stripeSecretKey() ? "PAYMENTS_DRIVER=stripe" : "STRIPE_SECRET_KEY"
       } and restart it.`,
@@ -111,7 +111,7 @@ export async function runPaymentsHealthCheck(
           id: "currency",
           label: "Currency",
           status: "fail",
-          detail: `${currency.toUpperCase()} isn't a currency RepairFlow can charge in — it doesn't split into 100 cents, and every amount here is stored in cents.`,
+          detail: `${currency.toUpperCase()} isn't a currency RepairPilot can charge in — it doesn't split into 100 cents, and every amount here is stored in cents.`,
           fix: "Ask whoever runs this server to set PAYMENTS_CURRENCY to a two-decimal currency such as usd, cad, eur or gbp.",
         },
   );
@@ -293,8 +293,8 @@ async function checkConfirmations(input: {
             label: "Payment confirmations",
             status: "fail",
             detail:
-              "Nothing is set up to tell RepairFlow when a card has been charged, so paid invoices will stay marked unpaid.",
-            fix: "Connect your own Stripe account at the top of this tab — RepairFlow sets the rest up for you. Otherwise, ask whoever runs this server to set STRIPE_WEBHOOK_SECRET.",
+              "Nothing is set up to tell RepairPilot when a card has been charged, so paid invoices will stay marked unpaid.",
+            fix: "Connect your own Stripe account at the top of this tab — RepairPilot sets the rest up for you. Otherwise, ask whoever runs this server to set STRIPE_WEBHOOK_SECRET.",
           },
     );
     if (secret) await pingLine(lines, { secret, account: null, address });
@@ -308,7 +308,7 @@ async function checkConfirmations(input: {
       status: "fail",
       detail:
         setup.error ??
-        "RepairFlow hasn't finished telling Stripe where to send payment confirmations, so paid invoices may stay marked unpaid.",
+        "RepairPilot hasn't finished telling Stripe where to send payment confirmations, so paid invoices may stay marked unpaid.",
       // On a private address there is no Retry button, because retrying would
       // do the same nothing. Sending someone to look for one is how a
       // diagnostic screen loses the person reading it.
@@ -329,7 +329,7 @@ async function checkConfirmations(input: {
       id: "confirmations",
       label: "Payment confirmations",
       status: "fail",
-      detail: `Stripe no longer has the setup RepairFlow created: ${remote.reason}`,
+      detail: `Stripe no longer has the setup RepairPilot created: ${remote.reason}`,
       fix: "Press Retry setup in the Getting paid panel on this tab to put it back.",
     });
     return;
@@ -360,7 +360,7 @@ async function checkConfirmations(input: {
       id: "confirmations",
       label: "Payment confirmations",
       status: "warn",
-      detail: `Stripe isn't sending everything RepairFlow needs (${missing.length} missing), so some refunds or payments may not show up here.`,
+      detail: `Stripe isn't sending everything RepairPilot needs (${missing.length} missing), so some refunds or payments may not show up here.`,
       fix: "Press Retry setup in the Getting paid panel on this tab.",
     });
   } else {
@@ -368,7 +368,7 @@ async function checkConfirmations(input: {
       id: "confirmations",
       label: "Payment confirmations",
       status: "pass",
-      detail: "Stripe knows where to tell RepairFlow that a card has been charged.",
+      detail: "Stripe knows where to tell RepairPilot that a card has been charged.",
       fix: null,
     });
   }
@@ -483,7 +483,7 @@ async function pingLine(
           label: "Confirmation test message",
           status: "fail",
           detail: `Something answered at ${input.address.url}, but it was not this app.`,
-          fix: "Check that NEXT_PUBLIC_APP_URL points at RepairFlow and not at a holding page or another site on the same address.",
+          fix: "Check that NEXT_PUBLIC_APP_URL points at RepairPilot and not at a holding page or another site on the same address.",
         },
   );
 }

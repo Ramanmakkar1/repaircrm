@@ -20,9 +20,10 @@ interface NewItem {
   icon: LucideIcon;
 }
 
-/** The four documents a shop creates from scratch, in workflow order. */
+/** Common front-counter work, in the order it usually arrives. */
 const NEW_ITEMS: NewItem[] = [
   { label: "New ticket", hint: "Check a device in", href: "/tickets/new", icon: ICONS.ticket },
+  { label: "New appointment", hint: "Book a drop-off or pickup", href: "/appointments?new=1", icon: ICONS.appointment },
   { label: "New customer", hint: "Add someone to the book", href: "/customers/new", icon: ICONS.customer },
   { label: "New estimate", hint: "Quote a job first", href: "/estimates/new", icon: ICONS.estimate },
   { label: "New invoice", hint: "Bill for work done", href: "/invoices/new", icon: ICONS.invoice },

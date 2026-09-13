@@ -15,7 +15,7 @@
  *
  * lib/comms defaults to "log" because a misconfigured deploy printing an email
  * is harmless. AI is the opposite: the drivers here are the only place in
- * RepairFlow that sends ticket text to a third party, so that has to be an
+ * RepairPilot that sends ticket text to a third party, so that has to be an
  * explicit decision, never something a shop backs into because a key happened
  * to be present in the environment for some other reason. The one concession is
  * that ANTHROPIC_API_KEY *by itself* implies "anthropic" — setting a provider

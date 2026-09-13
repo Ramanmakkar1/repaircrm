@@ -16,7 +16,7 @@ import { loadStatement } from "@/components/statements/query";
  * `loadStatement` already returns the shop block, but not its logo (an emailed
  * statement has no use for one), so the mark is fetched alongside it.
  */
-export const metadata = { title: "Statement · RepairFlow" };
+export const metadata = { title: "Statement · RepairPilot" };
 
 export default async function StatementPrintPage({
   params,

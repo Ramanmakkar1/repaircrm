@@ -5,7 +5,9 @@ import {
   resolveMimeType,
   safeExtension,
 } from "@/components/tickets/attachment-meta";
+import { db } from "@/lib/db";
 import { localDriver } from "./local";
+import { r2Driver } from "./r2";
 import { s3Driver, s3Configured } from "./s3";
 import type { StorageDriver, StorageDriverName, StoredObject } from "./types";
 
@@ -17,12 +19,11 @@ export { s3Configured };
  *
  * ONE DECISION, MADE BY ENVIRONMENT
  * ---------------------------------
- *   STORAGE_DRIVER = local | s3        (unset -> local)
+ *   STORAGE_DRIVER = local | s3 | r2   (unset -> local)
  *
  * `local` writes under `public/uploads/<shopId>/…` — right for a single box.
- * `s3` writes to any S3-compatible bucket (AWS, R2, MinIO) — right for
- * anything with more than one instance, or a filesystem that does not survive
- * a redeploy. See ./s3.ts for its variables.
+ * `s3` writes to any S3-compatible bucket (AWS, R2, MinIO). `r2` uses a
+ * private Cloudflare R2 binding without long-lived API credentials.
  *
  * TWO RULES THAT SURVIVED THE MOVE TO DRIVERS, both load-bearing:
  *
@@ -43,12 +44,16 @@ export { s3Configured };
  */
 
 export function storageDriverName(): StorageDriverName {
-  return process.env.STORAGE_DRIVER?.trim().toLowerCase() === "s3" ? "s3" : "local";
+  const name = process.env.STORAGE_DRIVER?.trim().toLowerCase();
+  if (name === "r2") return "r2";
+  return name === "s3" ? "s3" : "local";
 }
 
 /** The driver NEW uploads are written with. */
 export function activeDriver(): StorageDriver {
-  return storageDriverName() === "s3" ? s3Driver : localDriver;
+  const name = storageDriverName();
+  if (name === "r2") return r2Driver;
+  return name === "s3" ? s3Driver : localDriver;
 }
 
 /**
@@ -58,6 +63,7 @@ export function activeDriver(): StorageDriver {
  * before this column existed actually used.
  */
 export function driverFor(storage: string): StorageDriver {
+  if (storage === "r2") return r2Driver;
   return storage === "s3" ? s3Driver : localDriver;
 }
 
@@ -105,6 +111,32 @@ export async function storeUpload(
 
   const key = `${shopId}/${randomBytes(16).toString("hex")}.${safeExtension(fileName, mimeType)}`;
   const driver = activeDriver();
+
+  // Keep production R2 use below its 10 GB-month free storage allowance.
+  // This quota counts persisted R2 attachment rows across all shops; if its
+  // usage query fails, fail closed rather than accepting unmetered storage.
+  if (driver.name === "r2") {
+    try {
+      const usage = await db.attachment.aggregate({
+        where: { storage: "r2" },
+        _sum: { sizeBytes: true },
+      });
+      const usedBytes = usage._sum.sizeBytes ?? 0;
+      const appLimitBytes = 8 * 1024 * 1024 * 1024;
+      if (usedBytes + file.size > appLimitBytes) {
+        return {
+          ok: false,
+          reason:
+            "Cloud file storage is at its 8 GB safety limit. Remove old files before adding more.",
+        };
+      }
+    } catch {
+      return {
+        ok: false,
+        reason: "Cloud file storage usage could not be checked. Try again in a moment.",
+      };
+    }
+  }
 
   try {
     const path = await driver.put({

@@ -16,7 +16,7 @@ import { cn } from "./cn";
  * That sameness is the feature. A tech who has opened one detail screen has
  * opened all of them: the balance is always in the same place, the status is
  * always beside it, "back to the list" is always the same link in the same
- * corner. RepairFlow's detail pages each grew their own hero block, so the
+ * corner. RepairPilot's detail pages each grew their own hero block, so the
  * invoice total, the ticket's device and the PO's vendor all sat somewhere
  * different.
  *
@@ -85,7 +85,7 @@ export function ObjectHeader({
             <div className="flex min-w-0 flex-col gap-0.5">
               <p
                 className={cn(
-                  "min-w-0 truncate text-foreground",
+                  "min-w-0 break-words text-pretty text-foreground sm:truncate",
                   // when there is no headline figure the title IS the headline
                   value === undefined
                     ? "text-[20px] font-semibold leading-tight tracking-[-0.01em]"
@@ -95,7 +95,7 @@ export function ObjectHeader({
                 {title}
               </p>
               {subtitle ? (
-                <p className="min-w-0 truncate text-[13px] text-muted-foreground">
+                <p className="min-w-0 text-[13px] text-muted-foreground sm:truncate">
                   {subtitle}
                 </p>
               ) : null}

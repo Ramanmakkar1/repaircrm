@@ -12,12 +12,14 @@ import type { CurrentUser } from "./user-menu";
 
 export function AppShell({
   user,
+  showPlatformAdmin,
   locations,
   currentLocationId,
   prefs,
   children,
 }: {
   user: CurrentUser;
+  showPlatformAdmin: boolean;
   /** Active branches, for the topbar switcher. */
   locations: SwitcherLocation[];
   currentLocationId: string;
@@ -46,6 +48,7 @@ export function AppShell({
           mobileOpen={mobileOpen}
           onClose={() => setMobileOpen(false)}
           collapsed={prefs.railCollapsed}
+          showPlatformAdmin={showPlatformAdmin}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar

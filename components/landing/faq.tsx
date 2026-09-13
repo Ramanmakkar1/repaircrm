@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: "Does it work on a tablet at the counter?",
-    a: "Yes. RepairFlow runs in the browser with nothing to install, and every screen is laid out to work from a phone up to a shop monitor — so a tablet on the counter is a first-class way to use it. Intake photos use the tablet's own camera, and the wall display has a full-screen mode for a spare monitor.",
+    a: "Yes. RepairPilot runs in the browser with nothing to install, and every screen is laid out to work from a phone up to a shop monitor — so a tablet on the counter is a first-class way to use it. Intake photos use the tablet's own camera, and the wall display has a full-screen mode for a spare monitor.",
   },
   {
     q: "Do I need a credit card to start?",
@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: "Do the emails and text messages actually go out?",
-    a: "Once you connect your own email or SMS provider in Settings, yes — public ticket updates, portal sign-in links, statements and follow-ups all send through it. Before you connect one, RepairFlow logs what it would have sent instead of sending it, so you can try the whole flow without messaging a real customer by accident.",
+    a: "Once you connect your own email or SMS provider in Settings, yes — public ticket updates, portal sign-in links, statements and follow-ups all send through it. Before you connect one, RepairPilot logs what it would have sent instead of sending it, so you can try the whole flow without messaging a real customer by accident.",
   },
 ];
 

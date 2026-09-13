@@ -18,7 +18,7 @@ import { CORS_HEADERS, PAGE_SIZE } from "./_lib/respond";
 export function GET() {
   return NextResponse.json(
     {
-      name: "RepairFlow API",
+      name: "RepairPilot API",
       version: "v1",
       auth: {
         scheme: "bearer",
@@ -203,9 +203,9 @@ export function GET() {
         events: WEBHOOK_EVENTS,
         wildcard: "* subscribes to every event, including ones added later.",
         signature:
-          "X-RepairFlow-Signature: t=<unix>,v1=<hex HMAC-SHA256 of `${t}.${rawBody}` using the hook's secret>",
+          "X-RepairPilot-Signature: t=<unix>,v1=<hex HMAC-SHA256 of `${t}.${rawBody}` using the hook's secret>",
         delivery:
-          "X-RepairFlow-Delivery is the idempotency key; a retry repeats it. Answer 2xx to acknowledge. Retries: 1m, 5m, 30m, 2h, 12h.",
+          "X-RepairPilot-Delivery is the idempotency key; a retry repeats it. Answer 2xx to acknowledge. Retries: 1m, 5m, 30m, 2h, 12h.",
       },
       conventions: {
         money: "Every amount is an integer number of cents.",

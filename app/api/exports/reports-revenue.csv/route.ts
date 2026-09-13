@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     includeMoney: true,
     locationId: scope.locationId,
   });
-  if (!money) return csvResponse([["Period", "Collected"]], "repairflow-revenue.csv");
+  if (!money) return csvResponse([["Period", "Collected"]], "repairpilot-revenue.csv");
 
   const rows: CsvValue[][] = [["Period", "Collected"]];
   for (const bucket of money.revenueByBucket) {
@@ -45,6 +45,6 @@ export async function GET(request: Request) {
 
   return csvResponse(
     rows,
-    `repairflow-revenue-${scope.fileRange}.csv`,
+    `repairpilot-revenue-${scope.fileRange}.csv`,
   );
 }

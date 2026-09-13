@@ -25,7 +25,7 @@ import {
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { WARRANTY_PRESETS } from "@/lib/warranty";
+import { WARRANTY_PRESETS } from "@/lib/warranty-presets";
 import { marginPct } from "./format";
 
 export type ProductFormValues = {

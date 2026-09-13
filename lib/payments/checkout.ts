@@ -5,7 +5,7 @@
  * --------------------------------------
  * The customer's card number goes from their browser to Stripe's own page and
  * never touches this server, this database or these logs. That is the whole
- * design: it keeps RepairFlow at PCI DSS SAQ A — the smallest scope there is —
+ * design: it keeps RepairPilot at PCI DSS SAQ A — the smallest scope there is —
  * instead of dragging a repair shop into a full audit because someone wanted a
  * prettier form. There is no card field anywhere in this codebase, on purpose.
  *
@@ -145,7 +145,7 @@ export async function createInvoiceCheckout(
   if (!currencySupported(currency)) {
     return {
       ok: false,
-      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairFlow stores amounts in cents.`,
+      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairPilot stores amounts in cents.`,
     };
   }
 

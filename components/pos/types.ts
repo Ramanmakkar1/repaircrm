@@ -183,6 +183,8 @@ export type CheckoutInput = {
    * claim, not a receipt.
    */
   terminalPaymentIntentId?: string | null;
+  /** Completed Square Terminal checkout, verified again by the server. */
+  squareTerminalCheckoutId?: string | null;
 };
 
 export type CheckoutResult =

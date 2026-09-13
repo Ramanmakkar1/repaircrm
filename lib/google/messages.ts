@@ -39,7 +39,7 @@ const BAD: Record<string, string> = {
   "unverified-email":
     "That Google address isn't verified yet. Verify it with Google, then try again.",
   "no-account":
-    "There's no RepairFlow account for that Google address. Ask your shop owner to invite you, or create a new shop.",
+    "There's no RepairPilot account for that Google address. Ask your shop owner to invite you, or create a new shop.",
   // Deliberately the same generic refusal the password path gives a
   // deactivated account, so Google sign-in cannot be used to find out whose
   // account has been switched off.
@@ -47,7 +47,7 @@ const BAD: Record<string, string> = {
   "email-taken":
     "An account with that email already exists. Sign in instead of creating a shop.",
   "sub-taken":
-    "That Google account is already connected to a different RepairFlow user.",
+    "That Google account is already connected to a different RepairPilot user.",
   "other-google":
     "Your account is connected to a different Google account. Disconnect that one first.",
   "invite-expired":

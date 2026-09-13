@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "New purchase order · RepairFlow" };
+export const metadata: Metadata = { title: "New purchase order · RepairPilot" };
 
 export default async function NewPurchaseOrderPage({
   searchParams,

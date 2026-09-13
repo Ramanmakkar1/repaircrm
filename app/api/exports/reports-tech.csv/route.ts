@@ -31,5 +31,5 @@ export async function GET(request: Request) {
     ]);
   }
 
-  return csvResponse(rows, `repairflow-tech-${scope.fileRange}.csv`);
+  return csvResponse(rows, `repairpilot-tech-${scope.fileRange}.csv`);
 }

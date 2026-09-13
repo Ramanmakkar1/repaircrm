@@ -5,7 +5,7 @@ import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
 import { createEstimateAction } from "../actions";
 
-export const metadata = { title: "New estimate · RepairFlow" };
+export const metadata = { title: "New estimate · RepairPilot" };
 
 export default async function NewEstimatePage({
   searchParams,

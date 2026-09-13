@@ -3,16 +3,16 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RepairFlow",
+  title: "RepairPilot",
   description: "Repair shop management, done right.",
   // The manifest lives at app/manifest.ts; naming it here is what puts the
   // <link rel="manifest"> in the document, which is what makes the app
   // installable.
   manifest: "/manifest.webmanifest",
-  applicationName: "RepairFlow",
+  applicationName: "RepairPilot",
   appleWebApp: {
     capable: true,
-    title: "RepairFlow",
+    title: "RepairPilot",
     // "default" keeps the iOS status bar legible against the app's white
     // canvas; "black-translucent" would let content slide under the clock.
     statusBarStyle: "default",

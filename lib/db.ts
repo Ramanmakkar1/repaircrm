@@ -1,11 +1,14 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { cache } from "react";
 
 /**
  * ============================================================================
  *  MULTI-TENANCY RULE — READ BEFORE WRITING ANY QUERY
  * ============================================================================
  *
- *  RepairFlow is multi-tenant. Every tenant-owned row carries a `shopId`.
+ *  RepairPilot is multi-tenant. Every tenant-owned row carries a `shopId`.
  *
  *  EVERY query in app code MUST filter by the session's `shopId`:
  *
@@ -36,16 +39,47 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["warn", "error"]
-        : ["error"],
-  });
+type HyperdriveBinding = { connectionString: string };
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+const getPrismaClient = cache((): PrismaClient => {
+  let cloudflareEnv: unknown;
+  try {
+    cloudflareEnv = getCloudflareContext().env;
+  } catch {
+    // Outside Workers (unit tests and the optional Node/Docker runtime), use
+    // Prisma's normal PostgreSQL engine and DATABASE_URL.
+  }
+
+  const log: ("warn" | "error")[] =
+    process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"];
+
+  if (cloudflareEnv) {
+    const hyperdrive = (cloudflareEnv as { HYPERDRIVE?: HyperdriveBinding }).HYPERDRIVE;
+    if (!hyperdrive?.connectionString) {
+      throw new Error("The Cloudflare HYPERDRIVE binding is required to access PostgreSQL.");
+    }
+
+    return new PrismaClient({
+      adapter: new PrismaPg({ connectionString: hyperdrive.connectionString }),
+      log,
+    });
+  }
+
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({ log });
+  }
+  return globalForPrisma.prisma;
+});
+
+// Resolve the Cloudflare binding from the current Worker request. The Proxy
+// keeps the existing `db.model.method()` call sites concise.
+export const db = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, property, client) as unknown;
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
 
 // Convenience alias — some code reads better as `prisma.ticket...`
 export const prisma = db;

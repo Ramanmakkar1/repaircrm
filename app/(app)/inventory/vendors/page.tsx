@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Vendors · RepairFlow" };
+export const metadata: Metadata = { title: "Vendors · RepairPilot" };
 
 export default async function VendorsPage({
   searchParams,

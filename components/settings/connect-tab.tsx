@@ -52,7 +52,7 @@ export type ConnectStatus = "connected" | "attention" | "off";
 
 /**
  * This screen's three states in the app-wide tone language, so a Connect row
- * reads the same green/amber/grey as every other status in RepairFlow.
+ * reads the same green/amber/grey as every other status in RepairPilot.
  */
 const CONNECT_TONE: Record<ConnectStatus, StatusTone> = {
   connected: "success",

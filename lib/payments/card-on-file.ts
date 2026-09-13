@@ -7,7 +7,7 @@
  * last four, expiry month and year. That is it. The card number, CVC and the
  * full expiry never touch this server, because the card is captured on
  * Stripe's own hosted page in `mode=setup`, exactly like ./checkout.ts does
- * for a one-off payment. RepairFlow stays at PCI DSS SAQ A and there is still
+ * for a one-off payment. RepairPilot stays at PCI DSS SAQ A and there is still
  * no card input anywhere in this codebase.
  *
  * THE TWO HALVES
@@ -339,7 +339,7 @@ export async function chargeCardOnFile(input: {
   if (!currencySupported(currency)) {
     return {
       ok: false,
-      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairFlow stores amounts in cents.`,
+      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairPilot stores amounts in cents.`,
     };
   }
 

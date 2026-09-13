@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 /*
- * RepairFlow design tokens
+ * RepairPilot design tokens
  * ------------------------
- * Pure-white, cool-neutral SaaS palette with a single deep indigo accent
+ * White and neutral SaaS palette with a solid black action accent
  * and six semantic status colors used consistently across the app:
  *   new         → blue     (fresh, untouched)
  *   in-progress → amber    (actively being worked)
@@ -34,25 +34,22 @@
   --border-strong: #cfd7e3;
 
   /* text — the cool blue-gray ramp that reads as "financial software" */
-  --foreground: #1a1f36;
-  --muted-foreground: #697386;
-  --faint-foreground: #8792a2;
+  --foreground: #111214;
+  --muted-foreground: #5f6368;
+  --faint-foreground: #7b8088;
 
   /*
-   * Accent — blue-violet.
-   *
-   * This was #4338ca: Tailwind's indigo-700, which reads as "admin panel"
-   * because half the internet's dashboards ship with it. Stripe's sits lighter
-   * and bluer, and that hue is most of what makes a screen read as theirs at a
-   * glance — before you have taken in a single control.
+   * Primary actions and the active page use solid black for a clear,
+   * predictable hierarchy. Status colors remain distinct so the repair board
+   * still communicates urgency at a glance.
    */
-  --accent: #5b54e6;
-  --accent-hover: #4d46d4;
+  --accent: #111214;
+  --accent-hover: #303236;
   --accent-foreground: #ffffff;
-  --accent-soft: #eeedfe;
-  --accent-soft-foreground: #4a43c4;
+  --accent-soft: #f0f1f2;
+  --accent-soft-foreground: #24262a;
 
-  --ring: #5b54e6;
+  --ring: #55585e;
 
   /* destructive (also doubles as the "overdue" status color) */
   --destructive: #dc2626;
@@ -94,8 +91,8 @@
   --shadow-color: 16 24 40;
 
   /* soft tinted "chip" surfaces for icon badges on cards */
-  --chip-accent-bg: #eeedfe;
-  --chip-accent-fg: #4a43c4;
+  --chip-accent-bg: #f0f1f2;
+  --chip-accent-fg: #24262a;
 }
 
 @theme inline {
@@ -216,17 +213,17 @@
     --border: #262b33;
     --border-strong: #363c46;
 
-    --foreground: #f0f2f6;
-    --muted-foreground: #98a1b0;
-    --faint-foreground: #6b7483;
+    --foreground: #f2f3f4;
+    --muted-foreground: #a4a7ad;
+    --faint-foreground: #858a92;
 
-    --accent: #9b95fa;
-    --accent-hover: #b0abfc;
-    --accent-foreground: #12102e;
-    --accent-soft: #221f47;
-    --accent-soft-foreground: #cdc9fb;
+    --accent: #f1f2f3;
+    --accent-hover: #d9dbde;
+    --accent-foreground: #111214;
+    --accent-soft: #292c31;
+    --accent-soft-foreground: #f1f2f3;
 
-    --ring: #9b95fa;
+    --ring: #aeb2b9;
 
     --destructive: #f4736c;
     --destructive-hover: #f78e88;
@@ -259,8 +256,8 @@
 
     --shadow-color: 0 0 0;
 
-    --chip-accent-bg: #221f47;
-    --chip-accent-fg: #cdc9fb;
+    --chip-accent-bg: #292c31;
+    --chip-accent-fg: #f1f2f3;
   }
 }
 
@@ -577,16 +574,16 @@ body:has(.rf-landing) {
   --border: #e7e7ea;
   --border-strong: #d3d4d9;
 
-  --foreground: #101114;
-  --muted-foreground: #61646c;
-  --faint-foreground: #9095a0;
+  --foreground: #111214;
+  --muted-foreground: #5f6368;
+  --faint-foreground: #7b8088;
 
-  --accent: #5b54e6;
-  --accent-hover: #4d46d4;
+  --accent: #111214;
+  --accent-hover: #303236;
   --accent-foreground: #ffffff;
-  --accent-soft: #eeedfe;
-  --accent-soft-foreground: #4a43c4;
-  --ring: #5b54e6;
+  --accent-soft: #f0f1f2;
+  --accent-soft-foreground: #24262a;
+  --ring: #55585e;
 
   --destructive: #dc2626;
   --destructive-hover: #b91c1c;
@@ -613,35 +610,17 @@ body:has(.rf-landing) {
   --status-overdue-fg: #b91c1c;
 
   --shadow-color: 16 24 40;
-  --chip-accent-bg: #eeedfe;
-  --chip-accent-fg: #4a43c4;
+  --chip-accent-bg: #f0f1f2;
+  --chip-accent-fg: #24262a;
 
   background: var(--background);
   color: var(--foreground);
 }
 
 /*
- * Hero backdrop: a faint 32px graph-paper grid that fades out downward, plus a
- * single very soft indigo wash behind the headline. Both are pure CSS, both
- * sit under `-z-10`, and neither ever touches the text contrast.
+ * The marketing hero uses real shop photography rather than decorative
+ * gradients, grids, or abstract shapes.
  */
-.rf-hero-grid {
-  background-image:
-    linear-gradient(to right, #eceef2 1px, transparent 1px),
-    linear-gradient(to bottom, #eceef2 1px, transparent 1px);
-  background-size: 32px 32px;
-  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
-  mask-image: radial-gradient(120% 80% at 50% 0%, #000 20%, transparent 75%);
-}
-
-.rf-hero-wash {
-  background: radial-gradient(
-    60% 55% at 50% 0%,
-    rgb(67 56 202 / 0.07) 0%,
-    rgb(67 56 202 / 0.02) 45%,
-    transparent 72%
-  );
-}
 
 /* One restrained entrance for the hero mockup. */
 @keyframes rf-rise {

@@ -11,12 +11,20 @@ import { PageHeader } from "@/components/ui/page-header";
 import { calcTotals } from "@/lib/money";
 import { normalizeScan, scanCodeVariants } from "@/lib/scan/codes";
 import { resolveScanAction } from "@/app/(app)/scan/actions";
-import { checkoutAction, posTerminalIntentAction } from "@/app/(app)/pos/actions";
+import {
+  checkoutAction,
+  posSquareTerminalCheckoutAction,
+  posTerminalIntentAction,
+} from "@/app/(app)/pos/actions";
 import { CartPanel } from "./cart-panel";
 import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
 import { SerialPickerDialog } from "./serial-picker-dialog";
-import { TenderDialog, type TenderTerminal } from "./tender-dialog";
+import {
+  TenderDialog,
+  type TenderSquareTerminal,
+  type TenderTerminal,
+} from "./tender-dialog";
 import {
   isSerialLine,
   isTicketLine,
@@ -63,7 +71,11 @@ export function Register({
    * on test keys (which is what makes Stripe offer a simulated reader). Both
    * are decided on the server; no key material crosses over.
    */
-  cardReader: { enabled: boolean; testMode: boolean };
+  cardReader: {
+    enabled: boolean;
+    testMode: boolean;
+    squareDevices: { id: string; name: string; status: string }[];
+  };
   /**
    * The cash-drawer strip, rendered by the page so this component stays
    * ignorant of the till: the register rings sales, the drawer holds money.
@@ -379,6 +391,7 @@ export function Register({
         reference: string | null;
         tenderedCents: number | null;
         terminalPaymentIntentId?: string | null;
+        squareTerminalCheckoutId?: string | null;
       },
     ): Promise<{ ok: true } | { ok: false; error: string }> => {
       const result = await checkoutAction({
@@ -386,6 +399,7 @@ export function Register({
         reference: extra.reference,
         tenderedCents: extra.tenderedCents,
         terminalPaymentIntentId: extra.terminalPaymentIntentId ?? null,
+        squareTerminalCheckoutId: extra.squareTerminalCheckoutId ?? null,
       });
 
       if (!result.ok) {
@@ -454,6 +468,24 @@ export function Register({
             reference: null,
             tenderedCents: null,
             terminalPaymentIntentId: paymentIntentId,
+          }),
+      }
+    : undefined;
+
+  const squareTerminal: TenderSquareTerminal | undefined = cardReader.squareDevices.length > 0
+    ? {
+        devices: cardReader.squareDevices,
+        createCheckout: async (deviceId: string) => {
+          const result = await posSquareTerminalCheckoutAction(cartPayload("CARD"), deviceId);
+          return result.ok
+            ? { ok: true as const, checkoutId: result.checkoutId }
+            : { ok: false as const, error: result.error };
+        },
+        record: (checkoutId: string) =>
+          runCheckout("CARD", {
+            reference: null,
+            tenderedCents: null,
+            squareTerminalCheckoutId: checkoutId,
           }),
       }
     : undefined;
@@ -592,6 +624,7 @@ export function Register({
         pending={pending}
         error={tender ? error : null}
         terminal={terminal}
+        squareTerminal={squareTerminal}
         onClose={() => {
           setTender(null);
           setError(null);

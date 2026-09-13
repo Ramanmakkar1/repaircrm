@@ -10,7 +10,7 @@ import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { XeroTenantPicker } from "@/components/settings/xero-tenant-picker";
 
-export const metadata = { title: "Choose a Xero organisation · RepairFlow" };
+export const metadata = { title: "Choose a Xero organisation · RepairPilot" };
 export const dynamic = "force-dynamic";
 
 /**

@@ -40,7 +40,7 @@ const SDK_URL =
   "https://js.stripe.com/terminal/v1/";
 
 /** Where this till's choice of machine lives. Browser-local, per device. */
-const REMEMBERED_KEY = "repairflow.till.reader";
+const REMEMBERED_KEY = "repairpilot.till.reader";
 
 export type TerminalStep =
   | "idle"

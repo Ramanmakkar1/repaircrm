@@ -488,7 +488,7 @@ export async function createTerminalIntent(input: {
   if (!currencySupported(currency)) {
     return {
       ok: false,
-      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairFlow stores amounts in cents.`,
+      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairPilot stores amounts in cents.`,
     };
   }
 
@@ -716,7 +716,7 @@ export async function createPosTerminalIntent(input: {
   if (!currencySupported(currency)) {
     return {
       ok: false,
-      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairFlow stores amounts in cents.`,
+      reason: `PAYMENTS_CURRENCY=${currency} is not a two-decimal currency; RepairPilot stores amounts in cents.`,
     };
   }
   if (input.amountCents < MIN_CHARGE_CENTS) {

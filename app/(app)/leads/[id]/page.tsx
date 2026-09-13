@@ -38,7 +38,7 @@ export async function generateMetadata({
     select: { name: true },
   });
 
-  return { title: lead ? `${lead.name} · RepairFlow` : "Lead · RepairFlow" };
+  return { title: lead ? `${lead.name} · RepairPilot` : "Lead · RepairPilot" };
 }
 
 export const dynamic = "force-dynamic";

@@ -27,7 +27,7 @@ import { formatCents, invoiceTotals } from "@/lib/money";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
 import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "Dashboard · RepairFlow" };
+export const metadata: Metadata = { title: "Dashboard · RepairPilot" };
 
 export const dynamic = "force-dynamic";
 
@@ -102,10 +102,16 @@ export default async function DashboardPage() {
     }),
     // Customers who wrote in and have not been answered — see
     // lib/needs-reply.ts for what "answered" means.
-    needsReplyTicketIds(shopId),
+    needsReplyTicketIds(shopId, branch.locationId),
   ]);
 
   const statusCounts = new Map(statusGroups.map((g) => [g.status, g._count._all]));
+  const statusRows = TICKET_STATUSES.map((status) => ({
+    status,
+    count: statusCounts.get(status) ?? 0,
+    meta: STATUS_META[normalizeStatus(status)],
+  }));
+  const totalTickets = statusRows.reduce((sum, row) => sum + row.count, 0);
   const openTickets = statusGroups
     .filter((g) => g.status !== "Resolved")
     .reduce((sum, g) => sum + g._count._all, 0);
@@ -120,9 +126,8 @@ export default async function DashboardPage() {
   // eslint-disable-next-line react-hooks/purity
   const clock = Date.now();
 
-  // Six tiles, one tone each, and the tone is the meaning: blue is the work in
-  // hand, amber is due today, violet is blocked on a customer, red is late or
-  // unpaid, green is money in.
+  // Four headline measures keep the first screen easy to scan. Individual
+  // overdue and ready-for-pickup queues stay visible in the attention panel.
   const stats: {
     label: string;
     value: string;
@@ -132,15 +137,15 @@ export default async function DashboardPage() {
     tone: StatusTone;
   }[] = [
     {
-      label: "Open Tickets",
+      label: "Open repairs",
       value: String(openTickets),
-      hint: "on the bench right now",
+      hint: "active work orders",
       href: "/tickets",
       icon: ICONS.ticket,
       tone: "info",
     },
     {
-      label: "Due Today",
+      label: "Due today",
       value: String(dueToday),
       hint: "promised back today",
       href: "/tickets?due=today",
@@ -148,15 +153,7 @@ export default async function DashboardPage() {
       tone: "active",
     },
     {
-      label: "Overdue",
-      value: String(overdueCount),
-      hint: overdueCount === 0 ? "nothing past its date" : "past their promised date",
-      href: "/tickets?due=overdue",
-      icon: AlarmClock,
-      tone: "danger",
-    },
-    {
-      label: "Customer Replies",
+      label: "Customer replies",
       value: String(awaitingReply.length),
       hint: "waiting on an answer",
       href: `/tickets?status=${NEEDS_REPLY_FILTER}`,
@@ -164,20 +161,36 @@ export default async function DashboardPage() {
       tone: "waiting",
     },
     {
-      label: "Unpaid Invoices",
-      value: String(unpaidCandidates.length),
-      hint: `${formatCents(unpaidBalanceCents)} outstanding`,
+      label: "Outstanding balance",
+      value: formatCents(unpaidBalanceCents),
+      hint: unpaidCandidates.length + (unpaidCandidates.length === 1 ? " unpaid invoice" : " unpaid invoices"),
       href: "/invoices?status=SENT",
       icon: ICONS.invoice,
       tone: "danger",
     },
+  ];
+
+  const attentionRows = [
     {
-      label: "This Month",
-      value: formatCents(monthPayments._sum.amountCents ?? 0),
-      hint: "collected so far",
-      href: "/invoices",
-      icon: ICONS.cash,
-      tone: "success",
+      label: "Overdue repairs",
+      hint: overdueCount === 0 ? "Everything is on schedule" : "Past the promised date",
+      count: overdueCount,
+      href: "/tickets?due=overdue",
+      tone: "text-status-overdue-fg",
+    },
+    {
+      label: "Customer replies",
+      hint: "Waiting for your team",
+      count: awaitingReply.length,
+      href: "/tickets?status=" + NEEDS_REPLY_FILTER,
+      tone: "text-status-waiting-fg",
+    },
+    {
+      label: "Ready for pickup",
+      hint: "Repairs finished and awaiting handoff",
+      count: statusCounts.get("Ready for Pickup") ?? 0,
+      href: "/tickets?status=Ready%20for%20Pickup",
+      tone: "text-status-ready-fg",
     },
   ];
 
@@ -185,7 +198,7 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Dashboard"
-        description="A quick look at what's happening in your shop."
+        description="Your repair pipeline, customer follow-ups and today's priorities."
         actions={
           <Button asChild>
             <Link href="/tickets/new">
@@ -199,31 +212,170 @@ export default async function DashboardPage() {
       {/* Renders nothing once the shop is set up, or once it is dismissed. */}
       <SetupChecklist />
 
-      {/*
-        The six numbers that answer "how is today going?".
+      <Card className="grid gap-2 p-2 sm:grid-cols-3">
+        <QuickAction
+          href="/appointments?new=1"
+          icon={ICONS.appointment}
+          title="Book an appointment"
+          hint="Schedule a drop-off or pickup"
+        />
+        <QuickAction
+          href="/customers/new"
+          icon={ICONS.customer}
+          title="Add a customer"
+          hint="Save their details for next time"
+        />
+        <QuickAction
+          href="/pos"
+          icon={ICONS.pos}
+          title="Take a payment"
+          hint="Open the counter register"
+        />
+      </Card>
 
-        One summary band, not six floating boxes. Six separate bordered cards
-        with gaps between them made the top of the shop's home screen read as
-        six unrelated things; they are one reading of one moment, so they share
-        one container and are separated by hairlines — the band Stripe puts
-        across the top of Payments and Balance. Same six links, same six
-        numbers, roughly half the vertical space.
-      */}
       <StatBand
+        columns={4}
         items={stats.map((stat) => ({
           label: stat.label,
           value: stat.value,
           hint: stat.hint,
           tone: stat.tone,
           href: stat.href,
+          icon: stat.icon,
         }))}
       />
 
-      {/* Where the work stands: six counts on one hairline grid. */}
-      <Card>
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.8fr)] 2xl:items-start">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader
+            icon={ICONS.ticket}
+            title="Recent repairs"
+            description="Latest ticket updates from this shop."
+            action={
+              <Link
+                href="/tickets"
+                className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                View all
+                <ACTIONS.next className="size-4" />
+              </Link>
+            }
+          />
+          {recentTickets.length === 0 ? (
+            <CardContent className="px-0 py-0">
+              <EmptyState
+                icon={ICONS.ticket}
+                title="No tickets yet"
+                hint="New repair tickets will show up here as they come in."
+                action={
+                  <Button asChild>
+                    <Link href="/tickets/new">
+                      <ACTIONS.add />
+                      New Ticket
+                    </Link>
+                  </Button>
+                }
+              />
+            </CardContent>
+          ) : (
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Repair</Th>
+                  <Th>Status</Th>
+                  <Th className="hidden text-right sm:table-cell">Updated</Th>
+                </Tr>
+              </THead>
+              <TBody>
+                {recentTickets.map((ticket) => (
+                  <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
+                    <Td className="max-w-0">
+                      <Link
+                        href={`/tickets/${ticket.id}`}
+                        title={ticket.subject}
+                        className="block max-w-[38rem] truncate font-semibold text-foreground hover:text-accent hover:underline"
+                      >
+                        {ticket.subject}
+                      </Link>
+                      <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
+                        <span className="rf-id text-[11.5px]">#{ticket.number}</span>
+                        <span aria-hidden> · </span>
+                        {customerLabel(ticket.customer)}
+                      </span>
+                    </Td>
+                    <Td>
+                      <StatusBadge status={ticket.status} />
+                    </Td>
+                    <Td className="hidden text-right text-muted-foreground sm:table-cell">
+                      {relativeShort(ticket.updatedAt, clock)}
+                    </Td>
+                  </RowLink>
+                ))}
+              </TBody>
+            </Table>
+          )}
+        </Card>
+
+        <Card className="min-w-0">
+          <CardHeader
+            icon={AlarmClock}
+            title="Needs attention"
+            description="Follow-ups and repairs waiting on the next handoff."
+            action={
+              <Link
+                href="/tickets?status=all"
+                className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                All tickets
+                <ACTIONS.next className="size-4" />
+              </Link>
+            }
+          />
+          <CardContent className="flex flex-col gap-1 py-2">
+            {attentionRows.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[13.5px] font-semibold text-foreground">
+                    {item.label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
+                    {item.hint}
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    "rf-num shrink-0 text-[20px] font-semibold",
+                    item.count > 0 ? item.tone : "text-muted-foreground",
+                  )}
+                >
+                  {item.count}
+                </span>
+              </Link>
+            ))}
+            <Link
+              href="/invoices"
+              className="mt-1 flex items-center justify-between gap-3 border-t border-border px-2 pt-3 transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[12.5px] font-medium text-muted-foreground">
+                <ICONS.cash className="size-4 shrink-0" aria-hidden />
+                <span className="truncate">Collected this month</span>
+              </span>
+              <span className="rf-num shrink-0 text-[14px] font-semibold text-foreground">
+                {formatCents(monthPayments._sum.amountCents ?? 0)}
+              </span>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader
-          icon={ICONS.ticket}
-          title="Where the work stands"
+          icon={ICONS.dashboard}
+          title="Repair pipeline"
+          description={`${totalTickets} ticket${totalTickets === 1 ? "" : "s"} by current status`}
           action={
             <Link
               href="/tickets?status=all"
@@ -234,136 +386,75 @@ export default async function DashboardPage() {
             </Link>
           }
         />
-        <CardContent className="px-0 py-0">
-          {/*
-            Six saturated colour blocks used to live here, and on a gray canvas
-            they were the loudest thing on the shop's home screen — six equal
-            shouts, which is the same as none. The colour is now carried by a
-            7px dot, the count is plain foreground ink at a size you can read
-            across the counter, and the hairline grid (gap-px over a border
-            fill) is what separates them. Same six links, same six numbers.
-          */}
-          <div className="grid grid-cols-2 gap-px overflow-hidden bg-border sm:grid-cols-3 lg:grid-cols-6">
-            {TICKET_STATUSES.map((status) => {
-              const meta = STATUS_META[normalizeStatus(status)];
-              const count = statusCounts.get(status) ?? 0;
-              return (
-                <Link
-                  key={status}
-                  href={`/tickets?status=${encodeURIComponent(status)}`}
-                  className="flex flex-col gap-2 bg-surface p-4 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-                >
-                  <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-muted-foreground">
+        <CardContent className="flex flex-col gap-4">
+          <div
+            role="img"
+            aria-label={`Ticket distribution: ${statusRows.map(({ status, count }) => `${count} ${status.toLowerCase()}`).join(", ")}`}
+            className="flex h-2 overflow-hidden rounded-full bg-surface-hover"
+          >
+            {totalTickets > 0
+              ? statusRows.map(({ status, count, meta }) =>
+                  count > 0 ? (
                     <span
+                      key={status}
                       aria-hidden
-                      className={cn("size-[7px] shrink-0 rounded-full", meta.dot)}
+                      title={`${status}: ${count}`}
+                      className={cn("h-full min-w-0", meta.dot)}
+                      style={{ width: `${(count / totalTickets) * 100}%` }}
                     />
-                    <span className="truncate">{status}</span>
+                  ) : null,
+                )
+              : null}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+            {statusRows.map(({ status, count, meta }) => (
+              <Link
+                key={status}
+                href={`/tickets?status=${encodeURIComponent(status)}`}
+                className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border px-3 py-2.5 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span aria-hidden className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
+                  <span className="truncate text-[12.5px] font-medium text-muted-foreground">
+                    {status}
                   </span>
-                  <span className="rf-num text-[26px] font-semibold leading-none text-foreground">
-                    {count}
-                  </span>
-                </Link>
-              );
-            })}
+                </span>
+                <span className="rf-num shrink-0 text-[13px] font-semibold text-foreground">
+                  {count}
+                </span>
+              </Link>
+            ))}
           </div>
         </CardContent>
       </Card>
-
-      {/* Recent activity, as the same cards used on the tickets board. */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">
-            Recently touched
-          </h2>
-          <Link
-            href="/tickets"
-            className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            View all
-            <ACTIONS.next className="size-4" />
-          </Link>
-        </div>
-
-        {recentTickets.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon={ICONS.ticket}
-              title="No tickets yet"
-              hint="New repair tickets will show up here as they come in."
-              action={
-                <Button asChild>
-                  <Link href="/tickets/new">
-                    <ACTIONS.add />
-                    New Ticket
-                  </Link>
-                </Button>
-              }
-            />
-          </Card>
-        ) : (
-          /*
-            Nine tickets as a table, not nine cards.
-            ----------------------------------------
-            The card grid put three tickets on a row, each in its own box with
-            a 3px coloured stripe down the side, and pushed everything below it
-            off the screen. Nine of anything shouting at once is nine things
-            you skip. As rows they are scannable in one pass — number, who,
-            what, state, when — which is the actual question this block answers
-            ("what has the shop been touching?"), and the same nine tickets now
-            take about a third of the height.
-
-            `TicketCard` is untouched and still correct where a card is the
-            right object: the kanban board.
-          */
-          <Card className="overflow-hidden">
-            <Table>
-              <THead>
-                <Tr>
-                  <Th>Ticket</Th>
-                  <Th>Customer</Th>
-                  <Th>Subject</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Updated</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {recentTickets.map((ticket) => (
-                  <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
-                    <Td>
-                      <Link
-                        href={`/tickets/${ticket.id}`}
-                        className="rf-id font-semibold text-accent-soft-foreground hover:underline"
-                      >
-                        #{ticket.number}
-                      </Link>
-                    </Td>
-                    <Td className="font-medium text-foreground">
-                      <span className="block max-w-[180px] truncate">
-                        {customerLabel(ticket.customer)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <span
-                        className="block max-w-[380px] truncate"
-                        title={ticket.subject}
-                      >
-                        {ticket.subject}
-                      </span>
-                    </Td>
-                    <Td>
-                      <StatusBadge status={ticket.status} />
-                    </Td>
-                    <Td className="text-right text-muted-foreground">
-                      {relativeShort(ticket.updatedAt, clock)}
-                    </Td>
-                  </RowLink>
-                ))}
-              </TBody>
-            </Table>
-          </Card>
-        )}
-      </div>
     </div>
+  );
+}
+
+function QuickAction({
+  href,
+  icon: Icon,
+  title,
+  hint,
+}: {
+  href: string;
+  icon: LucideIcon;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex min-h-14 min-w-0 items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
+        <Icon aria-hidden="true" className="size-4" />
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-[13.5px] font-semibold text-foreground">{title}</span>
+        <span className="truncate text-xs text-muted-foreground">{hint}</span>
+      </span>
+      <ACTIONS.next className="ml-auto size-4 shrink-0 text-faint-foreground transition-transform group-hover:translate-x-0.5" />
+    </Link>
   );
 }

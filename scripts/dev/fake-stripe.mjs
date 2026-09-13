@@ -317,7 +317,7 @@ async function route(ctx) {
 
 
   // ------------------------------------------------- Webhook endpoints -----
-  // The whole point of Wave 9: RepairFlow creates these itself, on the shop's
+  // The whole point of Wave 9: RepairPilot creates these itself, on the shop's
   // connected account, right after Connect finishes.
 
   if (path === "/v1/webhook_endpoints") {

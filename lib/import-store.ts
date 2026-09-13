@@ -22,7 +22,7 @@ import path from "node:path";
  * means re-uploading the file.
  */
 
-const DIR = path.join(tmpdir(), "repairflow-imports");
+const DIR = path.join(tmpdir(), "repairpilot-imports");
 const TTL_MS = 60 * 60 * 1000;
 
 export type ImportKind = "customers" | "products";

@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth";
 import { ForgotForm } from "./forgot-form";
 
 export const metadata: Metadata = {
-  title: "Reset your password · RepairFlow",
+  title: "Reset your password · RepairPilot",
 };
 
 export default async function ForgotPasswordPage() {

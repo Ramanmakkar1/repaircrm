@@ -22,6 +22,13 @@ import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/components/ui/cn";
 import {
+  PAYMENT_PROVIDERS,
+  TARGET_COUNTRIES,
+  providersForCountry,
+  type PaymentProviderDefinition,
+  type TargetCountry,
+} from "@/lib/payments/providers";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,18 +39,25 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DeviceAccessCard } from "@/components/settings/device-access-card";
 import type { CheckLine, PaymentsHealth } from "@/lib/payments";
-import type { PaymentsTabConfig, PayoutState, ReaderItem } from "./types";
+import type {
+  PaymentsTabConfig,
+  PayoutState,
+  ReaderItem,
+  SquareTerminalDevice,
+} from "./types";
 
 /**
  * Settings → Payments.
  *
- * ONE SCREEN, FOUR QUESTIONS, IN THIS ORDER:
+ * ONE SCREEN, FIVE QUESTIONS, IN THIS ORDER:
  *
- *   1. Can this shop take a card at all?   (the Stripe account)
- *   2. Where does the money go, and when?  (payouts, balance, confirmations)
- *   3. Which ways can a customer pay?      (link, card on file, machine)
- *   4. Is anything broken, and what do I press? (the card machines, the check)
+ *   1. Which providers work for this shop's country?
+ *   2. Is Stripe connected and ready to take a card?
+ *   3. Where does the money go, and when?
+ *   4. Which ways can a customer pay? (link, card on file, machine)
+ *   5. Is anything broken, and what do I press? (the card machines, the check)
  *
  * THE WORDS
  * ---------
@@ -105,12 +119,29 @@ const FLASH: Record<string, { ok: boolean; message: string }> = {
   "already-connected": { ok: false, message: "This shop is already connected." },
 };
 
+const SQUARE_FLASH: Record<string, { ok: boolean; message: string }> = {
+  connected: { ok: true, message: "Square account connected." },
+  canceled: { ok: false, message: "Square connection cancelled — nothing changed." },
+  denied: { ok: false, message: "Square declined the connection request." },
+  "bad-state": { ok: false, message: "That Square link expired. Start the connection again." },
+  "no-code": { ok: false, message: "Square did not send an authorization code." },
+  "exchange-failed": { ok: false, message: "Square could not complete the connection. Check the server log." },
+  forbidden: { ok: false, message: "Only the shop owner can connect Square." },
+  unconfigured: { ok: false, message: "This server has no Square application configured." },
+  "already-connected": { ok: false, message: "This shop is already connected to Square." },
+};
+
 export type SimpleResult = { ok: true; message: string } | { ok: false; error: string };
 export type ReaderResult = { ok: true; reader: ReaderItem } | { ok: false; error: string };
+type SquarePairingResult =
+  | { ok: true; code: string; deviceId: string; pairBy: string | null }
+  | { ok: false; error: string };
 
 export function PaymentsTab({
   config,
   disconnectAction,
+  disconnectSquareAction,
+  createSquareDeviceCodeAction,
   registerReaderAction,
   pairPracticeReaderAction,
   renameReaderAction,
@@ -120,6 +151,8 @@ export function PaymentsTab({
 }: {
   config: PaymentsTabConfig;
   disconnectAction: () => Promise<SimpleResult>;
+  disconnectSquareAction: () => Promise<SimpleResult>;
+  createSquareDeviceCodeAction: (input: { name: string }) => Promise<SquarePairingResult>;
   registerReaderAction: (input: {
     registrationCode: string;
     label: string;
@@ -136,27 +169,572 @@ export function PaymentsTab({
   >;
 }) {
   useConnectFlash();
-
-  if (!config.connectConfigured) {
-    return <NotConfiguredCard env={config.env} />;
-  }
+  const shopCountry = targetCountry(config.country);
+  const squareAccountCountry = config.square.country
+    ? targetCountry(config.square.country)
+    : null;
+  const squareProvider = PAYMENT_PROVIDERS.find((provider) => provider.id === "square");
+  const squareMarketSupported = Boolean(
+    shopCountry &&
+      shopCountry !== "NZ" &&
+      squareProvider?.countries.includes(shopCountry) &&
+      (!squareAccountCountry || squareAccountCountry === shopCountry),
+  );
 
   return (
     <div className="flex flex-col gap-5">
-      <ConnectionCard config={config} disconnectAction={disconnectAction} />
-      <GettingPaidCard config={config} retrySetupAction={retrySetupAction} />
-      <HowCustomersPayCard config={config} />
-      <CardMachinesCard
+      <ProviderCatalogCard
         config={config}
-        registerReaderAction={registerReaderAction}
-        pairPracticeReaderAction={pairPracticeReaderAction}
-        renameReaderAction={renameReaderAction}
-        forgetReaderAction={forgetReaderAction}
+        disconnectSquareAction={disconnectSquareAction}
       />
-      <HealthCard testPaymentsAction={testPaymentsAction} />
-      <ServerCard config={config} />
+      {config.square.connected && squareMarketSupported ? (
+        <SquareTerminalCard
+          devices={config.square.devices}
+          canPair={config.square.configured && !config.square.hasError}
+          hasError={config.square.hasError}
+          webhookReady={config.square.webhookReady}
+          action={createSquareDeviceCodeAction}
+        />
+      ) : null}
+      {!config.connectConfigured ? (
+        <NotConfiguredCard env={config.env} />
+      ) : (
+        <>
+          <ConnectionCard config={config} disconnectAction={disconnectAction} />
+          <GettingPaidCard config={config} retrySetupAction={retrySetupAction} />
+          <HowCustomersPayCard config={config} />
+          <CardMachinesCard
+            config={config}
+            registerReaderAction={registerReaderAction}
+            pairPracticeReaderAction={pairPracticeReaderAction}
+            renameReaderAction={renameReaderAction}
+            forgetReaderAction={forgetReaderAction}
+          />
+          <HealthCard testPaymentsAction={testPaymentsAction} />
+          <ServerCard config={config} />
+        </>
+      )}
+      <DeviceAccessCard />
     </div>
   );
+}
+
+const COUNTRY_NAMES: Record<TargetCountry, string> = {
+  NZ: "New Zealand",
+  US: "United States",
+  CA: "Canada",
+  GB: "United Kingdom",
+};
+
+function targetCountry(country: string): TargetCountry | null {
+  const value = country.trim().toUpperCase();
+  const aliases: Record<string, TargetCountry> = {
+    "NEW ZEALAND": "NZ",
+    "UNITED STATES": "US",
+    "UNITED STATES OF AMERICA": "US",
+    CANADA: "CA",
+    "UNITED KINGDOM": "GB",
+    UK: "GB",
+  };
+  const normalized = aliases[value] ?? value;
+  return TARGET_COUNTRIES.includes(normalized as TargetCountry)
+    ? (normalized as TargetCountry)
+    : null;
+}
+
+function ProviderCatalogCard({
+  config,
+  disconnectSquareAction,
+}: {
+  config: PaymentsTabConfig;
+  disconnectSquareAction: () => Promise<SimpleResult>;
+}) {
+  const country = targetCountry(config.country);
+  const providers = country
+    ? providersForCountry(country)
+    : PAYMENT_PROVIDERS.filter((provider) =>
+        ["stripe", "square"].includes(provider.id),
+      );
+  const square = PAYMENT_PROVIDERS.find((provider) => provider.id === "square");
+  const visibleProviders = square && !providers.some((item) => item.id === "square")
+    ? [...providers, square]
+    : providers;
+
+  return (
+    <Card>
+      <CardHeader
+        icon={CardIcon}
+        title="Payment providers"
+        description="See what works in your shop’s country and connect a supported account."
+      />
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Payment region and currency">
+          <Chip>
+            Shop country: {country
+              ? `${COUNTRY_NAMES[country]} (${country})`
+              : config.country.trim() || "Not set"}
+          </Chip>
+          <Chip>Charge currency: {config.currency.toUpperCase()}</Chip>
+        </div>
+
+        <div className="grid gap-2.5 md:grid-cols-2">
+          {visibleProviders.map((provider) => (
+            <ProviderOption
+              key={provider.id}
+              provider={provider}
+              config={config}
+              country={country}
+              disconnectSquareAction={disconnectSquareAction}
+            />
+          ))}
+        </div>
+
+        <details className="rounded-lg border border-border bg-surface-hover px-4 py-3">
+          <summary className="cursor-pointer text-[13.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+            Manual and API-key gateways
+          </summary>
+          <div className="flex flex-col gap-2 pt-3">
+            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+              Some processors use API credentials instead of an account approval. RepairPilot does not accept payment secrets in this browser. A key alone cannot turn on a provider; its secure server-side connector must be available first.
+            </p>
+            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+              {visibleProviders.some((provider) => provider.connectionMode === "api_credentials")
+                ? `For ${visibleProviders.filter((provider) => provider.connectionMode === "api_credentials").map((provider) => provider.name).join(", ")}, setup is not available in RepairPilot yet.`
+                : "No API-key payment gateway is enabled for this shop yet."}
+            </p>
+          </div>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProviderOption({
+  provider,
+  config,
+  country,
+  disconnectSquareAction,
+}: {
+  provider: PaymentProviderDefinition;
+  config: PaymentsTabConfig;
+  country: TargetCountry | null;
+  disconnectSquareAction: () => Promise<SimpleResult>;
+}) {
+  const squareAccountCountry = config.square.country
+    ? targetCountry(config.square.country)
+    : null;
+  const squareSupported = Boolean(country && provider.countries.includes(country));
+  const squareUnavailableInNZ =
+    provider.id === "square" && (country === "NZ" || squareAccountCountry === "NZ");
+  const linked = provider.id === "stripe"
+    ? config.connected
+    : provider.id === "square"
+      ? config.square.connected
+      : false;
+  const squareCountryMismatch =
+    provider.id === "square" &&
+    linked &&
+    Boolean(country && squareAccountCountry && country !== squareAccountCountry);
+  const connectionConfigured = provider.id === "stripe"
+    ? config.connectConfigured
+    : provider.id === "square"
+      ? config.square.configured
+      : false;
+
+  let status = "Not available in RepairPilot";
+  let tone: "success" | "neutral" | "waiting" | "info" = "neutral";
+  let detail = provider.description;
+
+  if (provider.id === "stripe") {
+    if (linked) {
+      status = "Connected";
+      tone = "success";
+      detail = "Online card payments and Stripe Terminal are connected for this shop.";
+    } else if (connectionConfigured) {
+      status = "Ready to connect";
+      tone = "info";
+      detail = "Connect your Stripe account with a secure approval. No payment keys are copied into RepairPilot.";
+    } else {
+      status = "Server setup needed";
+      tone = "waiting";
+      detail = "A RepairPilot admin must configure Stripe on the server before shops can connect.";
+    }
+  } else if (provider.id === "square") {
+    if (linked) {
+      status = squareUnavailableInNZ
+        ? "Linked · unavailable in NZ"
+        : squareCountryMismatch
+          ? "Country mismatch"
+        : !config.square.configured
+          ? "Server setup needed"
+          : config.square.hasError
+            ? "Connection needs attention"
+            : !config.square.webhookReady
+              ? "Webhook setup needed"
+              : "Connected";
+      tone = squareUnavailableInNZ ||
+        squareCountryMismatch ||
+        !config.square.configured ||
+        config.square.hasError ||
+        !config.square.webhookReady
+        ? "waiting"
+        : "success";
+      detail = squareUnavailableInNZ
+        ? squareAccountCountry === "NZ" && country !== "NZ"
+          ? "This Square account is registered in New Zealand, where RepairPilot cannot process Square payments. Connect an account in the shop’s country."
+          : "Square payment processing is not available for New Zealand shops. Stripe remains available here."
+        : squareCountryMismatch
+          ? `The Square account is registered in ${squareAccountCountry ? COUNTRY_NAMES[squareAccountCountry] : "a different country"}, but this shop is set to ${country ? COUNTRY_NAMES[country] : "another country"}. Confirm the shop country and connect the matching Square account.`
+        : !config.square.configured
+          ? "The Square account is linked, but this server no longer has the Square application credentials it needs."
+        : config.square.hasError
+          ? "Square is linked, but RepairPilot could not refresh its account details. Disconnect and reconnect if this continues."
+          : !config.square.webhookReady
+            ? "Square is linked, but payment confirmations are not ready. Ask the server admin to set SQUARE_WEBHOOK_SIGNATURE_KEY before taking payments."
+          : `Connected to ${config.square.merchantName || "your Square account"}${config.square.locationName ? ` · ${config.square.locationName}` : ""}.`;
+    } else if (squareUnavailableInNZ) {
+      status = "Unavailable in New Zealand";
+      tone = "neutral";
+      detail = "Square payment processing is not available for New Zealand shops. Stripe is available here.";
+    } else if (!country && !config.country.trim()) {
+      status = "Set shop country first";
+      tone = "waiting";
+      detail = "Square is available for shops in the United States, Canada and United Kingdom.";
+    } else if (!squareSupported) {
+      status = country
+        ? `Unavailable in ${COUNTRY_NAMES[country]}`
+        : "Unsupported market";
+      tone = "neutral";
+      detail = "Square is available for shops in the United States, Canada and United Kingdom.";
+    } else if (connectionConfigured && config.square.hasError) {
+      status = "Reconnect needed";
+      tone = "waiting";
+      detail = "RepairPilot could not refresh the previous Square connection. Reconnect to restore access.";
+    } else if (connectionConfigured) {
+      status = "Ready to connect";
+      tone = "info";
+      detail = "Approve Square access and return here. Credentials stay on the RepairPilot server.";
+    } else {
+      status = "Server setup needed";
+      tone = "waiting";
+      detail = "A RepairPilot admin must set SQUARE_APPLICATION_ID and SQUARE_APPLICATION_SECRET on the server.";
+    }
+  } else if (!provider.availableNow) {
+    status = provider.connectionMode === "api_credentials"
+      ? "API setup planned"
+      : provider.connectionMode === "partner_approval"
+        ? "Partner setup planned"
+        : "Not available yet";
+    tone = "neutral";
+  }
+
+  const canConnectSquare =
+    provider.id === "square" &&
+    Boolean(country) &&
+    squareSupported &&
+    !linked &&
+    connectionConfigured;
+
+  return (
+    <div className="flex min-w-0 flex-col justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3.5">
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[14.5px] font-bold text-foreground">{provider.name}</span>
+            <StatusPill size="sm" dot={false} tone={tone} label={status} />
+          </div>
+          <span className="shrink-0 text-[11.5px] font-semibold text-muted-foreground">
+            {connectionModeLabel(provider.connectionMode)}
+          </span>
+        </div>
+        <p className="text-[13px] leading-relaxed text-muted-foreground">{detail}</p>
+      </div>
+
+      {provider.id === "stripe" && !linked && connectionConfigured ? (
+        <Button asChild size="sm" className="w-fit">
+          <a href="/api/payments/stripe/connect">
+            <ConnectIcon aria-hidden /> Connect with Stripe
+          </a>
+        </Button>
+      ) : null}
+      {canConnectSquare ? (
+        <Button asChild size="sm" className="w-fit">
+          <a href="/api/payments/square/connect">
+            <ConnectIcon aria-hidden />
+            {config.square.hasError ? "Reconnect Square" : "Connect with Square"}
+          </a>
+        </Button>
+      ) : null}
+      {provider.id === "square" && linked ? (
+        <SquareDisconnectButton action={disconnectSquareAction} />
+      ) : null}
+    </div>
+  );
+}
+
+function SquareTerminalCard({
+  devices,
+  canPair,
+  hasError,
+  webhookReady,
+  action,
+}: {
+  devices: SquareTerminalDevice[];
+  canPair: boolean;
+  hasError: boolean;
+  webhookReady: boolean;
+  action: (input: { name: string }) => Promise<SquarePairingResult>;
+}) {
+  return (
+    <Card>
+      <CardHeader
+        icon={ReaderIcon}
+        title="Square Terminal"
+        description="Square countertop devices paired with this shop."
+        action={<SquareTerminalPairingDialog action={action} disabled={!canPair} />}
+      />
+      <CardContent className="flex flex-col gap-3">
+        {!canPair ? (
+          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+            {hasError
+              ? "Square needs attention before another Terminal can be paired. Reconnect the Square account above."
+              : "Square’s server credentials are missing, so RepairPilot cannot pair another Terminal right now."}
+          </p>
+        ) : null}
+        {!webhookReady ? (
+          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+            Terminal pairing does not need a webhook, but payment confirmations are not ready. Ask the server admin to set <Env>SQUARE_WEBHOOK_SIGNATURE_KEY</Env> before taking Square payments in RepairPilot.
+          </p>
+        ) : null}
+        {devices.length === 0 ? (
+          <EmptyState
+            icon={ReaderIcon}
+            title="No Square Terminal paired"
+            hint="Generate a pairing code, then enter it on the Square Terminal before the code expires."
+            className="rounded-lg border border-dashed border-border py-9"
+          />
+        ) : (
+          devices.map((device) => (
+            <SquareTerminalRow key={device.id} device={device} />
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SquareTerminalRow({ device }: { device: SquareTerminalDevice }) {
+  const raw = device.status.toUpperCase();
+  const online = raw === "ONLINE" || raw === "READY" || raw === "ACTIVE";
+  const tone: "success" | "neutral" | "waiting" = online
+    ? "success"
+    : raw === "OFFLINE"
+      ? "neutral"
+      : "waiting";
+  const label = online
+    ? "Online"
+    : raw === "OFFLINE"
+      ? "Offline"
+      : raw === "PAIRED"
+        ? "Paired"
+        : raw === "UNPAIRED"
+          ? "Not paired"
+          : "Status unavailable";
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-hover px-4 py-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="truncate text-[14.5px] font-bold text-foreground">{device.name}</span>
+        <span className="text-[13px] text-muted-foreground">Square Terminal</span>
+      </div>
+      <StatusPill tone={tone} label={label} />
+    </div>
+  );
+}
+
+function SquareTerminalPairingDialog({
+  action,
+  disabled,
+}: {
+  action: (input: { name: string }) => Promise<SquarePairingResult>;
+  disabled: boolean;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("Front counter");
+  const [pairing, setPairing] = React.useState<{
+    code: string;
+    pairBy: string | null;
+  } | null>(null);
+  const [pending, startTransition] = React.useTransition();
+
+  function createCode(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    startTransition(async () => {
+      const result = await action({ name: name.trim() });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setPairing({ code: result.code, pairBy: result.pairBy });
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (pending) return;
+        setOpen(next);
+        if (!next) setPairing(null);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button disabled={disabled}>
+          <ConnectIcon aria-hidden /> Pair a Square Terminal
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{pairing ? "Enter this code on the Terminal" : "Pair a Square Terminal"}</DialogTitle>
+          <DialogDescription>
+            {pairing
+              ? "On the Square Terminal, enter the code below when it asks to pair with a device."
+              : "Give the device a name, then generate a code to pair it to this shop’s Square account."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {pairing ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface-hover px-4 py-6 text-center">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Pairing code
+            </span>
+            <code
+              aria-live="polite"
+              className="rounded-md bg-surface px-4 py-2 font-mono text-3xl font-bold tracking-[0.24em] text-foreground"
+            >
+              {pairing.code}
+            </code>
+            {pairing.pairBy ? (
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                Enter it by {formatDateTime(pairing.pairBy)} UTC.
+              </p>
+            ) : (
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                Square did not return an expiry time. Enter the code now.
+              </p>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={createCode} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="square-terminal-name">Terminal name</Label>
+              <Input
+                id="square-terminal-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Front counter"
+                maxLength={60}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={pending || !name.trim()}>
+                {pending ? <Loader2 className="animate-spin" /> : <ConnectIcon aria-hidden />}
+                {pending ? "Generating code…" : "Generate pairing code"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+
+        {pairing ? (
+          <DialogFooter>
+            <Button type="button" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SquareDisconnectButton({
+  action,
+}: {
+  action: () => Promise<SimpleResult>;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [pending, startTransition] = React.useTransition();
+
+  function disconnect() {
+    startTransition(async () => {
+      const result = await action();
+      if (result.ok) {
+        toast.success(result.message);
+        setOpen(false);
+      } else {
+        toast.error(result.error);
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!pending) setOpen(next);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-fit text-destructive hover:bg-destructive-soft hover:text-destructive"
+        >
+          <DisconnectIcon aria-hidden /> Disconnect Square
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Disconnect this Square account?</DialogTitle>
+          <DialogDescription>
+            RepairPilot will revoke its Square access. Sales already recorded in Square are unaffected, and you can reconnect later.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            disabled={pending}
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={pending} onClick={disconnect}>
+            {pending ? <Loader2 className="animate-spin" /> : <DisconnectIcon aria-hidden />}
+            {pending ? "Disconnecting…" : "Disconnect Square"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function connectionModeLabel(mode: PaymentProviderDefinition["connectionMode"]): string {
+  if (mode === "oauth") return "Secure account connection";
+  if (mode === "api_credentials") return "API-key setup";
+  return "Provider approval";
 }
 
 /**
@@ -167,17 +745,22 @@ function useConnectFlash(): void {
   const router = useRouter();
   const params = useSearchParams();
   const fired = React.useRef(false);
-  const code = params.get("stripe");
+  const stripeCode = params.get("stripe");
+  const squareCode = params.get("square");
 
   React.useEffect(() => {
-    if (fired.current || !code) return;
-    const flash = FLASH[code];
+    if (fired.current || (!stripeCode && !squareCode)) return;
+    const flash = stripeCode
+      ? FLASH[stripeCode]
+      : squareCode
+        ? SQUARE_FLASH[squareCode]
+        : undefined;
     if (!flash) return;
     fired.current = true;
     if (flash.ok) toast.success(flash.message);
     else toast.error(flash.message);
     router.replace("/settings?tab=payments", { scroll: false });
-  }, [code, router]);
+  }, [router, squareCode, stripeCode]);
 }
 
 // ---------------------------------------------------------------------------
@@ -189,13 +772,13 @@ function NotConfiguredCard({ env }: { env: PaymentsTabConfig["env"] }) {
     <Card>
       <CardHeader
         icon={CardIcon}
-        title="Card payments"
-        description="Not available on this server yet."
+        title="Stripe processing"
+        description="Stripe is not configured on this server yet."
       />
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
-          Online payments aren&rsquo;t set up on this server yet — the
-          RepairFlow admin needs to set <Env>STRIPE_SECRET_KEY</Env> and{" "}
+          Stripe online payments aren&rsquo;t set up on this server yet — the
+          RepairPilot admin needs to set <Env>STRIPE_SECRET_KEY</Env> and{" "}
           <Env>STRIPE_CLIENT_ID</Env>. Until then invoices show no pay button
           and the portal only displays the balance.
         </p>
@@ -254,7 +837,7 @@ function ConnectionCard({
         description={
           config.connected
             ? "Card payments land in this shop's own Stripe account and pay out to its bank."
-            : "Connect your Stripe account to take card payments. No API keys to copy — Stripe asks you to approve it and sends you straight back."
+            : "Connect Stripe from the provider list above. No API keys to copy — Stripe asks you to approve it and sends you straight back."
         }
         action={
           config.connected ? (
@@ -269,15 +852,7 @@ function ConnectionCard({
               <DisconnectIcon aria-hidden />
               Disconnect
             </Button>
-          ) : (
-            // A plain anchor, not a Server Action: the next stop is Stripe's own
-            // domain and a link is the honest way to say the browser is leaving.
-            <Button asChild>
-              <a href="/api/payments/stripe/connect">
-                <ConnectIcon aria-hidden /> Connect with Stripe
-              </a>
-            </Button>
-          )
+          ) : null
         }
       />
 
@@ -526,13 +1101,13 @@ function GettingPaidCard({
           <SetupRow
             tone="muted"
             title="Nothing to set up yet"
-            body="Connect your Stripe account above and RepairFlow will set up the rest for you — there is no second step."
+            body="Connect your Stripe account above and RepairPilot will set up the rest for you — there is no second step."
           />
         ) : setup.automatic ? (
           <SetupRow
             tone="ok"
             title="Payments confirm themselves"
-            body={`RepairFlow set this up for you${
+            body={`RepairPilot set this up for you${
               setup.setUpAt ? ` on ${formatDate(setup.setUpAt)}` : ""
             }. When a card is charged, Stripe tells this app and the invoice marks itself paid.`}
           />
@@ -812,7 +1387,7 @@ function CardMachinesCard({
             hint={
               config.hasReaderLocation
                 ? "Put yours on wifi, read the pairing code off its screen, and press Connect a card machine."
-                : "Press Connect a card machine — RepairFlow files it under this shop's address for you."
+                : "Press Connect a card machine — RepairPilot files it under this shop's address for you."
             }
             className="rounded-lg border border-dashed border-border py-10"
           />
@@ -1276,7 +1851,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
       <CardHeader
         icon={ICONS.settings}
         title="Server setup"
-        description="Set by whoever runs this RepairFlow server, not from this screen. Only whether each value is present is shown — never the value."
+        description="Set by whoever runs this RepairPilot server, not from this screen. Only whether each value is present is shown — never the value."
       />
 
       <CardContent className="flex flex-col gap-4">
@@ -1326,7 +1901,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
           <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
             <Env>PAYMENTS_CURRENCY</Env> is set to{" "}
             <span className="font-mono">{env.currency}</span>, which is not a
-            two-decimal currency. RepairFlow stores every amount in cents, so
+            two-decimal currency. RepairPilot stores every amount in cents, so
             checkout is refused rather than risk charging the wrong amount.
           </p>
         ) : null}

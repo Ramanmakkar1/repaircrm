@@ -64,6 +64,14 @@ const PLACEHOLDERS = [
   "development",
 ];
 
+function isPlaceholderSecret(secret: string): boolean {
+  const normalized = secret.toLowerCase();
+  return PLACEHOLDERS.some(
+    (placeholder) =>
+      normalized === placeholder || normalized.startsWith(`${placeholder}-`),
+  );
+}
+
 function checkAuthSecret(out: Findings): void {
   const secret = (process.env.AUTH_SECRET ?? "").trim();
 
@@ -80,7 +88,7 @@ function checkAuthSecret(out: Findings): void {
       `AUTH_SECRET is ${secret.length} characters; use at least 32 (\`openssl rand -base64 32\`).`,
     );
   }
-  if (PLACEHOLDERS.includes(secret.toLowerCase())) {
+  if (isPlaceholderSecret(secret)) {
     out.fatal.push(
       "AUTH_SECRET is still a placeholder value — anyone who has read this repo can mint a session.",
     );
@@ -88,25 +96,30 @@ function checkAuthSecret(out: Findings): void {
 }
 
 function checkDatabase(out: Findings): void {
+  // In Workers the database URL comes from the Hyperdrive binding rather than
+  // a raw DATABASE_URL secret. lib/db.ts verifies the binding before Prisma is
+  // constructed; this marker keeps boot preflight aligned with that runtime.
+  if (process.env.DATABASE_DRIVER === "hyperdrive") return;
+
   if (!set("DATABASE_URL")) {
     out.fatal.push("DATABASE_URL is not set — nothing in this app can read or write.");
   }
 }
 
 function checkAppUrl(out: Findings): void {
-  const url = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
+  const url = (process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").trim();
   if (!url) {
     // Not fatal: the app renders. But every emailed magic link, payment link
     // and portal invite is built from this, so in production it is wrong to
     // be missing and the shop will only find out when a customer can't pay.
     out.warn.push(
-      "NEXT_PUBLIC_APP_URL is not set — emailed portal, payment and check-in links will point at the wrong host.",
+      "APP_URL is not set — emailed portal, payment and check-in links will point at the wrong host.",
     );
     return;
   }
   if (isProd() && url.startsWith("http://")) {
     out.warn.push(
-      `NEXT_PUBLIC_APP_URL is http:// (${url}) — session cookies are Secure in production, so sign-in will not stick over plain HTTP.`,
+      `APP_URL is http:// (${url}) — session cookies are Secure in production, so sign-in will not stick over plain HTTP.`,
     );
   }
 }
@@ -162,7 +175,8 @@ function checkScheduler(out: Findings): void {
 }
 
 function checkStorage(out: Findings): void {
-  if (process.env.STORAGE_DRIVER !== "s3") return;
+  const driver: string | undefined = process.env.STORAGE_DRIVER;
+  if (driver !== "s3") return;
   for (const key of ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"]) {
     if (!set(key)) out.warn.push(`STORAGE_DRIVER=s3 but ${key} is not set — attachment uploads will fail.`);
   }
@@ -210,7 +224,7 @@ export function preflight(): void {
   }
 
   throw new Error(
-    `RepairFlow refused to start: ${fatal.length} fatal configuration problem${
+    `RepairPilot refused to start: ${fatal.length} fatal configuration problem${
       fatal.length === 1 ? "" : "s"
     } (see [preflight] FATAL above).`,
   );

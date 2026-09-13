@@ -45,7 +45,7 @@ import type { WebhookDeliveryItem, WebhookItem } from "./types";
  * Settings → API keys → Webhooks.
  *
  * Sits under the API keys card because it is the other half of the same story:
- * a key is how another system reads RepairFlow, a webhook is how RepairFlow
+ * a key is how another system reads RepairPilot, a webhook is how RepairPilot
  * tells another system something happened without being asked.
  *
  * The signing secret is shown exactly once, in the dialog that created the
@@ -273,7 +273,7 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
           <DialogHeader>
             <DialogTitle>Delete this endpoint?</DialogTitle>
             <DialogDescription>
-              RepairFlow will stop posting events to{" "}
+              RepairPilot will stop posting events to{" "}
               <span className="break-all font-mono text-foreground">
                 {hook.url}
               </span>
@@ -423,7 +423,7 @@ function VerifyingSignatures() {
       <p className="text-[13.5px] leading-relaxed text-muted-foreground">
         Every request carries{" "}
         <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[12.5px] text-foreground">
-          X-RepairFlow-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;
+          X-RepairPilot-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;
         </code>
         . Recompute it over the <strong>raw</strong> request body — parsing and
         re-stringifying the JSON changes the bytes and the digest will not match.
@@ -452,7 +452,7 @@ function verify(rawBody, header, secret) {
         Answer <strong>2xx</strong> to acknowledge. Anything else is retried
         after 1m, 5m, 30m, 2h and 12h, then marked failed.{" "}
         <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[12.5px] text-foreground">
-          X-RepairFlow-Delivery
+          X-RepairPilot-Delivery
         </code>{" "}
         is stable across retries — use it to dedupe.
       </p>
@@ -529,7 +529,7 @@ function AddDialog({
               id="webhook-url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://example.com/hooks/repairflow"
+              placeholder="https://example.com/hooks/repairpilot"
               autoFocus
             />
           </div>
@@ -546,7 +546,7 @@ function AddDialog({
               <span className="flex flex-col gap-0.5">
                 <span className="font-semibold text-foreground">All events</span>
                 <span className="text-[13px] text-muted-foreground">
-                  Including any added to RepairFlow later.
+                  Including any added to RepairPilot later.
                 </span>
               </span>
             </label>
@@ -628,7 +628,7 @@ function SecretDialog({
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <p>
             Your endpoint needs it to verify that a delivery really came from
-            RepairFlow. Without the check, anyone who learns your URL can post
+            RepairPilot. Without the check, anyone who learns your URL can post
             anything to it.
           </p>
         </div>

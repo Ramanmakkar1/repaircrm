@@ -127,7 +127,7 @@ export function ArrowRightIcon(props: IconProps) {
   );
 }
 
-/** The wrench that is the RepairFlow mark, matching components/shell/brand.tsx. */
+/** The wrench that is the RepairPilot mark, matching components/shell/brand.tsx. */
 export function WrenchIcon(props: IconProps) {
   return (
     <Svg strokeWidth={2.5} {...props}>

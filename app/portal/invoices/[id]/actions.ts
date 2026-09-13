@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 
-import { createInvoiceCheckout } from "@/lib/payments";
+import { createInvoiceCheckout, paymentsLive } from "@/lib/payments";
+import {
+  createSquareInvoicePaymentLink,
+  squareConnectionStatus,
+} from "@/lib/payments/square";
 import { getPortalSession } from "@/lib/portal-session";
 
 /**
@@ -25,10 +29,19 @@ export async function startInvoiceCheckoutAction(
 
   if (!session || !invoiceId) redirect("/portal");
 
-  const result = await createInvoiceCheckout(invoiceId, {
-    shopId: session.shopId,
-    customerId: session.customerId,
-  });
+  const square = await squareConnectionStatus(session.shopId);
+  const result = paymentsLive()
+    ? await createInvoiceCheckout(invoiceId, {
+        shopId: session.shopId,
+        customerId: session.customerId,
+      })
+    : square.connected
+      ? await createSquareInvoicePaymentLink({
+          shopId: session.shopId,
+          customerId: session.customerId,
+          invoiceId,
+        })
+      : { ok: false as const, reason: "Online payments are not configured." };
 
   // `redirect` throws, so both branches stay outside any try/catch.
   if (!result.ok) {

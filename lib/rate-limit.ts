@@ -1,7 +1,7 @@
 /**
  * Fixed-window rate limiting, in memory.
  *
- * Deliberately process-local: RepairFlow runs as a single Node server, and the
+ * Deliberately process-local: RepairPilot runs as a single Node server, and the
  * things being limited here (a forgotten-password email, a login attempt, a
  * 2FA code) are all cheap to re-try honestly and expensive to brute-force. A
  * Redis dependency would buy multi-instance accuracy at the cost of another

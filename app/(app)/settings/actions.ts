@@ -487,7 +487,7 @@ async function deliverInvite(
   const delivery = await sendInviteEmail({
     to: user.email,
     name: user.name,
-    shopName: shop?.name ?? "RepairFlow",
+    shopName: shop?.name ?? "RepairPilot",
     url: issued.url,
   });
 

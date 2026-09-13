@@ -3,6 +3,8 @@ import { readUiPrefs } from "@/lib/prefs";
 import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { platformSetting } from "@/lib/platform-admin";
+import { isPlatformAdminEmail } from "@/lib/platform-admin-access";
 
 export default async function AppLayout({
   children,
@@ -28,6 +30,10 @@ export default async function AppLayout({
   return (
     <AppShell
       user={{ name: user.name, email: user.email, role: user.role }}
+      showPlatformAdmin={isPlatformAdminEmail(
+        user.email,
+        platformSetting("PLATFORM_ADMIN_EMAILS"),
+      )}
       locations={locations}
       currentLocationId={locationId}
       prefs={prefs}

@@ -113,7 +113,7 @@ export function ShareRow({
       return;
     }
     flash("pay");
-    toast.success("Stripe checkout link copied — valid for this balance.");
+    toast.success("Payment link copied — valid for this balance.");
   }
 
   return (

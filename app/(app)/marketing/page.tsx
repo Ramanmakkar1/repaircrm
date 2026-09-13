@@ -27,7 +27,7 @@ import {
 } from "@/components/marketing/meta";
 import { countDueSends } from "./engine";
 
-export const metadata = { title: "Marketing · RepairFlow" };
+export const metadata = { title: "Marketing · RepairPilot" };
 
 /**
  * The saved views. Every campaign is already in memory — a shop runs a handful,

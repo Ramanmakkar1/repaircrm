@@ -150,7 +150,7 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>Elsewhere in RepairFlow</SectionLabel>
+        <SectionLabel>Elsewhere in RepairPilot</SectionLabel>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <QuickCard
             icon={ICONS.payment}
@@ -298,7 +298,7 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
           <p className="text-[14px] leading-relaxed text-muted-foreground">
             Pushes your customers, products, invoices and payments across so the
             books match the shop without anyone retyping them. Nothing is ever
-            pulled back — RepairFlow stays the place work is recorded.
+            pulled back — RepairPilot stays the place work is recorded.
           </p>
         )}
       </CardContent>

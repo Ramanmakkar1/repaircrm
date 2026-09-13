@@ -9,7 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { BULK_LIMIT } from "@/lib/bulk";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Work orders · RepairFlow" };
+export const metadata: Metadata = { title: "Work orders · RepairPilot" };
 
 /**
  * A stack of work orders, one selection, one trip to the printer.

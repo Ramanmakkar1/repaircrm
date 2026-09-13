@@ -1,21 +1,30 @@
 {
-  "name": "repairshop",
+  "name": "repairpilot",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "deepmerge-ts": "8.0.2"
+  },
   "scripts": {
-    "dev": "next dev -p 3020",
-    "build": "next build",
+    "dev": "node scripts/dev/with-hyperdrive-local.mjs next dev -p 3020",
+    "build": "next build --webpack",
     "start": "next start -p 3020",
+    "cf:build": "CLOUDFLARE_BUILD=1 node scripts/dev/with-hyperdrive-local.mjs opennextjs-cloudflare build",
+    "cf:preview": "npm run cf:build && node scripts/dev/with-hyperdrive-local.mjs wrangler dev",
+    "cf:deploy": "npm run cf:build && node scripts/check-hyperdrive.mjs && node scripts/dev/with-hyperdrive-local.mjs opennextjs-cloudflare deploy --keep-vars",
+    "cf:types": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate && node scripts/copy-zxing-wasm.mjs"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-checkbox": "^1.3.11",
@@ -35,7 +44,7 @@
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.34.0",
     "next": "16.3.3",
-    "prisma": "^6.19.3",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -46,19 +55,24 @@
     "zxing-wasm": "^3.1.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "@opennextjs/cloudflare": "^1.20.6",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-signature-canvas": "^1.0.7",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.131.1"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

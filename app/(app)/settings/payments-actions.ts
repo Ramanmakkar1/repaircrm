@@ -13,6 +13,10 @@ import {
   runPaymentsHealthCheck,
 } from "@/lib/payments";
 import type { PaymentsHealth, TerminalReader } from "@/lib/payments";
+import {
+  createSquareDeviceCode,
+  disconnectSquare,
+} from "@/lib/payments/square";
 
 /**
  * Payments settings: everything a shop owner can change from this screen.
@@ -35,6 +39,31 @@ import type { PaymentsHealth, TerminalReader } from "@/lib/payments";
 export type PaymentsActionResult =
   | { ok: true; message: string }
   | { ok: false; error: string };
+
+export async function disconnectSquareAction(): Promise<PaymentsActionResult> {
+  const { shopId, role } = await requireUser();
+  if (role !== "OWNER") return { ok: false, error: "Only the shop owner can disconnect Square." };
+  await disconnectSquare(shopId);
+  revalidatePath("/settings");
+  return { ok: true, message: "Square account disconnected." };
+}
+
+export async function createSquareDeviceCodeAction(input: { name: string }): Promise<
+  | { ok: true; code: string; deviceId: string; pairBy: string | null }
+  | { ok: false; error: string }
+> {
+  const { shopId, role } = await requireUser();
+  if (role !== "OWNER") return { ok: false, error: "Only the shop owner can pair a Square Terminal." };
+  const result = await createSquareDeviceCode({ shopId, name: String(input.name ?? "") });
+  if (!result.ok) return { ok: false, error: result.reason };
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    code: result.device.code ?? "",
+    deviceId: result.device.id,
+    pairBy: result.device.pairBy ?? null,
+  };
+}
 
 /**
  * Revokes the platform's access to the shop's Stripe account.

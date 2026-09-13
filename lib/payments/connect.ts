@@ -235,7 +235,7 @@ export async function disconnectShop(
   if (!accountId) return { ok: true };
 
   // Before the deauthorize, while the platform still has permission: the
-  // endpoint RepairFlow created on this account would otherwise keep posting a
+  // endpoint RepairPilot created on this account would otherwise keep posting a
   // disconnected shop's events at this app forever, and nothing left here
   // could tell whose they were.
   await deleteShopWebhook(shopId);

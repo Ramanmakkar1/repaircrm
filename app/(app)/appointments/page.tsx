@@ -32,7 +32,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 
-export const metadata: Metadata = { title: "Appointments · RepairFlow" };
+export const metadata: Metadata = { title: "Appointments · RepairPilot" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -193,6 +193,7 @@ export default async function AppointmentsPage({
     tech?: string;
     at?: string;
     edit?: string;
+    new?: boolean;
   }) => {
     const next = new URLSearchParams();
     const nextView = patch.view ?? view;
@@ -203,6 +204,7 @@ export default async function AppointmentsPage({
     if (nextTech !== ALL_TECHS) next.set("tech", nextTech);
     if (patch.at) next.set("at", patch.at);
     if (patch.edit) next.set("edit", patch.edit);
+    if (patch.new) next.set("new", "1");
     const qs = next.toString();
     return qs ? `/appointments?${qs}` : "/appointments";
   };
@@ -229,7 +231,9 @@ export default async function AppointmentsPage({
     ? valuesFromAppointment(editing)
     : at
       ? { ...defaults, startDate: toDateParam(at), startTime: toTimeParam(at) }
-      : null;
+      : one(params.new) === "1"
+        ? defaults
+        : null;
 
   return (
     <div className="flex flex-col gap-5">

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+export { WARRANTY_PRESETS } from "@/lib/warranty-presets";
 
 /**
  * Warranty on a sold line.
@@ -12,15 +13,6 @@ import { db } from "@/lib/db";
  * The clock starts on the invoice date, so expiry is purely derived — there is
  * no stored end date to drift.
  */
-
-/** Quick picks offered on the product form. */
-export const WARRANTY_PRESETS = [
-  { value: 0, label: "None" },
-  { value: 30, label: "30 days" },
-  { value: 90, label: "90 days" },
-  { value: 180, label: "180 days" },
-  { value: 365, label: "1 year" },
-] as const;
 
 export const MAX_WARRANTY_DAYS = 3650;
 

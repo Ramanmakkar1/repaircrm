@@ -21,7 +21,7 @@ import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/auth/google/callback — step two, and the only place a Google
- * identity turns into a RepairFlow session.
+ * identity turns into a RepairPilot session.
  *
  * The order of the checks is the security of this route, so it is worth
  * reading top to bottom:

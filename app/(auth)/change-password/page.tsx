@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { ChangePasswordForm } from "./change-password-form";
 
 export const metadata: Metadata = {
-  title: "Set your password · RepairFlow",
+  title: "Set your password · RepairPilot",
 };
 
 /**

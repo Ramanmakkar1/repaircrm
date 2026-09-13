@@ -30,7 +30,7 @@ import {
   weekStart,
 } from "./meta";
 
-export const metadata = { title: "Time clock · RepairFlow" };
+export const metadata = { title: "Time clock · RepairPilot" };
 
 /**
  * One row of the owner's view. Named rather than inferred because the query is

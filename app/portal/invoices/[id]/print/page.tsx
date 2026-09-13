@@ -40,7 +40,7 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const session = await getPortalSession();
-  if (!session) return { title: "Invoice · RepairFlow" };
+  if (!session) return { title: "Invoice · RepairPilot" };
 
   const invoice = await db.invoice.findFirst({
     where: {
@@ -54,8 +54,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Invoice #${invoice.number} · RepairFlow`
-      : "Invoice · RepairFlow",
+      ? `Invoice #${invoice.number} · RepairPilot`
+      : "Invoice · RepairPilot",
   };
 }
 

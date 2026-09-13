@@ -24,7 +24,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Purchase orders · RepairFlow" };
+export const metadata: Metadata = { title: "Purchase orders · RepairPilot" };
 
 const ALL_VENDORS = "";
 

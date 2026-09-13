@@ -31,12 +31,12 @@ createServer((req, res) => {
   let body = "";
   req.on("data", (chunk) => (body += chunk));
   req.on("end", () => {
-    const ok = verify(body, req.headers["x-repairflow-signature"], secret);
+    const ok = verify(body, req.headers["x-repairpilot-signature"], secret);
     console.log(
       JSON.stringify({
         path: req.url,
-        event: req.headers["x-repairflow-event"],
-        delivery: req.headers["x-repairflow-delivery"],
+        event: req.headers["x-repairpilot-event"],
+        delivery: req.headers["x-repairpilot-delivery"],
         userAgent: req.headers["user-agent"],
         signatureValid: ok,
         body: JSON.parse(body || "{}"),

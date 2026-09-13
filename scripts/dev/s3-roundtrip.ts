@@ -10,7 +10,7 @@
  */
 import { s3Driver } from "../../lib/storage/s3";
 
-process.env.S3_BUCKET = "repairflow-test";
+process.env.S3_BUCKET = "repairpilot-test";
 process.env.S3_REGION = "us-east-1";
 process.env.S3_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE";
 process.env.S3_SECRET_ACCESS_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
@@ -29,7 +29,7 @@ async function main() {
   const body = Buffer.from("not really a png, but it is bytes\n".repeat(64));
 
   const stored = await s3Driver.put({ key, body, contentType: "image/png" });
-  check("put returns an s3:// path", stored === "s3://repairflow-test/" + key);
+  check("put returns an s3:// path", stored === "s3://repairpilot-test/" + key);
 
   const read = await s3Driver.get(stored);
   check("get returns the object", read !== null);
@@ -41,7 +41,7 @@ async function main() {
   const gone = await s3Driver.get(stored);
   check("delete removes the object", gone === null);
 
-  const missing = await s3Driver.get("s3://repairflow-test/shop_test/nope.png");
+  const missing = await s3Driver.get("s3://repairpilot-test/shop_test/nope.png");
   check("a missing key is null, not a throw", missing === null);
 }
 

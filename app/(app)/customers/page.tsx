@@ -16,7 +16,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Customers · RepairFlow" };
+export const metadata: Metadata = { title: "Customers · RepairPilot" };
 
 const PAGE_SIZE = 25;
 

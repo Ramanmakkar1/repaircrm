@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newRecordLocationId } from "@/lib/location";
 import { paymentsLive, readTerminalLocationId, stripeTestMode } from "@/lib/payments";
+import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 import { DrawerStrip } from "@/components/pos/drawer-strip";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
@@ -11,7 +12,7 @@ import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosProduct, PosTicket } from "@/components/pos/types";
 import { resolveTaxRate } from "@/lib/tax";
 
-export const metadata = { title: "POS · RepairFlow" };
+export const metadata = { title: "POS · RepairPilot" };
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -143,6 +144,9 @@ export default async function PosPage() {
       }),
     ]);
 
+  const square = await squareConnectionStatus(shopId);
+  const squareDevices = square.connected ? await listSquareDevices(shopId) : [];
+
   const shopTax = { taxRateBps: shop?.taxRateBps ?? 0, taxRates };
 
   const tickets: PosTicket[] = ticketRows.map((ticket) => ({
@@ -188,6 +192,11 @@ export default async function PosPage() {
       cardReader={{
         enabled: paymentsLive() && Boolean(readTerminalLocationId(shop?.settings)),
         testMode: stripeTestMode(),
+        squareDevices: squareDevices.map((device) => ({
+          id: device.deviceId ?? device.id,
+          name: device.name,
+          status: device.status,
+        })),
       }}
       tickets={tickets}
       taxRateBps={shop?.taxRateBps ?? 0}

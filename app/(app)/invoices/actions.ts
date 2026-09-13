@@ -28,6 +28,10 @@ import {
   recordTerminalPayment,
 } from "@/lib/payments";
 import {
+  createSquareInvoicePaymentLink,
+  squareConnectionStatus,
+} from "@/lib/payments/square";
+import {
   PAYMENT_METHODS,
   recordPayment,
   type PaymentMethodName,
@@ -1198,18 +1202,17 @@ export async function invoicePaymentLinkAction(
 ): Promise<{ ok: true; url: string } | { ok: false; reason: string }> {
   const { shopId } = await requireUser();
 
-  if (!paymentsLive()) {
-    return {
-      ok: false,
-      reason:
-        "Online payments are not configured — add a Stripe secret key to enable them.",
-    };
+  if (paymentsLive()) {
+    const result = await createInvoiceCheckout(String(invoiceId ?? ""), { shopId });
+    return result.ok
+      ? { ok: true, url: result.url }
+      : { ok: false, reason: result.reason };
   }
-
-  const result = await createInvoiceCheckout(String(invoiceId ?? ""), { shopId });
-  return result.ok
-    ? { ok: true, url: result.url }
-    : { ok: false, reason: result.reason };
+  const square = await squareConnectionStatus(shopId);
+  if (square.connected) {
+    return createSquareInvoicePaymentLink({ shopId, invoiceId: String(invoiceId ?? "") });
+  }
+  return { ok: false, reason: "Connect Stripe or Square before creating a payment link." };
 }
 
 // ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ import { METHOD_LABELS, type TenderMethod } from "@/components/pos/types";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Deposit receipt · RepairFlow" };
+export const metadata = { title: "Deposit receipt · RepairPilot" };
 
 export default async function DepositReceiptPage({
   params,

@@ -3,7 +3,7 @@ import * as React from "react";
 import { Barcode } from "./barcode";
 
 /**
- * The pieces every printable RepairFlow document is assembled from.
+ * The pieces every printable RepairPilot document is assembled from.
  *
  * Invoice, estimate, statement and work-order sheets are genuinely different
  * documents — they do not share a layout — but they must share a *voice*: the

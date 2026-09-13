@@ -1,81 +1,178 @@
+import Image from "next/image";
 import Link from "next/link";
 
+import { RepairPilotMark, RepairPilotWordmark } from "@/components/brand/repairpilot";
 import { Button } from "@/components/ui/button";
 import { ArrowRightIcon } from "./icons";
-import { BrowserFrame, Shot } from "./shot";
+import { BrowserFrame } from "./shot";
 
-/**
- * One h1 for the whole document lives here.
- *
- * The headline is set tight (-0.04em, 0.95 leading) and big, because it is the
- * only piece of type on the page allowed to shout. Everything under it drops
- * straight back to the app's 15px body scale.
- */
+function DashboardPreview() {
+  const repairs = [
+    { number: "#1041", title: "MacBook Air · Won't charge", status: "In progress", color: "bg-status-in-progress" },
+    { number: "#1042", title: "iPhone 13 · Screen repair", status: "Ready for pickup", color: "bg-status-ready" },
+    { number: "#1043", title: "ThinkPad X1 · Liquid damage", status: "New", color: "bg-status-new" },
+  ];
+
+  return (
+    <div
+      role="img"
+      aria-label="Dashboard preview showing four repair metrics, the latest work orders and customer follow-ups"
+      className="grid min-h-[390px] bg-background md:grid-cols-[170px_minmax(0,1fr)]"
+    >
+      <aside aria-hidden="true" className="hidden border-r border-border bg-surface p-4 md:block">
+        <div className="flex items-center gap-2">
+          <RepairPilotMark className="size-7 rounded-sm shadow-none" />
+          <RepairPilotWordmark className="text-[12px] text-foreground" />
+        </div>
+        <p className="mb-2 mt-8 text-[9px] font-bold uppercase tracking-[0.14em] text-faint-foreground">Work</p>
+        {["Dashboard", "Tickets", "Customers", "Appointments"].map((item, index) => (
+          <div
+            key={item}
+            className={index === 0
+              ? "mb-1 flex items-center gap-2 rounded-sm bg-accent px-2 py-2 text-[10px] font-semibold text-accent-foreground"
+              : "mb-1 flex items-center gap-2 rounded-sm px-2 py-2 text-[10px] font-medium text-muted-foreground"}
+          >
+            <span aria-hidden="true" className={index === 0 ? "size-1.5 rounded-full bg-white" : "size-1.5 rounded-full bg-border-strong"} />
+            {item}
+          </div>
+        ))}
+        <p className="mb-2 mt-6 text-[9px] font-bold uppercase tracking-[0.14em] text-faint-foreground">Money</p>
+        {["Invoices", "Inventory", "Reports"].map((item) => (
+          <div key={item} className="mb-1 rounded-sm px-2 py-2 text-[10px] font-medium text-muted-foreground">{item}</div>
+        ))}
+      </aside>
+
+      <div className="min-w-0 p-4 sm:p-6">
+        <div aria-hidden="true" className="flex items-center justify-between border-b border-border pb-3">
+          <span className="text-[10px] font-medium text-muted-foreground">Search repairs, customers…</span>
+          <span className="rounded-sm bg-accent px-2.5 py-1.5 text-[9px] font-semibold text-accent-foreground">+ New repair</span>
+        </div>
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[17px] font-semibold tracking-tight text-foreground">Dashboard</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">Your shop at a glance</p>
+          </div>
+          <span className="text-[9px] font-medium text-faint-foreground">TODAY</span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
+          {[
+            ["Open repairs", "09", "Active work orders"],
+            ["Due today", "02", "Promised back today"],
+            ["Customer replies", "03", "Waiting on your team"],
+            ["Outstanding", "$1,084", "4 unpaid invoices"],
+          ].map(([label, value, hint]) => (
+            <div key={label} className="min-w-0 rounded-md border border-border bg-surface p-3">
+              <p className="truncate text-[9px] font-medium text-muted-foreground">{label}</p>
+              <p className="mt-1.5 text-[19px] font-semibold leading-none tracking-tight text-foreground">{value}</p>
+              <p className="mt-1.5 truncate text-[8px] text-muted-foreground">{hint}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.55fr)_minmax(140px,0.8fr)]">
+          <div className="overflow-hidden rounded-md border border-border bg-surface">
+            <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
+              <p className="text-[10px] font-semibold text-foreground">Recent repairs</p>
+              <span className="text-[8px] font-semibold text-muted-foreground">View all →</span>
+            </div>
+            {repairs.map((repair) => (
+              <div key={repair.number} className="flex items-center justify-between gap-2 border-b border-border last:border-0 px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-[9px] font-semibold text-foreground">{repair.title}</p>
+                  <p className="mt-0.5 text-[8px] text-muted-foreground">{repair.number} · Updated recently</p>
+                </div>
+                <span className="flex shrink-0 items-center gap-1 text-[8px] font-medium text-muted-foreground">
+                  <span aria-hidden="true" className={"size-1.5 rounded-full " + repair.color} />
+                  {repair.status}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-md border border-border bg-surface p-3">
+            <p className="text-[10px] font-semibold text-foreground">Needs attention</p>
+            {[
+              ["Overdue repairs", "01"],
+              ["Customer replies", "03"],
+              ["Ready for pickup", "02"],
+            ].map(([label, count]) => (
+              <div key={label} className="flex items-center justify-between gap-2 border-b border-border py-2.5 last:border-0">
+                <span className="truncate text-[8.5px] font-medium text-muted-foreground">{label}</span>
+                <span className="text-[10px] font-semibold tabular-nums text-foreground">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden">
-      {/* backdrop: faint graph paper + a single soft indigo wash, both decorative */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10">
-        <div className="rf-hero-grid absolute inset-0" />
-        <div className="rf-hero-wash absolute inset-0" />
-      </div>
+    <section className="relative">
+      <div className="relative isolate min-h-[560px] overflow-hidden bg-[#111214] sm:min-h-[620px]">
+        <Image
+          src="/marketing/repair-bench.jpg"
+          alt="A technician repairing a phone at a clean, well-equipped workbench."
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[67%_center]"
+        />
+        <div aria-hidden="true" className="absolute inset-0 bg-black/45" />
 
-      <div className="mx-auto w-full max-w-6xl px-5 pb-16 pt-16 sm:px-8 sm:pb-24 sm:pt-24">
-        <div className="mx-auto max-w-3xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-[12.5px] font-semibold text-muted-foreground shadow-xs">
-            <span className="size-1.5 rounded-full bg-status-ready" />
-            Early access — free while we build
-          </span>
+        <div className="relative mx-auto flex min-h-[560px] w-full max-w-6xl items-end px-5 pb-36 pt-24 sm:min-h-[620px] sm:px-8 sm:pb-40">
+          <div className="max-w-2xl text-white">
+            <span className="inline-flex items-center gap-2 rounded-md border border-white/25 bg-black/30 px-3 py-1.5 text-[12.5px] font-semibold text-white/90 backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-white" />
+              Repair shop software · Free in early access
+            </span>
 
-          <h1 className="mt-6 text-[40px] font-bold leading-[0.98] tracking-[-0.04em] text-foreground sm:text-6xl lg:text-[68px]">
-            The whole shop
-            <br className="hidden sm:block" />{" "}
-            <span className="text-accent">on one screen.</span>
-          </h1>
+            <h1 className="mt-5 text-balance text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-[68px]">
+              Keep every repair moving.
+            </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-[17px] leading-relaxed text-muted-foreground sm:text-lg">
-            RepairFlow is the working system behind the bench: tickets, estimates
-            and invoices, a point-of-sale counter with inventory, a customer
-            portal, and the follow-ups you keep meaning to send. Phone, computer,
-            console, mail-in, on-site IT — one place, from intake to pickup.
-          </p>
+            <p className="mt-5 max-w-xl text-pretty text-[16px] leading-relaxed text-white/80 sm:text-lg">
+              Tickets, estimates, inventory, invoices and customer updates in
+              one clear view — from intake to pickup.
+            </p>
 
-          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/signup">
-                Start free
-                <ArrowRightIcon className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
-              <a href="#features">See what&rsquo;s inside</a>
-            </Button>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Button
+                asChild
+                size="lg"
+                className="bg-white text-neutral-950 hover:bg-neutral-100 sm:w-auto"
+              >
+                <Link href="/signup">
+                  Start free
+                  <ArrowRightIcon className="size-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+              >
+                <a href="#features">Explore the platform</a>
+              </Button>
+            </div>
+            <p className="mt-3 text-[13px] text-white/65">
+              No credit card. Set up your shop and get started.
+            </p>
           </div>
-
-          <p className="mt-4 text-[13px] text-faint-foreground">
-            No credit card. Creates your shop and signs you in.
-          </p>
-        </div>
-
-        {/*
-         * The money shot. Capped at max-w-5xl rather than the 6xl container so
-         * the 1512px capture lands at ~1024px — sharp on a retina panel, and
-         * with white margin either side that keeps the frame feeling placed
-         * rather than stretched to fit.
-         */}
-        <div className="rf-rise mx-auto mt-14 max-w-5xl sm:mt-20">
-          <BrowserFrame hero url="app.repairflow.com/dashboard">
-            <Shot
-              eager
-              src="/marketing/dashboard.jpg"
-              width={1512}
-              height={805}
-              sizes="(max-width: 1024px) 100vw, 1024px"
-              alt="The RepairFlow dashboard: counts of open tickets, jobs due today and unpaid invoices, revenue collected this month, a breakdown of where every repair stands, and the tickets touched most recently."
-            />
-          </BrowserFrame>
         </div>
       </div>
+
+      <div className="relative mx-auto -mt-24 w-full max-w-5xl px-5 sm:-mt-28 sm:px-8">
+        <BrowserFrame hero url="app.repairpilot.com/dashboard">
+          <DashboardPreview />
+        </BrowserFrame>
+      </div>
+      <p className="mx-auto mt-5 max-w-5xl px-5 text-[12px] font-medium text-faint-foreground sm:px-8">
+        Dashboard preview · one clear view from intake to pickup.
+      </p>
     </section>
   );
 }

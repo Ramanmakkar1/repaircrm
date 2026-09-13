@@ -42,7 +42,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { invoiceId } = await params;
   const session = await getSession();
-  if (!session) return { title: "Receipt · RepairFlow" };
+  if (!session) return { title: "Receipt · RepairPilot" };
 
   const invoice = await db.invoice.findFirst({
     where: { id: invoiceId, shopId: session.shopId },
@@ -50,8 +50,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Receipt · Invoice #${invoice.number} · RepairFlow`
-      : "Receipt · RepairFlow",
+      ? `Receipt · Invoice #${invoice.number} · RepairPilot`
+      : "Receipt · RepairPilot",
   };
 }
 

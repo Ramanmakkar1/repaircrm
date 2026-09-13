@@ -1,13 +1,12 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { WrenchIcon } from "./icons";
+import { RepairPilotMark, RepairPilotWordmark } from "@/components/brand/repairpilot";
 
 /**
  * The marketing header reuses the exact brand block from the app rail
- * (components/shell/brand.tsx): same 36px indigo square, same wrench, same
- * two-line lockup — so arriving in the product after signing up feels like the
- * same building, not a different one.
+ * (components/shell/brand.tsx), so arriving in the product after signing up
+ * feels like the same brand.
  *
  * Anchor links collapse below `sm`; the two CTAs never do, because on a phone
  * they are the only thing in the header that matters.
@@ -20,13 +19,9 @@ export function LandingNav() {
           href="/"
           className="flex items-center gap-2.5 rounded-md py-1.5 pr-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground shadow-xs">
-            <WrenchIcon className="size-[18px]" />
-          </span>
+          <RepairPilotMark className="size-9" />
           <span className="flex flex-col leading-tight">
-            <span className="text-base font-bold tracking-tight text-foreground">
-              RepairFlow
-            </span>
+            <RepairPilotWordmark className="text-base text-foreground" />
             <span className="text-xs font-medium text-muted-foreground">
               Repair shop
             </span>

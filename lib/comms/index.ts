@@ -23,6 +23,7 @@
 
 import { db } from "@/lib/db";
 import { paymentsLive } from "@/lib/payments/config";
+import { squareConnectionStatus } from "@/lib/payments/square";
 import { portalUrl } from "./config";
 import { deliverEmail, deliverSms } from "./drivers";
 import {
@@ -193,6 +194,10 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
     return { ok: false, status: SKIP_NO_ADDRESS, logId };
   }
 
+  const square = !paymentsLive() && input.invoiceId
+    ? await squareConnectionStatus(input.shopId)
+    : null;
+
   const link = portalUrl(input.portalPath ?? "/portal");
   const rendered = renderEmail({
     shopName,
@@ -210,7 +215,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendResult> {
       Boolean(input.invoiceId) &&
       (input.linkTargetsInvoice === true ||
         link.includes(`/portal/invoices/${input.invoiceId}`)) &&
-      paymentsLive(),
+      (paymentsLive() || square?.connected === true),
   });
 
   const status = await deliverEmail({

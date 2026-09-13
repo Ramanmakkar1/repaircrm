@@ -4,7 +4,7 @@ import { TONE_CLASS, type StatusTone } from "./badge";
 import { cn } from "./cn";
 
 /**
- * The box everything in RepairFlow lives in.
+ * The box everything in RepairPilot lives in.
  *
  * The card is white on a light-gray canvas, so its own fill plus one hairline
  * is all the separation it needs — the shadow is now almost nothing on
@@ -196,6 +196,7 @@ export function CardFooter({
 export function StatBand({
   items,
   className,
+  columns = 6,
 }: {
   items: {
     label: React.ReactNode;
@@ -207,10 +208,16 @@ export function StatBand({
     icon?: React.ComponentType<{ className?: string }>;
   }[];
   className?: string;
+  columns?: 4 | 6;
 }) {
   return (
     <div className={cn("overflow-hidden rounded-lg border border-border", className)}>
-      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 xl:grid-cols-6">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-px bg-border",
+          columns === 4 ? "sm:grid-cols-4" : "sm:grid-cols-3 xl:grid-cols-6",
+        )}
+      >
         {items.map((item, index) => {
           const Icon = item.icon;
           const tone = item.tone ?? "neutral";

@@ -2,20 +2,15 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 
 /**
- * Screenshot primitives for the landing page.
+ * Image and preview primitives for the landing page.
  *
- * Every image these render is a real, unretouched capture of the running app
- * against seeded demo data. There is no stock photography, no invented UI and
- * no rendering of a feature that doesn't exist — so the frames only have one
- * job: give a flat JPEG enough physical presence to read as a screen rather
- * than a rectangle pasted onto the page.
+ * Keep intrinsic dimensions and loading behavior consistent for photography
+ * and product imagery alike.
  *
  * Rules kept in one place so no caller has to remember them:
  *
  *  - every <Image> gets explicit width/height, so nothing reflows as it loads
- *  - sources are captured at 1512px (or cropped from one) and displayed at
- *    roughly half to two-thirds of that, which is what keeps them sharp on a
- *    retina panel instead of soft
+ *  - dimensions match each source asset so the browser can reserve its layout
  *  - only the hero loads eagerly; everything else lazy-loads, which is
  *    next/image's default and is left implicit nowhere — `eager` is opt-in
  *
@@ -50,9 +45,7 @@ export function Shot({ src, alt, width, height, sizes, eager }: ShotProps) {
 }
 
 /**
- * A full-window capture, wrapped in the faux browser chrome the page used
- * before there were screenshots. Only whole-viewport shots get this — a
- * cropped detail in browser chrome would be claiming to be a window it isn't.
+ * A product preview wrapped in quiet browser chrome.
  */
 export function BrowserFrame({
   url,
@@ -89,9 +82,7 @@ export function BrowserFrame({
 }
 
 /**
- * A cropped detail of the app — no chrome, just the same hairline border and
- * layered shadow, so it sits on the page as a card rather than pretending to
- * be a whole window.
+ * An image or preview panel with a hairline border and a restrained shadow.
  */
 export function Panel({ children }: { children: ReactNode }) {
   return (
@@ -116,7 +107,7 @@ export function ScreenFrame({ children }: { children: ReactNode }) {
 }
 
 /**
- * A screenshot with a small card of real UI layered over its corner.
+ * A photo or product view with a small contextual card layered over its corner.
  *
  * The card sits *outside* the image on anything narrower than `lg`, stacked
  * underneath it, because a 260px card floating over a 335px-wide phone

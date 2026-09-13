@@ -6,7 +6,7 @@ import { toDateInputValue } from "@/components/billing/format";
 import { ScheduleForm } from "@/components/recurring/schedule-form";
 import { createScheduleAction } from "../actions";
 
-export const metadata = { title: "New recurring schedule · RepairFlow" };
+export const metadata = { title: "New recurring schedule · RepairPilot" };
 
 export default async function NewSchedulePage({
   searchParams,

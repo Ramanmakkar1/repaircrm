@@ -1,7 +1,7 @@
-# RepairFlow — production image (multi-stage, Next.js standalone output)
+# RepairPilot — production image (multi-stage, Next.js standalone output)
 #
-#   docker build -t repairflow .
-#   docker run -p 3020:3020 --env-file .env repairflow
+#   docker build -t repairpilot .
+#   docker run -p 3020:3020 --env-file .env repairpilot
 #
 # Or use docker-compose.yml, which also runs Postgres and migrations.
 
@@ -27,7 +27,7 @@ ENV PORT=3020
 ENV HOSTNAME=0.0.0.0
 
 # Non-root user
-RUN addgroup -S repairflow && adduser -S repairflow -G repairflow
+RUN addgroup -S repairpilot && adduser -S repairpilot -G repairpilot
 
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
@@ -40,9 +40,9 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build /app/node_modules/.bin ./node_modules/.bin
 
 # Uploaded attachments live on disk — mount a volume over this path.
-RUN mkdir -p public/uploads && chown -R repairflow:repairflow /app
+RUN mkdir -p public/uploads && chown -R repairpilot:repairpilot /app
 
-USER repairflow
+USER repairpilot
 EXPOSE 3020
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

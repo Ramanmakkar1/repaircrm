@@ -22,8 +22,8 @@ export async function generateMetadata({
   });
   return {
     title: campaign
-      ? `Edit ${campaign.name} · RepairFlow`
-      : "Campaign · RepairFlow",
+      ? `Edit ${campaign.name} · RepairPilot`
+      : "Campaign · RepairPilot",
   };
 }
 

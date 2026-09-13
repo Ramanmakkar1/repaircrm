@@ -18,7 +18,7 @@ import { FullscreenToggle } from "@/components/display/fullscreen-toggle";
 
 // The tab title is what a shop names the browser window it leaves running on
 // the wall TV, so it says what the screen is rather than inheriting the shell.
-export const metadata: Metadata = { title: "Shop floor board · RepairFlow" };
+export const metadata: Metadata = { title: "Shop floor board · RepairPilot" };
 
 // This board is meant to be read live off a shop-floor TV, so every request
 // (including each 30s auto-refresh) must hit the DB fresh — never serve a

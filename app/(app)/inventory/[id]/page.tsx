@@ -52,7 +52,7 @@ export async function generateMetadata({
     select: { name: true },
   });
 
-  return { title: product ? `${product.name} · RepairFlow` : "Product · RepairFlow" };
+  return { title: product ? `${product.name} · RepairPilot` : "Product · RepairPilot" };
 }
 
 export default async function ProductPage({

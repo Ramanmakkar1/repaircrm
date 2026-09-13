@@ -8,7 +8,7 @@ import type { SessionUser } from "@/lib/session";
 import type { GoogleIdentity } from "./oidc";
 
 /**
- * Which RepairFlow account a Google identity is, and what may be created when
+ * Which RepairPilot account a Google identity is, and what may be created when
  * it is none of them.
  *
  * ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ async function requireVerified(identity: GoogleIdentity): Promise<string | null>
 }
 
 /**
- * Fills in what Google knows and RepairFlow does not.
+ * Fills in what Google knows and RepairPilot does not.
  *
  * Only ever fills blanks. A person who set their display name to "Sam (bench
  * 2)" did that on purpose, and a sign-in is not the moment to overwrite it
@@ -195,7 +195,7 @@ export async function signInWithGoogle(
 
   if (!byEmail) {
     // No shop to audit against, so this one is a server-log line only.
-    console.warn(`[google] refused: no RepairFlow account for ${identity.email}`);
+    console.warn(`[google] refused: no RepairPilot account for ${identity.email}`);
     return { status: "error", code: "no-account" };
   }
 
@@ -205,7 +205,7 @@ export async function signInWithGoogle(
 
   // The address matches, but that account already answers to a DIFFERENT
   // Google account. Linking a second one would give two Google identities
-  // access to one RepairFlow user, which is not a thing this app supports.
+  // access to one RepairPilot user, which is not a thing this app supports.
   if (byEmail.googleSub && byEmail.googleSub !== identity.sub) {
     return { status: "error", code: await refuse(byEmail, "other_google_sub", identity) };
   }
