@@ -16,7 +16,7 @@ customer records or enable live payment processing.
 - Schedule: Cloudflare cron every 15 minutes
 - Platform console: `/platform`, restricted by the verified database email
   allowlist
-- Latest test Worker version: `707cdd04-afbe-4a28-9f24-a668317f728f` (September
+- Latest test Worker version: `d6be1d2a-2b1a-4e0f-982d-918e5ec089bd` (September
   13, 2026); payment drivers are off and Square remains in Sandbox
 
 The health endpoint, admin and user password sign-in, tenant boundary, Google
