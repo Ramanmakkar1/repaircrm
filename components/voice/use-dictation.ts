@@ -103,6 +103,7 @@ export function useDictation(
   const analyserRef = React.useRef<AnalyserNode | null>(null);
   const audioSourceRef = React.useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceFrameRef = React.useRef<number | null>(null);
+  const discardCaptureRef = React.useRef(false);
 
   const stopSilenceMonitor = React.useCallback(() => {
     if (silenceFrameRef.current !== null) {
@@ -129,6 +130,7 @@ export function useDictation(
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
     recorderRef.current = null;
+    discardCaptureRef.current = false;
     recognitionRef.current = null;
     setState("idle");
   }, [stopSilenceMonitor]);
@@ -198,6 +200,11 @@ export function useDictation(
       stream.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (capture !== generation.current) return;
+      if (discardCaptureRef.current) {
+        discardCaptureRef.current = false;
+        setState("idle");
+        return;
+      }
 
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
       if (blob.size === 0) {
@@ -221,6 +228,7 @@ export function useDictation(
 
     recorderRef.current = recorder;
     streamRef.current = stream;
+    discardCaptureRef.current = false;
     setState("listening");
     try {
       recorder.start();
@@ -240,6 +248,7 @@ export function useDictation(
           void context.resume().catch(() => undefined);
 
           const samples = new Uint8Array(analyser.fftSize);
+          const startedAt = Date.now();
           let hasSpoken = false;
           let lastVoiceAt: number | null = null;
           const inspectAudio = () => {
@@ -258,7 +267,8 @@ export function useDictation(
             if (isVoiceSampleAboveThreshold(rms)) {
               hasSpoken = true;
               lastVoiceAt = now;
-            } else if (shouldStopForSilence({ recording: true, hasSpoken, lastVoiceAt, now })) {
+            } else if (shouldStopForSilence({ recording: true, hasSpoken, lastVoiceAt, startedAt, now })) {
+              discardCaptureRef.current = !hasSpoken;
               recorder.stop();
               stopSilenceMonitor();
               return;
