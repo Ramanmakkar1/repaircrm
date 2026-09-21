@@ -137,6 +137,8 @@ export async function SetupChecklist() {
       </div>
 
       <CardContent className="px-0 py-0">
+        <details>
+        <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Show setup checklist</summary>
         <ul className="divide-y divide-border">
           {rows.map((row) => (
             <li
@@ -182,6 +184,7 @@ export async function SetupChecklist() {
             </li>
           ))}
         </ul>
+        </details>
       </CardContent>
     </Card>
   );

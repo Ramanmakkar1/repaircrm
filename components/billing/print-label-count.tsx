@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { MAX_LABELS, MIN_LABELS } from "@/components/inventory/format";
+import { clampLabelCount, MAX_LABELS, MIN_LABELS } from "@/components/inventory/format";
 
 const PRESETS = [1, 5, 10, 20, 30];
 
@@ -36,7 +36,7 @@ export function PrintLabelCount({
   }
 
   const apply = (next: number) => {
-    const clamped = Math.min(MAX_LABELS, Math.max(MIN_LABELS, next));
+    const clamped = clampLabelCount(String(next));
     setValue(String(clamped));
     router.replace(`/print/labels/${productId}?count=${clamped}`, {
       scroll: false,

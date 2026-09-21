@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { writeUiPrefs, type Density } from "@/lib/prefs";
+import { writeUiPrefs, type Density, type Theme } from "@/lib/prefs";
 
 /**
  * Display preferences: how dense the app is, and whether the rail is collapsed.
@@ -26,6 +26,14 @@ export async function setDensityAction(density: Density): Promise<void> {
   });
   // The layout reads the cookie, so the whole shell has to re-render — not
   // just the page that happened to host the control.
+  revalidatePath("/", "layout");
+}
+
+export async function setThemeAction(theme: Theme): Promise<void> {
+  await requireUser();
+  await writeUiPrefs({
+    theme: theme === "dark" || theme === "light" ? theme : "system",
+  });
   revalidatePath("/", "layout");
 }
 

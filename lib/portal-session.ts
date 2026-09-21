@@ -84,15 +84,15 @@ export async function verifyPortalSession(
 }
 
 /**
- * `path: "/portal"` is doing real work: the browser never attaches this cookie
- * to a staff request, so the two sessions cannot be confused even by accident.
+ * Scoped to `path: "/"` so portal requests to file endpoints (e.g. `/files/[id]`)
+ * can authenticate customer access without conflating with staff sessions (which use `rf_session`).
  */
 export function portalCookieOptions(maxAge: number = PORTAL_SESSION_MAX_AGE) {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
-    path: "/portal",
+    path: "/",
     maxAge,
   };
 }

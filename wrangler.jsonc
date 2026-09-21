@@ -8,6 +8,8 @@
   "vars": {
     "DATABASE_DRIVER": "hyperdrive",
     "STORAGE_DRIVER": "r2",
+    "AI_DRIVER": "openai",
+    "STT_DRIVER": "openai",
     "APP_URL": "https://repairpilot.townmedialabs.workers.dev",
     "NEXT_PUBLIC_APP_URL": "https://repairpilot.townmedialabs.workers.dev",
     "JOBS_INTERVAL_MIN": "0",

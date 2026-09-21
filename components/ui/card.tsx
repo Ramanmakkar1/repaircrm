@@ -13,7 +13,7 @@ import { cn } from "./cn";
  *
  * There is exactly one card surface, one border, one radius and one shadow in
  * this app, and they are here. If a screen needs a card that carries a state,
- * it passes `tone` — which paints a 3px accent down the left edge and leaves
+ * it passes `tone` — which paints a 2px accent down the left edge and leaves
  * the other 99% of the card white. A screen where five cards shout is worse
  * than a screen where the one that matters does.
  */
@@ -36,7 +36,7 @@ export function Card({
     <div
       className={cn(
         "rounded-lg border border-border bg-surface shadow-sm",
-        tone && cn("border-l-[3px]", TONE_ACCENT[tone]),
+        tone && cn("border-l-2", TONE_ACCENT[tone]),
         interactive &&
           "transition-[box-shadow,border-color] hover:border-border-strong hover:shadow-md focus-within:border-border-strong focus-within:shadow-md",
         className,

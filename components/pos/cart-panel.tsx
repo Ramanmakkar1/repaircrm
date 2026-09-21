@@ -8,14 +8,8 @@ import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatBps, formatCents, type Totals } from "@/lib/money";
+import { CustomerPicker } from "./customer-picker";
 import { CustomItemDialog } from "./custom-item-dialog";
 import { TicketPickerDialog } from "./ticket-picker-dialog";
 import {
@@ -205,35 +199,13 @@ export function CartPanel({
           disabled={disabled}
         />
 
-        <Select
-          value={customerId ?? WALK_IN_VALUE}
-          onValueChange={(value) =>
-            onCustomerChange(value === WALK_IN_VALUE ? null : value)
-          }
+        <CustomerPicker
+          customers={customers}
+          customerId={customerId}
+          onCustomerChange={onCustomerChange}
           disabled={customerLocked}
-        >
-          <SelectTrigger className="h-12" aria-label="Attach a customer">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            <SelectItem value={WALK_IN_VALUE}>Walk-in</SelectItem>
-            {customers.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.label}
-                {c.creditBalanceCents > 0
-                  ? ` · ${formatCents(c.creditBalanceCents)} credit`
-                  : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {customerLocked ? (
-          <p className="text-[12.5px] leading-snug text-muted-foreground">
-            The customer is set by ticket #{ticketNumber}. Remove the ticket to
-            change it.
-          </p>
-        ) : null}
+          ticketNumber={ticketNumber}
+        />
       </div>
 
       {/* ----------------------------------------------------------- totals */}

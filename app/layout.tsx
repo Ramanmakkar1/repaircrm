@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
+import { readUiPrefs } from "@/lib/prefs";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -38,13 +39,18 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const prefs = await readUiPrefs();
   return (
-    <html lang="en" className="h-full antialiased">
+    <html
+      lang="en"
+      className="h-full antialiased"
+      data-theme={prefs.theme !== "system" ? prefs.theme : undefined}
+    >
       <body className="flex min-h-full flex-col">
         {children}
         <Toaster position="bottom-right" richColors closeButton />

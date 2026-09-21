@@ -20,11 +20,17 @@
  * code captured at intake. Free text gets a redaction pass on the way out.
  */
 
-import { aiDriverName } from "./config";
-import { generateAnthropic, generateOllama, type GenerateInput } from "./drivers";
+import { aiDriverName, openAiTarget } from "./config";
+import {
+  generateAnthropic,
+  generateOllama,
+  generateOpenAiCompatible,
+  type GenerateInput,
+} from "./drivers";
 import type { AiResult } from "./types";
 
-export { aiDriverName, aiEnabled } from "./config";
+export { aiDriverName, aiEnabled, sttEnabled } from "./config";
+export { transcribe, type TranscribeResult } from "./transcribe";
 export type { AiResult, DraftTone } from "./types";
 export {
   asDraftTone,
@@ -33,16 +39,24 @@ export {
 } from "./types";
 
 const NOT_CONFIGURED =
-  "AI is not configured — set AI_DRIVER/ANTHROPIC_API_KEY";
+  "AI is not configured — set AI_DRIVER and the chosen provider's API key";
 
 export async function generate(input: GenerateInput): Promise<AiResult> {
-  switch (aiDriverName()) {
+  const driver = aiDriverName();
+  switch (driver) {
+    case "off":
+      return { ok: false, reason: NOT_CONFIGURED };
     case "anthropic":
       return generateAnthropic(input);
     case "ollama":
       return generateOllama(input);
-    case "off":
-    default:
-      return { ok: false, reason: NOT_CONFIGURED };
+    default: {
+      // openai | glm | groq | deepseek | openrouter | custom — all one wire.
+      const target = openAiTarget(driver);
+      if (!target) {
+        return { ok: false, reason: `AI provider "${driver}" is not configured` };
+      }
+      return generateOpenAiCompatible(input, target);
+    }
   }
 }

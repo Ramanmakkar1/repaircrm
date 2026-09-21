@@ -11,6 +11,7 @@ import {
 } from "@/components/inventory/format";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { nextSku } from "@/lib/inventory/sku";
 import { parseCents } from "@/lib/money";
 import { MAX_WARRANTY_DAYS } from "@/lib/warranty";
 import {
@@ -50,6 +51,16 @@ export type ProductFormState =
 
 /** Result shape for the dialog/inline actions the client awaits directly. */
 export type InventoryActionState = { ok?: boolean; error?: string };
+
+/**
+ * Result of the Quick Add dialog. On success it carries the minted SKU back so
+ * the toast can show it — proof to the user that a code was assigned for them,
+ * which is the whole point of not making them type one.
+ */
+export type QuickAddState =
+  | { ok: true; productId: string; name: string; sku: string }
+  | { ok: false; error?: string; fieldErrors?: Record<string, string> }
+  | undefined;
 
 // ---------------------------------------------------------------------------
 // FormData helpers
@@ -100,6 +111,9 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 const DUPLICATE_SKU = "Another product in this shop already uses that SKU.";
+
+/** How many times a MINTED (auto) SKU will re-draw its number after a race. */
+const MAX_SKU_ATTEMPTS = 5;
 
 // ---------------------------------------------------------------------------
 // Product create / update
@@ -197,6 +211,99 @@ async function skuTaken(
   return clash !== null;
 }
 
+/**
+ * Creates one product, minting a SKU when the caller didn't supply one.
+ *
+ * Shared by the full form (createProductAction) and the Quick Add dialog
+ * (quickAddProductAction) so both get the same audit trail and the same SKU
+ * behaviour. Returns a result instead of redirecting/revalidating — that is the
+ * caller's job, because the two callers do it differently (a redirect vs a
+ * toast).
+ *
+ * SKU: a code the USER typed is checked up front for a friendly field error, and
+ * a clash on write is theirs to fix. A code we MINT can only clash by losing a
+ * race for the next number, so that path re-draws and retries instead. Either
+ * way the DB's @@unique([shopId, sku]) is the real guarantee.
+ */
+async function createProductCore(
+  ctx: { shopId: string; userId: string; role: string },
+  input: ProductInput,
+): Promise<
+  { ok: true; id: string; sku: string } | { ok: false; skuTaken: boolean }
+> {
+  const { shopId, userId, role } = ctx;
+
+  if (input.sku && (await skuTaken(shopId, input.sku))) {
+    return { ok: false, skuTaken: true };
+  }
+
+  const vendorId = await resolveVendorId(shopId, input.vendorId);
+  const attempts = input.sku ? 1 : MAX_SKU_ATTEMPTS;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      // The opening balance and its audit row are written together, so a product
+      // that starts at 6 on hand has a history explaining where those 6 came from.
+      return await db.$transaction(async (tx) => {
+        const sku =
+          input.sku ?? (await nextSku(tx, shopId, input.name, input.category));
+
+        const product = await tx.product.create({
+          data: {
+            shopId,
+            name: input.name,
+            category: input.category,
+            sku,
+            upc: input.upc,
+            description: input.description,
+            priceCents: input.priceCents,
+            // Cost is owner-only information; a non-owner can't set it.
+            costCents: role === "OWNER" ? input.costCents : null,
+            taxable: input.taxable,
+            stockQty: input.serialized ? 0 : input.stockQty,
+            lowStockAt: input.lowStockAt,
+            warrantyDays: input.warrantyDays,
+            reorderQty: input.reorderQty,
+            vendorId,
+            vendorSku: input.vendorSku,
+            // A brand-new serialized product starts empty by definition: units
+            // only exist once their serial numbers do.
+            serialized: input.serialized,
+            active: input.active,
+          },
+          select: { id: true, sku: true, stockQty: true },
+        });
+
+        if (product.stockQty !== 0) {
+          await tx.stockAdjustment.create({
+            data: {
+              shopId,
+              productId: product.id,
+              delta: product.stockQty,
+              reason: "Initial stock",
+              userId,
+            },
+          });
+        }
+
+        return { ok: true as const, id: product.id, sku: product.sku ?? sku };
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        // A typed SKU that raced is a duplicate the user can see and change.
+        if (input.sku) return { ok: false, skuTaken: true };
+        // A minted number that raced: loop and take the next one.
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  // Only reachable when every minted number in the batch was taken mid-flight —
+  // pathological contention, surfaced as a plain retryable error.
+  return { ok: false, skuTaken: false };
+}
+
 export async function createProductAction(
   _prev: ProductFormState,
   formData: FormData,
@@ -210,72 +317,69 @@ export async function createProductAction(
       fieldErrors: fieldErrorsOf(parsed.error),
     };
   }
-  const input = parsed.data;
 
-  if (await skuTaken(shopId, input.sku)) {
-    return { error: "Please fix the highlighted fields.", fieldErrors: { sku: DUPLICATE_SKU } };
-  }
-
-  const vendorId = await resolveVendorId(shopId, input.vendorId);
-
-  let productId: string;
-  try {
-    // The opening balance and its audit row are written together, so a product
-    // that starts at 6 on hand has a history explaining where those 6 came from.
-    productId = await db.$transaction(async (tx) => {
-      const product = await tx.product.create({
-        data: {
-          shopId,
-          name: input.name,
-          category: input.category,
-          sku: input.sku,
-          upc: input.upc,
-          description: input.description,
-          priceCents: input.priceCents,
-          // Cost is owner-only information; a non-owner can't set it.
-          costCents: role === "OWNER" ? input.costCents : null,
-          taxable: input.taxable,
-          stockQty: input.serialized ? 0 : input.stockQty,
-          lowStockAt: input.lowStockAt,
-          warrantyDays: input.warrantyDays,
-          reorderQty: input.reorderQty,
-          vendorId,
-          vendorSku: input.vendorSku,
-          // A brand-new serialized product starts empty by definition: units
-          // only exist once their serial numbers do.
-          serialized: input.serialized,
-          active: input.active,
-        },
-        select: { id: true, stockQty: true },
-      });
-
-      if (product.stockQty !== 0) {
-        await tx.stockAdjustment.create({
-          data: {
-            shopId,
-            productId: product.id,
-            delta: product.stockQty,
-            reason: "Initial stock",
-            userId,
-          },
-        });
-      }
-
-      return product.id;
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      return {
-        error: "Please fix the highlighted fields.",
-        fieldErrors: { sku: DUPLICATE_SKU },
-      };
-    }
-    throw error;
+  const result = await createProductCore({ shopId, userId, role }, parsed.data);
+  if (!result.ok) {
+    return result.skuTaken
+      ? { error: "Please fix the highlighted fields.", fieldErrors: { sku: DUPLICATE_SKU } }
+      : { error: "Couldn't save the product just now — please try again." };
   }
 
   revalidatePath("/inventory");
-  // redirect() throws — must stay outside the try/catch above.
-  redirect(`/inventory/${productId}?flash=created`);
+  // redirect() throws — must stay outside the try/catch inside the core above.
+  redirect(`/inventory/${result.id}?flash=created`);
+}
+
+/**
+ * The Quick Add dialog's create.
+ *
+ * The fast path: name, price, quantity and an optional category. Everything else
+ * takes its column default and the SKU is always minted — so a counter person
+ * gets an item on the shelf in four fields instead of fourteen, and never has to
+ * invent a part number. It returns a result (no redirect) so the dialog can
+ * toast, clear itself, and stay open for the next item.
+ */
+export async function quickAddProductAction(
+  _prev: QuickAddState,
+  formData: FormData,
+): Promise<QuickAddState> {
+  const { shopId, userId, role } = await requireUser();
+
+  const input: ProductInput = {
+    name: text(formData, "name") ?? "",
+    category: text(formData, "category") ?? null,
+    sku: null,
+    upc: null,
+    description: null,
+    priceCents: cents(formData, "price") ?? 0,
+    costCents: null,
+    taxable: true,
+    stockQty: whole(formData, "stockQty") ?? 0,
+    lowStockAt: null,
+    warrantyDays: null,
+    reorderQty: null,
+    vendorId: null,
+    vendorSku: null,
+    serialized: false,
+    active: true,
+  };
+
+  const parsed = productSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Please fix the highlighted fields.",
+      fieldErrors: fieldErrorsOf(parsed.error),
+    };
+  }
+
+  const result = await createProductCore({ shopId, userId, role }, parsed.data);
+  if (!result.ok) {
+    return { ok: false, error: "Couldn't save the product just now — please try again." };
+  }
+
+  revalidatePath("/inventory");
+  return { ok: true, productId: result.id, name: parsed.data.name, sku: result.sku };
 }
 
 export async function updateProductAction(
@@ -289,7 +393,7 @@ export async function updateProductAction(
 
   const owned = await db.product.findFirst({
     where: { id, shopId },
-    select: { id: true, stockQty: true, serialized: true },
+    select: { id: true, stockQty: true, serialized: true, sku: true },
   });
   if (!owned) return { error: "Product not found." };
 
@@ -328,7 +432,7 @@ export async function updateProductAction(
         data: {
           name: input.name,
           category: input.category,
-          sku: input.sku,
+          sku: input.sku ?? owned.sku ?? await nextSku(tx, shopId, input.name, input.category),
           upc: input.upc,
           description: input.description,
           priceCents: input.priceCents,

@@ -1,0 +1,222 @@
+"use client";
+
+import * as React from "react";
+
+import { transcribeAudioAction } from "@/app/(app)/voice/actions";
+
+/**
+ * Browser dictation with two engines behind one interface.
+ *
+ *   cloud = false  the browser's own speech recognition — free, no key, strong
+ *                  for English in Chrome/Edge, weak/absent elsewhere.
+ *   cloud = true   record a few seconds and send it to the Whisper-style
+ *                  provider (see app/(app)/voice/actions.ts). Auto-detects the
+ *                  language, so spoken Hindi/Hinglish/Punjabi works — and it runs
+ *                  on iPhone, which has no browser speech engine at all.
+ *
+ * The caller passes `cloud` from the server's `sttEnabled()`; either way it gets
+ * the same `{ supported, state, start, stop }`, and where nothing is supported
+ * the mic simply hides and the text box carries on (typed input already
+ * understands every language).
+ */
+
+type SpeechAlternative = { transcript: string };
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<SpeechAlternative>>;
+};
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+function getRecognitionCtor(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+function hasMediaRecorder(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.MediaRecorder === "function" &&
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia)
+  );
+}
+
+/** Support never changes at runtime, so there's nothing to notify. */
+const subscribe = () => () => {};
+
+const MIC_BLOCKED = "Microphone blocked — allow mic access to use voice.";
+
+export type DictationState = "idle" | "listening" | "transcribing";
+export type Dictation = {
+  supported: boolean;
+  state: DictationState;
+  start: () => void;
+  stop: () => void;
+  cancel: () => void;
+};
+
+export function useDictation(
+  onText: (transcript: string) => void,
+  onError?: (message: string) => void,
+  options?: { cloud?: boolean },
+): Dictation {
+  const cloud = options?.cloud ?? false;
+
+  // Client-only capability with an SSR snapshot of false — no hydration mismatch.
+  const supported = React.useSyncExternalStore(
+    subscribe,
+    () => (cloud ? hasMediaRecorder() : getRecognitionCtor() !== null),
+    () => false,
+  );
+
+  const [state, setState] = React.useState<DictationState>("idle");
+
+  const onTextRef = React.useRef(onText);
+  const onErrorRef = React.useRef(onError);
+  React.useEffect(() => {
+    onTextRef.current = onText;
+    onErrorRef.current = onError;
+  }, [onText, onError]);
+
+  const recognitionRef = React.useRef<SpeechRecognitionLike | null>(null);
+  const recorderRef = React.useRef<MediaRecorder | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const generation = React.useRef(0);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancel = React.useCallback(() => {
+    generation.current += 1;
+    if (timer.current) clearTimeout(timer.current);
+    const recognition = recognitionRef.current;
+    if (recognition) { recognition.onresult = null; recognition.onend = null; recognition.onerror = null; recognition.abort(); }
+    const recorder = recorderRef.current;
+    if (recorder) { recorder.onstop = null; if (recorder.state !== "inactive") recorder.stop(); }
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    recorderRef.current = null;
+    recognitionRef.current = null;
+    setState("idle");
+  }, []);
+
+  React.useEffect(
+    () => cancel,
+    [cancel],
+  );
+
+  const fail = React.useCallback((message: string) => {
+    setState("idle");
+    onErrorRef.current?.(message);
+  }, []);
+
+  const startBrowser = React.useCallback(() => {
+    const Recognition = getRecognitionCtor();
+    if (!Recognition) return;
+
+    const recognition = new Recognition();
+    recognition.lang = navigator.language || "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
+      if (transcript) onTextRef.current(transcript);
+    };
+    recognition.onerror = (event) =>
+      fail(
+        event?.error === "not-allowed" || event?.error === "service-not-allowed"
+          ? MIC_BLOCKED
+          : "Voice input didn't work — you can type it instead.",
+      );
+    recognition.onend = () => setState((current) => (current === "listening" ? "idle" : current));
+
+    recognitionRef.current = recognition;
+    setState("listening");
+    try {
+      recognition.start();
+    } catch {
+      setState("idle");
+    }
+  }, [fail]);
+
+  const startCloud = React.useCallback(async () => {
+    const capture = ++generation.current;
+    setState("listening");
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      if (capture === generation.current) fail(MIC_BLOCKED);
+      return;
+    }
+    if (capture !== generation.current) { stream.getTracks().forEach(track => track.stop()); return; }
+
+    let recorder: MediaRecorder;
+    try { recorder = new MediaRecorder(stream); }
+    catch { stream.getTracks().forEach(track => track.stop()); fail("Recording is unavailable. Please type your request."); return; }
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.onstop = () => {
+      if (timer.current) clearTimeout(timer.current);
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (capture !== generation.current) return;
+
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      if (blob.size === 0) {
+        setState("idle");
+        return;
+      }
+
+      setState("transcribing");
+      const form = new FormData();
+      const extension = blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm";
+      form.set("audio", blob, `command.${extension}`);
+      transcribeAudioAction(form)
+        .then((result) => {
+          if (capture !== generation.current) return;
+          setState("idle");
+          if (result.ok) onTextRef.current(result.text);
+          else onErrorRef.current?.(result.reason);
+        })
+        .catch(() => { if (capture === generation.current) fail("Couldn't transcribe that — try again."); });
+    };
+
+    recorderRef.current = recorder;
+    streamRef.current = stream;
+    setState("listening");
+    try {
+      recorder.start();
+      timer.current = setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 60_000);
+    } catch { stream.getTracks().forEach(track => track.stop()); fail("Recording didn't start. Please type your request."); }
+  }, [fail]);
+
+  const start = React.useCallback(() => {
+    if (state !== "idle") return;
+    if (cloud) void startCloud();
+    else startBrowser();
+  }, [cloud, startBrowser, startCloud, state]);
+
+  const stop = React.useCallback(() => {
+    if (cloud) { if (recorderRef.current?.state === "recording") recorderRef.current.stop(); else { generation.current += 1; setState("idle"); } }
+    else recognitionRef.current?.stop();
+  }, [cloud]);
+
+  return { supported, state, start, stop, cancel };
+}

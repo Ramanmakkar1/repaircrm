@@ -32,15 +32,18 @@ const UI_COOKIE = "rf_ui";
 const MAX_AGE = 60 * 60 * 24 * 365;
 
 export type Density = "comfortable" | "compact";
+export type Theme = "system" | "light" | "dark";
 
 export interface UiPrefs {
   density: Density;
+  theme: Theme;
   /** Rail collapsed to icons only. Desktop only; the mobile drawer ignores it. */
   railCollapsed: boolean;
 }
 
 export const DEFAULT_PREFS: UiPrefs = {
   density: "comfortable",
+  theme: "system",
   railCollapsed: false,
 };
 
@@ -50,6 +53,10 @@ function parse(raw: string | undefined): UiPrefs {
     const value = JSON.parse(raw) as Partial<UiPrefs>;
     return {
       density: value.density === "compact" ? "compact" : "comfortable",
+      theme:
+        value.theme === "dark" || value.theme === "light"
+          ? value.theme
+          : "system",
       railCollapsed: value.railCollapsed === true,
     };
   } catch {

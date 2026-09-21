@@ -233,7 +233,7 @@ export default async function PortalTicketPage({
               {ticket.attachments.map((file) => (
                 <li key={file.id} className="px-5 py-3.5 sm:px-6">
                   <a
-                    href={file.path}
+                    href={`/files/${file.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="flex items-center gap-3.5"
@@ -241,7 +241,7 @@ export default async function PortalTicketPage({
                     {fileKind(file.mimeType) === "image" ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={file.path}
+                        src={`/files/${file.id}`}
                         alt={file.fileName}
                         className="size-11 shrink-0 rounded-md border border-border object-cover"
                       />

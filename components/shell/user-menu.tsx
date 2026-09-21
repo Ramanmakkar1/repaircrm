@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Rows2, Rows3 } from "lucide-react";
-import { setDensityAction } from "@/app/(app)/prefs-actions";
+import { Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
+import { setDensityAction, setThemeAction } from "@/app/(app)/prefs-actions";
 import { cn } from "@/components/ui/cn";
-import type { Density } from "@/lib/prefs";
+import type { Density, Theme } from "@/lib/prefs";
 import { Avatar, AvatarFallback, getInitials } from "@/components/ui/avatar";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
@@ -30,9 +30,11 @@ export interface CurrentUser {
 export function UserMenu({
   user,
   density,
+  theme,
 }: {
   user: CurrentUser;
   density: Density;
+  theme: Theme;
 }) {
   return (
     <DropdownMenu>
@@ -70,6 +72,8 @@ export function UserMenu({
             see components/pwa/install-app-item.tsx. */}
         <InstallAppItem />
         <DropdownMenuSeparator />
+        <ThemeChoice current={theme} />
+        <DropdownMenuSeparator />
         <DensityChoice current={density} />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild className="text-destructive focus:text-destructive">
@@ -82,6 +86,66 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Visual theme, on THIS device: System (follow OS), Light, or Dark.
+ *
+ * Like density, this is a per-device display preference that immediately sets
+ * `data-theme` and writes the persistent cookie on the server.
+ */
+function ThemeChoice({ current }: { current: Theme }) {
+  const [pending, start] = React.useTransition();
+
+  const options: {
+    value: Theme;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
+    { value: "system", label: "Auto", icon: Monitor },
+    { value: "light", label: "Light", icon: Sun },
+    { value: "dark", label: "Dark", icon: Moon },
+  ];
+
+  return (
+    <div className="px-2 py-1.5">
+      <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
+        Theme
+      </p>
+      <div className="flex items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1">
+        {options.map((option) => {
+          const active = option.value === current;
+          const Icon = option.icon;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                if (option.value === "system") {
+                  delete document.documentElement.dataset.theme;
+                } else {
+                  document.documentElement.dataset.theme = option.value;
+                }
+                start(() => void setThemeAction(option.value));
+              }}
+              aria-pressed={active}
+              className={cn(
+                "inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm text-[12.5px] font-semibold transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60",
+                active
+                  ? "bg-surface text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

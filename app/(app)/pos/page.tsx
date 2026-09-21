@@ -72,6 +72,9 @@ export default async function PosPage() {
           creditBalanceCents: true,
           taxExempt: true,
           taxRateId: true,
+          phone: true,
+          mobile: true,
+          email: true,
         },
       }),
       // Tickets the counter can bill: still open, and carrying work nobody has
@@ -179,6 +182,8 @@ export default async function PosPage() {
         return {
           id: c.id,
           label: customerLabel(c),
+          phone: c.mobile || c.phone,
+          email: c.email,
           creditBalanceCents: c.creditBalanceCents,
           taxRateBps: tax.taxRateBps,
           taxExempt: c.taxExempt,

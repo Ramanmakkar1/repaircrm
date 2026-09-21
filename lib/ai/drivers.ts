@@ -10,7 +10,7 @@
  * trace, because the reason goes straight into a toast.
  */
 
-import { AI_TIMEOUT_MS, aiModel, ollamaUrl } from "./config";
+import { AI_TIMEOUT_MS, aiModel, ollamaUrl, type OpenAiTarget } from "./config";
 import type { AiResult } from "./types";
 
 export type GenerateInput = {
@@ -96,6 +96,67 @@ export async function generateAnthropic(input: GenerateInput): Promise<AiResult>
     return { ok: true, text };
   } catch (error) {
     return { ok: false, reason: transportReason(error, "Anthropic") };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI-compatible — POST {baseUrl}/chat/completions
+// ---------------------------------------------------------------------------
+
+/** One choice in an OpenAI chat response; only the message content is the draft. */
+type OpenAiChoice = { message?: { content?: string } };
+
+/**
+ * The one driver for every hosted model that speaks OpenAI's chat/completions
+ * shape — OpenAI itself, GLM/Zhipu, Groq, DeepSeek, OpenRouter, or any custom
+ * endpoint. They differ only by the `target` (base URL, key, model) resolved in
+ * config.ts, which is why experimenting across them needs no new code here.
+ *
+ * `target.name` names the provider in every failure message, so a 401 from GLM
+ * reads "glm returned 401", not a generic "AI error" — the toast has to tell a
+ * front-desk person which key to check.
+ */
+export async function generateOpenAiCompatible(
+  input: GenerateInput,
+  target: OpenAiTarget,
+): Promise<AiResult> {
+  if (!target.apiKey) {
+    return { ok: false, reason: `${target.name} API key is not set` };
+  }
+
+  try {
+    const response = await fetch(`${target.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${target.apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: target.model,
+        max_tokens: input.maxTokens,
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: input.prompt },
+        ],
+      }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return {
+        ok: false,
+        reason: reason(`${target.name} returned ${response.status} ${detail}`),
+      };
+    }
+
+    const payload = (await response.json()) as { choices?: OpenAiChoice[] };
+    const text = (payload.choices?.[0]?.message?.content ?? "").trim();
+
+    if (!text) return { ok: false, reason: `${target.name} returned an empty draft` };
+    return { ok: true, text };
+  } catch (error) {
+    return { ok: false, reason: transportReason(error, target.name) };
   }
 }
 

@@ -64,6 +64,8 @@ export function tracksStock(product: {
 export type PosCustomer = {
   id: string;
   label: string;
+  phone?: string | null;
+  email?: string | null;
   creditBalanceCents: number;
   /** The rate this customer is taxed at, already resolved (see lib/tax.ts). */
   taxRateBps: number;

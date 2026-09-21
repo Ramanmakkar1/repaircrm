@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { createTicketAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE } from "./action-state";
 import { PRIORITIES, PRIORITY_META } from "./ticket-meta";
+import { NewCustomerFields, NewDeviceFields, PromisedTimeField } from "./intake-fields";
 
 export type Option = { value: string; label: string };
 
@@ -72,7 +73,7 @@ export function TicketForm({
     EMPTY_STATE,
   );
 
-  const [customerId, setCustomerId] = React.useState(defaultCustomerId ?? "");
+  const [customerId, setCustomerId] = React.useState(defaultCustomerId ?? (customers.length ? "" : "__new__"));
   const [assetId, setAssetId] = React.useState("none");
   const [isWarranty, setIsWarranty] = React.useState(false);
   const [warrantyLineId, setWarrantyLineId] = React.useState("none");
@@ -111,6 +112,7 @@ export function TicketForm({
                   <SelectValue placeholder="Choose a customer…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
+                  <SelectItem value="__new__">+ New customer</SelectItem>
                   {customers.map((customer) => (
                     <SelectItem key={customer.value} value={customer.value}>
                       {customer.label}
@@ -133,13 +135,14 @@ export function TicketForm({
                 name="assetId"
                 value={assetId}
                 onValueChange={setAssetId}
-                disabled={!customerId || assets.length === 0}
+                disabled={!customerId}
               >
                 <SelectTrigger id="assetId">
                   <SelectValue placeholder="No device" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   <SelectItem value="none">No device</SelectItem>
+                  <SelectItem value="__new__">+ New device</SelectItem>
                   {assets.map((asset) => (
                     <SelectItem key={asset.value} value={asset.value}>
                       {asset.label}
@@ -148,6 +151,15 @@ export function TicketForm({
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+
+          {customerId === "__new__" ? <NewCustomerFields /> : null}
+          {assetId === "__new__" ? <NewDeviceFields /> : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Quoted price" htmlFor="quotedPrice"><Input id="quotedPrice" name="quotedPrice" type="number" min="0" step="0.01" placeholder="Optional" /></Field>
+            <Field label="Inspection fee" htmlFor="inspectionFee"><Input id="inspectionFee" name="inspectionFee" type="number" min="0" step="0.01" placeholder="0.00" /></Field>
+            <label className="flex items-center gap-2 self-center text-sm"><input type="checkbox" name="termsAccepted" /> Customer accepted the shop&apos;s repair terms</label>
           </div>
 
           <Field label="Subject" htmlFor="subject" required>
@@ -207,13 +219,7 @@ export function TicketForm({
               </Select>
             </Field>
 
-            <Field
-              label="Due date"
-              htmlFor="dueDate"
-              hint={slaHint}
-            >
-              <Input id="dueDate" name="dueDate" type="date" />
-            </Field>
+            <PromisedTimeField hint={slaHint} />
 
             {locations.length > 1 ? (
               <Field label="Location" htmlFor="locationId">

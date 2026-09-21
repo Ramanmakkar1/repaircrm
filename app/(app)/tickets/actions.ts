@@ -36,6 +36,7 @@ import {
   type PartActionState,
 } from "@/components/tickets/part-meta";
 import type { ActionState } from "@/components/tickets/action-state";
+import { newCustomerSchema, newDeviceSchema, splitCustomerName, promisedDate } from "@/lib/intake";
 
 /**
  * Every action here re-reads the session and verifies the target row belongs to
@@ -212,19 +213,39 @@ export async function createTicketAction(
 ): Promise<ActionState> {
   const { shopId, userId } = await requireUser();
 
-  const customerId = str(formData, "customerId");
+  const selectedCustomerId = str(formData, "customerId");
+  const isNewCustomer = selectedCustomerId === "__new__";
+  let customerId = isNewCustomer ? "" : selectedCustomerId;
   const subject = str(formData, "subject");
   const problemType = str(formData, "problemType");
 
-  if (!customerId) return { error: "Pick a customer for this ticket." };
+  if (!selectedCustomerId) return { error: "Pick a customer for this ticket." };
   if (!subject) return { error: "A subject is required." };
+  if (subject.length > 200 || problemType.length > 80) return { error: "Shorten the subject or problem type." };
   if (!problemType) return { error: "Pick a problem type." };
 
-  const customer = await db.customer.findFirst({
+  const newCustomer = isNewCustomer ? newCustomerSchema.safeParse({ name: str(formData, "newCustomerName"), email: str(formData, "newCustomerEmail").toLowerCase(), phone: str(formData, "newCustomerPhone") }) : null;
+  if (newCustomer && !newCustomer.success) return { error: newCustomer.error.issues[0].message };
+  const newDevice = str(formData, "assetId") === "__new__" ? newDeviceSchema.safeParse({ type: str(formData, "newDeviceType"), make: str(formData, "newDeviceMake"), model: str(formData, "newDeviceModel"), serial: str(formData, "newDeviceSerial"), password: str(formData, "newDevicePassword") }) : null;
+  if (newDevice && !newDevice.success) return { error: "Check the new device details." };
+  if (newCustomer?.success) {
+    const matches: Prisma.CustomerWhereInput[] = [];
+    if (newCustomer.data.email) matches.push({ email: { equals: newCustomer.data.email, mode: "insensitive" } });
+    if (newCustomer.data.phone) matches.push({ phone: newCustomer.data.phone }, { mobile: newCustomer.data.phone });
+    const duplicate = matches.length ? await db.customer.findFirst({ where: { shopId, OR: matches }, select: { firstName: true, lastName: true } }) : null;
+    if (duplicate) return { error: `This contact matches ${duplicate.firstName} ${duplicate.lastName}. Select that existing customer to avoid a duplicate.` };
+  }
+  const quotedPriceCents = str(formData, "quotedPrice") ? parseCents(str(formData, "quotedPrice")) : null;
+  const inspectionFeeCents = parseCents(str(formData, "inspectionFee"));
+  if ([quotedPriceCents ?? 0, inspectionFeeCents].some(v => v < 0 || v > 100_000_000)) return { error: "Enter valid non-negative prices." };
+  const promisedAt = promisedDate(str(formData, "promisedAt"));
+  if (str(formData, "promisedAt") && !promisedAt) return { error: "Choose a valid pickup date and time." };
+
+  const customer = isNewCustomer ? null : await db.customer.findFirst({
     where: { id: customerId, shopId },
     select: { id: true },
   });
-  if (!customer) return { error: "That customer no longer exists." };
+  if (!isNewCustomer && !customer) return { error: "That customer no longer exists." };
 
   // The branch on screen, else the user's own, else the shop default. A form
   // that named one wins, but only if it is this shop's and still open.
@@ -234,7 +255,7 @@ export async function createTicketAction(
 
   // Resolved up front: `withNextNumber`'s callback must stay synchronous in the
   // object literal it builds, and these are ownership checks, not formatting.
-  const assetId = await validAssetId(
+  const assetId = isNewCustomer || newDevice ? null : await validAssetId(
     shopId,
     customerId,
     optionalId(formData, "assetId"),
@@ -253,7 +274,7 @@ export async function createTicketAction(
     select: { settings: true },
   });
   const dueDate =
-    optionalDate(formData, "dueDate") ?? slaDueDate(shop?.settings, priority);
+    promisedAt ?? optionalDate(formData, "dueDate") ?? slaDueDate(shop?.settings, priority);
 
   // A checklist named on the form wins; on "auto" (the default, and what a
   // form with no picker at all sends) the template that claims this problem
@@ -268,20 +289,29 @@ export async function createTicketAction(
     checklistChoice === "" || checklistChoice === AUTO,
   );
 
-  const warrantyLineId = await validWarrantyLineId(
+  const warrantyLineId = isNewCustomer ? null : await validWarrantyLineId(
     shopId,
     customerId,
     optionalId(formData, "warrantyInvoiceLineId"),
   );
 
-  const ticket = await withNextNumber(shopId, "ticket", (number) =>
-    db.ticket.create({
+  const ticket = await withNextNumber(shopId, "ticket", (number) => db.$transaction(async tx => {
+    if (newCustomer?.success) {
+      const created = await tx.customer.create({ data: { shopId, ...splitCustomerName(newCustomer.data.name), email: newCustomer.data.email || null, phone: newCustomer.data.phone || null, mobile: newCustomer.data.phone || null, smsOptIn: false, emailOptIn: false } });
+      customerId = created.id;
+    }
+    let deviceId = assetId;
+    if (newDevice?.success) {
+      const created = await tx.asset.create({ data: { shopId, customerId, ...newDevice.data, password: newDevice.data.password || null } });
+      deviceId = created.id;
+    }
+    return tx.ticket.create({
       data: {
         shopId,
         number,
         customerId,
         locationId,
-        assetId,
+        assetId: deviceId,
         subject,
         problemType,
         status: str(formData, "status") || "New",
@@ -293,6 +323,8 @@ export async function createTicketAction(
         isWarranty: warrantyLineId !== null,
         warrantyInvoiceLineId: warrantyLineId,
         diagnosticNotes: str(formData, "diagnosticNotes") || null,
+        customFields: { quotedPriceCents, termsAcceptedAt: bool(formData, "termsAccepted") ? new Date().toISOString() : null },
+        ...(inspectionFeeCents > 0 ? { charges: { create: { shopId, description: "Inspection fee", quantity: 1, unitPriceCents: inspectionFeeCents, taxable: true } } } : {}),
         comments: {
           create: {
             shopId,
@@ -305,7 +337,8 @@ export async function createTicketAction(
         },
       },
       select: { id: true },
-    }),
+    });
+  }),
   );
 
   await emitTicketEvent(shopId, "ticket.created", ticket.id);
@@ -1422,6 +1455,12 @@ export async function markPickedUpAction(ticketId: string): Promise<ActionState>
         resolvedAt: now,
       },
     });
+
+    const collected = await tx.ticket.findFirst({ where: { id: ticket.id, shopId }, select: { assetId: true } });
+    if (collected?.assetId) {
+      const others = await tx.ticket.count({ where: { shopId, assetId: collected.assetId, id: { not: ticket.id }, status: { not: RESOLVED_STATUS }, pickedUpAt: null } });
+      if (others === 0) await tx.asset.updateMany({ where: { id: collected.assetId, shopId }, data: { password: null } });
+    }
 
     await tx.ticketComment.create({
       data: {

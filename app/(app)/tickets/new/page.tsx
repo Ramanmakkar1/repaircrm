@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { format } from "date-fns";
 
 import { db } from "@/lib/db";
@@ -76,11 +75,6 @@ export default async function NewTicketPage({
     }),
     activeWarrantiesByCustomer(shopId),
   ]);
-
-  if (customers.length === 0) {
-    // Nothing to attach a ticket to yet — the customers module owns that flow.
-    notFound();
-  }
 
   const assetsByCustomer: Record<string, Option[]> = {};
   for (const customer of customers) {

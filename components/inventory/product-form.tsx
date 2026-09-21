@@ -146,6 +146,7 @@ export function ProductForm({
     initialValues(product, defaults),
   );
   const [confirmed, setConfirmed] = React.useState(false);
+  const [customSku, setCustomSku] = React.useState(Boolean(defaults?.sku));
 
   // Turning serial tracking ON for a product that already has stock is the one
   // destructive edit on this form, so it asks first (and the server refuses
@@ -221,22 +222,29 @@ export function ProductForm({
             <Input {...field("category")} placeholder="Parts / Displays" />
           </Field>
 
-          {/* SKU and UPC are the two code fields on this form. Each sits in a
-              row of its own with the input on `flex-1`, which is the slot the
-              camera-scan control drops into on the right — these shops have no
-              laser guns, so scanning has to be a full-height button beside the
-              field, not a glyph inside it. */}
           <Field
             label="SKU"
             htmlFor="sku"
             error={errors.sku}
-            hint="Your own part number. Printed as the label barcode."
+            hint="Used automatically on barcode labels and at checkout."
           >
-            <div className="flex items-center gap-2">
+            {!customSku ? (
+              <div className="space-y-2">
+                <input type="hidden" name="sku" value={isEdit ? values.sku : ""} />
+                <div id="sku" className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                  {isEdit && values.sku ? <span className="font-mono">{values.sku}</span> : "Generated automatically when you save"}
+                </div>
+                <button type="button" className="text-sm text-primary underline underline-offset-4" onClick={() => setCustomSku(true)}>
+                  {isEdit ? "Change SKU" : "Use my own SKU"}
+                </button>
+              </div>
+            ) : <div className="space-y-2">
+              <div className="flex items-center gap-2">
               <Input
                 {...field("sku")}
                 className="flex-1 font-mono uppercase"
-                placeholder="SCR-IP14"
+                placeholder="Your existing product code"
+                maxLength={60}
                 aria-invalid={Boolean(errors.sku)}
               />
               <ScanButton
@@ -248,7 +256,11 @@ export function ProductForm({
                   return `SKU set to ${hit.value}`;
                 }}
               />
-            </div>
+              </div>
+              <button type="button" className="text-sm text-primary underline underline-offset-4" onClick={() => { set("sku", product?.sku ?? ""); setCustomSku(false); }}>
+                {isEdit ? "Keep current SKU" : "Generate automatically instead"}
+              </button>
+            </div>}
           </Field>
 
           <Field

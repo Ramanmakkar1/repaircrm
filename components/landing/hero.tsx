@@ -129,7 +129,7 @@ export function Hero() {
               Repair shop CRM · $0 during early access
             </span>
 
-            <h1 className="mt-5 text-balance text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-6xl lg:text-[68px]">
+            <h1 className="mt-5 text-balance text-[42px] font-bold leading-[0.98] tracking-[-0.025em] sm:text-6xl lg:text-[68px]">
               Run every repair from intake to pickup.
             </h1>
 

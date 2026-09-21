@@ -16,7 +16,31 @@ export type AiResult =
   | { ok: true; text: string }
   | { ok: false; reason: string };
 
-export type AiDriverName = "anthropic" | "ollama" | "off";
+/**
+ * Every text-generation backend the app can be pointed at.
+ *
+ *   off         no AI (default)
+ *   anthropic   Claude, native Messages API
+ *   ollama      a local model, native Ollama API
+ *   openai · glm · groq · deepseek · openrouter
+ *               hosted models that all speak the OpenAI "chat/completions"
+ *               shape — one driver serves them, they differ only by base URL,
+ *               key and model (see lib/ai/config.ts)
+ *   custom      any other OpenAI-compatible endpoint, via AI_BASE_URL/AI_API_KEY
+ *
+ * Several keys can live in the environment at once; AI_DRIVER picks which is
+ * live, so a shop can flip between them to see which answers best.
+ */
+export type AiDriverName =
+  | "off"
+  | "anthropic"
+  | "ollama"
+  | "openai"
+  | "glm"
+  | "groq"
+  | "deepseek"
+  | "openrouter"
+  | "custom";
 
 /** The three shapes a customer-facing repair update actually takes. */
 export type DraftTone = "update" | "ready" | "delay";

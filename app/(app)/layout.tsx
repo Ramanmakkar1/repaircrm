@@ -3,6 +3,8 @@ import { readUiPrefs } from "@/lib/prefs";
 import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { HardwareScanRouter } from "@/components/scan/hardware-scan-router";
+import { aiEnabled, sttEnabled } from "@/lib/ai";
 import { platformSetting } from "@/lib/platform-admin";
 import { isPlatformAdminEmail } from "@/lib/platform-admin-access";
 
@@ -37,9 +39,12 @@ export default async function AppLayout({
       locations={locations}
       currentLocationId={locationId}
       prefs={prefs}
+      assistant={{ enabled: aiEnabled(), cloud: sttEnabled() }}
     >
       {/* Production only; see the note in the component. */}
       <RegisterServiceWorker />
+      {/* USB scan-gun support: resolve a gun scan anywhere and jump to it. */}
+      <HardwareScanRouter />
       {children}
     </AppShell>
   );

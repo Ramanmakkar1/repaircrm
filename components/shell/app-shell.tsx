@@ -16,6 +16,7 @@ export function AppShell({
   locations,
   currentLocationId,
   prefs,
+  assistant,
   children,
 }: {
   user: CurrentUser;
@@ -25,6 +26,7 @@ export function AppShell({
   currentLocationId: string;
   /** Per-device display preferences, read from the cookie on the server. */
   prefs: UiPrefs;
+  assistant: { enabled: boolean; cloud: boolean };
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -58,6 +60,8 @@ export function AppShell({
             onMenuClick={() => setMobileOpen(true)}
             onSearchClick={() => setSearchOpen(true)}
             density={prefs.density}
+            theme={prefs.theme}
+            assistant={assistant}
           />
           <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
             <div className="mx-auto w-full max-w-7xl">{children}</div>

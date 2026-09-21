@@ -13,6 +13,7 @@ import {
   type InventoryFilter,
 } from "@/components/inventory/format";
 import { InventoryFilters } from "@/components/inventory/inventory-filters";
+import { QuickAddProduct } from "@/components/inventory/quick-add-product";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { aiEnabled, sttEnabled } from "@/lib/ai";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
@@ -50,6 +52,11 @@ export default async function InventoryPage({
   const filter = asFilter(params.filter);
   const category = (params.category ?? "").trim();
   const showCost = role === "OWNER";
+  // Gates the mic in Quick Add — voice needs a configured model. Read on the
+  // server so the env check never reaches the browser bundle. Cloud voice
+  // (Whisper) adds spoken Hindi/Hinglish/Punjabi and iPhone support.
+  const aiOn = aiEnabled();
+  const sttOn = sttEnabled();
 
   const where = buildWhere(shopId, query, filter, category);
 
@@ -131,12 +138,7 @@ export default async function InventoryPage({
                 </Button>
               </>
             ) : null}
-            <Button asChild>
-              <Link href="/inventory/new">
-                <ACTIONS.add />
-                New Product
-              </Link>
-            </Button>
+            <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} />
           </>
         }
       />
@@ -227,12 +229,7 @@ export default async function InventoryPage({
                     <Link href="/inventory">Clear filters</Link>
                   </Button>
                 ) : (
-                  <Button asChild>
-                    <Link href="/inventory/new">
-                      <ACTIONS.add />
-                      New Product
-                    </Link>
-                  </Button>
+                  <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} />
                 )
               }
             />

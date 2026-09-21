@@ -203,7 +203,7 @@
  * here so neither block ever falls through to the other.
  */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #0a0b0d; /* canvas sits BELOW the rail and cards */
     --sidebar-bg: #101216;
     --surface: #15171c;
@@ -261,6 +261,64 @@
   }
 }
 
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  --background: #0a0b0d; /* canvas sits BELOW the rail and cards */
+  --sidebar-bg: #101216;
+  --surface: #15171c;
+  --surface-hover: #1e2128;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --border: #262b33;
+  --border-strong: #363c46;
+
+  --foreground: #f2f3f4;
+  --muted-foreground: #a4a7ad;
+  --faint-foreground: #858a92;
+
+  --accent: #f1f2f3;
+  --accent-hover: #d9dbde;
+  --accent-foreground: #111214;
+  --accent-soft: #292c31;
+  --accent-soft-foreground: #f1f2f3;
+
+  --ring: #aeb2b9;
+
+  --destructive: #f4736c;
+  --destructive-hover: #f78e88;
+  --destructive-foreground: #260b0a;
+  --destructive-soft: #351716;
+
+  --status-new: #5b93f5;
+  --status-new-bg: #15213a;
+  --status-new-fg: #9cbdfa;
+
+  --status-in-progress: #e5a041;
+  --status-in-progress-bg: #2e230f;
+  --status-in-progress-fg: #f0bd73;
+
+  --status-waiting: #a683f0;
+  --status-waiting-bg: #241d3a;
+  --status-waiting-fg: #c6adf7;
+
+  --status-ready: #33b7a8;
+  --status-ready-bg: #0e2724;
+  --status-ready-fg: #6ed3c5;
+
+  --status-resolved: #4ade80;
+  --status-resolved-bg: #112719;
+  --status-resolved-fg: #86e6a6;
+
+  --status-overdue: #f4736c;
+  --status-overdue-bg: #351716;
+  --status-overdue-fg: #f78e88;
+
+  --shadow-color: 0 0 0;
+
+  --chip-accent-bg: #292c31;
+  --chip-accent-fg: #f1f2f3;
+}
+
 /*
  * These MUST stay inside `@layer base`.
  *
@@ -278,6 +336,14 @@
 
   html {
     color-scheme: light dark;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
   }
 
   body {
@@ -414,7 +480,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .rf-skeleton {
+  :root:not([data-theme="light"]) .rf-skeleton {
     background-image: linear-gradient(
       90deg,
       transparent 0%,
@@ -422,6 +488,16 @@
       transparent 100%
     );
   }
+}
+
+:root[data-theme="dark"] .rf-skeleton,
+[data-theme="dark"] .rf-skeleton {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.06) 50%,
+    transparent 100%
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
