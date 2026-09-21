@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { transcribeAudioAction } from "@/app/(app)/voice/actions";
+import { isVoiceSampleAboveThreshold, shouldStopForSilence } from "@/lib/voice/silence";
 
 /**
  * Browser dictation with two engines behind one interface.
@@ -98,10 +99,29 @@ export function useDictation(
   const streamRef = React.useRef<MediaStream | null>(null);
   const generation = React.useRef(0);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioContextRef = React.useRef<AudioContext | null>(null);
+  const analyserRef = React.useRef<AnalyserNode | null>(null);
+  const audioSourceRef = React.useRef<MediaStreamAudioSourceNode | null>(null);
+  const silenceFrameRef = React.useRef<number | null>(null);
+
+  const stopSilenceMonitor = React.useCallback(() => {
+    if (silenceFrameRef.current !== null) {
+      cancelAnimationFrame(silenceFrameRef.current);
+      silenceFrameRef.current = null;
+    }
+    audioSourceRef.current?.disconnect();
+    analyserRef.current?.disconnect();
+    audioSourceRef.current = null;
+    analyserRef.current = null;
+    const context = audioContextRef.current;
+    audioContextRef.current = null;
+    if (context && context.state !== "closed") void context.close().catch(() => undefined);
+  }, []);
 
   const cancel = React.useCallback(() => {
     generation.current += 1;
     if (timer.current) clearTimeout(timer.current);
+    stopSilenceMonitor();
     const recognition = recognitionRef.current;
     if (recognition) { recognition.onresult = null; recognition.onend = null; recognition.onerror = null; recognition.abort(); }
     const recorder = recorderRef.current;
@@ -111,7 +131,7 @@ export function useDictation(
     recorderRef.current = null;
     recognitionRef.current = null;
     setState("idle");
-  }, []);
+  }, [stopSilenceMonitor]);
 
   React.useEffect(
     () => cancel,
@@ -174,6 +194,7 @@ export function useDictation(
     };
     recorder.onstop = () => {
       if (timer.current) clearTimeout(timer.current);
+      stopSilenceMonitor();
       stream.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
       if (capture !== generation.current) return;
@@ -203,9 +224,55 @@ export function useDictation(
     setState("listening");
     try {
       recorder.start();
+      const AudioContextCtor =
+        window.AudioContext ??
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextCtor) {
+        try {
+          const context = new AudioContextCtor();
+          const analyser = context.createAnalyser();
+          const source = context.createMediaStreamSource(stream);
+          analyser.fftSize = 512;
+          source.connect(analyser);
+          audioContextRef.current = context;
+          analyserRef.current = analyser;
+          audioSourceRef.current = source;
+          void context.resume().catch(() => undefined);
+
+          const samples = new Uint8Array(analyser.fftSize);
+          let hasSpoken = false;
+          let lastVoiceAt: number | null = null;
+          const inspectAudio = () => {
+            if (recorder.state !== "recording") {
+              stopSilenceMonitor();
+              return;
+            }
+            analyser.getByteTimeDomainData(samples);
+            let sum = 0;
+            for (const sample of samples) {
+              const normalized = (sample - 128) / 128;
+              sum += normalized * normalized;
+            }
+            const rms = Math.sqrt(sum / samples.length);
+            const now = Date.now();
+            if (isVoiceSampleAboveThreshold(rms)) {
+              hasSpoken = true;
+              lastVoiceAt = now;
+            } else if (shouldStopForSilence({ recording: true, hasSpoken, lastVoiceAt, now })) {
+              recorder.stop();
+              stopSilenceMonitor();
+              return;
+            }
+            silenceFrameRef.current = requestAnimationFrame(inspectAudio);
+          };
+          silenceFrameRef.current = requestAnimationFrame(inspectAudio);
+        } catch {
+          stopSilenceMonitor();
+        }
+      }
       timer.current = setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 60_000);
-    } catch { stream.getTracks().forEach(track => track.stop()); fail("Recording didn't start. Please type your request."); }
-  }, [fail]);
+    } catch { stopSilenceMonitor(); stream.getTracks().forEach(track => track.stop()); fail("Recording didn't start. Please type your request."); }
+  }, [fail, stopSilenceMonitor]);
 
   const start = React.useCallback(() => {
     if (state !== "idle") return;

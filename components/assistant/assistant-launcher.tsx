@@ -232,7 +232,7 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
             </Button>
           </form>
 
-          <p className="text-xs text-muted-foreground" role="status">{dictation.state === "listening" ? "Listening… press Stop when finished." : dictation.state === "transcribing" ? "Transcribing your recording…" : !dictation.supported ? "Voice is unavailable here. Type your request above." : "Microphone starts only when you press it. Review the transcript before sending."}</p>
+          <p className="text-xs text-muted-foreground" role="status">{dictation.state === "listening" ? "Listening… I’ll stop when you pause." : dictation.state === "transcribing" ? "Transcribing your recording…" : !dictation.supported ? "Voice is unavailable here. Type your request above." : "Microphone starts only when you press it. Review the transcript before sending."}</p>
           {enabled ? <div className="flex flex-wrap gap-2">{["What's ready for pickup?", "What's running low?", "Find iPhone screens"].map(text => <Button key={text} type="button" variant="outline" size="sm" disabled={pending} onClick={() => setInput(text)}>{text}</Button>)}</div> : null}
 
           {outcome ? (
