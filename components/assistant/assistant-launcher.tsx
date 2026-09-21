@@ -199,21 +199,24 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
               <Button
                 ref={voiceButtonRef}
                 type="button"
-                variant="soft"
-                size="icon"
+                variant={dictation.state === "listening" ? "destructive" : "soft"}
+                size={dictation.state === "listening" ? "sm" : "icon"}
                 aria-label={dictation.state === "listening" ? "Stop listening" : "Speak a command"}
                 aria-pressed={dictation.state === "listening"}
                 disabled={!enabled || !dictation.supported || pending || dictation.state === "transcribing"}
                 title={!dictation.supported ? "Voice is unavailable in this browser. You can type instead." : "Speak, review, then send"}
                 onClick={dictation.state === "listening" ? dictation.stop : dictation.start}
                 className={cn(
-                  dictation.state === "listening" && "ring-2 ring-inset ring-accent/50",
+                  dictation.state === "listening" && "min-w-[5.25rem] shadow-sm",
                 )}
               >
                 {dictation.state === "transcribing" ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden />
                 ) : dictation.state === "listening" ? (
-                  <Square className="size-4" aria-hidden />
+                  <>
+                    <Square className="size-3.5 fill-current" aria-hidden />
+                    <span>Stop</span>
+                  </>
                 ) : (
                   <Mic className="size-4" aria-hidden />
                 )}
