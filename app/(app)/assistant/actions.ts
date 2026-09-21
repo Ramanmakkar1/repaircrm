@@ -534,7 +534,10 @@ async function changeStock(
   if (mode === "delta" && amount === 0) {
     return { kind: "info", message: "That wouldn't change anything." };
   }
-  if (mode === "delta" && product.stockQty + amount < 0) {
+  // Only a REMOVAL can be refused. Stock that is already below zero (oversold
+  // at the register) still has to accept a delivery: "add 1" to -2 used to be
+  // turned away as "can't take off 1".
+  if (mode === "delta" && amount < 0 && product.stockQty + amount < 0) {
     return {
       kind: "error",
       message: `“${product.name}” only has ${product.stockQty} in stock — I can't take off ${Math.abs(amount)}.`,

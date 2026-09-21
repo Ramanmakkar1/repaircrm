@@ -181,6 +181,33 @@ describe("runAssistantAction", () => {
     expect(form.get("reason")).toBe("Received");
   });
 
+  it("adds to stock that is already below zero", async () => {
+    says({ action: "adjust_stock", product: "iphone x screen", amount: 1 });
+    handlers["product.findMany"] = () => [
+      { id: "p1", name: "iPhone X Screen", serialized: false, stockQty: -2 },
+    ];
+    adjustStockMock.mockResolvedValue({ ok: true });
+    handlers["product.findFirst"] = () => ({ stockQty: -1 });
+
+    const result = await runAssistantAction("yes add 1 more in stock");
+
+    expect(result).toMatchObject({ kind: "done" });
+    const [, , form] = adjustStockMock.mock.calls[0] as [string, unknown, FormData];
+    expect(form.get("amount")).toBe("1");
+  });
+
+  it("still refuses to take off more than there is", async () => {
+    says({ action: "adjust_stock", product: "iphone x screen", amount: -5 });
+    handlers["product.findMany"] = () => [
+      { id: "p1", name: "iPhone X Screen", serialized: false, stockQty: 2 },
+    ];
+
+    const result = await runAssistantAction("remove 5 iphone x screens");
+
+    expect(result).toMatchObject({ kind: "error" });
+    expect(adjustStockMock).not.toHaveBeenCalled();
+  });
+
   it("sets stock to an exact count", async () => {
     says({ action: "set_stock", product: "iphone 6 screen", count: 50 });
     handlers["product.findMany"] = () => [
