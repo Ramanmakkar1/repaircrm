@@ -1,6 +1,7 @@
 export const VOICE_SILENCE_MS = 1_400;
 export const VOICE_NO_SPEECH_MS = 8_000;
-export const VOICE_RMS_THRESHOLD = 0.025;
+export const VOICE_START_MS = 280;
+export const VOICE_RMS_THRESHOLD = 0.045;
 
 export function isVoiceSampleAboveThreshold(rms: number): boolean {
   return Number.isFinite(rms) && rms >= VOICE_RMS_THRESHOLD;

@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { transcribeAudioAction } from "@/app/(app)/voice/actions";
-import { isVoiceSampleAboveThreshold, shouldStopForSilence } from "@/lib/voice/silence";
+import { isVoiceSampleAboveThreshold, shouldStopForSilence, VOICE_START_MS } from "@/lib/voice/silence";
 
 /**
  * Browser dictation with two engines behind one interface.
@@ -256,6 +256,7 @@ export function useDictation(
           const startedAt = Date.now();
           let hasSpoken = false;
           let lastVoiceAt: number | null = null;
+          let voiceCandidateAt: number | null = null;
           const inspectAudio = () => {
             if (recorder.state !== "recording") {
               stopSilenceMonitor();
@@ -270,13 +271,18 @@ export function useDictation(
             const rms = Math.sqrt(sum / samples.length);
             const now = Date.now();
             if (isVoiceSampleAboveThreshold(rms)) {
-              hasSpoken = true;
-              lastVoiceAt = now;
+              voiceCandidateAt ??= now;
+              if (now - voiceCandidateAt >= VOICE_START_MS) {
+                hasSpoken = true;
+                lastVoiceAt = now;
+              }
             } else if (shouldStopForSilence({ recording: true, hasSpoken, lastVoiceAt, startedAt, now })) {
               discardCaptureRef.current = !hasSpoken;
               recorder.stop();
               stopSilenceMonitor();
               return;
+            } else {
+              voiceCandidateAt = null;
             }
             silenceFrameRef.current = requestAnimationFrame(inspectAudio);
           };

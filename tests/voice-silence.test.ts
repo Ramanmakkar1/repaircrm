@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   VOICE_RMS_THRESHOLD,
+  VOICE_START_MS,
   VOICE_NO_SPEECH_MS,
   VOICE_SILENCE_MS,
   isVoiceSampleAboveThreshold,
@@ -12,6 +13,7 @@ describe("voice silence detection", () => {
   it("recognizes useful microphone signal above the noise floor", () => {
     expect(isVoiceSampleAboveThreshold(VOICE_RMS_THRESHOLD)).toBe(true);
     expect(isVoiceSampleAboveThreshold(VOICE_RMS_THRESHOLD - 0.001)).toBe(false);
+    expect(VOICE_START_MS).toBeGreaterThan(0);
   });
 
   it("waits for a full pause after speech before stopping", () => {
