@@ -137,14 +137,38 @@ describe("runAssistantAction", () => {
     expect(form.get("stockQty")).toBe("40");
   });
 
-  it("points at an existing product instead of duplicating it", async () => {
+  it("restocks an existing product instead of duplicating it or asking again", async () => {
+    says({ action: "add_product", name: "iPhone X Screen", price: 40, quantity: 1 });
+    let reads = 0;
+    handlers["product.findFirst"] = () =>
+      reads++ === 0
+        ? { id: "p1", name: "iPhone X Screen", serialized: false, stockQty: -2, priceCents: 3500 }
+        : { stockQty: -1 };
+    adjustStockMock.mockResolvedValue({ ok: true });
+
+    const result = await runAssistantAction("make one iphone x screen available in stock for $40");
+
+    // The stock moved, by id, and the price is one tap away rather than silent.
+    const [productId, , form] = adjustStockMock.mock.calls[0] as [string, unknown, FormData];
+    expect(productId).toBe("p1");
+    expect(form.get("amount")).toBe("1");
+    expect(result).toMatchObject({ kind: "confirm", pending: { type: "set_price", productId: "p1", priceCents: 4000 } });
+    expect(quickAddMock).not.toHaveBeenCalled();
+  });
+
+  it("just restocks when the price already matches", async () => {
     says({ action: "add_product", name: "iPhone 6 Screen", price: null, quantity: 5 });
-    handlers["product.findFirst"] = () => ({ name: "iPhone 6 Screen" });
+    let reads = 0;
+    handlers["product.findFirst"] = () =>
+      reads++ === 0
+        ? { id: "p2", name: "iPhone 6 Screen", serialized: false, stockQty: 3, priceCents: 2500 }
+        : { stockQty: 8 };
+    adjustStockMock.mockResolvedValue({ ok: true });
 
     const result = await runAssistantAction("add 5 iphone 6 screens");
 
-    expect(result).toMatchObject({ kind: "info" });
-    expect(result.kind === "info" && result.message).toContain("already exists");
+    expect(result).toMatchObject({ kind: "done" });
+    expect(result.kind === "done" && result.message).toContain("8 in stock");
     expect(quickAddMock).not.toHaveBeenCalled();
   });
 

@@ -382,20 +382,39 @@ async function addProduct(
   shopId: string,
   intent: AddProductIntent,
 ): Promise<AssistantOutcome> {
-  // Don't silently make a second "iPhone 6 Screen" — point at the existing one.
+  // Never a second "iPhone 6 Screen". But "make one available for $40" about a
+  // product that exists is a restock, and answering "say it this other way"
+  // made people repeat themselves: do what was asked to the one that exists.
   const existing = await db.product.findFirst({
     where: { shopId, name: { equals: intent.name, mode: "insensitive" } },
-    select: { name: true },
+    select: { id: true, name: true, serialized: true, stockQty: true, priceCents: true },
   });
   if (existing) {
-    const hint =
-      intent.quantity != null
-        ? `add ${intent.quantity} to ${existing.name}`
-        : `add stock to ${existing.name}`;
-    return {
-      kind: "info",
-      message: `“${existing.name}” already exists — say “${hint}” to restock it.`,
-    };
+    const quantity = intent.quantity != null && intent.quantity > 0 ? intent.quantity : null;
+    const cents = intent.price != null ? Math.round(intent.price * 100) : null;
+    const newPrice =
+      cents != null && Number.isFinite(cents) && cents >= 0 && cents <= 10_000_000 && cents !== existing.priceCents
+        ? cents
+        : null;
+
+    let done = `“${existing.name}” is already in your stock list (${existing.stockQty} in stock).`;
+    if (quantity != null) {
+      const restocked = await applyStockChange(shopId, existing, "delta", quantity);
+      if (restocked.kind !== "done") return restocked;
+      done = restocked.message;
+    }
+    // A price change is always one confirming tap, never silent.
+    if (newPrice != null) {
+      return {
+        kind: "confirm",
+        message: `${done} It's priced at ${formatCents(existing.priceCents)} — change it to ${formatCents(newPrice)}?`,
+        pending: { type: "set_price", productId: existing.id, priceCents: newPrice },
+        confirmLabel: `Set price to ${formatCents(newPrice)}`,
+      };
+    }
+    return quantity != null
+      ? { kind: "done", message: done }
+      : { kind: "info", message: `${done} Tell me how many to add.` };
   }
 
   const formData = new FormData();
@@ -520,8 +539,16 @@ async function changeStock(
   const resolved = await resolveProduct(shopId, query);
   if (resolved.kind === "none") return noMatch(query);
   if (resolved.kind === "many") return ambiguous(query, resolved.names);
+  return applyStockChange(shopId, resolved.product, mode, amount);
+}
 
-  const product = resolved.product;
+/** The stock change itself, for a product that has already been identified. */
+async function applyStockChange(
+  shopId: string,
+  product: { id: string; name: string; serialized: boolean; stockQty: number },
+  mode: "delta" | "count",
+  amount: number,
+): Promise<AssistantOutcome> {
   if (product.serialized) {
     return {
       kind: "info",
