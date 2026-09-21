@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import { transcribeAudioAction } from "@/app/(app)/voice/actions";
-import { isVoiceSampleAboveThreshold, shouldStopForSilence, VOICE_START_MS } from "@/lib/voice/silence";
+import { createVoiceGate } from "@/lib/voice/silence";
 
 /**
  * Browser dictation with two engines behind one interface.
@@ -61,6 +61,7 @@ function hasMediaRecorder(): boolean {
 const subscribe = () => () => {};
 
 const MIC_BLOCKED = "Microphone blocked — allow mic access to use voice.";
+const MIC_SILENT = "I couldn't hear anything — check the microphone isn't muted and the right one is selected, or type it instead.";
 
 export type DictationState = "idle" | "listening" | "transcribing";
 export type Dictation = {
@@ -207,7 +208,9 @@ export function useDictation(
       if (capture !== generation.current) return;
       if (discardCaptureRef.current) {
         discardCaptureRef.current = false;
-        setState("idle");
+        // The microphone delivered silence. Saying nothing here left people
+        // talking at a button that had quietly given up.
+        fail(MIC_SILENT);
         return;
       }
 
@@ -226,7 +229,7 @@ export function useDictation(
           if (capture !== generation.current) return;
           setState("idle");
           if (result.ok) onTextRef.current(result.text);
-          else if (!result.reason.toLowerCase().includes("didn't catch any speech")) onErrorRef.current?.(result.reason);
+          else onErrorRef.current?.(result.reason);
         })
         .catch(() => { if (capture === generation.current) fail("Couldn't transcribe that — try again."); });
     };
@@ -253,10 +256,7 @@ export function useDictation(
           void context.resume().catch(() => undefined);
 
           const samples = new Uint8Array(analyser.fftSize);
-          const startedAt = Date.now();
-          let hasSpoken = false;
-          let lastVoiceAt: number | null = null;
-          let voiceCandidateAt: number | null = null;
+          const gate = createVoiceGate(Date.now());
           const inspectAudio = () => {
             if (recorder.state !== "recording") {
               stopSilenceMonitor();
@@ -268,21 +268,11 @@ export function useDictation(
               const normalized = (sample - 128) / 128;
               sum += normalized * normalized;
             }
-            const rms = Math.sqrt(sum / samples.length);
-            const now = Date.now();
-            if (isVoiceSampleAboveThreshold(rms)) {
-              voiceCandidateAt ??= now;
-              if (now - voiceCandidateAt >= VOICE_START_MS) {
-                hasSpoken = true;
-                lastVoiceAt = now;
-              }
-            } else if (shouldStopForSilence({ recording: true, hasSpoken, lastVoiceAt, startedAt, now })) {
-              discardCaptureRef.current = !hasSpoken;
+            if (gate.push(Math.sqrt(sum / samples.length), Date.now()) === "stop") {
+              discardCaptureRef.current = !gate.worthSending();
               recorder.stop();
               stopSilenceMonitor();
               return;
-            } else {
-              voiceCandidateAt = null;
             }
             silenceFrameRef.current = requestAnimationFrame(inspectAudio);
           };

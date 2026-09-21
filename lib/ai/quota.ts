@@ -76,10 +76,24 @@ export function utcDay(now: Date = new Date()): string {
  */
 export async function consumeAiQuota(shopId: string, kind: AiKind): Promise<QuotaResult> {
   const day = utcDay();
-  const [shopCount, platformCount] = await Promise.all([
-    bump(shopId, `ai.${kind}`, day),
-    bump(PLATFORM, "ai.all", day),
-  ]);
+  let shopCount: number;
+  let platformCount: number;
+  try {
+    [shopCount, platformCount] = await Promise.all([
+      bump(shopId, `ai.${kind}`, day),
+      bump(PLATFORM, "ai.all", day),
+    ]);
+  } catch (error) {
+    // The counter table is missing: the code was deployed before its migration
+    // ran. That took the assistant and the microphone down for every shop on
+    // live. Metering is a guard, not the feature, so say so loudly and let the
+    // request through; PLATFORM_MONTHLY_BUDGET_USD still caps the spend.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      console.error("[ai-quota] UsageCounter table is missing, run `npm run db:deploy`. Allowing the request unmetered.");
+      return { ok: true };
+    }
+    throw error;
+  }
 
   if (shopCount > SHOP_DAILY_LIMIT[kind]) {
     return {
