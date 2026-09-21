@@ -106,6 +106,21 @@ export const fakeClient: Record<string, unknown> = new Proxy(
         };
       }
 
+      if (property === "$queryRaw") {
+        // Tagged `Prisma.sql`: the bound values are what a tenant assertion
+        // needs (`values[0]` is the shopId in every raw query here).
+        return async (query: { values?: unknown[] }) => {
+          calls.push({ path: "$queryRaw", args: { values: query?.values ?? [] } });
+          const handler = handlers["$queryRaw"];
+          if (!handler) {
+            throw new Error(
+              "db-mock: no handler registered for $queryRaw. Register one in the test.",
+            );
+          }
+          return handler({ values: query?.values ?? [] });
+        };
+      }
+
       return modelProxy(property);
     },
   },

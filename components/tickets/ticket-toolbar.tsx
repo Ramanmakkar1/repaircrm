@@ -114,7 +114,7 @@ export function TicketToolbar({
           ref={queryRef}
           name="q"
           defaultValue={values.q}
-          placeholder="Search ticket #, subject or customer…"
+          placeholder="Search ticket #, customer, phone or IMEI…"
           aria-label="Search tickets"
           className="pl-9"
         />

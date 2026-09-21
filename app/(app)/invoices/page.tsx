@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
 import { requireUser } from "@/lib/auth";
+import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents } from "@/lib/money";
@@ -73,12 +74,10 @@ export default async function InvoicesPage({
   if (customerId) where.customerId = customerId;
 
   if (q) {
-    const asNumber = Number.parseInt(q.replace(/^#/, ""), 10);
+    const asNumber = documentNumber(q);
     where.OR = [
-      ...(Number.isFinite(asNumber) ? [{ number: asNumber }] : []),
-      { customer: { firstName: { contains: q, mode: "insensitive" as const } } },
-      { customer: { lastName: { contains: q, mode: "insensitive" as const } } },
-      { customer: { businessName: { contains: q, mode: "insensitive" as const } } },
+      ...(asNumber !== null ? [{ number: asNumber }] : []),
+      ...(await customerMatchClauses(shopId, q)).map((customer) => ({ customer })),
     ];
   }
 
@@ -176,7 +175,7 @@ export default async function InvoicesPage({
           q={q}
           status={status}
           customerId={customerId}
-          placeholder="Search by invoice # or customer…"
+          placeholder="Search by invoice #, customer or phone…"
         />
 
         {filteredCustomer ? (

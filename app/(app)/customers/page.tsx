@@ -13,6 +13,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
+import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 
@@ -47,7 +48,7 @@ export default async function CustomersPage({
   // has no reason to bulk-load customers.
   const canImport = role === "OWNER" || role === "FRONT_DESK";
   const query = (params.q ?? "").trim();
-  const where = buildWhere(shopId, query);
+  const where = await buildWhere(shopId, query);
 
   // Count first so an out-of-range ?page= clamps to the last real page instead
   // of rendering an "add your first customer" empty state over a full list.
@@ -309,9 +310,20 @@ export default async function CustomersPage({
 /**
  * Every whitespace-separated token must match at least one field, so
  * "elena marq" finds Elena Marquez while "elena okonkwo" finds nobody.
+ *
+ * A typed phone number is the exception: it is matched whole, digits to
+ * digits, so "5125550178" and "512 555 0178" both find "(512) 555-0178".
  */
-function buildWhere(shopId: string, query: string): Prisma.CustomerWhereInput {
+async function buildWhere(
+  shopId: string,
+  query: string,
+): Promise<Prisma.CustomerWhereInput> {
   if (!query) return { shopId };
+
+  const phone = phoneQueryDigits(query);
+  if (phone) {
+    return { shopId, id: { in: await customerIdsByPhone(shopId, phone) } };
+  }
 
   const tokens = query.split(/\s+/).filter(Boolean).slice(0, 5);
 

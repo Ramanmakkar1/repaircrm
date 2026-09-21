@@ -14,6 +14,7 @@ import {
 } from "@/components/appointments/calendar-meta";
 import { requireRole, requireUser } from "@/lib/auth";
 import { sendEmail, sendSms } from "@/lib/comms";
+import { samePhoneClause } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { emitAppointmentEvent, emitCustomerEvent } from "@/lib/events";
 
@@ -300,11 +301,7 @@ function readNewCustomer(
  * counts.
  */
 async function existingCustomerId(shopId: string, person: NewCustomer): Promise<string | null> {
-  const digits = person.phone?.replace(/\D/g, "") ?? "";
-  const known: Prisma.CustomerWhereInput[] = [];
-  if (digits.length >= 7) {
-    known.push({ mobile: { contains: digits.slice(-7) } }, { phone: { contains: digits.slice(-7) } });
-  }
+  const known: Prisma.CustomerWhereInput[] = await samePhoneClause(shopId, person.phone);
   if (person.email) known.push({ email: { equals: person.email, mode: "insensitive" } });
 
   const match = await db.customer.findFirst({

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { endOfDay } from "date-fns";
 import type { Prisma } from "@prisma/client";
 
+import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { locationWhere } from "@/lib/location";
@@ -117,13 +118,14 @@ export default async function TicketsPage({
   }
 
   if (q) {
-    const asNumber = Number.parseInt(q.replace(/^#/, ""), 10);
+    const asNumber = documentNumber(q);
+    const like = { contains: q, mode: "insensitive" as const };
     where.OR = [
-      { subject: { contains: q, mode: "insensitive" } },
-      { customer: { firstName: { contains: q, mode: "insensitive" } } },
-      { customer: { lastName: { contains: q, mode: "insensitive" } } },
-      { customer: { businessName: { contains: q, mode: "insensitive" } } },
-      ...(Number.isFinite(asNumber) ? [{ number: asNumber }] : []),
+      { subject: like },
+      ...(await customerMatchClauses(shopId, q)).map((customer) => ({ customer })),
+      // The IMEI / serial on the device, or the device itself ("pixel 8").
+      { asset: { OR: [{ serial: like }, { make: like }, { model: like }] } },
+      ...(asNumber !== null ? [{ number: asNumber }] : []),
     ];
   }
 

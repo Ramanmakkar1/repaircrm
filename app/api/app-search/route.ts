@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 
 import { getSession } from "@/lib/auth";
+import {
+  customerIdsByPhone,
+  leadIdsByPhone,
+  phoneQueryDigits,
+} from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import type { SearchGroup, SearchItem } from "@/components/search/types";
 import { TYPE_LABEL } from "@/components/search/types";
@@ -63,7 +68,19 @@ export async function GET(request: Request) {
         ]
       : [];
 
+  // "5125550178" has to find "(512) 555-0178": a typed phone number is matched
+  // digits-to-digits, and the ids join the ordinary OR below — which is also
+  // what tickets, invoices and estimates search their customer by.
+  const phone = phoneQueryDigits(q);
+  const [phoneCustomerIds, phoneLeadIds] = phone
+    ? await Promise.all([
+        customerIdsByPhone(shopId, phone),
+        leadIdsByPhone(shopId, phone),
+      ])
+    : [[], []];
+
   const customerOr: Prisma.CustomerWhereInput[] = [
+    ...(phoneCustomerIds.length > 0 ? [{ id: { in: phoneCustomerIds } }] : []),
     { firstName: like },
     { lastName: like },
     { businessName: like },
@@ -104,6 +121,8 @@ export async function GET(request: Request) {
             { subject: like },
             { problemType: like },
             { customer: { OR: customerOr } },
+            // The IMEI / serial and the device itself ("pixel 8").
+            { asset: { OR: [{ serial: like }, { make: like }, { model: like }] } },
           ],
         },
         select: {
@@ -225,7 +244,12 @@ export async function GET(request: Request) {
       db.lead.findMany({
         where: {
           shopId,
-          OR: [{ name: like }, { email: like }, { phone: like }],
+          OR: [
+            { name: like },
+            { email: like },
+            { phone: like },
+            ...(phoneLeadIds.length > 0 ? [{ id: { in: phoneLeadIds } }] : []),
+          ],
         },
         select: {
           id: true,

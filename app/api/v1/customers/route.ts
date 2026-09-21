@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { emitCustomerEvent } from "@/lib/events";
 import { withApiKey } from "../_lib/handler";
@@ -27,6 +28,9 @@ export const GET = withApiKey(async (request, auth) => {
 
   const q = queryParam(url, "q");
 
+  const phone = q ? phoneQueryDigits(q) : null;
+  const phoneIds = phone ? await customerIdsByPhone(auth.shopId, phone) : [];
+
   const where = {
     shopId: auth.shopId,
     ...plan.where,
@@ -40,6 +44,8 @@ export const GET = withApiKey(async (request, auth) => {
                 { businessName: { contains: q, mode: "insensitive" as const } },
                 { email: { contains: q, mode: "insensitive" as const } },
                 { phone: { contains: q } },
+                { mobile: { contains: q } },
+                ...(phoneIds.length > 0 ? [{ id: { in: phoneIds } }] : []),
               ],
             },
           ],

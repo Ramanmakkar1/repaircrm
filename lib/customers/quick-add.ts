@@ -1,3 +1,6 @@
+import type { Prisma } from "@prisma/client";
+
+import { samePhoneClause } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { emitCustomerEvent } from "@/lib/events";
 
@@ -45,11 +48,7 @@ export async function findOrCreateQuickCustomer(
   shopId: string,
   person: Extract<QuickCustomer, { ok: true }>["customer"],
 ): Promise<string> {
-  const digits = person.phone?.replace(/\D/g, "") ?? "";
-  const known = [];
-  if (digits.length >= 7) {
-    known.push({ mobile: { contains: digits.slice(-7) } }, { phone: { contains: digits.slice(-7) } });
-  }
+  const known: Prisma.CustomerWhereInput[] = await samePhoneClause(shopId, person.phone);
   if (person.email) known.push({ email: { equals: person.email, mode: "insensitive" as const } });
 
   if (known.length > 0) {

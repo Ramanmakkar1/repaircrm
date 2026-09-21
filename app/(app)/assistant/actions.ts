@@ -28,6 +28,7 @@ import { requireUser } from "@/lib/auth";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { db } from "@/lib/db";
 import { emitCustomerEvent } from "@/lib/events";
+import { customerIdsByPhone, samePhoneClause } from "@/lib/customers/phone-search";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import {
   interpretCommand,
@@ -704,15 +705,7 @@ async function findCustomers(shopId: string, query: string): Promise<AssistantOu
   const digits = query.replace(/\D/g, "");
   const looksLikePhone = digits.length >= 4 && digits.length >= query.replace(/\s/g, "").length - 3;
   const where: Prisma.CustomerWhereInput = looksLikePhone
-    ? {
-        shopId,
-        OR: [
-          { phone: { contains: digits.slice(-7) } },
-          { mobile: { contains: digits.slice(-7) } },
-          { phone: { contains: query.trim() } },
-          { mobile: { contains: query.trim() } },
-        ],
-      }
+    ? { shopId, id: { in: await customerIdsByPhone(shopId, digits.slice(-10)) } }
     : query.includes("@")
       ? { shopId, email: { contains: query.trim(), mode: "insensitive" } }
       : { shopId, ...customerNameWhere(query) };
@@ -1100,11 +1093,10 @@ async function stageCreateCustomer(
   const email = intent.email?.trim() || null;
 
   // Someone already on file is a link, not a second record.
-  const digits = phone?.replace(/\D/g, "") ?? "";
-  const clauses: Prisma.CustomerWhereInput[] = [customerNameWhere(name)];
-  if (digits.length >= 7) {
-    clauses.push({ mobile: { contains: digits.slice(-7) } }, { phone: { contains: digits.slice(-7) } });
-  }
+  const clauses: Prisma.CustomerWhereInput[] = [
+    customerNameWhere(name),
+    ...(await samePhoneClause(shopId, phone)),
+  ];
   if (email) clauses.push({ email: { equals: email, mode: "insensitive" } });
   const existing = await db.customer.findMany({
     where: { shopId, OR: clauses },

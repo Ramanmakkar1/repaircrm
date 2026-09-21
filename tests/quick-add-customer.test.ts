@@ -44,12 +44,18 @@ describe("findOrCreateQuickCustomer", () => {
   const person = { firstName: "Sam", lastName: "Lee", phone: "780-555-0142", email: null, smsOk: true };
 
   it("uses the customer already on file with that mobile", async () => {
+    handlers["$queryRaw"] = () => [{ id: "c9" }];
     handlers["customer.findFirst"] = () => ({ id: "c9" });
     expect(await findOrCreateQuickCustomer("s1", person)).toBe("c9");
     expect(callsTo("customer.create")).toHaveLength(0);
+    // Digits against digits, inside the shop: "780-555-0142" on file as
+    // "(780) 555-0142" is the same person.
+    expect(callsTo("$queryRaw")[0].args.values).toEqual(["s1", "%5550142%", "%5550142%", 50]);
+    expect(callsTo("customer.findFirst")[0].args.where).toEqual({ shopId: "s1", OR: [{ id: { in: ["c9"] } }] });
   });
 
   it("creates a new customer, reachable by email and (with consent) text", async () => {
+    handlers["$queryRaw"] = () => [];
     handlers["customer.findFirst"] = () => null;
     handlers["customer.create"] = () => ({ id: "c10" });
     expect(await findOrCreateQuickCustomer("s1", person)).toBe("c10");

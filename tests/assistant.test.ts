@@ -432,6 +432,7 @@ describe("the wider shop assistant", () => {
 
   it("points at a customer already on file instead of adding a second one", async () => {
     says({ action: "create_customer", name: "Mike Brown", phone: "780 555 0142", email: null });
+    handlers["$queryRaw"] = () => [{ id: "c9" }];
     handlers["customer.findMany"] = () => [
       { id: "c9", firstName: "Mike", lastName: "Brown", businessName: null, mobile: "7805550142", phone: null },
     ];
