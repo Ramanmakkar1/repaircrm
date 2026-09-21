@@ -51,13 +51,17 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
   const [input, setInput] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const [outcome, setOutcome] = React.useState<AssistantOutcome | null>(null);
+  const [continuation, setContinuation] = React.useState<string | null>(null);
   const voiceButtonRef = React.useRef<HTMLButtonElement>(null);
   const launchButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const openedWithVoice = React.useRef(false);
 
   const run = React.useCallback(
     (text: string) => {
-      const command = text.trim();
+      const answer = text.trim();
+      const command = continuation
+        ? `${continuation}\nThe user answered the clarification with: ${answer}`
+        : answer;
       if (!command || !enabled) return;
       startTransition(async () => {
         try {
@@ -65,14 +69,20 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
         setOutcome(result);
         if (result.kind === "done") {
           setInput("");
+          setContinuation(null);
           router.refresh(); // the catalogue behind the dialog just changed
+        } else if (result.kind === "info" && result.continuation) {
+          setInput("");
+          setContinuation(result.continuation);
+        } else {
+          setContinuation(null);
         }
         } catch {
           setOutcome({ kind: "error", message: "The assistant couldn't finish that request. Your text is still here; try again." });
         }
       });
     },
-    [router, enabled],
+    [router, enabled, continuation],
   );
 
   const dictation = useDictation(
@@ -103,6 +113,7 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
       dictation.cancel();
       setInput("");
       setOutcome(null);
+      setContinuation(null);
     }
   }
 
@@ -182,7 +193,7 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
               aria-label="Message to the assistant"
               maxLength={500}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="e.g. add 10 iPhone 6 screens"
+              placeholder={continuation ? "Answer the assistant…" : "e.g. add 10 iPhone 6 screens"}
               disabled={pending}
             />
               <Button

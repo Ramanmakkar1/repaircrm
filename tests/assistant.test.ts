@@ -78,7 +78,17 @@ describe("runAssistantAction", () => {
   it("passes a clarify question through", async () => {
     says({ action: "clarify", message: "Which product?" });
     const result = await runAssistantAction("remove it");
-    expect(result).toEqual({ kind: "info", message: "Which product?" });
+    expect(result).toEqual({ kind: "info", message: "Which product?", continuation: "remove it" });
+  });
+
+  it("returns the original command so a short clarification answer can continue it", async () => {
+    says({ action: "clarify", message: "How many?" });
+    const result = await runAssistantAction("add some iPhone 10 screens");
+    expect(result).toEqual({
+      kind: "info",
+      message: "How many?",
+      continuation: "add some iPhone 10 screens",
+    });
   });
 
   it("adds a product via Quick Add and reports the minted SKU", async () => {

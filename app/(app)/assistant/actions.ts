@@ -32,7 +32,7 @@ import {
 
 export type AssistantOutcome =
   | { kind: "done"; message: string }
-  | { kind: "info"; message: string }
+  | { kind: "info"; message: string; continuation?: string }
   | {
       kind: "confirm";
       message: string;
@@ -54,7 +54,10 @@ export async function runAssistantAction(text: string): Promise<AssistantOutcome
     case "refuse":
       return { kind: "refused", message: intent.message };
     case "clarify":
-      return { kind: "info", message: intent.message };
+      // Keep the original request with the clarification. The next short
+      // answer ("10", "$89", or a product name) must be interpreted in that
+      // context instead of being sent to the model as a brand-new command.
+      return { kind: "info", message: intent.message, continuation: text };
     case "search_products":
       return searchProducts(shopId, intent.query);
     case "add_product":
