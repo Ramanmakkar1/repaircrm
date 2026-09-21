@@ -60,6 +60,7 @@ export function CartPanel({
   attachedTicketId,
   onPickTicket,
   onRemoveTicket,
+  tendersRef,
 }: {
   lines: CartLine[];
   totals: Totals;
@@ -82,6 +83,8 @@ export function CartPanel({
   onPickTicket: (ticket: PosTicket) => void;
   /** Ticket lines come and go as a set — you cannot half-bill a repair. */
   onRemoveTicket: () => void;
+  /** Watched by the pinned pay bar, which steps aside while this is on screen. */
+  tendersRef?: React.Ref<HTMLDivElement>;
 }) {
   const customer = customers.find((c) => c.id === customerId) ?? null;
   const credit = customer?.creditBalanceCents ?? 0;
@@ -241,7 +244,10 @@ export function CartPanel({
       </div>
 
       {/* ---------------------------------------------------------- tenders */}
-      <div className="flex flex-col gap-2.5 border-t border-border px-5 py-4">
+      <div
+        ref={tendersRef}
+        className="flex scroll-mb-32 flex-col gap-2.5 border-t border-border px-5 py-4"
+      >
         <div className="grid grid-cols-2 gap-2.5">
           {TENDER_BUTTONS.map(({ method, icon: Icon }) => (
             <Button
@@ -384,7 +390,9 @@ function CartRow({
                 disabled={disabled}
                 onClick={() => onQuantityChange(line.key, line.quantity + 1)}
               />
-              <span className="ml-1.5 text-[12.5px] tabular-nums text-faint-foreground">
+              {/* The cart is a third of a 1024px tablet, less the sidebar: there
+                  the unit price pushed the line total off the card's edge. */}
+              <span className="ml-1.5 text-[12.5px] tabular-nums text-faint-foreground lg:hidden xl:inline">
                 × {formatCents(line.unitPriceCents)}
               </span>
             </>

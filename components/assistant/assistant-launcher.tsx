@@ -104,6 +104,9 @@ export function AssistantLauncher({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // At the register the wide dock would sit on the cart, so it is always the
+  // small button there — without touching the remembered preference.
+  const atRegister = pathname === "/pos";
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [pending, startTransition] = React.useTransition();
@@ -259,7 +262,7 @@ export function AssistantLauncher({
 
   return (
     <>
-      {collapsed ? (
+      {collapsed || atRegister ? (
         <button
           type="button"
           onClick={(event) => launch(event, false)}
@@ -267,7 +270,13 @@ export function AssistantLauncher({
           title="Ask RepairPilot"
           aria-haspopup="dialog"
           aria-expanded={open}
-          className="rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-full text-white shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden"
+          className={cn(
+            "rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] z-30 flex size-14 items-center justify-center rounded-full text-white shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden",
+            // The register pins its total and pay buttons to the bottom edge.
+            atRegister
+              ? "bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))]"
+              : "bottom-[max(1rem,env(safe-area-inset-bottom))]",
+          )}
         >
           <AudioLines className="size-6" aria-hidden />
         </button>

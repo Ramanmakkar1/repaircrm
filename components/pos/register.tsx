@@ -18,6 +18,7 @@ import {
   posTerminalIntentAction,
 } from "@/app/(app)/pos/actions";
 import { CartPanel } from "./cart-panel";
+import { PayBar } from "./pay-bar";
 import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
 import { SerialPickerDialog } from "./serial-picker-dialog";
@@ -493,6 +494,12 @@ export function Register({
       }
     : undefined;
 
+  const tendersRef = React.useRef<HTMLDivElement>(null);
+  const startTender = (method: TenderMethod) => {
+    setError(null);
+    setTender(method);
+  };
+
   const startNewSale = () => {
     setSale(null);
     setError(null);
@@ -591,13 +598,19 @@ export function Register({
           attachedTicketId={ticketId}
           onPickTicket={addTicket}
           onRemoveTicket={removeTicket}
-          onTender={(method) => {
-            setError(null);
-            setTender(method);
-          }}
+          onTender={startTender}
           disabled={pending}
+          tendersRef={tendersRef}
         />
       </div>
+
+      <PayBar
+        itemCount={lines.reduce((sum, line) => sum + line.quantity, 0)}
+        dueCents={dueCents}
+        tendersRef={tendersRef}
+        onTender={startTender}
+        disabled={pending}
+      />
 
       <PhoneScanDialog
         open={phonePairing}
