@@ -158,12 +158,17 @@ export function useDictation(
       const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
       if (transcript) onTextRef.current(transcript);
     };
-    recognition.onerror = (event) =>
+    recognition.onerror = (event) => {
+      if (event?.error === "no-speech") {
+        setState("idle");
+        return;
+      }
       fail(
         event?.error === "not-allowed" || event?.error === "service-not-allowed"
           ? MIC_BLOCKED
           : "Voice input didn't work — you can type it instead.",
       );
+    };
     recognition.onend = () => setState((current) => (current === "listening" ? "idle" : current));
 
     recognitionRef.current = recognition;
@@ -221,7 +226,7 @@ export function useDictation(
           if (capture !== generation.current) return;
           setState("idle");
           if (result.ok) onTextRef.current(result.text);
-          else onErrorRef.current?.(result.reason);
+          else if (!result.reason.toLowerCase().includes("didn't catch any speech")) onErrorRef.current?.(result.reason);
         })
         .catch(() => { if (capture === generation.current) fail("Couldn't transcribe that — try again."); });
     };
