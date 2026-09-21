@@ -39,7 +39,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CardMachineModeCard } from "@/components/settings/card-machine-mode-card";
 import { DeviceAccessCard } from "@/components/settings/device-access-card";
+import type { CardMachineSetting } from "@/lib/payments/card-machine";
 import type { CheckLine, PaymentsHealth } from "@/lib/payments";
 import type {
   PaymentsTabConfig,
@@ -148,8 +150,10 @@ export function PaymentsTab({
   forgetReaderAction,
   retrySetupAction,
   testPaymentsAction,
+  setCardMachineAction,
 }: {
   config: PaymentsTabConfig;
+  setCardMachineAction: (input: CardMachineSetting) => Promise<SimpleResult>;
   disconnectAction: () => Promise<SimpleResult>;
   disconnectSquareAction: () => Promise<SimpleResult>;
   createSquareDeviceCodeAction: (input: { name: string }) => Promise<SquarePairingResult>;
@@ -183,6 +187,14 @@ export function PaymentsTab({
 
   return (
     <div className="flex flex-col gap-5">
+      <CardMachineModeCard
+        setting={config.cardMachine}
+        machines={{
+          stripe: config.readers.length > 0,
+          square: config.square.connected && config.square.devices.length > 0,
+        }}
+        action={setCardMachineAction}
+      />
       <ProviderCatalogCard
         config={config}
         disconnectSquareAction={disconnectSquareAction}

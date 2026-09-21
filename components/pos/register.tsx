@@ -9,6 +9,7 @@ import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { calcTotals } from "@/lib/money";
+import { resolveCardFlow, type CardMachineSetting } from "@/lib/payments/card-machine";
 import { normalizeScan, scanCodeVariants } from "@/lib/scan/codes";
 import { resolveScanAction } from "@/app/(app)/scan/actions";
 import {
@@ -75,6 +76,8 @@ export function Register({
     enabled: boolean;
     testMode: boolean;
     squareDevices: { id: string; name: string; status: string }[];
+    /** The owner's choice in Settings → Payments: send to a machine, or key it in. */
+    machine: CardMachineSetting;
   };
   /**
    * The cash-drawer strip, rendered by the page so this component stays
@@ -625,6 +628,10 @@ export function Register({
         error={tender ? error : null}
         terminal={terminal}
         squareTerminal={squareTerminal}
+        cardFlow={resolveCardFlow(cardReader.machine, {
+          stripe: Boolean(terminal),
+          square: Boolean(squareTerminal),
+        })}
         onClose={() => {
           setTender(null);
           setError(null);

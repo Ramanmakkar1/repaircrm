@@ -5,8 +5,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { HardwareScanRouter } from "@/components/scan/hardware-scan-router";
 import { aiEnabled, sttEnabled } from "@/lib/ai";
-import { platformSetting } from "@/lib/platform-admin";
-import { isPlatformAdminEmail } from "@/lib/platform-admin-access";
+import { jevConfigured } from "@/lib/ai/jev";
 
 export default async function AppLayout({
   children,
@@ -32,14 +31,10 @@ export default async function AppLayout({
   return (
     <AppShell
       user={{ name: user.name, email: user.email, role: user.role }}
-      showPlatformAdmin={isPlatformAdminEmail(
-        user.email,
-        platformSetting("PLATFORM_ADMIN_EMAILS"),
-      )}
       locations={locations}
       currentLocationId={locationId}
       prefs={prefs}
-      assistant={{ enabled: aiEnabled(), cloud: sttEnabled() }}
+      assistant={{ enabled: aiEnabled() || jevConfigured(), cloud: sttEnabled() }}
     >
       {/* Production only; see the note in the component. */}
       <RegisterServiceWorker />

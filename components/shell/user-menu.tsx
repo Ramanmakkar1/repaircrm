@@ -2,8 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
-import { setDensityAction, setThemeAction } from "@/app/(app)/prefs-actions";
+import { LayoutGrid, Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
+import {
+  setDensityAction,
+  setSimpleModeAction,
+  setThemeAction,
+} from "@/app/(app)/prefs-actions";
 import { cn } from "@/components/ui/cn";
 import type { Density, Theme } from "@/lib/prefs";
 import { Avatar, AvatarFallback, getInitials } from "@/components/ui/avatar";
@@ -31,10 +35,12 @@ export function UserMenu({
   user,
   density,
   theme,
+  simple = false,
 }: {
   user: CurrentUser;
   density: Density;
   theme: Theme;
+  simple?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -71,6 +77,7 @@ export function UserMenu({
         {/* Renders only once the browser has told us an install is possible —
             see components/pwa/install-app-item.tsx. */}
         <InstallAppItem />
+        <SimpleModeItem simple={simple} />
         <DropdownMenuSeparator />
         <ThemeChoice current={theme} />
         <DropdownMenuSeparator />
@@ -86,6 +93,24 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Simple mode, on THIS device: big cards and no side menu, for the counter
+ * tablet and the phone. Lives here because this menu is the one control that
+ * survives the side menu being gone — so it is also always the way back.
+ */
+function SimpleModeItem({ simple }: { simple: boolean }) {
+  const [pending, start] = React.useTransition();
+  return (
+    <DropdownMenuItem
+      disabled={pending}
+      onSelect={() => start(() => void setSimpleModeAction(!simple))}
+    >
+      <LayoutGrid className="size-4 text-muted-foreground" />
+      {simple ? "Show the full menu" : "Simple mode (big cards)"}
+    </DropdownMenuItem>
   );
 }
 

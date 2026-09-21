@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   Activity,
   ArrowUpRight,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { readPlatformConsole } from "@/lib/platform-console-data";
+import { platformLogoutAction } from "./actions";
 
 export const metadata = { title: "Platform operations · RepairPilot" };
 
@@ -112,7 +112,7 @@ function SectionTitle({
 }
 
 export default async function PlatformPage() {
-  // The data loader authorizes the live user before starting any cross-shop read.
+  // The data loader authorizes the operator (lib/platform-admin.ts) before any cross-shop read.
   const {
     admin,
     counts,
@@ -158,12 +158,16 @@ export default async function PlatformPage() {
               <ShieldCheck aria-hidden="true" className="size-3.5 text-status-resolved" />
               Platform admin · {admin.email}
             </span>
-            <Link
-              href="/"
-              className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              Return to workspace
-            </Link>
+            {/* No "return to workspace": an operator is not a member of any
+                shop, and the console never links into a shop's app. */}
+            <form action={platformLogoutAction}>
+              <button
+                type="submit"
+                className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                Sign out
+              </button>
+            </form>
           </div>
         </header>
 
@@ -483,7 +487,7 @@ export default async function PlatformPage() {
             <article id="platform-setup" className="rounded-lg border border-border bg-surface p-5 shadow-xs sm:p-6">
               <SectionTitle eyebrow="Deployment configuration" title="Admin & metrics setup" />
               <ol className="space-y-3 text-xs leading-5 text-muted-foreground">
-                <li><span className="font-semibold text-foreground">1.</span> Add each platform administrator&apos;s existing active RepairPilot user email to <code className="font-mono text-foreground">PLATFORM_ADMIN_EMAILS</code> as a comma-separated list.</li>
+                <li><span className="font-semibold text-foreground">1.</span> Add each platform administrator&apos;s existing active RepairPilot user email to <code className="font-mono text-foreground">PLATFORM_HOST</code> as a comma-separated list.</li>
                 <li><span className="font-semibold text-foreground">2.</span> For local development, put the list in ignored <code className="font-mono text-foreground">.env.local</code>. For Workers, set it in Cloudflare&apos;s Worker environment settings; keep administrator addresses out of source control.</li>
                 <li><span className="font-semibold text-foreground">3.</span> Optional Cloudflare metrics require <code className="font-mono text-foreground">CLOUDFLARE_ACCOUNT_ID</code> and an API token scoped only to Account → Account Analytics → Read.</li>
                 <li><span className="font-semibold text-foreground">4.</span> Set <code className="font-mono text-foreground">CF_ANALYTICS_API_TOKEN</code> with <code className="font-mono text-foreground">wrangler secret put CF_ANALYTICS_API_TOKEN</code>. <code className="font-mono text-foreground">CF_WORKER_NAME</code> defaults to <code className="font-mono text-foreground">repairpilot</code>.</li>
@@ -497,7 +501,6 @@ export default async function PlatformPage() {
                 <a className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href="https://planetscale.com/docs/api/reference/service-tokens" target="_blank" rel="noreferrer">
                   PlanetScale service tokens <ArrowUpRight aria-hidden="true" className="size-3.5" />
                 </a>
-                <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/">Return to workspace</Link>
               </div>
             </article>
           </div>

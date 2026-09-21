@@ -3,6 +3,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { cache } from "react";
 
+import { assertIdPresent } from "@/lib/db-guard";
+
 /**
  * ============================================================================
  *  MULTI-TENANCY RULE — READ BEFORE WRITING ANY QUERY
@@ -59,17 +61,38 @@ const getPrismaClient = cache((): PrismaClient => {
       throw new Error("The Cloudflare HYPERDRIVE binding is required to access PostgreSQL.");
     }
 
-    return new PrismaClient({
-      adapter: new PrismaPg({ connectionString: hyperdrive.connectionString }),
-      log,
-    });
+    return guarded(
+      new PrismaClient({
+        adapter: new PrismaPg({ connectionString: hyperdrive.connectionString }),
+        log,
+      }),
+    );
   }
 
   if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = new PrismaClient({ log });
+    globalForPrisma.prisma = guarded(new PrismaClient({ log }));
   }
   return globalForPrisma.prisma;
 });
+
+/**
+ * Refuses a bulk write (or a findFirst) whose `where` carries `id: undefined`
+ * — see lib/db-guard.ts. A query extension rather than a wrapper around `db`,
+ * because extensions also apply to the `tx` client inside `$transaction`,
+ * which is where half of this app's writes happen.
+ */
+function guarded(client: PrismaClient): PrismaClient {
+  return client.$extends({
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          assertIdPresent(model, operation, args);
+          return query(args);
+        },
+      },
+    },
+  }) as unknown as PrismaClient;
+}
 
 // Resolve the Cloudflare binding from the current Worker request. The Proxy
 // keeps the existing `db.model.method()` call sites concise.

@@ -1525,3 +1525,35 @@ model SavedView {
   /// the tab strip, which is the whole interface for them.
   @@unique([userId, path, name])
 }
+
+/// Per-day usage counters for metered features (the AI calls, which cost real
+/// money per request). One row per shop, bucket and UTC day, incremented
+/// atomically — Postgres rather than memory because the app runs as many
+/// short-lived Worker isolates that share nothing else. `shopId` "*" is the
+/// platform-wide total, which is why this has no foreign key to Shop.
+model UsageCounter {
+  shopId    String
+  key       String
+  /// yyyy-mm-dd, UTC.
+  day       String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([shopId, key, day])
+}
+
+/// A RepairPilot operator — NOT a shop user. Platform admins have their own
+/// accounts, their own sign-in at /platform/login and their own session cookie,
+/// so no shop login (whatever its email or role) can ever reach the console.
+/// Created and reset only from the command line (scripts/platform-admin.mjs).
+model PlatformAdmin {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String
+  passwordHash      String
+  active            Boolean   @default(true)
+  passwordChangedAt DateTime  @default(now())
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

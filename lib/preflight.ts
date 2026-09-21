@@ -147,6 +147,11 @@ function checkComms(out: Findings): void {
   if (process.env.EMAIL_DRIVER === "resend" && !set("EMAIL_FROM")) {
     out.warn.push("EMAIL_DRIVER=resend but EMAIL_FROM is not set — Resend will reject every send.");
   }
+  if (process.env.SMS_DRIVER === "android_gateway") {
+    for (const key of ["SMS_GATEWAY_URL", "SMS_GATEWAY_USER", "SMS_GATEWAY_PASSWORD"]) {
+      if (!set(key)) out.warn.push(`SMS_DRIVER=android_gateway but ${key} is not set — no text message will send.`);
+    }
+  }
   if (process.env.SMS_DRIVER === "twilio") {
     for (const key of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM"]) {
       if (!set(key)) out.warn.push(`SMS_DRIVER=twilio but ${key} is not set — no text message will send.`);

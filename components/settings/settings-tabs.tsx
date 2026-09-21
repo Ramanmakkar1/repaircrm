@@ -46,6 +46,7 @@ import {
   registerReaderAction,
   renameReaderAction,
   retryPaymentSetupAction,
+  setCardMachineAction,
   testPaymentsAction,
 } from "@/app/(app)/settings/payments-actions";
 
@@ -389,6 +390,7 @@ export function SettingsTabs({
               forgetReaderAction={forgetReaderAction}
               retrySetupAction={retryPaymentSetupAction}
               testPaymentsAction={testPaymentsAction}
+              setCardMachineAction={setCardMachineAction}
             />
           </TabsContent>
         ) : null}

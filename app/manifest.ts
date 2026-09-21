@@ -28,6 +28,29 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#ffffff",
     theme_color: "#ffffff",
     categories: ["business", "productivity"],
+    // Long-press the home-screen icon: the three things a counter does all day,
+    // without opening the app first. Android and desktop show these; iOS ignores
+    // them and simply opens the app.
+    shortcuts: [
+      {
+        name: "Check in a repair",
+        short_name: "New repair",
+        url: "/tickets/new",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
+        name: "Take a payment",
+        short_name: "Register",
+        url: "/pos",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
+        name: "Find a repair",
+        short_name: "Repairs",
+        url: "/tickets",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+    ],
     icons: [
       {
         src: "/icons/icon-192.png",

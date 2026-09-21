@@ -47,6 +47,7 @@ import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { formatDate, formatDateTime, isOverdue } from "@/components/billing/format";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
+import { readCardMachine, resolveCardFlow } from "@/lib/payments/card-machine";
 import {
   InvoiceStatusBadge,
   RefundStatusBadge,
@@ -462,6 +463,10 @@ export default async function InvoiceDetailPage({
                 customerName={customerName}
                 receiptAction={emailInvoiceReceiptAction}
                 size="sm"
+                cardFlow={resolveCardFlow(readCardMachine(invoice.shop.settings), {
+                  stripe: readerPaired,
+                  square: squareDevices.length > 0,
+                })}
                 terminal={
                   readerPaired
                     ? {

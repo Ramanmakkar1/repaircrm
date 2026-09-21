@@ -1,3 +1,5 @@
+import type { CardMachineSetting } from "@/lib/payments/card-machine";
+
 /**
  * Shared shapes for the Settings module.
  *
@@ -248,6 +250,8 @@ export type PaymentsTabConfig = {
   readersError: string | null;
   /** Whether a Terminal Location exists, i.e. a reader was ever registered. */
   hasReaderLocation: boolean;
+  /** What the Card button does: send to a machine, or show the amount to key in. */
+  cardMachine: CardMachineSetting;
   /** True when a card can be saved against a customer today. */
   cardOnFileReady: boolean;
   /** The automatic payment-confirmation setup, and whether it finished. */

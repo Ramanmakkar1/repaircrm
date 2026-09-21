@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { passwordVersion, requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/session";
 
@@ -25,28 +25,16 @@ import type { SessionUser } from "@/lib/session";
  * layout — pages keep calling `requireUser()` and pay nothing.
  */
 export async function requireLiveUser(): Promise<SessionUser> {
+  // Deleted, deactivated and stale-password sessions are already refused by
+  // requireUser itself (it re-reads the account on every request); what is
+  // left for the layout is the forced password change, which only makes sense
+  // for page navigation.
   const session = await requireUser();
 
   const user = await db.user.findFirst({
     where: { id: session.userId, shopId: session.shopId },
-    select: {
-      active: true,
-      passwordChangedAt: true,
-      mustChangePassword: true,
-      email: true,
-    },
+    select: { mustChangePassword: true },
   });
-
-  // The row is gone (shop deleted, user purged) — treat it as signed out.
-  if (!user) redirect("/session-expired?reason=gone");
-  if (!user.active) redirect("/session-expired?reason=inactive");
-  if ((session.pv ?? 0) < passwordVersion(user.passwordChangedAt)) {
-    redirect("/session-expired?reason=password");
-  }
-  if (user.mustChangePassword) redirect("/change-password");
-
-  // Email is part of the platform-admin allowlist check in the app shell. Use
-  // the verified database value so a changed account email cannot leave a
-  // stale platform-navigation link in an otherwise valid session.
-  return { ...session, email: user.email };
+  if (user?.mustChangePassword) redirect("/change-password");
+  return session;
 }

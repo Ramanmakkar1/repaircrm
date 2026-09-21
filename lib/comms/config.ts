@@ -8,6 +8,16 @@
  *   EMAIL_DRIVER = log | resend      RESEND_API_KEY, EMAIL_FROM
  *   SMS_DRIVER   = log | twilio      TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
  *                                    TWILIO_FROM
+ *                | android_gateway   SMS_GATEWAY_URL, SMS_GATEWAY_USER,
+ *                                    SMS_GATEWAY_PASSWORD
+ *
+ * `android_gateway` is the open-source "SMS Gateway for Android" (Apache-2.0,
+ * github.com/capcom6/android-sms-gateway): an app on an Android phone turns that
+ * phone's own SIM into the sender. No per-message fee, no carrier registration,
+ * and customers see — and reply to — the shop's real number. It is for the
+ * one-at-a-time messages a repair shop sends ("your phone is ready"), NOT for
+ * marketing blasts: the project itself warns that carriers restrict bulk sending
+ * from a handset.
  *
  * Unset (or unrecognised) falls back to "log" — the safe default: a misconfigured
  * deploy prints messages instead of silently dropping them or, worse, blasting
@@ -15,7 +25,7 @@
  */
 
 export type EmailDriverName = "log" | "resend";
-export type SmsDriverName = "log" | "twilio";
+export type SmsDriverName = "log" | "twilio" | "android_gateway";
 
 export function emailDriverName(): EmailDriverName {
   return process.env.EMAIL_DRIVER?.trim().toLowerCase() === "resend"
@@ -24,9 +34,8 @@ export function emailDriverName(): EmailDriverName {
 }
 
 export function smsDriverName(): SmsDriverName {
-  return process.env.SMS_DRIVER?.trim().toLowerCase() === "twilio"
-    ? "twilio"
-    : "log";
+  const raw = process.env.SMS_DRIVER?.trim().toLowerCase();
+  return raw === "twilio" || raw === "android_gateway" ? raw : "log";
 }
 
 /**

@@ -17,6 +17,7 @@
 import { z } from "zod";
 
 import { requireUser } from "@/lib/auth";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { generate } from "@/lib/ai";
 
 export type VoiceProductFields = {
@@ -68,10 +69,13 @@ const SYSTEM_PROMPT = [
 export async function parseProductVoiceAction(
   transcript: string,
 ): Promise<VoiceParseResult> {
-  await requireUser();
+  const { shopId } = await requireUser();
 
   const clean = transcript.trim().slice(0, 500);
   if (!clean) return { ok: false, reason: "I didn't catch that — try again." };
+
+  const quota = await consumeAiQuota(shopId, "text");
+  if (!quota.ok) return quota;
 
   const result = await generate({
     system: SYSTEM_PROMPT,

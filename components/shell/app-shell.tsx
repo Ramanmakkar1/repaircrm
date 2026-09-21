@@ -13,7 +13,6 @@ import type { CurrentUser } from "./user-menu";
 
 export function AppShell({
   user,
-  showPlatformAdmin,
   locations,
   currentLocationId,
   prefs,
@@ -21,7 +20,6 @@ export function AppShell({
   children,
 }: {
   user: CurrentUser;
-  showPlatformAdmin: boolean;
   /** Active branches, for the topbar switcher. */
   locations: SwitcherLocation[];
   currentLocationId: string;
@@ -47,12 +45,15 @@ export function AppShell({
         data-density={prefs.density}
         className="flex h-dvh w-full overflow-hidden bg-background"
       >
-        <Sidebar
-          mobileOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          collapsed={prefs.railCollapsed}
-          showPlatformAdmin={showPlatformAdmin}
-        />
+        {/* Simple mode has no menu at all: the card home screen (/counter) is
+            the navigation, and the Home button in the topbar is the way back. */}
+        {prefs.simple ? null : (
+          <Sidebar
+            mobileOpen={mobileOpen}
+            onClose={() => setMobileOpen(false)}
+            collapsed={prefs.railCollapsed}
+          />
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
             user={user}
@@ -62,13 +63,20 @@ export function AppShell({
             onSearchClick={() => setSearchOpen(true)}
             density={prefs.density}
             theme={prefs.theme}
+            simple={prefs.simple}
           />
           <main className="flex-1 overflow-y-auto px-4 pt-5 pb-28 sm:px-6 sm:pt-6">
             <div className="mx-auto w-full max-w-7xl">{children}</div>
           </main>
         </div>
       </div>
-      <AssistantLauncher enabled={assistant.enabled} cloud={assistant.cloud} owner={user.role === "OWNER"} />
+      <AssistantLauncher
+        enabled={assistant.enabled}
+        cloud={assistant.cloud}
+        owner={user.role === "OWNER"}
+        name={user.name}
+        showMoney={user.role !== "TECH"}
+      />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
       {/* j/k down a list, Enter to open. Renders nothing; finds its rows by
           the attribute RowLink emits, so no list has to opt in. */}

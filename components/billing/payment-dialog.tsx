@@ -25,9 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { CardFlow } from "@/lib/payments/card-machine";
 import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
-import { formatCents } from "@/lib/money";
+import { formatCents, parseCents } from "@/lib/money";
 import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
@@ -84,6 +85,7 @@ export function PaymentDialog({
   receiptAction,
   terminal,
   squareTerminal,
+  cardFlow = "manual",
   size,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -97,6 +99,12 @@ export function PaymentDialog({
   terminal?: PaymentTerminal;
   /** Square Terminal devices connected to this shop through Square OAuth. */
   squareTerminal?: SquarePaymentTerminal;
+  /**
+   * What the dialog opens on, from Settings → Payments and resolved against
+   * what is actually paired: straight onto a machine, a choice of two, or the
+   * manual screen for a shop that keys the amount into its own machine.
+   */
+  cardFlow?: CardFlow;
   /**
    * Optional. When the payment just recorded clears the balance, the success
    * toast carries an "Email receipt" button — the one moment the customer is
@@ -138,7 +146,15 @@ export function PaymentDialog({
     if (next) {
       setAmount((Math.max(balanceCents, 0) / 100).toFixed(2));
       setMethod("CARD");
-      setReaderMode(null);
+      // An "automatic" shop lands on its machine with the balance already
+      // going out to it; everyone else lands on the form.
+      setReaderMode(
+        cardFlow === "stripe" && terminal
+          ? "stripe"
+          : cardFlow === "square" && squareTerminal?.devices.length
+            ? "square"
+            : null,
+      );
     }
     setOpen(next);
   };
@@ -182,28 +198,12 @@ export function PaymentDialog({
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="invoiceId" value={invoiceId} />
 
-          {terminal ? (
-            <Button
-              type="button"
-              variant="soft"
-              size="lg"
-              className="h-13"
-              onClick={() => setReaderMode("stripe")}
-            >
-              <ACTIONS.pay /> Take it on Stripe Terminal
-            </Button>
-          ) : null}
-
-          {squareTerminal && squareTerminal.devices.length > 0 ? (
-            <Button
-              type="button"
-              variant="soft"
-              size="lg"
-              className="h-13"
-              onClick={() => setReaderMode("square")}
-            >
-              <ACTIONS.pay /> Take it on Square Terminal
-            </Button>
+          {cardFlow !== "manual" ? (
+            <ReaderButtons
+              stripe={Boolean(terminal)}
+              square={Boolean(squareTerminal?.devices.length)}
+              onPick={setReaderMode}
+            />
           ) : null}
 
           {state.error ? (
@@ -247,14 +247,36 @@ export function PaymentDialog({
             </div>
           </div>
 
+          {method === "CARD" ? (
+            <p className="rounded-md bg-surface-hover px-4 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
+              Key{" "}
+              <span className="font-bold tabular-nums text-foreground">
+                {formatCents(Math.max(parseCents(amount), 0))}
+              </span>{" "}
+              into your card machine. When it says approved, press the button
+              below.
+            </p>
+          ) : null}
+
           <div className="flex flex-col gap-2">
-            <Label htmlFor="reference">Reference</Label>
+            <Label htmlFor="reference">
+              {method === "CARD" ? "Last 4 digits or approval code (optional)" : "Reference"}
+            </Label>
             <Input
               id="reference"
               name="reference"
-              placeholder="Check #, auth code, last 4…"
+              placeholder={method === "CARD" ? "e.g. 4242" : "Check #, reference…"}
             />
           </div>
+
+          {cardFlow === "manual" && method === "CARD" ? (
+            <ReaderButtons
+              stripe={Boolean(terminal)}
+              square={Boolean(squareTerminal?.devices.length)}
+              onPick={setReaderMode}
+              quiet
+            />
+          ) : null}
 
           {method === "CREDIT" ? (
             <p
@@ -273,12 +295,67 @@ export function PaymentDialog({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <SubmitButton pendingLabel="Recording…">Record payment</SubmitButton>
+            <SubmitButton pendingLabel="Recording…">
+              {method === "CARD" ? "Approved — record payment" : "Record payment"}
+            </SubmitButton>
           </DialogFooter>
         </form>
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Same two controls as the register's tender dialog; see its notes. */
+function ReaderButtons({
+  stripe,
+  square,
+  onPick,
+  quiet = false,
+}: {
+  stripe: boolean;
+  square: boolean;
+  onPick: (reader: "stripe" | "square") => void;
+  quiet?: boolean;
+}) {
+  if (!stripe && !square) return null;
+  const options = [
+    stripe ? ({ id: "stripe", label: "Stripe Terminal" } as const) : null,
+    square ? ({ id: "square", label: "Square Terminal" } as const) : null,
+  ].filter((option) => option !== null);
+
+  return (
+    <div className={quiet ? "flex flex-col gap-2 sm:flex-row" : "flex flex-col gap-2"}>
+      {options.map((option) => (
+        <Button
+          key={option.id}
+          type="button"
+          variant={quiet ? "outline" : "soft"}
+          size="lg"
+          className={quiet ? "h-11 flex-1 text-[13.5px]" : "h-13"}
+          onClick={() => onPick(option.id)}
+        >
+          <ACTIONS.pay />
+          {quiet ? `Send to ${option.label} instead` : `Send it to ${option.label}`}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** The customer is waiting with a card out: offer the way through, not a diagnosis. */
+function MachineTroubleNote({ onManual }: { onManual: () => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3.5">
+      <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Machine not working?</span>{" "}
+        Take the card on any machine you have, then record it here. Nothing was
+        charged by RepairPilot.
+      </p>
+      <Button type="button" size="lg" className="w-full" onClick={onManual}>
+        Record it manually
+      </Button>
+    </div>
   );
 }
 
@@ -299,6 +376,7 @@ function SquareReaderPayment({
   const [message, setMessage] = React.useState("Ready when you are.");
   const [busy, setBusy] = React.useState(false);
   const [approved, setApproved] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
   const alive = React.useRef(true);
 
   React.useEffect(() => () => {
@@ -308,6 +386,7 @@ function SquareReaderPayment({
   const start = async () => {
     if (!deviceId) return;
     setBusy(true);
+    setFailed(false);
     setMessage("Sending the amount to Square Terminal…");
     try {
       const response = await fetch("/api/payments/square/terminal/checkout", {
@@ -339,6 +418,7 @@ function SquareReaderPayment({
     } catch (error) {
       if (!alive.current) return;
       setMessage(error instanceof Error ? error.message : "Square Terminal could not complete the payment.");
+      setFailed(true);
       setBusy(false);
     }
   };
@@ -370,12 +450,13 @@ function SquareReaderPayment({
           </Button>
         ) : null}
       </div>
+      {failed && !busy && !approved ? <MachineTroubleNote onManual={onKeyIn} /> : null}
       <DialogFooter>
         {approved ? (
           <Button type="button" onClick={onDone}>Done</Button>
         ) : (
           <>
-            <Button type="button" variant="outline" disabled={busy} onClick={onKeyIn}>Record it by hand instead</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={onKeyIn}>Record it manually instead</Button>
             <Button type="button" variant="outline" disabled={busy} onClick={onDone}>Cancel</Button>
           </>
         )}
@@ -463,6 +544,10 @@ function ReaderPayment({
         }
       />
 
+      {!reader.busy && reader.step !== "approved" && (reader.error || reader.unavailable) ? (
+        <MachineTroubleNote onManual={onKeyIn} />
+      ) : null}
+
       <DialogFooter>
         {reader.step === "approved" ? (
           <Button type="button" onClick={onDone}>
@@ -476,7 +561,7 @@ function ReaderPayment({
               disabled={reader.busy}
               onClick={onKeyIn}
             >
-              Record it by hand instead
+              Record it manually instead
             </Button>
             <Button
               type="button"

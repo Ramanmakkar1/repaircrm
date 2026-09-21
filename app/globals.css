@@ -15,6 +15,30 @@
   background: linear-gradient(110deg, #1062cf, #6740eb);
 }
 
+/* The assistant window's greeting band: the dock's two colours, turned right
+   down and mixed into the surface so it reads as warm in light AND dark. */
+.rf-assistant-hero {
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, #6740eb 14%, transparent), transparent 60%),
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, #f7a36d 16%, transparent), transparent 55%),
+    var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+/* "I'm listening" — a slow ring, so the mic visibly stays live across a pause. */
+.rf-assistant-listening {
+  animation: rf-assistant-pulse 1.4s ease-out infinite;
+}
+
+@keyframes rf-assistant-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--destructive) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-assistant-listening { animation: none; }
+}
+
 /*
  * RepairPilot design tokens
  * ------------------------

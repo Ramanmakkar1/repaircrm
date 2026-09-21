@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { format } from "date-fns";
 
 import type {
@@ -12,9 +13,9 @@ import {
   parseLocalDateTime,
 } from "@/components/appointments/calendar-meta";
 import { requireRole, requireUser } from "@/lib/auth";
-import { sendEmail } from "@/lib/comms";
+import { sendEmail, sendSms } from "@/lib/comms";
 import { db } from "@/lib/db";
-import { emitAppointmentEvent } from "@/lib/events";
+import { emitAppointmentEvent, emitCustomerEvent } from "@/lib/events";
 
 /**
  * Server actions for the Appointments calendar.
@@ -231,13 +232,93 @@ async function sendConfirmation(input: {
       ].join("\n"),
       context: input.title,
     });
-    // Quiet by design — the outbox row is the record staff actually read.
+    // The text is the one people actually see. `sendSms` does its own checks —
+    // no mobile or no consent is recorded as a skip, never sent anyway.
+    const text = await sendSms({
+      shopId: input.shopId,
+      customerId: input.customerId,
+      ticketId: input.ticketId,
+      body:
+        input.action === "booked"
+          ? `You're booked: ${input.title}, ${when}. Reply or call us if that changes.`
+          : `Your appointment moved: ${input.title}, now ${when}. Reply or call us if that doesn't work.`,
+    });
+    // Quiet by design — the outbox rows are the record staff actually read.
     console.log(
-      `[appointments] confirmation ${result.status} (log ${result.logId ?? "none"})`,
+      `[appointments] confirmation email ${result.status}, text ${text.status}`,
     );
   } catch (error) {
     console.error("[appointments] confirmation failed to send", error);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Booking someone who is not a customer yet
+// ---------------------------------------------------------------------------
+
+type NewCustomer = {
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  email: string | null;
+  /** The front desk asked, and the customer said yes to texts. */
+  smsOptIn: boolean;
+};
+
+function readNewCustomer(
+  formData: FormData,
+): { ok: true; value: NewCustomer } | { ok: false; error: string } | null {
+  if (formData.get("customerId") !== "new") return null;
+  const name = str(formData, "newCustomerName").slice(0, 120);
+  if (!name) return { ok: false, error: "Add the new customer's name." };
+  const phone = str(formData, "newCustomerPhone").slice(0, 40) || null;
+  // Optional. But a typo'd address is worse than none: the booking confirmation
+  // and every reminder after it would go nowhere without anyone noticing.
+  const email = str(formData, "newCustomerEmail").slice(0, 200).toLowerCase() || null;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "That email doesn't look right — fix it or leave it blank." };
+  }
+  const parts = name.split(/\s+/);
+  return {
+    ok: true,
+    value: {
+      firstName: parts[0],
+      lastName: parts.slice(1).join(" "),
+      phone,
+      email,
+      // Consent without a number to text is meaningless, so it is only kept
+      // when there is one.
+      smsOptIn: Boolean(phone) && bool(formData, "newCustomerSmsOk"),
+    },
+  };
+}
+
+/**
+ * The same person ringing twice must not become two customers. With a phone
+ * number, the last seven digits decide (so "780-555-0142" and "7805550142" are
+ * one person) and so does the email; with neither, only an exact name match
+ * counts.
+ */
+async function existingCustomerId(shopId: string, person: NewCustomer): Promise<string | null> {
+  const digits = person.phone?.replace(/\D/g, "") ?? "";
+  const known: Prisma.CustomerWhereInput[] = [];
+  if (digits.length >= 7) {
+    known.push({ mobile: { contains: digits.slice(-7) } }, { phone: { contains: digits.slice(-7) } });
+  }
+  if (person.email) known.push({ email: { equals: person.email, mode: "insensitive" } });
+
+  const match = await db.customer.findFirst({
+    where:
+      known.length > 0
+        ? { shopId, OR: known }
+        : {
+            shopId,
+            firstName: { equals: person.firstName, mode: "insensitive" },
+            lastName: { equals: person.lastName, mode: "insensitive" },
+          },
+    select: { id: true },
+  });
+  return match?.id ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,10 +351,17 @@ export async function saveAppointmentAction(
     if (!owned) return { ok: false, error: "Appointment not found." };
   }
 
-  const customerId = await validCustomerId(
-    shopId,
-    optionalId(formData, "customerId"),
-  );
+  // A first-time caller is booked from this same dialog: the form sends
+  // `customerId=new` with a name and, ideally, a phone. Who they are is decided
+  // here, but the row is only written further down, AFTER the clash check —
+  // otherwise "that tech is booked, pick another time" would leave a customer
+  // behind on every retry.
+  const newCustomer = readNewCustomer(formData);
+  if (newCustomer && !newCustomer.ok) return { ok: false, error: newCustomer.error };
+
+  let customerId = newCustomer
+    ? await existingCustomerId(shopId, newCustomer.value)
+    : await validCustomerId(shopId, optionalId(formData, "customerId"));
   const [ticketId, assignedToId, locationId] = await Promise.all([
     validTicketId(shopId, customerId, optionalId(formData, "ticketId")),
     validUserId(shopId, optionalId(formData, "assignedToId")),
@@ -295,6 +383,23 @@ export async function saveAppointmentAction(
         conflict: conflictPayload(clash),
       };
     }
+  }
+
+  if (newCustomer && !customerId) {
+    const created = await db.customer.create({
+      data: {
+        shopId,
+        firstName: newCustomer.value.firstName,
+        lastName: newCustomer.value.lastName,
+        mobile: newCustomer.value.phone,
+        email: newCustomer.value.email,
+        smsOptIn: newCustomer.value.smsOptIn,
+      },
+      select: { id: true },
+    });
+    customerId = created.id;
+    await emitCustomerEvent(shopId, "customer.created", created.id);
+    revalidatePath("/customers");
   }
 
   const data = {

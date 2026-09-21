@@ -16,7 +16,6 @@ export function Sidebar({
   mobileOpen,
   onClose,
   collapsed,
-  showPlatformAdmin,
 }: {
   mobileOpen: boolean;
   onClose: () => void;
@@ -25,7 +24,6 @@ export function Sidebar({
    * over a phone screen would be a worse version of the bottom of the topbar.
    */
   collapsed: boolean;
-  showPlatformAdmin: boolean;
 }) {
   return (
     <>
@@ -54,7 +52,7 @@ export function Sidebar({
           <Brand compact={collapsed} />
         </div>
 
-        <NavLinks collapsed={collapsed} showPlatformAdmin={showPlatformAdmin} />
+        <NavLinks collapsed={collapsed} />
 
         <CollapseToggle collapsed={collapsed} />
       </aside>
@@ -87,7 +85,7 @@ export function Sidebar({
             <span className="sr-only">Close menu</span>
           </button>
         </div>
-        <NavLinks onNavigate={onClose} showPlatformAdmin={showPlatformAdmin} />
+        <NavLinks onNavigate={onClose} />
       </aside>
     </>
   );

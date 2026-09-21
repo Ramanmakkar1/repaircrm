@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -141,13 +142,42 @@ export async function getSession(): Promise<SessionUser | null> {
 }
 
 /**
+ * The account behind a session, as the database has it right now. React
+ * `cache` makes it one primary-key read per request however many times
+ * `requireUser` runs in it (layout, page, every component that asks).
+ */
+const liveAccount = cache(async (userId: string, shopId: string) =>
+  db.user.findFirst({
+    where: { id: userId, shopId },
+    select: { active: true, role: true, email: true, passwordChangedAt: true },
+  }),
+);
+
+/**
  * Returns the current session, redirecting to /login when signed out.
- * This is the guard every authenticated page/layout should call.
+ * This is the guard every authenticated page, action and route calls.
+ *
+ * The cookie is a seven-day JWT, and it is NOT believed on its own: the account
+ * is re-read (once per request) so that
+ *   - a deactivated person is out on their next click, not in a week,
+ *   - a changed password signs out every other device,
+ *   - a demotion (OWNER → TECH) takes effect at once — the role returned is
+ *     the database's, not the one baked into the cookie at login.
+ * Server actions and route handlers never pass through the (app) layout, so
+ * doing this only there (as it used to be) left every mutation trusting the
+ * cookie for its full life.
  */
 export async function requireUser(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) redirect("/login");
-  return session;
+
+  const account = await liveAccount(session.userId, session.shopId);
+  if (!account) redirect("/session-expired?reason=gone");
+  if (!account.active) redirect("/session-expired?reason=inactive");
+  if ((session.pv ?? 0) < passwordVersion(account.passwordChangedAt)) {
+    redirect("/session-expired?reason=password");
+  }
+  return { ...session, role: account.role as SessionRole, email: account.email };
 }
 
 /** Role guard. Redirects to the dashboard when the role is not permitted. */

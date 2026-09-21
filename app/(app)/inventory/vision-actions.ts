@@ -15,6 +15,7 @@
 import { z } from "zod";
 
 import { requireUser } from "@/lib/auth";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { describeImage } from "@/lib/ai/vision";
 
 export type IdentifyProductResult =
@@ -36,7 +37,7 @@ const USER_PROMPT = "What repair-shop product is this? Return the JSON only.";
 export async function identifyProductAction(
   formData: FormData,
 ): Promise<IdentifyProductResult> {
-  await requireUser();
+  const { shopId } = await requireUser();
 
   const image = formData.get("image");
   if (!(image instanceof Blob)) return { ok: false, reason: "No photo received." };
@@ -44,6 +45,9 @@ export async function identifyProductAction(
   if (image.size > MAX_IMAGE_BYTES) {
     return { ok: false, reason: "That photo is too large — try again." };
   }
+
+  const quota = await consumeAiQuota(shopId, "vision");
+  if (!quota.ok) return quota;
 
   const bytes = new Uint8Array(await image.arrayBuffer());
   const result = await describeImage({

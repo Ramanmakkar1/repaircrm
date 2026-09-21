@@ -20,7 +20,10 @@ import { customerLabel, relativeShort } from "@/components/tickets/ticket-meta";
 import { StatusBadge } from "@/components/ui/badge";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { redirect } from "next/navigation";
+import { SimpleModeButton } from "@/components/counter/simple-mode-button";
 import { requireUser } from "@/lib/auth";
+import { readUiPrefs } from "@/lib/prefs";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
@@ -42,6 +45,9 @@ const TICKET_STATUSES = [
 
 export default async function DashboardPage() {
   const { shopId } = await requireUser();
+  // Login, the installed app's start_url and the logo all point here. On a
+  // device set to Simple mode, "home" is the card screen instead.
+  if ((await readUiPrefs()).simple) redirect("/counter");
   const now = new Date();
 
   // Every tile and list below narrows to the branch on screen, when one is
@@ -208,6 +214,18 @@ export default async function DashboardPage() {
           </Button>
         }
       />
+
+      {/* Phones and tablets only. The full dashboard is a desk tool; someone
+          holding the shop in one hand is better served by six big cards. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3.5 lg:hidden">
+        <p className="min-w-0 text-[14px] leading-snug text-muted-foreground">
+          <span className="font-bold text-foreground">On a phone or tablet?</span>{" "}
+          Simple mode swaps the menus for a few big cards.
+        </p>
+        <SimpleModeButton on size="sm" variant="outline">
+          Try Simple mode
+        </SimpleModeButton>
+      </div>
 
       {/* Renders nothing once the shop is set up, or once it is dismissed. */}
       <SetupChecklist />

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { newRecordLocationId } from "@/lib/location";
 import { paymentsLive, readTerminalLocationId, stripeTestMode } from "@/lib/payments";
+import { readCardMachine } from "@/lib/payments/card-machine";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 import { DrawerStrip } from "@/components/pos/drawer-strip";
 import { Register } from "@/components/pos/register";
@@ -197,6 +198,7 @@ export default async function PosPage() {
       cardReader={{
         enabled: paymentsLive() && Boolean(readTerminalLocationId(shop?.settings)),
         testMode: stripeTestMode(),
+        machine: readCardMachine(shop?.settings),
         squareDevices: squareDevices.map((device) => ({
           id: device.deviceId ?? device.id,
           name: device.name,

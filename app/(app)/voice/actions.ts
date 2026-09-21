@@ -15,6 +15,7 @@
  */
 
 import { requireUser } from "@/lib/auth";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { transcribe, type TranscribeResult } from "@/lib/ai/transcribe";
 
 export type { TranscribeResult };
@@ -25,7 +26,7 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 export async function transcribeAudioAction(
   formData: FormData,
 ): Promise<TranscribeResult> {
-  await requireUser();
+  const { shopId } = await requireUser();
 
   const audio = formData.get("audio");
   if (!(audio instanceof Blob)) return { ok: false, reason: "No audio received." };
@@ -33,6 +34,9 @@ export async function transcribeAudioAction(
   if (audio.size > MAX_AUDIO_BYTES) {
     return { ok: false, reason: "That recording is too long — keep it short." };
   }
+
+  const quota = await consumeAiQuota(shopId, "audio");
+  if (!quota.ok) return quota;
 
   const filename =
     audio instanceof File && audio.name ? audio.name : "command.webm";

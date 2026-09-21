@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { callsTo, dataOf, handlers, resetDb, whereOf } from "./helpers/db-mock";
+import { calls, callsTo, dataOf, handlers, resetDb, whereOf } from "./helpers/db-mock";
 
 /**
  * The inventory assistant (lib/ai/assistant.ts + app/(app)/assistant/actions.ts).
@@ -15,17 +15,28 @@ import { callsTo, dataOf, handlers, resetDb, whereOf } from "./helpers/db-mock";
 
 // The model call and the inventory write-actions are stubbed; everything else
 // is the real assistant code.
-const { generateMock, quickAddMock, adjustStockMock } = vi.hoisted(() => ({
-  generateMock: vi.fn(),
-  quickAddMock: vi.fn(),
-  adjustStockMock: vi.fn(),
-}));
+const { generateMock, quickAddMock, adjustStockMock, bulkStatusMock, postUpdateMock, notifyReadyMock } =
+  vi.hoisted(() => ({
+    generateMock: vi.fn(),
+    quickAddMock: vi.fn(),
+    adjustStockMock: vi.fn(),
+    bulkStatusMock: vi.fn(),
+    postUpdateMock: vi.fn(),
+    notifyReadyMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/ai", () => ({ generate: generateMock }));
 vi.mock("@/app/(app)/inventory/actions", () => ({
   quickAddProductAction: quickAddMock,
   adjustStockAction: adjustStockMock,
 }));
+vi.mock("@/app/(app)/tickets/actions", () => ({
+  bulkTicketStatusAction: bulkStatusMock,
+  postUpdateAction: postUpdateMock,
+  notifyReadyForPickupAction: notifyReadyMock,
+}));
+vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
+vi.mock("@/lib/events", () => ({ emitCustomerEvent: vi.fn(async () => undefined) }));
 vi.mock("@/lib/db", async () => {
   const { fakeClient } = await import("./helpers/db-mock");
   return { db: fakeClient, prisma: fakeClient, default: fakeClient };
@@ -39,7 +50,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 const { parseIntent } = await import("@/lib/ai/assistant");
-const { runAssistantAction, confirmRemoveProductAction } = await import(
+const { runAssistantAction, confirmRemoveProductAction, confirmAssistantAction } = await import(
   "@/app/(app)/assistant/actions"
 );
 
@@ -53,6 +64,14 @@ beforeEach(() => {
   generateMock.mockReset();
   quickAddMock.mockReset();
   adjustStockMock.mockReset();
+  bulkStatusMock.mockReset();
+  postUpdateMock.mockReset();
+  notifyReadyMock.mockReset();
+  session.role = "OWNER";
+  // Every command reads the shop's own status list for the model's context,
+  // and spends one unit of the shop's daily AI allowance first.
+  handlers["shop.findUnique"] = () => ({ settings: null });
+  handlers["usageCounter.upsert"] = () => ({ count: 1 });
 });
 
 describe("parseIntent", () => {
@@ -179,17 +198,21 @@ describe("runAssistantAction", () => {
     expect(form.get("reason")).toBe("Counted");
   });
 
-  it("sets a product's price", async () => {
+  it("stages a price change as was → now, and writes nothing until confirmed", async () => {
     says({ action: "set_price", product: "iphone 6 screen", price: 45 });
     handlers["product.findMany"] = () => [
       { id: "p1", name: "iPhone 6 Screen", serialized: false, stockQty: 12 },
     ];
-    handlers["product.update"] = () => ({ id: "p1" });
+    handlers["product.findFirst"] = () => ({ priceCents: 3999 });
 
     const result = await runAssistantAction("change iphone 6 screen price to 45");
 
-    expect(result).toMatchObject({ kind: "done" });
-    expect(dataOf("product.update")).toEqual({ priceCents: 4500 });
+    expect(result).toMatchObject({
+      kind: "confirm",
+      pending: { type: "set_price", productId: "p1", priceCents: 4500 },
+    });
+    expect(result.message).toContain("$39.99");
+    expect(callsTo("product.update")).toHaveLength(0);
   });
 
   it("won't number-adjust a serialized product, and touches no stock", async () => {
@@ -293,5 +316,129 @@ describe("confirmRemoveProductAction", () => {
     const result = await confirmRemoveProductAction("p1");
     expect(result).toMatchObject({ kind: "error" });
     expect(callsTo("product.update")).toHaveLength(0);
+  });
+});
+
+describe("the wider shop assistant", () => {
+  it("stages a status move against the shop's OWN status list", async () => {
+    says({ action: "set_ticket_status", ticket: 1042, status: "ready for pickup" });
+    handlers["ticket.findFirst"] = () => ({
+      id: "t1",
+      number: 1042,
+      subject: "Screen replacement",
+      status: "In Progress",
+    });
+
+    const result = await runAssistantAction("mark 1042 ready");
+
+    expect(result).toMatchObject({
+      kind: "confirm",
+      pending: { type: "set_ticket_status", ticketId: "t1", status: "Ready for Pickup" },
+    });
+    expect(whereOf("ticket.findFirst")).toEqual({ shopId: "shop_1", number: 1042 });
+    expect(bulkStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a status the shop does not have instead of writing it", async () => {
+    says({ action: "set_ticket_status", ticket: 1042, status: "Exploded" });
+    handlers["ticket.findFirst"] = () => ({ id: "t1", number: 1042, subject: "x", status: "New" });
+
+    const result = await runAssistantAction("mark 1042 exploded");
+
+    expect(result.kind).toBe("info");
+    expect(bulkStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("runs a confirmed status move through the ticket action, scoped to the shop", async () => {
+    handlers["ticket.findFirst"] = () => ({ id: "t1", number: 1042, subject: "x", status: "New" });
+    bulkStatusMock.mockResolvedValue({ ok: true, count: 1, message: "Moved" });
+
+    const result = await confirmAssistantAction({
+      type: "set_ticket_status",
+      ticketId: "t1",
+      status: "Ready for Pickup",
+    });
+
+    expect(result.kind).toBe("done");
+    expect(whereOf("ticket.findFirst")).toEqual({ id: "t1", shopId: "shop_1" });
+    expect(bulkStatusMock).toHaveBeenCalledWith(["t1"], "Ready for Pickup");
+  });
+
+  it("touches NOTHING when a confirm arrives without its id", async () => {
+    // Prisma drops `undefined` from a where — a missing id must die at the door,
+    // not reach a query as `{ shopId }` alone.
+    for (const payload of [
+      { type: "set_ticket_status", status: "Resolved" },
+      { type: "set_price", priceCents: 1 },
+      { type: "notify_ready", ticketId: "" },
+      { type: "drop_tables" },
+      null,
+    ]) {
+      const result = await confirmAssistantAction(payload);
+      expect(result.kind).toBe("error");
+    }
+    expect(calls).toHaveLength(0);
+    expect(bulkStatusMock).not.toHaveBeenCalled();
+    expect(notifyReadyMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps a dictated note staff-only", async () => {
+    handlers["ticket.findFirst"] = () => ({ id: "t1", number: 1042, subject: "x", status: "New" });
+    postUpdateMock.mockResolvedValue({ ok: true });
+
+    await confirmAssistantAction({ type: "add_ticket_note", ticketId: "t1", note: "Battery swollen" });
+
+    const [, , form] = postUpdateMock.mock.calls[0] as [string, unknown, FormData];
+    expect(form.get("body")).toBe("Battery swollen");
+    expect(form.get("isPublic")).toBeNull();
+  });
+
+  it("refuses before calling the model once the shop's daily allowance is spent", async () => {
+    handlers["usageCounter.upsert"] = (args) =>
+      (args as { where: { shopId_key_day: { shopId: string } } }).where.shopId_key_day.shopId === "*"
+        ? { count: 1 }
+        : { count: 401 };
+
+    const result = await runAssistantAction("what's ready for pickup");
+
+    expect(result.kind).toBe("error");
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("does not show a technician the shop's money", async () => {
+    session.role = "TECH";
+    says({ action: "sales_summary", period: "today" });
+
+    const result = await runAssistantAction("how did we do today");
+
+    expect(result.kind).toBe("refused");
+    expect(callsTo("payment.aggregate")).toHaveLength(0);
+  });
+
+  it("only ever hands out its own list of pages, and keeps owner pages for the owner", async () => {
+    says({ action: "open_page", page: "settings_payments", customer: null });
+    session.role = "FRONT_DESK";
+    expect((await runAssistantAction("payment settings")).kind).toBe("refused");
+
+    session.role = "OWNER";
+    const result = await runAssistantAction("payment settings");
+    expect(result).toMatchObject({ kind: "info", links: [{ href: "/settings?tab=payments" }] });
+
+    // A page the schema does not list cannot be asked for at all.
+    expect(parseIntent('{"action":"open_page","page":"https://evil.example","customer":null}').action).toBe(
+      "clarify",
+    );
+  });
+
+  it("points at a customer already on file instead of adding a second one", async () => {
+    says({ action: "create_customer", name: "Mike Brown", phone: "780 555 0142", email: null });
+    handlers["customer.findMany"] = () => [
+      { id: "c9", firstName: "Mike", lastName: "Brown", businessName: null, mobile: "7805550142", phone: null },
+    ];
+
+    const result = await runAssistantAction("add customer mike brown 780 555 0142");
+
+    expect(result).toMatchObject({ kind: "info", links: [{ href: "/customers/c9" }] });
+    expect(callsTo("customer.create")).toHaveLength(0);
   });
 });

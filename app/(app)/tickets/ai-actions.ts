@@ -15,6 +15,7 @@
  */
 
 import { requireUser } from "@/lib/auth";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { generate } from "@/lib/ai";
 import {
   draftReplyPrompt,
@@ -49,6 +50,9 @@ export async function draftTicketReplyAction(
   // the one the customer will reply to.
   const signer = name.trim().split(/\s+/)[0] || "the shop";
 
+  const quota = await consumeAiQuota(shopId, "text");
+  if (!quota.ok) return quota;
+
   return generate({
     system: draftReplySystemPrompt(signer),
     prompt: draftReplyPrompt(ctx, asDraftTone(tone)),
@@ -62,6 +66,9 @@ export async function summarizeTicketAction(ticketId: string): Promise<AiResult>
 
   const ctx = await loadTicketContext(shopId, ticketId);
   if (!ctx) return { ok: false, reason: "Ticket not found." };
+
+  const quota = await consumeAiQuota(shopId, "text");
+  if (!quota.ok) return quota;
 
   return generate({
     system: SUMMARIZE_SYSTEM_PROMPT,

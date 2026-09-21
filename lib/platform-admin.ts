@@ -1,14 +1,14 @@
 import "server-only";
 
-import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { db } from "@/lib/db";
-import { requireLiveUser } from "@/lib/session-guard";
-import { isPlatformAdminEmail } from "@/lib/platform-admin-access";
+import { platformPasswordVersion, readPlatformCookie } from "@/lib/platform-session";
 
 type PlatformSetting =
-  | "PLATFORM_ADMIN_EMAILS"
+  | "PLATFORM_HOST"
   | "CF_ANALYTICS_API_TOKEN"
   | "CLOUDFLARE_ACCOUNT_ID"
   | "CF_WORKER_NAME"
@@ -39,26 +39,34 @@ export function platformSetting(name: PlatformSetting): string | undefined {
 }
 
 /**
- * A platform admin must be both a current, active RepairPilot user and named
- * in explicit deployment configuration. Shop OWNER status grants no platform
- * privileges. Global reads are allowed only after this guard succeeds.
+ * When set (e.g. "admin.repairpilot.com"), the console only answers on that
+ * host and is a plain 404 everywhere else — the shop app's address does not
+ * even reveal that it exists.
  */
-export async function requirePlatformAdmin(): Promise<{
-  name: string;
-  email: string;
-}> {
-  const session = await requireLiveUser();
-  const user = await db.user.findFirst({
-    where: { id: session.userId, shopId: session.shopId },
-    select: { name: true, email: true, active: true },
+export async function assertPlatformHost(): Promise<void> {
+  const wanted = platformSetting("PLATFORM_HOST")?.toLowerCase();
+  if (!wanted) return;
+  const host = ((await headers()).get("host") ?? "").toLowerCase().split(":")[0];
+  if (host !== wanted) notFound();
+}
+
+/**
+ * The console's guard. Identity is a PlatformAdmin row reached through the
+ * platform's own cookie (lib/platform-session.ts) — NOT a shop user. No shop
+ * login, whatever its role or email, is ever a platform admin, so a shop owner
+ * who registers an operator's email address gains nothing.
+ */
+export async function requirePlatformAdmin(): Promise<{ id: string; name: string; email: string }> {
+  await assertPlatformHost();
+  const session = await readPlatformCookie();
+  if (!session) redirect("/platform/login");
+
+  const admin = await db.platformAdmin.findFirst({
+    where: { id: session.adminId },
+    select: { id: true, name: true, email: true, active: true, passwordChangedAt: true },
   });
-
-  if (
-    !user?.active ||
-    !isPlatformAdminEmail(user.email, platformSetting("PLATFORM_ADMIN_EMAILS"))
-  ) {
-    notFound();
+  if (!admin || !admin.active || session.pv < platformPasswordVersion(admin.passwordChangedAt)) {
+    redirect("/platform/login?reason=expired");
   }
-
-  return { name: user.name, email: user.email };
+  return { id: admin.id, name: admin.name, email: admin.email };
 }

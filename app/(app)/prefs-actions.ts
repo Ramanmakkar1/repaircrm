@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { writeUiPrefs, type Density, type Theme } from "@/lib/prefs";
 
@@ -41,4 +42,17 @@ export async function setRailCollapsedAction(collapsed: boolean): Promise<void> 
   await requireUser();
   await writeUiPrefs({ railCollapsed: collapsed === true });
   revalidatePath("/", "layout");
+}
+
+/**
+ * Simple mode on or off, for this device. Turning it on lands on the card home
+ * screen; turning it off lands back on the full dashboard — either way the
+ * person sees the change they just asked for instead of the same page minus a
+ * menu.
+ */
+export async function setSimpleModeAction(simple: boolean): Promise<void> {
+  await requireUser();
+  await writeUiPrefs({ simple: simple === true });
+  revalidatePath("/", "layout");
+  redirect(simple === true ? "/counter" : "/dashboard");
 }

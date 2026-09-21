@@ -24,6 +24,7 @@ import {
   webhookReady,
   WEBHOOK_EVENTS,
 } from "@/lib/payments";
+import { readCardMachine } from "@/lib/payments/card-machine";
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
@@ -385,6 +386,7 @@ export default async function SettingsPage({
     readers: readers?.ok ? readers.readers : [],
     readersError: readers && !readers.ok ? readers.reason : null,
     hasReaderLocation: Boolean(readTerminalLocationId(shop.settings)),
+    cardMachine: readCardMachine(shop.settings),
     // A card can only be saved when the whole online path works — the setup
     // page is a Checkout Session and the card arrives on a confirmation from
     // Stripe, which a connected shop now gets from its own endpoint.

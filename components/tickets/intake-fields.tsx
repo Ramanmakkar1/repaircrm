@@ -10,7 +10,10 @@ export function NewCustomerFields() {
     <label className="space-y-1 sm:col-span-2">Name<Input name="newCustomerName" required maxLength={160} autoComplete="name" /></label>
     <label className="space-y-1">Email<Input name="newCustomerEmail" type="email" maxLength={200} autoComplete="email" /></label>
     <label className="space-y-1">Phone<Input name="newCustomerPhone" type="tel" maxLength={40} autoComplete="tel" /></label>
-    <p className="text-xs text-muted-foreground sm:col-span-2">Existing email or phone matches are checked before creating a customer. This does not subscribe them to marketing.</p>
+    {/* Asked out loud at the counter. Without a yes here the customer never
+        gets a text — not the "ready for pickup" one either. */}
+    <label className="flex items-start gap-2.5 text-sm sm:col-span-2"><input type="checkbox" name="newCustomerSmsOk" defaultChecked className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]" /><span>Happy to get texts about this repair<span className="block text-xs text-muted-foreground">Needs a mobile number. Repair updates go by email whenever there is an email address.</span></span></label>
+    <p className="text-xs text-muted-foreground sm:col-span-2">We check for an existing customer with this email or phone before adding a new one.</p>
   </fieldset>;
 }
 

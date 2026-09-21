@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
+import { formatDistanceToNow } from "date-fns";
+
 import { EmbedSnippet } from "@/components/leads/embed-snippet";
+import { SplitformsCard } from "@/components/leads/splitforms-card";
+import { readSplitforms } from "@/lib/splitforms";
 import {
   LEAD_STATUSES,
   LEAD_STATUS_META,
@@ -52,7 +56,7 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
   const params = await searchParams;
 
   /*
@@ -81,7 +85,7 @@ export default async function LeadsPage({
   }
 
   const [shop, statusRows, leads] = await Promise.all([
-    db.shop.findUnique({ where: { id: shopId }, select: { slug: true } }),
+    db.shop.findUnique({ where: { id: shopId }, select: { slug: true, settings: true } }),
     // One grouped count feeds every tab — no per-tab query.
     db.lead.groupBy({
       by: ["status"],
@@ -106,6 +110,7 @@ export default async function LeadsPage({
       },
     }),
   ]);
+  const splitforms = readSplitforms(shop?.settings);
 
   const counts: Record<string, number> = { open: 0, all: 0 };
   for (const row of statusRows) {
@@ -311,24 +316,31 @@ export default async function LeadsPage({
         loud while the inbox is empty and quiet — but still findable — once
         leads are arriving.
       */}
-      {nothingAtAll ? (
-        <EmbedSnippet
-          shopSlug={shop?.slug ?? "your-shop"}
-          endpoint={`${appUrl()}/api/leads`}
-        />
-      ) : (
-        <details className="group">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
-            Website form snippet
-          </summary>
-          <div className="pt-3">
-            <EmbedSnippet
-              shopSlug={shop?.slug ?? "your-shop"}
-              endpoint={`${appUrl()}/api/leads`}
-            />
-          </div>
-        </details>
-      )}
+      {/* Splitforms first: it is the recommended way in, and it is the one
+          that needs no code on the shop's website. The raw snippet stays for
+          anyone who would rather paste HTML. */}
+      <SplitformsCard
+        isOwner={role === "OWNER"}
+        webhookUrl={splitforms ? `${appUrl()}/api/integrations/splitforms/${splitforms.token}` : null}
+        hasSecret={Boolean(splitforms?.secret)}
+        lastLeadLabel={
+          splitforms?.lastLeadAt
+            ? formatDistanceToNow(new Date(splitforms.lastLeadAt), { addSuffix: true })
+            : null
+        }
+      />
+
+      <details className="group">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+          Or paste our basic form code instead
+        </summary>
+        <div className="pt-3">
+          <EmbedSnippet
+            shopSlug={shop?.slug ?? "your-shop"}
+            endpoint={`${appUrl()}/api/leads`}
+          />
+        </div>
+      </details>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
+import { findOrCreateQuickCustomer, readQuickCustomer } from "@/lib/customers/quick-add";
 import { renderEmail, renderSms, sendEmail, sendSms } from "@/lib/comms";
 import { estimateMessage } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
@@ -96,11 +97,18 @@ export async function createEstimateAction(
 ): Promise<FormState> {
   const { shopId } = await requireUser();
 
-  const customer = await resolveCustomer(shopId, formData.get("customerId"));
-  if (!customer) return formError("Choose a customer for this estimate.");
-
+  // Lines are checked BEFORE a new customer is saved, so a form that bounces
+  // on a bad line never leaves a half-made customer behind.
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
+
+  const quick = readQuickCustomer(formData);
+  if (quick && !quick.ok) return formError(quick.error);
+  const customer = await resolveCustomer(
+    shopId,
+    quick ? await findOrCreateQuickCustomer(shopId, quick.customer) : formData.get("customerId"),
+  );
+  if (!customer) return formError("Choose a customer for this estimate, or add a new one.");
 
   // Both halves of the tax are stored: the id it came from, the bps it is.
   const tax = await resolveDocumentTax(

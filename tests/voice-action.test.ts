@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { transcribeMock } = vi.hoisted(() => ({ transcribeMock: vi.fn() }));
 
 vi.mock("@/lib/ai/transcribe", () => ({ transcribe: transcribeMock }));
+// The daily AI allowance is counted in Postgres; these tests are about the
+// upload guard, so the allowance is stubbed — never the real database.
+const { quotaMock } = vi.hoisted(() => ({ quotaMock: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/ai/quota", () => ({ consumeAiQuota: quotaMock }));
 vi.mock("@/lib/auth", () => ({
   requireUser: vi.fn(async () => ({ shopId: "s1", userId: "u1", role: "OWNER", name: "A" })),
 }));
@@ -53,5 +57,12 @@ describe("transcribeAudioAction", () => {
     );
     expect(result).toEqual({ ok: true, text: "add ten iphone screens" });
     expect(transcribeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops at the daily allowance without spending a call", async () => {
+    quotaMock.mockResolvedValueOnce({ ok: false, reason: "used up" } as never);
+    const result = await transcribeAudioAction(form(new Blob(["abc"], { type: "audio/webm" })));
+    expect(result).toEqual({ ok: false, reason: "used up" });
+    expect(transcribeMock).not.toHaveBeenCalled();
   });
 });

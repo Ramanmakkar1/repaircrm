@@ -68,7 +68,8 @@ export function PickupActions({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer told it's ready for pickup.");
+      if (result.notice) toast.warning(result.notice, { duration: 12_000 });
+      else toast.success(result.done ?? "Marked ready for pickup.");
       router.refresh();
     });
   }

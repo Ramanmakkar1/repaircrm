@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { findOrCreateQuickCustomer, readQuickCustomer } from "@/lib/customers/quick-add";
 import {
   BULK_SEND_LIMIT,
   bulkIds,
@@ -195,11 +196,18 @@ export async function createInvoiceAction(
 ): Promise<FormState> {
   const { shopId, userId } = await requireUser();
 
-  const customer = await resolveCustomer(shopId, formData.get("customerId"));
-  if (!customer) return formError("Choose a customer for this invoice.");
-
+  // Lines are checked BEFORE a new customer is saved, so a form that bounces
+  // on a bad line never leaves a half-made customer behind.
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
+
+  const quick = readQuickCustomer(formData);
+  if (quick && !quick.ok) return formError(quick.error);
+  const customer = await resolveCustomer(
+    shopId,
+    quick ? await findOrCreateQuickCustomer(shopId, quick.customer) : formData.get("customerId"),
+  );
+  if (!customer) return formError("Choose a customer for this invoice, or add a new one.");
 
   // Snapshot the rate now — a later settings change must not silently restate
   // an invoice the customer has already been shown. The id rides along so the

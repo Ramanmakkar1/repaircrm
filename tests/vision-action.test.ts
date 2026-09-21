@@ -10,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { describeImageMock } = vi.hoisted(() => ({ describeImageMock: vi.fn() }));
 
 vi.mock("@/lib/ai/vision", () => ({ describeImage: describeImageMock }));
+// The daily AI allowance is counted in Postgres; these tests are about the
+// upload guard, so the allowance is stubbed — never the real database.
+const { quotaMock } = vi.hoisted(() => ({ quotaMock: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/ai/quota", () => ({ consumeAiQuota: quotaMock }));
 vi.mock("@/lib/auth", () => ({
   requireUser: vi.fn(async () => ({ shopId: "s1", userId: "u1", role: "OWNER", name: "A" })),
 }));

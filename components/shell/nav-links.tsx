@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gauge } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import {
   Tooltip,
@@ -63,7 +62,6 @@ function isUnder(pathname: string, href: string) {
 export function NavLinks({
   onNavigate,
   collapsed = false,
-  showPlatformAdmin = false,
 }: {
   onNavigate?: () => void;
   /**
@@ -72,7 +70,6 @@ export function NavLinks({
    * text sub-item has nothing to indent from.
    */
   collapsed?: boolean;
-  showPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const groups = groupNavItems();
@@ -177,50 +174,6 @@ export function NavLinks({
           })}
         </div>
       ))}
-      {showPlatformAdmin ? (
-        <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
-          {!collapsed ? (
-            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground">
-              Administration
-            </p>
-          ) : (
-            <span aria-hidden className="mb-2 h-px w-6 bg-border" />
-          )}
-          {(() => {
-            const isActive = isUnder(pathname, "/platform");
-            const row = (
-              <Link
-                href="/platform"
-                onClick={onNavigate}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "group relative flex h-9 items-center rounded-md text-[13.5px] transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                  collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
-                  isActive
-                    ? "bg-accent font-semibold text-accent-foreground shadow-xs"
-                    : "font-medium text-foreground hover:bg-surface-hover",
-                )}
-              >
-                <Gauge
-                  aria-hidden="true"
-                  className={cn(
-                    "size-4 shrink-0",
-                    isActive ? "text-accent-foreground" : "text-foreground",
-                  )}
-                />
-                {collapsed ? <span className="sr-only">Platform operations</span> : <span>Platform operations</span>}
-              </Link>
-            );
-            return collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>{row}</TooltipTrigger>
-                <TooltipContent side="right">Platform operations</TooltipContent>
-              </Tooltip>
-            ) : row;
-          })()}
-        </div>
-      ) : null}
     </nav>
   );
 }

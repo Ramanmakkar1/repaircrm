@@ -10,15 +10,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
+import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { LineItemsEditor, type InitialLine } from "./line-items-editor";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { TaxRateSelect } from "./tax-rate-select";
@@ -64,8 +58,8 @@ export function DocumentForm({
   const [state, formAction] = useActionState(action, IDLE_FORM_STATE);
   const isInvoice = kind === "invoice";
 
-  // Radix Select is controlled here so the customer stays picked across a
-  // failed submit (the server action re-renders the form with its error).
+  // Controlled so the customer stays picked across a failed submit (the server
+  // action re-renders the form with its error).
   const [customerId, setCustomerId] = React.useState(initial?.customerId ?? "");
 
   // The document's tax. An existing document opens on what it snapshotted; a
@@ -127,25 +121,17 @@ export function DocumentForm({
           title={isInvoice ? "Invoice details" : "Estimate details"}
         />
         <CardContent className="grid gap-5 sm:grid-cols-3">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="customerId">Customer</Label>
-            <Select
-              name="customerId"
+          {/* Its own row: search results and the new-customer fields need the width. */}
+          <div className="flex flex-col gap-2 sm:col-span-3">
+            <Label>Customer</Label>
+            <CustomerCombobox
+              customers={customers}
               value={customerId}
-              onValueChange={selectCustomer}
-              required
-            >
-              <SelectTrigger id="customerId">
-                <SelectValue placeholder="Choose a customer…" />
-              </SelectTrigger>
-              <SelectContent className="max-h-64 overflow-y-auto">
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={selectCustomer}
+              // A saved document keeps its customer's history; switching a draft
+              // to a brand-new person is a new document, not an edit.
+              allowNew={!initial?.id}
+            />
           </div>
 
           <div className="flex flex-col gap-2">

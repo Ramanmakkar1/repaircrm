@@ -39,12 +39,19 @@ export interface UiPrefs {
   theme: Theme;
   /** Rail collapsed to icons only. Desktop only; the mobile drawer ignores it. */
   railCollapsed: boolean;
+  /**
+   * Simple mode, for the counter tablet and the phone in a pocket: no side
+   * menu, and a home screen of a few big cards (/counter) instead of the
+   * dashboard. Per-device like the rest — the back-office PC keeps everything.
+   */
+  simple: boolean;
 }
 
 export const DEFAULT_PREFS: UiPrefs = {
   density: "comfortable",
   theme: "system",
   railCollapsed: false,
+  simple: false,
 };
 
 function parse(raw: string | undefined): UiPrefs {
@@ -58,6 +65,7 @@ function parse(raw: string | undefined): UiPrefs {
           ? value.theme
           : "system",
       railCollapsed: value.railCollapsed === true,
+      simple: value.simple === true,
     };
   } catch {
     return DEFAULT_PREFS;

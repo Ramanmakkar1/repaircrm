@@ -49,7 +49,8 @@ export type AuditAction =
   | "ticket.deleted"
   | "customer.deleted"
   | "invoice.voided"
-  | "invoice.refunded";
+  | "invoice.refunded"
+  | "product.price_changed";
 
 /** The `entity` column: the noun half of the action, used by the tab filter. */
 export type AuditEntity =
@@ -58,7 +59,8 @@ export type AuditEntity =
   | "api_key"
   | "ticket"
   | "customer"
-  | "invoice";
+  | "invoice"
+  | "product";
 
 export type AuditEntry = {
   shopId: string;

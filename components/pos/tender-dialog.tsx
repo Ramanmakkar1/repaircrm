@@ -26,6 +26,7 @@ import { cn } from "@/components/ui/cn";
 import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents, parseCents } from "@/lib/money";
+import type { CardFlow } from "@/lib/payments/card-machine";
 import { METHOD_LABELS, type TenderMethod } from "./types";
 
 /** Bills a counter actually gets handed. */
@@ -85,6 +86,7 @@ export function TenderDialog({
   error,
   terminal,
   squareTerminal,
+  cardFlow = "manual",
   onClose,
   onConfirm,
 }: {
@@ -97,6 +99,12 @@ export function TenderDialog({
   /** Absent when this shop cannot take a card at a reader. */
   terminal?: TenderTerminal;
   squareTerminal?: TenderSquareTerminal;
+  /**
+   * What Card opens on, already resolved against what is paired (see
+   * lib/payments/card-machine.ts). "manual" when the shop keys the amount into
+   * its own machine — or has no machine wired to RepairPilot at all.
+   */
+  cardFlow?: CardFlow;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
@@ -126,6 +134,7 @@ export function TenderDialog({
             error={error}
             terminal={terminal}
             squareTerminal={squareTerminal}
+            cardFlow={cardFlow}
             onClose={onClose}
             onConfirm={onConfirm}
           />
@@ -143,6 +152,7 @@ function TenderForm({
   error,
   terminal,
   squareTerminal,
+  cardFlow,
   onClose,
   onConfirm,
 }: {
@@ -153,6 +163,7 @@ function TenderForm({
   error: string | null;
   terminal?: TenderTerminal;
   squareTerminal?: TenderSquareTerminal;
+  cardFlow: CardFlow;
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
@@ -162,7 +173,19 @@ function TenderForm({
   // Only the second one moves money from in here, so the two are separate
   // choices rather than one button that does different things.
   const canUseReader = method === "CARD" && Boolean(terminal || squareTerminal);
-  const [useReader, setUseReader] = React.useState<"stripe" | "square" | null>(null);
+  // An "automatic" shop lands on its machine with the amount already on the
+  // way — Card, tap, done. The form is remounted per tender (keyed by method),
+  // so this initial value is re-decided for every sale.
+  const [useReader, setUseReader] = React.useState<"stripe" | "square" | null>(() =>
+    method !== "CARD"
+      ? null
+      : cardFlow === "stripe" && terminal
+        ? "stripe"
+        : cardFlow === "square" && squareTerminal
+          ? "square"
+          : null,
+  );
+  const isCard = method === "CARD";
   // Opening on the exact amount makes the overwhelmingly common "card, done"
   // and "exact change" paths a single click.
   const [received, setReceived] = React.useState(() =>
@@ -221,28 +244,26 @@ function TenderForm({
         </div>
       ) : null}
 
-      {terminal && method === "CARD" ? (
-        <Button
-          type="button"
-          variant="soft"
-          size="lg"
-          className="h-14 text-[15px]"
-          onClick={() => setUseReader("stripe")}
-        >
-          <ACTIONS.pay /> Take it on Stripe Terminal
-        </Button>
+      {isCard && cardFlow !== "manual" ? (
+        <ReaderButtons
+          terminal={terminal}
+          squareTerminal={squareTerminal}
+          onPick={setUseReader}
+        />
       ) : null}
 
-      {squareTerminal && method === "CARD" ? (
-        <Button
-          type="button"
-          variant="soft"
-          size="lg"
-          className="h-14 text-[15px]"
-          onClick={() => setUseReader("square")}
-        >
-          <ACTIONS.pay /> Take it on Square Terminal
-        </Button>
+      {isCard ? (
+        <div className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-surface-hover px-5 py-6 text-center">
+          <span className="text-[13.5px] font-semibold text-muted-foreground">
+            Key this amount into your card machine
+          </span>
+          <span className="text-4xl font-bold leading-none tabular-nums tracking-tight text-foreground">
+            {formatCents(totalCents)}
+          </span>
+          <span className="text-[13.5px] text-muted-foreground">
+            When the machine says approved, press the button below.
+          </span>
+        </div>
       ) : null}
 
       {isCash ? (
@@ -307,18 +328,32 @@ function TenderForm({
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          <Label htmlFor="reference">Reference (optional)</Label>
+          <Label htmlFor="reference">
+            {isCard ? "Last 4 digits or approval code (optional)" : "Reference (optional)"}
+          </Label>
           <Input
             id="reference"
             value={reference}
             onChange={(event) => setReference(event.target.value)}
-            placeholder="Check #, auth code, last 4…"
+            placeholder={isCard ? "e.g. 4242" : "Check #, reference…"}
             className="h-12"
-            autoFocus
+            // A card sale is usually just "Approved": leave the focus on the
+            // confirm button so Enter finishes it, and nobody has to tab past
+            // a field they were never going to fill.
+            autoFocus={!isCard}
             maxLength={200}
           />
         </div>
       )}
+
+      {isCard && cardFlow === "manual" ? (
+        <ReaderButtons
+          terminal={terminal}
+          squareTerminal={squareTerminal}
+          onPick={setUseReader}
+          quiet
+        />
+      ) : null}
 
       {/* Stacked on a phone, with the confirm on top under the thumb: at
           390px two full-size buttons side by side put "Take $1,284.50" one
@@ -339,18 +374,85 @@ function TenderForm({
           size="lg"
           className="w-full sm:w-auto"
           disabled={blocked}
+          autoFocus={isCard}
         >
           {pending ? (
             <>
               <Loader2 className="animate-spin" />
               Finishing…
             </>
+          ) : isCard ? (
+            `Approved — finish ${formatCents(totalCents)}`
           ) : (
             `Take ${formatCents(totalCents)}`
           )}
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/**
+ * The way across to a connected machine from the manual screen, and the
+ * chooser when a shop has paired both kinds and asked to be asked.
+ *
+ * `quiet` is the manual-mode shop: the owner said "we key it in", so the
+ * connected machine is one small line under the form, not the first thing the
+ * cashier sees on every sale.
+ */
+function ReaderButtons({
+  terminal,
+  squareTerminal,
+  onPick,
+  quiet = false,
+}: {
+  terminal?: TenderTerminal;
+  squareTerminal?: TenderSquareTerminal;
+  onPick: (reader: "stripe" | "square") => void;
+  quiet?: boolean;
+}) {
+  if (!terminal && !squareTerminal) return null;
+  const options = [
+    terminal ? ({ id: "stripe", label: "Stripe Terminal" } as const) : null,
+    squareTerminal ? ({ id: "square", label: "Square Terminal" } as const) : null,
+  ].filter((option) => option !== null);
+
+  return (
+    <div className={cn("flex flex-col gap-2", quiet && "sm:flex-row")}>
+      {options.map((option) => (
+        <Button
+          key={option.id}
+          type="button"
+          variant={quiet ? "outline" : "soft"}
+          size="lg"
+          className={cn(quiet ? "h-11 flex-1 text-[13.5px]" : "h-14 text-[15px]")}
+          onClick={() => onPick(option.id)}
+        >
+          <ACTIONS.pay />
+          {quiet ? `Send to ${option.label} instead` : `Send it to ${option.label}`}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Shown the moment a connected machine lets the cashier down. The customer is
+ * standing there with a card out: the fix that matters is "use any machine and
+ * carry on", not a diagnosis.
+ */
+function MachineTroubleNote({ onManual }: { onManual: () => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3.5">
+      <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Machine not working?</span>{" "}
+        Take the card on any machine you have, then record it here. Nothing was
+        charged by RepairPilot.
+      </p>
+      <Button type="button" size="lg" className="w-full" onClick={onManual}>
+        Record it manually
+      </Button>
+    </div>
   );
 }
 
@@ -429,6 +531,10 @@ function ReaderTender({
         startLabel={`Charge ${formatCents(totalCents)}`}
       />
 
+      {!reader.busy && (reader.error || reader.unavailable) ? (
+        <MachineTroubleNote onManual={onKeyIn} />
+      ) : null}
+
       <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
         <Button
           type="button"
@@ -438,7 +544,7 @@ function ReaderTender({
           disabled={reader.busy}
           onClick={onKeyIn}
         >
-          Key it in instead
+          Record it manually instead
         </Button>
         <Button
           type="button"
@@ -471,11 +577,13 @@ function SquareReaderTender({
   const [deviceId, setDeviceId] = React.useState(terminal.devices[0]?.id ?? "");
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState("Ready when you are.");
+  const [failed, setFailed] = React.useState(false);
   const alive = React.useRef(true);
   React.useEffect(() => () => { alive.current = false; }, []);
 
   const start = async () => {
     setBusy(true);
+    setFailed(false);
     setMessage("Sending the sale to Square Terminal…");
     try {
       const created = await terminal.createCheckout(deviceId);
@@ -499,6 +607,7 @@ function SquareReaderTender({
     } catch (problem) {
       if (!alive.current) return;
       setMessage(problem instanceof Error ? problem.message : "Square Terminal could not finish the payment.");
+      setFailed(true);
       setBusy(false);
     }
   };
@@ -524,11 +633,12 @@ function SquareReaderTender({
         ) : null}
         <Button type="button" size="lg" className="mt-4 w-full" disabled={busy || !deviceId} onClick={() => void start()}>
           {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.pay />}
-          {busy ? "Waiting for customer…" : `Charge ${formatCents(totalCents)}`}
+          {busy ? "Waiting for customer…" : failed ? `Try again — ${formatCents(totalCents)}` : `Charge ${formatCents(totalCents)}`}
         </Button>
       </div>
+      {failed && !busy ? <MachineTroubleNote onManual={onKeyIn} /> : null}
       <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
-        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onKeyIn}>Key it in instead</Button>
+        <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onKeyIn}>Record it manually instead</Button>
         <Button type="button" variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>
       </DialogFooter>
     </div>

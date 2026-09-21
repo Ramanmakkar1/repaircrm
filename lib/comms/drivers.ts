@@ -107,6 +107,8 @@ export async function deliverSms(message: {
     return "logged";
   }
 
+  if (smsDriverName() === "android_gateway") return deliverViaAndroidGateway(message);
+
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
   const from = process.env.TWILIO_FROM?.trim();
@@ -135,6 +137,50 @@ export async function deliverSms(message: {
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
       return failure(`twilio ${response.status} ${detail}`);
+    }
+    return "sent";
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * SMS Gateway for Android — the shop's own phone does the sending.
+ *
+ * `SMS_GATEWAY_URL` is the whole message endpoint, not a base, because the app
+ * has three modes with three addresses and the app's own screen prints the right
+ * one: its cloud relay, a self-hosted private server, or the phone itself on the
+ * shop's network (`http://<phone-ip>:8080/message` — which a cloud-hosted
+ * RepairPilot cannot reach, so use the cloud or private mode there).
+ *
+ * The gateway answers 202: the message is QUEUED on the phone, not delivered.
+ * "sent" here therefore means what it means for Twilio — accepted for delivery.
+ */
+async function deliverViaAndroidGateway(message: { to: string; body: string }): Promise<string> {
+  const url = process.env.SMS_GATEWAY_URL?.trim();
+  const user = process.env.SMS_GATEWAY_USER?.trim();
+  const password = process.env.SMS_GATEWAY_PASSWORD?.trim();
+  if (!url) return "failed: SMS_GATEWAY_URL is not set";
+  if (!user) return "failed: SMS_GATEWAY_USER is not set";
+  if (!password) return "failed: SMS_GATEWAY_PASSWORD is not set";
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${user}:${password}`).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        textMessage: { text: message.body },
+        phoneNumbers: [message.to],
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return failure(`sms gateway ${response.status} ${detail}`);
     }
     return "sent";
   } catch (error) {

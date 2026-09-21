@@ -297,7 +297,12 @@ export async function createTicketAction(
 
   const ticket = await withNextNumber(shopId, "ticket", (number) => db.$transaction(async tx => {
     if (newCustomer?.success) {
-      const created = await tx.customer.create({ data: { shopId, ...splitCustomerName(newCustomer.data.name), email: newCustomer.data.email || null, phone: newCustomer.data.phone || null, mobile: newCustomer.data.phone || null, smsOptIn: false, emailOptIn: false } });
+      const created = await tx.customer.create({ data: { shopId, ...splitCustomerName(newCustomer.data.name), email: newCustomer.data.email || null, phone: newCustomer.data.phone || null, mobile: newCustomer.data.phone || null,
+        // Same defaults as every other way a customer is added (the customer
+        // form, public check-in): repair emails on, texts only with a yes and a
+        // number. Both used to be hard-coded false here, which silently cut
+        // every walk-in off from their own "ready for pickup" message.
+        smsOptIn: Boolean(newCustomer.data.phone) && bool(formData, "newCustomerSmsOk"), emailOptIn: true } });
       customerId = created.id;
     }
     let deviceId = assetId;
@@ -1404,17 +1409,8 @@ export async function notifyReadyForPickupAction(
   // row either way, including when it has to skip.
   const useSms = ticket.customer.smsOptIn && Boolean(ticket.customer.mobile);
   const portalPath = `/portal/tickets/${ticket.id}`;
-
-  if (useSms) {
-    await sendSms({
-      shopId,
-      customerId: ticket.customerId,
-      ticketId: ticket.id,
-      body: message,
-      portalPath,
-    });
-  } else {
-    await sendEmail({
+  const email = () =>
+    sendEmail({
       shopId,
       customerId: ticket.customerId,
       ticketId: ticket.id,
@@ -1423,10 +1419,63 @@ export async function notifyReadyForPickupAction(
       context: `Ticket #${ticket.number} · ${ticket.subject}`,
       portalPath,
     });
+
+  let channel: "text" | "email" = useSms ? "text" : "email";
+  let sent = useSms
+    ? await sendSms({
+        shopId,
+        customerId: ticket.customerId,
+        ticketId: ticket.id,
+        body: message,
+        portalPath,
+      })
+    : await email();
+  // A text that bounced is not the end of it: the whole point is that the
+  // customer finds out, so try their email before giving up.
+  if (useSms && !sent.ok) {
+    const fallback = await email();
+    if (fallback.ok) {
+      sent = fallback;
+      channel = "email";
+    }
   }
 
   revalidateTicket(ticket.id);
-  return { ok: true };
+  return pickupOutcome(sent.status, channel);
+}
+
+/**
+ * The truth about the pickup notice, in the words the front desk needs. The
+ * button used to say "Customer told" whatever happened — including for the
+ * customer with no email and no mobile, who then never came in.
+ */
+function pickupOutcome(status: string, channel: "text" | "email"): ActionState {
+  if (status === "sent") {
+    return { ok: true, done: `Marked ready and the customer was ${channel === "text" ? "texted" : "emailed"}.` };
+  }
+  if (status === "logged") {
+    return {
+      ok: true,
+      notice:
+        "Marked ready — but messaging isn't switched on yet, so nothing actually went out. Give the customer a call.",
+    };
+  }
+  if (status === "skipped: no address") {
+    return {
+      ok: true,
+      notice: "Marked ready — but there's no email or mobile on file, so the customer wasn't told. Give them a call.",
+    };
+  }
+  if (status === "skipped: opted out") {
+    return {
+      ok: true,
+      notice: "Marked ready — this customer said no to messages, so nothing was sent. Give them a call.",
+    };
+  }
+  return {
+    ok: true,
+    notice: `Marked ready — but the message didn't send (${status.replace(/^failed:\s*/, "").slice(0, 80)}). Give the customer a call.`,
+  };
 }
 
 /**

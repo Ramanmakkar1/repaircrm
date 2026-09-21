@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CalendarPlus, Check, Search, X } from "lucide-react";
+import { AlertTriangle, CalendarPlus, Check, Search, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveAppointmentAction } from "@/app/(app)/appointments/actions";
@@ -30,6 +30,8 @@ import type { AppointmentConflict, Option } from "./appointment-state";
 import { DURATION_OPTIONS } from "./calendar-meta";
 
 const NONE = "none";
+/** `customerId` while booking someone who is not a customer yet. */
+const NEW = "new";
 
 export type AppointmentPickers = {
   customers: Option[];
@@ -43,6 +45,12 @@ export type AppointmentFormValues = {
   id: string | null;
   title: string;
   customerId: string;
+  /** Filled when `customerId` is "new" — a first-time caller booked from here. */
+  newCustomerName?: string;
+  newCustomerPhone?: string;
+  newCustomerEmail?: string;
+  /** Undefined reads as yes: the box starts ticked, and unticking is the act. */
+  newCustomerSmsOk?: boolean;
   ticketId: string;
   assignedToId: string;
   locationId: string;
@@ -110,6 +118,10 @@ export function AppointmentDialog({
     const formData = new FormData();
     formData.set("title", values.title);
     formData.set("customerId", values.customerId || NONE);
+    formData.set("newCustomerName", values.newCustomerName ?? "");
+    formData.set("newCustomerPhone", values.newCustomerPhone ?? "");
+    formData.set("newCustomerEmail", values.newCustomerEmail ?? "");
+    if (values.newCustomerSmsOk !== false) formData.set("newCustomerSmsOk", "on");
     formData.set("ticketId", values.ticketId);
     formData.set("assignedToId", values.assignedToId);
     formData.set("locationId", values.locationId);
@@ -212,14 +224,37 @@ export function AppointmentDialog({
             />
           </Field>
 
-          <Field label="Customer" hint="Optional — a walk-in slot doesn't need one.">
+          <Field
+            label="Customer"
+            hint={
+              values.customerId === NEW
+                ? "They're saved as a customer when you book — no need to add them first."
+                : "Optional — a walk-in slot doesn't need one. New caller? Type their name."
+            }
+          >
             <CustomerPicker
               customers={pickers.customers}
               value={values.customerId}
-              onChange={(next) =>
+              newName={values.newCustomerName ?? ""}
+              newPhone={values.newCustomerPhone ?? ""}
+              newEmail={values.newCustomerEmail ?? ""}
+              smsOk={values.newCustomerSmsOk !== false}
+              onSmsOkChange={(ok) => setValues((prev) => ({ ...prev, newCustomerSmsOk: ok }))}
+              onNewChange={(person) =>
+                setValues((prev) => ({
+                  ...prev,
+                  newCustomerName: person.name,
+                  newCustomerPhone: person.phone,
+                  newCustomerEmail: person.email,
+                }))
+              }
+              onChange={(next, name) =>
                 setValues((prev) => ({
                   ...prev,
                   customerId: next,
+                  newCustomerName: next === NEW ? (name ?? "") : "",
+                  newCustomerPhone: next === NEW ? (prev.newCustomerPhone ?? "") : "",
+                  newCustomerEmail: next === NEW ? (prev.newCustomerEmail ?? "") : "",
                   // The previous ticket belongs to the previous customer.
                   ticketId: NONE,
                 }))
@@ -444,11 +479,24 @@ function LocationSelect({
 function CustomerPicker({
   customers,
   value,
+  newName,
+  newPhone,
+  newEmail,
+  smsOk,
+  onSmsOkChange,
   onChange,
+  onNewChange,
 }: {
   customers: Option[];
   value: string;
-  onChange: (next: string) => void;
+  newName: string;
+  newPhone: string;
+  newEmail: string;
+  smsOk: boolean;
+  onSmsOkChange: (ok: boolean) => void;
+  /** `name` rides along when switching to a new customer, to seed the form. */
+  onChange: (next: string, name?: string) => void;
+  onNewChange: (person: { name: string; phone: string; email: string }) => void;
 }) {
   const [query, setQuery] = React.useState("");
   const selected = customers.find((customer) => customer.value === value) ?? null;
@@ -462,6 +510,77 @@ function CustomerPicker({
     // anything past that is a search term away.
     return list.slice(0, 40);
   }, [customers, query]);
+
+  // A first-time caller: two fields, right here. The person on the phone is
+  // mid-sentence — sending the front desk to another screen to "create the
+  // customer first" is how bookings get scribbled on paper instead.
+  if (value === NEW) {
+    const person = { name: newName, phone: newPhone, email: newEmail };
+    return (
+      <div className="flex flex-col gap-3 rounded-md border border-border-strong bg-surface-hover p-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[13.5px] font-semibold text-foreground">New customer</span>
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              setQuery("");
+            }}
+            className="text-[13px] font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Search instead
+          </button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            value={newName}
+            onChange={(event) => onNewChange({ ...person, name: event.target.value })}
+            placeholder="Full name"
+            aria-label="New customer's name"
+            autoComplete="off"
+            autoFocus
+          />
+          <Input
+            value={newPhone}
+            onChange={(event) => onNewChange({ ...person, phone: event.target.value })}
+            placeholder="Mobile number"
+            aria-label="New customer's mobile number"
+            inputMode="tel"
+            autoComplete="off"
+          />
+          <Input
+            value={newEmail}
+            onChange={(event) => onNewChange({ ...person, email: event.target.value })}
+            placeholder="Email (optional)"
+            aria-label="New customer's email (optional)"
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            className="sm:col-span-2"
+          />
+        </div>
+        {/* Asked out loud at the counter, recorded here. Texting someone who
+            never agreed to it is what gets a shop's number blocked. */}
+        <label className="flex items-start gap-2.5 text-[13.5px] text-foreground">
+          <input
+            type="checkbox"
+            checked={smsOk && newPhone.trim() !== ""}
+            disabled={newPhone.trim() === ""}
+            onChange={(event) => onSmsOkChange(event.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
+          />
+          <span>
+            They&rsquo;re happy to get texts about this booking and their repair
+            <span className="block text-[12.5px] text-muted-foreground">
+              {newPhone.trim() === ""
+                ? "Add a mobile number to text them."
+                : "They get a confirmation text now and a reminder before the visit."}
+            </span>
+          </span>
+        </label>
+      </div>
+    );
+  }
 
   if (selected) {
     return (
@@ -498,7 +617,7 @@ function CustomerPicker({
         <div className="max-h-44 overflow-y-auto rounded-md border border-border">
           {filtered.length === 0 ? (
             <p className="px-3.5 py-3 text-[13.5px] text-muted-foreground">
-              Nobody matches &ldquo;{query.trim()}&rdquo;.
+              Nobody on file matches &ldquo;{query.trim()}&rdquo;.
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -518,6 +637,17 @@ function CustomerPicker({
               ))}
             </ul>
           )}
+          <button
+            type="button"
+            onClick={() => onChange(NEW, query.trim())}
+            className={cn(
+              "flex w-full items-center gap-2 border-t border-border px-3.5 py-3 text-left text-[13.5px] font-semibold text-foreground transition-colors",
+              "hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none",
+            )}
+          >
+            <UserPlus className="size-4 shrink-0" />
+            <span className="truncate">Book &ldquo;{query.trim()}&rdquo; as a new customer</span>
+          </button>
         </div>
       ) : null}
     </div>

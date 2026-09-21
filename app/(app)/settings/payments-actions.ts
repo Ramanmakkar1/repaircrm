@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
+import type { Prisma } from "@prisma/client";
+
+import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   disconnectShop,
   ensureShopWebhook,
@@ -13,6 +17,7 @@ import {
   runPaymentsHealthCheck,
 } from "@/lib/payments";
 import type { PaymentsHealth, TerminalReader } from "@/lib/payments";
+import type { CardMachineMode, CardMachineProvider } from "@/lib/payments/card-machine";
 import {
   createSquareDeviceCode,
   disconnectSquare,
@@ -260,4 +265,61 @@ export async function testPaymentsAction(): Promise<
     return { ok: false, error: "Only the shop owner can test payments." };
   }
   return { ok: true, health: await runPaymentsHealthCheck(shopId) };
+}
+
+/**
+ * How the Card button behaves at the till and on an invoice: send the amount
+ * to a connected machine, or show it for the cashier to key into their own.
+ *
+ * Nothing about a processor changes here — this is a preference about which
+ * screen opens first, and every payment screen keeps a one-tap way across to
+ * the other. Stored beside the other shop settings and merged, never replaced.
+ */
+export async function setCardMachineAction(input: {
+  mode: CardMachineMode;
+  provider: CardMachineProvider | null;
+}): Promise<PaymentsActionResult> {
+  const { shopId, userId, role } = await requireUser();
+  if (role !== "OWNER") {
+    return { ok: false, error: "Only the shop owner can change how the card machine works." };
+  }
+  const mode: CardMachineMode = input?.mode === "manual" ? "manual" : "auto";
+  const provider: CardMachineProvider | null =
+    input?.provider === "stripe" || input?.provider === "square" ? input.provider : null;
+
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { settings: true } });
+  if (!shop) return { ok: false, error: "Shop not found." };
+  const current =
+    shop.settings && typeof shop.settings === "object" && !Array.isArray(shop.settings)
+      ? (shop.settings as Record<string, unknown>)
+      : {};
+
+  await db.shop.update({
+    where: { id: shopId },
+    data: {
+      settings: { ...current, cardMachine: { mode, provider } } as Prisma.InputJsonValue,
+    },
+  });
+  await audit({
+    shopId,
+    userId,
+    action: "settings.updated",
+    entity: "settings",
+    entityId: shopId,
+    summary:
+      mode === "manual"
+        ? "Card machine set to manual (amount keyed into the shop's own machine)"
+        : "Card machine set to automatic (amount sent to the connected machine)",
+    meta: { section: "payments", cardMachine: { mode, provider } },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/pos");
+  return {
+    ok: true,
+    message:
+      mode === "manual"
+        ? "Saved. Card payments now show the amount to key into your own machine."
+        : "Saved. Card payments now go straight to your connected machine.",
+  };
 }
