@@ -8,6 +8,7 @@ import {
   Check,
   Loader2,
   Mic,
+  AudioLines,
   Send,
   Sparkles,
   Square,
@@ -30,9 +31,11 @@ import {
   type AssistantOutcome,
 } from "@/app/(app)/assistant/actions";
 import { useDictation } from "@/components/voice/use-dictation";
+import { RepairPilotMark } from "@/components/brand/repairpilot";
 
 /**
- * The inventory assistant — a floating button that opens a command bar.
+ * One persistent assistant in the authenticated app shell. The floating mic
+ * starts dictation in one tap; the keyboard opens the same assistant for typing.
  *
  * Type or speak a command in any language; the server interprets it into ONE
  * known inventory action and reports back (lib/ai/assistant.ts). It can only
@@ -48,6 +51,9 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
   const [input, setInput] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const [outcome, setOutcome] = React.useState<AssistantOutcome | null>(null);
+  const voiceButtonRef = React.useRef<HTMLButtonElement>(null);
+  const launchButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const openedWithVoice = React.useRef(false);
 
   const run = React.useCallback(
     (text: string) => {
@@ -100,20 +106,60 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
     }
   }
 
+  function launch(event: React.MouseEvent<HTMLButtonElement>, voice: boolean) {
+    launchButtonRef.current = event.currentTarget;
+    openedWithVoice.current = voice && enabled && dictation.supported;
+    setOpen(true);
+    if (openedWithVoice.current) dictation.start();
+  }
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ask assistant — speak or type"
-        className="flex h-9 shrink-0 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      <div
+        role="group"
+        aria-label="Shop assistant"
+        className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex w-[calc(100%-2rem)] max-w-[460px] items-center gap-2 rounded-full bg-surface p-2 sm:p-2.5 print:hidden"
       >
-        <Mic className="size-4" aria-hidden />
-        <span className="hidden sm:inline">Ask assistant</span>
-      </button>
+        <button
+          type="button"
+          onClick={(event) => launch(event, false)}
+          aria-label="Type to assistant"
+          title="Type to assistant"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className="rf-assistant-prompt flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-full pl-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3"
+        >
+          <RepairPilotMark className="size-10 shrink-0 rounded-full sm:size-11" />
+          <span className="truncate text-sm font-medium sm:text-lg">Ask RepairPilot<span className="hidden min-[400px]:inline"> anything</span></span>
+        </button>
+        <button
+          type="button"
+          onClick={(event) => launch(event, true)}
+          aria-label="Speak to assistant"
+          title="Speak to assistant from any screen"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          className="rf-assistant-talk flex h-12 shrink-0 items-center gap-2 rounded-full px-4 text-white hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
+        >
+          <AudioLines className="size-5" aria-hidden />
+          <span className="text-base font-medium sm:text-lg">Talk</span>
+        </button>
+      </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onOpenAutoFocus={(event) => {
+            if (openedWithVoice.current) {
+              event.preventDefault();
+              voiceButtonRef.current?.focus();
+            }
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            launchButtonRef.current?.focus();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="size-4 text-accent" aria-hidden />
@@ -136,11 +182,11 @@ export function AssistantLauncher({ cloud = false, enabled = true, owner = false
               aria-label="Message to the assistant"
               maxLength={500}
               onChange={(event) => setInput(event.target.value)}
-              autoFocus
               placeholder="e.g. add 10 iPhone 6 screens"
               disabled={pending}
             />
               <Button
+                ref={voiceButtonRef}
                 type="button"
                 variant="soft"
                 size="icon"

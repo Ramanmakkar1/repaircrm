@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { ListKeyboardNav } from "@/components/list/keyboard-nav";
 import { CommandPalette } from "@/components/search/command-palette";
 import type { UiPrefs } from "@/lib/prefs";
@@ -61,13 +62,13 @@ export function AppShell({
             onSearchClick={() => setSearchOpen(true)}
             density={prefs.density}
             theme={prefs.theme}
-            assistant={assistant}
           />
-          <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+          <main className="flex-1 overflow-y-auto px-4 pt-5 pb-28 sm:px-6 sm:pt-6">
             <div className="mx-auto w-full max-w-7xl">{children}</div>
           </main>
         </div>
       </div>
+      <AssistantLauncher enabled={assistant.enabled} cloud={assistant.cloud} owner={user.role === "OWNER"} />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
       {/* j/k down a list, Enter to open. Renders nothing; finds its rows by
           the attribute RowLink emits, so no list has to opt in. */}

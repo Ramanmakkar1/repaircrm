@@ -1,7 +1,6 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { SearchTrigger } from "@/components/search/search-trigger";
 import {
   Tooltip,
@@ -21,13 +20,11 @@ export function Topbar({
   onSearchClick,
   density,
   theme,
-  assistant,
 }: {
   user: CurrentUser;
   /** Passed through to the user menu, which hosts display preferences. */
   density: Density;
   theme: Theme;
-  assistant: { enabled: boolean; cloud: boolean };
   /** Active branches. Fewer than two and the switcher is not rendered. */
   locations: SwitcherLocation[];
   currentLocationId: string;
@@ -57,7 +54,6 @@ export function Topbar({
       <SearchTrigger onOpen={onSearchClick} />
 
       <div className="ml-auto flex items-center gap-2.5">
-        <AssistantLauncher enabled={assistant.enabled} cloud={assistant.cloud} owner={user.role === "OWNER"} />
         {locations.length > 1 ? (
           <LocationSwitcher
             locations={locations}

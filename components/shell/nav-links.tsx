@@ -94,7 +94,7 @@ export function NavLinks({
             // The groups still exist; the rule between them is what says so.
             <span aria-hidden className="mb-2 h-px w-6 bg-border first:hidden" />
           ) : (
-            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
+            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground">
               {group.label}
             </p>
           )}
@@ -112,7 +112,7 @@ export function NavLinks({
                   collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
                   isActive
                     ? "bg-accent font-semibold text-accent-foreground shadow-xs"
-                    : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                    : "font-medium text-foreground hover:bg-surface-hover",
                 )}
               >
                 <Icon
@@ -120,7 +120,7 @@ export function NavLinks({
                     "size-4 shrink-0 transition-colors",
                     isActive
                       ? "text-accent-foreground"
-                      : "text-faint-foreground group-hover:text-muted-foreground",
+                      : "text-foreground",
                   )}
                   strokeWidth={2}
                 />
@@ -163,8 +163,8 @@ export function NavLinks({
                             "flex h-7 items-center rounded-md pl-[38px] pr-2 text-[13px] transition-colors",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                             childActive
-                              ? "font-semibold text-accent-soft-foreground"
-                              : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                              ? "font-semibold text-foreground"
+                              : "font-medium text-foreground hover:bg-surface-hover",
                           )}
                         >
                           <span className="truncate">{child.label}</span>
@@ -180,7 +180,7 @@ export function NavLinks({
       {showPlatformAdmin ? (
         <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>
           {!collapsed ? (
-            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
+            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground">
               Administration
             </p>
           ) : (
@@ -199,14 +199,14 @@ export function NavLinks({
                   collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
                   isActive
                     ? "bg-accent font-semibold text-accent-foreground shadow-xs"
-                    : "font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                    : "font-medium text-foreground hover:bg-surface-hover",
                 )}
               >
                 <Gauge
                   aria-hidden="true"
                   className={cn(
                     "size-4 shrink-0",
-                    isActive ? "text-accent-foreground" : "text-faint-foreground",
+                    isActive ? "text-accent-foreground" : "text-foreground",
                   )}
                 />
                 {collapsed ? <span className="sr-only">Platform operations</span> : <span>Platform operations</span>}

@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* The persistent voice dock follows the supplied soft-glow pill reference. */
+.rf-assistant-dock {
+  border: 2px solid color-mix(in srgb, #9b93f5 32%, var(--surface));
+  box-shadow: -12px 0 28px -10px rgb(116 97 245 / 0.35),
+    12px 4px 28px -10px rgb(247 163 109 / 0.32);
+}
+
+.rf-assistant-prompt {
+  color: color-mix(in srgb, #7565b4 72%, var(--foreground));
+}
+
+.rf-assistant-talk {
+  background: linear-gradient(110deg, #1062cf, #6740eb);
+}
+
 /*
  * RepairPilot design tokens
  * ------------------------

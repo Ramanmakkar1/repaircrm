@@ -81,7 +81,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md text-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <X className="size-5" />
             <span className="sr-only">Close menu</span>
@@ -115,7 +115,7 @@ function CollapseToggle({ collapsed }: { collapsed: boolean }) {
       disabled={pending}
       onClick={() => start(() => void setRailCollapsedAction(!collapsed))}
       className={cn(
-        "flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium text-muted-foreground transition-colors",
+        "flex h-8 items-center gap-2.5 rounded-md text-[13px] font-medium text-foreground transition-colors",
         "hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         "disabled:opacity-60",
         collapsed ? "w-9 justify-center" : "w-full px-3",
