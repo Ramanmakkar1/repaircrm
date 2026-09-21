@@ -58,6 +58,7 @@ const NO_SELECTION: Selection = { rows: [], index: 0 };
 const QUICK_ACTIONS: Row[] = [
   { id: "qa-ticket", title: "New ticket", subtitle: "Check a device in", href: "/tickets/new", icon: ICONS.ticket },
   { id: "qa-appointment", title: "New appointment", subtitle: "Book a drop-off or pickup", href: "/appointments?new=1", icon: ICONS.appointment },
+  { id: "qa-lead", title: "New lead", subtitle: "Someone rang or messaged to ask", href: "/leads/new", icon: ICONS.lead },
   { id: "qa-customer", title: "New customer", subtitle: "Add someone to the book", href: "/customers/new", icon: ICONS.customer },
   { id: "qa-invoice", title: "New invoice", subtitle: "Bill for work done", href: "/invoices/new", icon: ICONS.invoice },
   { id: "qa-estimate", title: "New estimate", subtitle: "Quote a job first", href: "/estimates/new", icon: ICONS.estimate },

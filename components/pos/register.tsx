@@ -17,6 +17,7 @@ import {
   posSquareTerminalCheckoutAction,
   posTerminalIntentAction,
 } from "@/app/(app)/pos/actions";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { CartPanel } from "./cart-panel";
 import { PayBar } from "./pay-bar";
 import { ProductGrid } from "./product-grid";
@@ -353,10 +354,21 @@ export function Register({
   };
 
   const clearCart = () => {
+    // One tap used to throw away a pile of scanned items for good. The cart
+    // only lives in this component, so putting it back is exact.
+    const before = { lines, ticketId, customerId };
     setLines([]);
     setTicketId(null);
     setError(null);
     scanRef.current?.focus();
+    toastWithUndo({
+      message: "Cart cleared",
+      undo: async () => {
+        setLines(before.lines);
+        setTicketId(before.ticketId);
+        setCustomerId(before.customerId);
+      },
+    });
   };
 
   // -------------------------------------------------------------- checkout ---

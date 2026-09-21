@@ -28,11 +28,14 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive-hover",
       },
+      // `pointer-coarse:min-h-*`: a finger gets a 44px target on phones and
+      // counter tablets. A MINIMUM, because tailwind-merge does not see a
+      // caller's `h-14` as overriding a variant-prefixed height.
       size: {
-        default: "h-9 px-3.5 text-[13.5px] [&_svg]:size-4",
-        sm: "h-8 px-3 text-[13px] [&_svg]:size-[15px]",
-        lg: "h-10 px-5 text-sm [&_svg]:size-[18px]",
-        icon: "h-9 w-9 shrink-0 [&_svg]:size-[17px]",
+        default: "h-9 px-3.5 text-[13.5px] pointer-coarse:min-h-11 [&_svg]:size-4",
+        sm: "h-8 px-3 text-[13px] pointer-coarse:min-h-10 [&_svg]:size-[15px]",
+        lg: "h-10 px-5 text-sm pointer-coarse:min-h-11 [&_svg]:size-[18px]",
+        icon: "h-9 w-9 shrink-0 pointer-coarse:min-h-11 pointer-coarse:min-w-11 [&_svg]:size-[17px]",
       },
     },
     defaultVariants: {
