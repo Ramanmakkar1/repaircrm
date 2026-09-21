@@ -33,7 +33,7 @@ export function PeriodPills({
      */
     <nav
       aria-label="Reporting period"
-      className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1"
+      className="inline-flex h-9 max-w-full shrink-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border bg-surface-hover p-1"
     >
       {REPORT_PERIODS.map((period) => {
         const current = period.key === active;

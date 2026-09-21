@@ -35,7 +35,10 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-surface shadow-sm",
+        // min-w-0: a card is often a flex/grid child, and without it a wide
+        // table inside (line items, 780px) forces the CARD — and so the whole
+        // page — to scroll sideways on a phone instead of scrolling itself.
+        "min-w-0 rounded-lg border border-border bg-surface shadow-sm",
         tone && cn("border-l-2", TONE_ACCENT[tone]),
         interactive &&
           "transition-[box-shadow,border-color] hover:border-border-strong hover:shadow-md focus-within:border-border-strong focus-within:shadow-md",

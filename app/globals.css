@@ -798,3 +798,16 @@ body:has(.rf-landing) {
     0 20px 38px -12px rgb(var(--shadow-color) / 0.26),
     0 44px 76px -28px rgb(var(--shadow-color) / 0.28);
 }
+
+/*
+ * Every sideways-scrolling box is a positioning container. Radix renders a
+ * visually-hidden native <select> (position: absolute) next to each Select;
+ * inside a wide table with no positioned ancestor, that hidden element was
+ * placed against the PAGE, not the scroller, and pushed the whole page ~90px
+ * sideways on phones (invoice/estimate line items, appointment list). One rule
+ * covers every table and scroller, including ones written later.
+ */
+.overflow-x-auto,
+.overflow-auto {
+  position: relative;
+}

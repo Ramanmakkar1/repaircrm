@@ -154,17 +154,25 @@ payment credentials, and public callback URLs.
 
 ### Platform operations console
 
-`/platform` is a separate, read-only operations surface. It accepts only a
-currently active RepairPilot user whose database email is explicitly present
-in `PLATFORM_ADMIN_EMAILS`; an OWNER role by itself does not grant platform
-access. Configure one or more existing, active RepairPilot staff emails in the
-deployment environment before relying on the console. Separate multiple
-addresses with commas. For local Next.js development, place the value in ignored
-`.env.local`; use ignored `.dev.vars` when running the Wrangler preview.
+`/platform` is a separate, read-only operations surface with its own accounts.
+Operators are rows in the `PlatformAdmin` table — not shop users — and sign in at
+`/platform/login` with their own session cookie (scoped to `/platform`, 8-hour
+life). No shop login, whatever its role or email, can reach the console, and the
+shop app never links to it.
 
-For a deployed Worker, configure `PLATFORM_ADMIN_EMAILS` in the Worker
-environment settings. Keep administrator addresses out of source control. The
-value must match one or more active RepairPilot staff accounts.
+Create, reset or disable an operator from the command line (there is no web
+signup for this):
+
+```bash
+PLATFORM_ADMIN_PASSWORD='a long random passphrase' \
+  node scripts/platform-admin.mjs add ops@example.com "Ops Name"
+node scripts/platform-admin.mjs disable ops@example.com
+node scripts/platform-admin.mjs list
+```
+
+Optionally set `PLATFORM_HOST` (e.g. `admin.example.com`) so the console answers
+only on that host and is a plain 404 on the shop's address. Failed operator
+sign-ins are capped per email per hour in Postgres.
 
 PostgreSQL size, session load, record counts, persisted failures, and audit
 summaries are read directly from the database. PlanetScale primary CPU, memory

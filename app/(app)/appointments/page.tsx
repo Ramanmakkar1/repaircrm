@@ -93,6 +93,12 @@ export default async function AppointmentsPage({
   // The calendar follows the top-bar branch: a second store's bookings are
   // somebody else's day.
   const branch = await locationWhere();
+  // A booking made without a location belongs to no branch in particular, so
+  // it shows under EVERY branch — hiding it (as a plain locationId match did)
+  // made "no location" bookings vanish from the calendar they were made on.
+  const branchOrUnassigned = branch.locationId
+    ? { OR: [{ locationId: branch.locationId }, { locationId: null }] }
+    : {};
 
   // "Whose day is this?" — the one lens a calendar actually needs. It narrows
   // the grid, the list AND the today strip together, so the three can never
@@ -107,7 +113,7 @@ export default async function AppointmentsPage({
       db.appointment.findMany({
         where: {
           shopId,
-          ...branch,
+          ...branchOrUnassigned,
           ...techWhere,
           startsAt: { gte: rangeStart, lte: rangeEnd },
         },
@@ -118,7 +124,7 @@ export default async function AppointmentsPage({
       db.appointment.findMany({
         where: {
           shopId,
-          ...branch,
+          ...branchOrUnassigned,
           ...techWhere,
           startsAt: { gte: startOfDay(now), lte: endOfDay(now) },
           status: { not: "CANCELED" },
@@ -226,7 +232,7 @@ export default async function AppointmentsPage({
       : `${format(days[0], "MMM d")} – ${format(days[6], "MMM d, yyyy")}`;
 
   // ------------------------------------------------------------- dialogs ---
-  const defaults = defaultFormValues(now);
+  const defaults = defaultFormValues(now, branch.locationId ?? null);
   const dialogValues: AppointmentFormValues | null = editing
     ? valuesFromAppointment(editing)
     : at
@@ -358,7 +364,7 @@ function nextUp(
 }
 
 /** A blank booking: the next round hour, one hour long. */
-function defaultFormValues(now: Date): AppointmentFormValues {
+function defaultFormValues(now: Date, locationId: string | null): AppointmentFormValues {
   const start = new Date(now);
   start.setMinutes(0, 0, 0);
   start.setHours(Math.max(DAY_START_HOUR, start.getHours() + 1));
@@ -369,7 +375,8 @@ function defaultFormValues(now: Date): AppointmentFormValues {
     customerId: "",
     ticketId: NONE,
     assignedToId: NONE,
-    locationId: NONE,
+    // New bookings land in the branch on screen, where they will be looked for.
+    locationId: locationId ?? NONE,
     startDate: toDateParam(start),
     startTime: toTimeParam(start),
     duration: "60",

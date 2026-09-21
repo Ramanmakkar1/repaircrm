@@ -61,6 +61,25 @@ const getPrismaClient = cache((): PrismaClient => {
       throw new Error("The Cloudflare HYPERDRIVE binding is required to access PostgreSQL.");
     }
 
+    // In production a client per request is right: Hyperdrive pools, and a
+    // Worker must not carry a socket from one request into the next. But
+    // `next dev` emulates the binding with a DIRECT local Postgres URL, and a
+    // fresh pg pool per page load (never closed) ran a laptop's Postgres out
+    // of connections ("sorry, too many clients") under any real use. So in
+    // development, one client per connection string, reused.
+    if (process.env.NODE_ENV === "development") {
+      const devClients = ((globalThis as { __rpDevClients?: Map<string, PrismaClient> }).__rpDevClients ??=
+        new Map());
+      let client = devClients.get(hyperdrive.connectionString);
+      if (!client) {
+        client = guarded(
+          new PrismaClient({ adapter: new PrismaPg({ connectionString: hyperdrive.connectionString }), log }),
+        );
+        devClients.set(hyperdrive.connectionString, client);
+      }
+      return client;
+    }
+
     return guarded(
       new PrismaClient({
         adapter: new PrismaPg({ connectionString: hyperdrive.connectionString }),

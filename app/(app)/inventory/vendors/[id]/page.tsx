@@ -126,7 +126,7 @@ export default async function VendorPage({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:justify-end">
             <VendorDialog
               vendor={vendor}
               trigger={

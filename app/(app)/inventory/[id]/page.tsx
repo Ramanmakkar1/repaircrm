@@ -197,7 +197,7 @@ export default async function ProductPage({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:justify-end">
             <Button variant="outline" asChild>
               <Link href={`/print/labels/${product.id}`}>
                 <ACTIONS.print />

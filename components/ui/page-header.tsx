@@ -102,7 +102,9 @@ export function PageHeader({
         </div>
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        // Wraps instead of pushing the page sideways: on a tablet a header with
+        // four buttons ran 40px past the screen edge.
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
       ) : null}
     </div>
   );

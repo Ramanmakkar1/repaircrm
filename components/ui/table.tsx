@@ -3,7 +3,9 @@ import { cn } from "./cn";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
+    // `relative`: without a positioned ancestor, an absolutely positioned cell
+    // label escaped this scroller and widened the whole page on phones.
+    <div className="relative w-full overflow-x-auto">
       <table className={cn("w-full caption-bottom text-[13.5px]", className)} {...props} />
     </div>
   );
