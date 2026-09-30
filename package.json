@@ -11,7 +11,7 @@
     "start": "next start -p 3020",
     "cf:build": "CLOUDFLARE_BUILD=1 node scripts/dev/with-hyperdrive-local.mjs opennextjs-cloudflare build",
     "cf:preview": "npm run cf:build && node scripts/dev/with-hyperdrive-local.mjs wrangler dev",
-    "cf:deploy": "npm run cf:build && node scripts/check-hyperdrive.mjs && node scripts/dev/with-hyperdrive-local.mjs opennextjs-cloudflare deploy --keep-vars",
+    "cf:deploy": "wrangler deploy --config ops/legacy-worker/wrangler.jsonc --keep-vars",
     "cf:types": "wrangler types --env-interface CloudflareEnv --include-runtime=false cloudflare-env.d.ts",
     "lint": "eslint",
     "test": "vitest run",

@@ -38,7 +38,7 @@ The original source had 50 tables and 127 rows including 14 migration records. E
 
 The old `repairpilot.townmedialabs.workers.dev` Worker now redirects to the new HTTPS origin, with no database binding or cron. `ops/legacy-worker` is its redirect-only configuration. Webhook providers should have their callback URL updated explicitly; not all providers follow redirects.
 
-The original PlanetScale database/Cloudflare Hyperdrive provisioning is retained temporarily for rollback. Its paid subscription has NOT been cancelled. Do not delete or cancel it until the owner accepts retirement after verification.
+The owner approved permanent source retirement on 2026-09-30. PlanetScale now shows no databases, and Cloudflare confirms Hyperdrive configuration `2823d25269e04680b92cc38e07a25400` was deleted. Previously accrued charges remain payable; ongoing source database compute has been removed. Rollback now requires restoring a saved dump to PostgreSQL. Private migration exports and a PostgreSQL dump are also retained on the owner’s Mac at `~/.local/share/repairshelper/private`, outside Git. `npm run cf:deploy` deploys only the legacy redirect Worker; it no longer deploys the old application.
 
 ## Design and authentication
 
