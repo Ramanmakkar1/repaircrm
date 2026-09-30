@@ -1,0 +1,16 @@
+{
+  "mode": "built-in image_gen",
+  "usage": "Generic category illustrations, never exact product/model photography. User-uploaded product photos override these.",
+  "assets": [
+    {
+      "filename": "display-assembly.webp",
+      "originalGeneratedPath": "/Users/raman/.codex/generated_images/01a0f405-0af3-74f2-8ed4-db6f539e1a55/exec-d8c2fe96-6968-48c6-a333-860405e745a7.png",
+      "prompt": "Use case: product-mockup. Asset type: repair-shop inventory catalog category illustration. Primary request: a professional photorealistic studio product photo of a generic smartphone replacement screen/display assembly, clearly a loose repair part rather than a whole phone. Scene/backdrop: pure solid white seamless studio background. Subject: one black-front smartphone LCD/OLED display panel with thin frame and a small exposed orange ribbon flex connector extending from the lower back edge, no phone chassis, no battery, no branding. Composition: square image, three-quarter slightly elevated view, isolated centered object with generous even whitespace, full part visible. Materials: black glass face turned off, realistic delicate metal edges, copper flex connector. Lighting: bright balanced soft studio light with only a small grounded natural contact shadow. Constraints: no logos, no model names, no lettering, no text, no people, no tools, no gradient backdrop, no colored background. This is a generic category illustration, not an exact device part. Match clean shopping catalog product photography."
+    },
+    {
+      "filename": "charging-port.webp",
+      "originalGeneratedPath": "/Users/raman/.codex/generated_images/01a0f405-0af3-74f2-8ed4-db6f539e1a55/exec-475cf36a-9d1e-4d68-9747-da03e7b9207a.png",
+      "prompt": "Use case: product-mockup. Asset type: repair-shop inventory catalog category illustration. Primary request: a professional photorealistic studio product photo of a generic smartphone replacement USB-C charging port flex assembly, clearly a loose repair part. Scene/backdrop: pure solid white seamless studio background. Subject: one small detailed orange/copper flexible circuit ribbon with a small silver USB-C connector socket, black mounting tabs and small electronic components, not a whole smartphone, not a wall charger or cable. Composition: square image, close-up slightly elevated three-quarter view, isolated centered part with generous whitespace and the complete assembly visible. Materials: realistic copper flexible PCB, silver connector metal, tiny matte black electronics. Lighting: bright balanced soft studio light with only a small grounded natural contact shadow. Constraints: no logos, no model names, no lettering, no text, no people, no tools, no gradient backdrop, no colored background. This is a generic category illustration, not an exact device part. Match clean shopping catalog product photography."
+    }
+  ]
+}

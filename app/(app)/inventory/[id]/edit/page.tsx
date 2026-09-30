@@ -7,6 +7,7 @@ import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
 
 export async function generateMetadata({
   params,
@@ -56,6 +57,7 @@ export default async function EditProductPage({
       vendorSku: true,
       serialized: true,
       active: true,
+      attachments: PRODUCT_IMAGE_SELECT,
     },
   });
   if (!product) notFound();
@@ -89,7 +91,7 @@ export default async function EditProductPage({
         description="Stock on hand is adjusted from the product page, not here."
       />
 
-      <ProductForm product={product} vendors={vendors} canSeeCost={role === "OWNER"} />
+      <ProductForm product={{ ...product, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null }} vendors={vendors} canSeeCost={role === "OWNER"} />
     </div>
   );
 }

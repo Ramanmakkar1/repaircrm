@@ -706,6 +706,7 @@ model Product {
   recurringLines RecurringInvoiceLine[]
   adjustments    StockAdjustment[]
   partOrders     PartOrder[]
+  attachments    Attachment[]
 
   @@unique([shopId, sku])
   @@index([shopId, name])
@@ -725,6 +726,7 @@ model Attachment {
   shopId       String
   ticketId     String?
   customerId   String?
+  productId    String?
   uploadedById String?
   fileName     String
   mimeType     String
@@ -736,11 +738,13 @@ model Attachment {
   shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
   ticket     Ticket?   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product    Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
   uploadedBy User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([shopId])
   @@index([ticketId])
   @@index([customerId])
+  @@index([productId])
 }
 
 model CommunicationLog {

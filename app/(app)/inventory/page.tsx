@@ -15,6 +15,8 @@ import {
 import { InventoryFilters } from "@/components/inventory/inventory-filters";
 import { QuickAddProduct } from "@/components/inventory/quick-add-product";
 import { StockBadge } from "@/components/inventory/stock-badge";
+import { ProductImage } from "@/components/inventory/product-image";
+import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,6 +88,7 @@ export default async function InventoryPage({
         stockQty: true,
         lowStockAt: true,
         active: true,
+        attachments: PRODUCT_IMAGE_SELECT,
       },
     }),
     db.product.findMany({
@@ -257,7 +260,8 @@ export default async function InventoryPage({
                     return (
                       <RowLink key={product.id} href={`/inventory/${product.id}`}>
                         <Td>
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-3">
+                            <ProductImage name={product.name} category={product.category} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} className="size-14 shrink-0 border" sizes="56px" />
                             <Link
                               href={`/inventory/${product.id}`}
                               title={product.name}

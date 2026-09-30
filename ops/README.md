@@ -46,7 +46,11 @@ The landing page implements Figma file `WMyZIhUH6GhWtULNXP7OrK`, frame `10:2`, u
 
 The image-only badge is AI-generated: a solid blue shield with a negative-space wrench/check symbol, without lettering, gradients, shadow, or mascot details. Final generated asset source: `01a0f30d-482c-7aa3-9680-8ecd4e3b0729/exec-56f10557-9f59-4449-ad35-c6808811d6b1.png`. WebP and app icon variants are under `public/brand` and `public/icons`.
 
-Easy mode is a persistent per-device layout preference. It uses the same records and role checks as Full view and exposes all navigation via All tools & settings.
+The application workspace implements Figma file `v3kr0p5xolbavbXxBli0YX`, visual POS frame `36:604` and repair workbench frame `36:605`. Responsive top navigation keeps the complete tool list under More. The photo catalog uses live prices and stock; all original serial, ticket, customer, tax, and payment flows remain connected.
+
+Easy mode is a persistent per-device layout preference that opens the visual POS. Full view opens the repair workbench. Both use the same records and role checks; the earlier quick-action home remains under More → All tools & quick actions.
+
+Product photos use the existing private attachment storage and `/files/<id>` endpoint. The additive product-photo migration associates an attachment with a product without changing existing customer or ticket files. Photos can be selected when creating a product, or uploaded, replaced, and removed on its detail/edit page. Uploads accept signature-validated JPG, PNG, and WebP files up to 5 MB, enforce current account validity and shop ownership, and appear consistently in POS, cart, and inventory. Products without exact photos use explicitly labeled category illustrations where available; services and unknown categories retain meaningful icons.
 
 Email codes last ten minutes, are HMAC-hashed with the application secret, allow five attempts, and are single use with a database row lock. Login codes preserve two-factor requirements. Reset codes issue the existing short-lived reset token. Unknown/disabled addresses receive the same public response. Sender authentication was verified with real delivery and SPF/DKIM/DMARC passing.
 

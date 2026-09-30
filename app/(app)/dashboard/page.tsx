@@ -1,471 +1,201 @@
 import type { Metadata } from "next";
+import type { Prisma } from "@prisma/client";
 import Link from "next/link";
-import { startOfDay, endOfDay, startOfMonth } from "date-fns";
-// AlarmClock is the one glyph here with no concept in components/ui/icons.ts.
-import { AlarmClock, type LucideIcon } from "lucide-react";
+import { redirect } from "next/navigation";
+import { startOfDay, endOfDay } from "date-fns";
+import { ChevronRight, Package, TriangleAlert, Users } from "lucide-react";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
-import { PageHeader } from "@/components/ui/page-header";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { STATUS_META, normalizeStatus, type StatusTone } from "@/components/ui/badge";
-import { cn } from "@/components/ui/cn";
-import { RowLink } from "@/components/list/row-link";
-import { customerLabel, relativeShort } from "@/components/tickets/ticket-meta";
 import { StatusBadge } from "@/components/ui/badge";
-import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
+import { cn } from "@/components/ui/cn";
+import { customerLabel, NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
-import { redirect } from "next/navigation";
 import { ViewSwitch } from "@/components/counter/view-switch";
+import { AssistantPanel } from "@/components/dashboard/assistant-panel";
+import { DeviceVisual } from "@/components/dashboard/device-visual";
 import { requireUser } from "@/lib/auth";
 import { readUiPrefs } from "@/lib/prefs";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
-import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "Dashboard · Repairs helper" };
-
+export const metadata: Metadata = { title: "Repair workbench · Repairs helper" };
 export const dynamic = "force-dynamic";
 
-const TICKET_STATUSES = [
-  "New",
-  "In Progress",
-  "Waiting for Parts",
-  "Waiting on Customer",
-  "Ready for Pickup",
-  "Resolved",
-] as const;
+const VIEWS = ["all", "due", "ready", "reply"] as const;
+type WorkbenchView = typeof VIEWS[number];
 
-export default async function DashboardPage() {
-  const { shopId, name } = await requireUser();
-  // Login, the installed app's start_url and the logo all point here. On a
-  // device set to Simple mode, "home" is the card screen instead.
-  if ((await readUiPrefs()).simple) redirect("/counter");
+export default async function DashboardPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [user, prefs, branch, params] = await Promise.all([requireUser(), readUiPrefs(), locationWhere(), searchParams]);
+  if (prefs.simple) redirect("/pos");
+  const { shopId, role } = user;
   const now = new Date();
+  const showMoney = role !== "TECH";
+  const view: WorkbenchView = VIEWS.includes(params.view as WorkbenchView) ? params.view as WorkbenchView : "all";
+  const activeWhere = { shopId, ...branch, status: { not: "Resolved" } };
 
-  // Every tile and list below narrows to the branch on screen, when one is
-  // selected. A single-location shop always resolves this to "all".
-  const branch = await locationWhere();
-
-  const [
-    statusGroups,
-    dueToday,
-    overdueCount,
-    monthPayments,
-    unpaidCandidates,
-    recentTickets,
-    awaitingReply,
-  ] = await Promise.all([
-    db.ticket.groupBy({
-      by: ["status"],
-      where: { shopId, ...branch },
-      _count: { _all: true },
-    }),
-    db.ticket.count({
-      where: {
-        shopId,
-        ...branch,
-        status: { not: "Resolved" },
-        dueDate: { gte: startOfDay(now), lte: endOfDay(now) },
-      },
-    }),
-    db.ticket.count({
-      where: {
-        shopId,
-        ...branch,
-        status: { not: "Resolved" },
-        dueDate: { lt: now },
-      },
-    }),
-    db.payment.aggregate({
-      where: {
-        shopId,
-        createdAt: { gte: startOfMonth(now) },
-        ...(branch.locationId ? { invoice: { locationId: branch.locationId } } : {}),
-      },
-      _sum: { amountCents: true },
-    }),
-    db.invoice.findMany({
-      where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } },
-      include: { lines: true, payments: true },
-    }),
-    db.ticket.findMany({
-      where: { shopId, ...branch },
-      orderBy: { updatedAt: "desc" },
-      take: 6,
-      include: {
-        customer: true,
-        assignedTo: true,
-        asset: { select: { type: true, make: true, model: true } },
-      },
-    }),
-    // Customers who wrote in and have not been answered — see
-    // lib/needs-reply.ts for what "answered" means.
+  const [statusGroups, dueToday, overdueCount, unpaidCandidates, awaitingReply, lowStockCount, appointments, shop, location] = await Promise.all([
+    db.ticket.groupBy({ by: ["status"], where: { shopId, ...branch }, _count: { _all: true } }),
+    db.ticket.count({ where: { ...activeWhere, dueDate: { gte: startOfDay(now), lte: endOfDay(now) } } }),
+    db.ticket.count({ where: { ...activeWhere, dueDate: { lt: now } } }),
+    showMoney ? db.invoice.findMany({ where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } }, include: { lines: true, payments: true } }) : Promise.resolve([]),
     needsReplyTicketIds(shopId, branch.locationId),
+    db.product.count({ where: { shopId, active: true, lowStockAt: { not: null }, stockQty: { lte: db.product.fields.lowStockAt } } }),
+    db.appointment.findMany({
+      where: { shopId, ...branch, status: "SCHEDULED", endsAt: { gte: now } },
+      orderBy: { startsAt: "asc" }, take: 3,
+      select: { id: true, title: true, startsAt: true, endsAt: true, customer: { select: { firstName: true, lastName: true, businessName: true } } },
+    }),
+    db.shop.findUnique({ where: { id: shopId }, select: { name: true } }),
+    branch.locationId ? db.location.findFirst({ where: { id: branch.locationId, shopId }, select: { name: true } }) : Promise.resolve(null),
   ]);
 
-  const statusCounts = new Map(statusGroups.map((g) => [g.status, g._count._all]));
-  const statusRows = TICKET_STATUSES.map((status) => ({
-    status,
-    count: statusCounts.get(status) ?? 0,
-    meta: STATUS_META[normalizeStatus(status)],
-  }));
-  const totalTickets = statusRows.reduce((sum, row) => sum + row.count, 0);
-  const openTickets = statusGroups
-    .filter((g) => g.status !== "Resolved")
-    .reduce((sum, g) => sum + g._count._all, 0);
-  const unpaidBalanceCents = unpaidCandidates.reduce(
-    (sum, inv) =>
-      sum + invoiceTotals(inv.lines, inv.taxRateBps, inv.payments).balanceCents,
-    0,
-  );
-
-  // One request-time clock so every card measures staleness against the same
-  // instant. eslint-disable: react-hooks/purity targets Client Components.
-  // eslint-disable-next-line react-hooks/purity
-  const clock = Date.now();
-
-  // Four headline measures keep the first screen easy to scan. Individual
-  // overdue and ready-for-pickup queues stay visible in the attention panel.
-  const stats: {
-    label: string;
-    value: string;
-    hint: string;
-    href: string;
-    icon: LucideIcon;
-    tone: StatusTone;
-  }[] = [
-    {
-      label: "Open repairs",
-      value: String(openTickets),
-      hint: "active work orders",
-      href: "/tickets",
-      icon: ICONS.ticket,
-      tone: "info",
+  const counts = new Map(statusGroups.map((group) => [group.status, group._count._all]));
+  const openCount = statusGroups.filter((group) => group.status !== "Resolved").reduce((sum, group) => sum + group._count._all, 0);
+  const readyCount = counts.get("Ready for Pickup") ?? 0;
+  const balance = unpaidCandidates.reduce((sum, invoice) => sum + invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments).balanceCents, 0);
+  const filter: Prisma.TicketWhereInput = view === "due" ? { dueDate: { gte: startOfDay(now), lte: endOfDay(now) } }
+    : view === "ready" ? { status: "Ready for Pickup" }
+    : view === "reply" ? { id: { in: awaitingReply } } : {};
+  const repairs = await db.ticket.findMany({
+    where: { ...(view === "reply" ? { shopId, ...branch } : activeWhere), ...filter },
+    orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }], take: 6,
+    select: {
+      id: true, number: true, subject: true, problemType: true, status: true, dueDate: true,
+      customer: { select: { firstName: true, lastName: true, businessName: true } },
+      asset: { select: { type: true, make: true, model: true } },
+      attachments: {
+        where: { mimeType: { in: ["image/jpeg", "image/png", "image/webp", "image/avif"] } },
+        orderBy: { createdAt: "asc" }, take: 8, select: { id: true, fileName: true },
+      },
     },
-    {
-      label: "Due today",
-      value: String(dueToday),
-      hint: "promised back today",
-      href: "/tickets?due=today",
-      icon: ICONS.dueDate,
-      tone: "active",
-    },
-    {
-      label: "Customer replies",
-      value: String(awaitingReply.length),
-      hint: "waiting on an answer",
-      href: `/tickets?status=${NEEDS_REPLY_FILTER}`,
-      icon: ICONS.message,
-      tone: "waiting",
-    },
-    {
-      label: "Outstanding balance",
-      value: formatCents(unpaidBalanceCents),
-      hint: unpaidCandidates.length + (unpaidCandidates.length === 1 ? " unpaid invoice" : " unpaid invoices"),
-      href: "/invoices?status=SENT",
-      icon: ICONS.invoice,
-      tone: "danger",
-    },
+  });
+  const tabs = [
+    { view: "all", label: "All repairs", count: openCount, href: "/tickets" },
+    { view: "due", label: "Due today", count: dueToday, href: "/tickets?due=today" },
+    { view: "ready", label: "Ready for pickup", count: readyCount, href: "/tickets?status=Ready%20for%20Pickup" },
+    { view: "reply", label: "Needs a reply", count: awaitingReply.length, href: `/tickets?status=${NEEDS_REPLY_FILTER}` },
   ];
-
-  const attentionRows = [
-    {
-      label: "Overdue repairs",
-      hint: overdueCount === 0 ? "Everything is on schedule" : "Past the promised date",
-      count: overdueCount,
-      href: "/tickets?due=overdue",
-      tone: "text-status-overdue-fg",
-    },
-    {
-      label: "Customer replies",
-      hint: "Waiting for your team",
-      count: awaitingReply.length,
-      href: "/tickets?status=" + NEEDS_REPLY_FILTER,
-      tone: "text-status-waiting-fg",
-    },
-    {
-      label: "Ready for pickup",
-      hint: "Repairs finished and awaiting handoff",
-      count: statusCounts.get("Ready for Pickup") ?? 0,
-      href: "/tickets?status=Ready%20for%20Pickup",
-      tone: "text-status-ready-fg",
-    },
+  const selectedTab = tabs.find((tab) => tab.view === view)!;
+  const stats = [
+    { label: "Open repairs", value: String(openCount), hint: `${counts.get("In Progress") ?? 0} in progress · ${overdueCount} overdue`, href: "/tickets" },
+    { label: "Due today", value: String(dueToday), hint: "Promised back today", href: "/tickets?due=today" },
+    { label: "Ready for pickup", value: String(readyCount), hint: "Devices ready to collect", href: "/tickets?status=Ready%20for%20Pickup" },
+    showMoney
+      ? { label: "Outstanding balance", value: formatCents(balance), hint: `Across ${unpaidCandidates.length} unpaid invoice${unpaidCandidates.length === 1 ? "" : "s"}`, href: "/invoices?status=SENT" }
+      : { label: "Customer replies", value: String(awaitingReply.length), hint: "Waiting on your team", href: `/tickets?status=${NEEDS_REPLY_FILTER}` },
   ];
 
   return (
     <div className="rh-dashboard flex flex-col gap-6">
-      <PageHeader
-        title={`Welcome back, ${name.split(" ")[0]}.`}
-        description={now.toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" }) + " · Here’s what’s happening in your shop."}
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[28px] font-semibold leading-10 tracking-tight sm:text-[32px]">Repair workbench</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{location?.name ?? shop?.name ?? "Your shop"} · {now.toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" })}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <ViewSwitch simple={false} />
-          <Button asChild>
-            <Link href="/tickets/new">
-              <ACTIONS.add />
-              New repair
-            </Link>
-          </Button>
-          </div>
-        }
-      />
-
-      {/* Renders nothing once the shop is set up, or once it is dismissed. */}
+          <Button asChild className="h-10 min-w-36"><Link href="/tickets/new"><ACTIONS.add />New repair</Link></Button>
+        </div>
+      </header>
       <SetupChecklist />
 
-
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        {stats.map((stat) => (
-          <Link key={stat.label} href={stat.href} className="rh-metric group rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40 sm:p-5">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted-foreground sm:text-sm">{stat.label}</span>
-              <stat.icon className="size-4 text-muted-foreground" aria-hidden />
+      <Card className="grid grid-cols-2 p-4 shadow-none lg:grid-cols-4">
+        {stats.map((stat, index) => (
+          <Link key={stat.label} href={stat.href} className={cn("min-w-0 rounded-sm px-3 py-2 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 lg:py-0", index % 2 === 1 && "border-l border-border", index > 1 && "lg:border-l lg:border-border")}>
+            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+              <span className={cn("font-semibold leading-[44px] tracking-tight tabular-nums", stat.value.length > 8 ? "text-[28px]" : "text-[36px]")}>{stat.value}</span>
+              <span className="text-sm text-muted-foreground">{stat.label}</span>
             </div>
-            <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground tabular-nums">{stat.value}</p>
-            <p className="mt-2 text-xs text-muted-foreground">{stat.hint}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{stat.hint}</p>
           </Link>
         ))}
-      </div>
-
-      <Card className="grid gap-2 border-dashed p-2 shadow-none sm:grid-cols-3">
-        <QuickAction
-          href="/appointments?new=1"
-          icon={ICONS.appointment}
-          title="Book an appointment"
-          hint="Schedule a drop-off or pickup"
-        />
-        <QuickAction
-          href="/customers/new"
-          icon={ICONS.customer}
-          title="Add a customer"
-          hint="Save their details for next time"
-        />
-        <QuickAction
-          href="/pos"
-          icon={ICONS.pos}
-          title="Take a payment"
-          hint="Open the counter register"
-        />
       </Card>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.8fr)] xl:items-start">
-        <Card className="min-w-0 overflow-hidden">
-          <CardHeader
-            icon={ICONS.ticket}
-            title="Recent repairs"
-            description="Latest ticket updates from this shop."
-            action={
-              <Link
-                href="/tickets"
-                className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                View all
-                <ACTIONS.next className="size-4" />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section aria-labelledby="repair-focus" className="min-w-0">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="repair-focus" className="text-lg font-semibold">Repairs in focus</h2>
+            <Link href={selectedTab.href} className="text-sm font-medium text-accent-soft-foreground hover:underline">View all {selectedTab.count} repairs →</Link>
+          </div>
+          <nav aria-label="Repair queue filters" className="mb-4 flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <Link key={tab.view} href={tab.view === "all" ? "/dashboard" : `/dashboard?view=${tab.view}`} aria-current={view === tab.view ? "page" : undefined}
+                className={cn("inline-flex min-h-10 items-center gap-2 rounded-md border bg-surface px-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", view === tab.view ? "border-[#006aff] text-accent-soft-foreground" : "border-border text-muted-foreground hover:text-foreground")}>
+                {tab.label}<span className="tabular-nums">{tab.count}</span>
               </Link>
-            }
-          />
-          {recentTickets.length === 0 ? (
-            <CardContent className="px-0 py-0">
-              <EmptyState
-                icon={ICONS.ticket}
-                title="No tickets yet"
-                hint="New repair tickets will show up here as they come in."
-                action={
-                  <Button asChild>
-                    <Link href="/tickets/new">
-                      <ACTIONS.add />
-                      New repair
-                    </Link>
-                  </Button>
-                }
-              />
-            </CardContent>
+            ))}
+          </nav>
+          {repairs.length === 0 ? (
+            <Card className="shadow-none"><EmptyState icon={ICONS.ticket} title={view === "all" ? "No open repairs" : "Nothing in this queue"} hint={view === "all" ? "Check in a device to start a repair." : "Your repair queue will update as work comes in."} action={<Button asChild><Link href="/tickets/new"><ACTIONS.add />New repair</Link></Button>} /></Card>
           ) : (
-            <Table>
-              <THead>
-                <Tr>
-                  <Th>Repair</Th>
-                  <Th>Status</Th>
-                  <Th className="hidden text-right sm:table-cell">Updated</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {recentTickets.map((ticket) => (
-                  <RowLink key={ticket.id} href={`/tickets/${ticket.id}`}>
-                    <Td className="max-w-0">
-                      <Link
-                        href={`/tickets/${ticket.id}`}
-                        title={ticket.subject}
-                        className="block max-w-[38rem] truncate font-semibold text-foreground hover:text-accent hover:underline"
-                      >
-                        {ticket.subject}
-                      </Link>
-                      <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                        <span className="rf-id text-[11.5px]">#{ticket.number}</span>
-                        <span aria-hidden> · </span>
-                        {customerLabel(ticket.customer)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <StatusBadge status={ticket.status} />
-                    </Td>
-                    <Td className="hidden text-right text-muted-foreground sm:table-cell">
-                      {relativeShort(ticket.updatedAt, clock)}
-                    </Td>
-                  </RowLink>
-                ))}
-              </TBody>
-            </Table>
+            <div className="grid gap-4 md:grid-cols-2">
+              {repairs.map((repair) => {
+                const deviceLabel = [repair.asset?.make, repair.asset?.model].filter(Boolean).join(" ") || repair.subject;
+                const photo = repair.attachments.find((attachment) => /(?:photo|device|intake|camera|(?:^|[_-])img[_-]?|(?:^|[_-])dsc[_-]?)/i.test(attachment.fileName) && !/(?:receipt|invoice|signature|barcode|logo|screenshot|estimate)/i.test(attachment.fileName));
+                const overdue = repair.dueDate && repair.dueDate < now;
+                return (
+                  <Card key={repair.id} className="shadow-none transition-colors hover:border-[#006aff]">
+                    <Link href={`/tickets/${repair.id}`} className="flex min-h-[188px] items-center gap-3 rounded-lg p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-4">
+                      <DeviceVisual label={deviceLabel} type={repair.asset?.type ?? ""} photoId={photo?.id} />
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <p className="truncate text-xs text-muted-foreground">#{repair.number} · {customerLabel(repair.customer)}</p>
+                        <h3 className="line-clamp-2 text-lg font-semibold leading-6">{deviceLabel}</h3>
+                        <p className="line-clamp-2 text-sm text-muted-foreground">{repair.problemType || repair.subject}</p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <StatusBadge status={repair.status} />
+                          <span className={cn("text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>{dueLabel(repair.dueDate, now)}</span>
+                        </div>
+                        <span className="text-xs text-accent-soft-foreground">Open repair →</span>
+                      </div>
+                    </Link>
+                  </Card>
+                );
+              })}
+            </div>
           )}
-        </Card>
+          <p className="mt-4 text-xs text-muted-foreground">Showing {repairs.length} of {selectedTab.count} {view === "all" ? "open repairs" : "repairs in this queue"}</p>
+        </section>
 
-        <Card className="min-w-0">
-          <CardHeader
-            icon={AlarmClock}
-            title="Needs attention"
-            description="Follow-ups and repairs waiting on the next handoff."
-            action={
-              <Link
-                href="/tickets?status=all"
-                className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                All tickets
-                <ACTIONS.next className="size-4" />
-              </Link>
-            }
-          />
-          <CardContent className="flex flex-col gap-1 py-2">
-            {attentionRows.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-[13.5px] font-semibold text-foreground">
-                    {item.label}
-                  </span>
-                  <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                    {item.hint}
-                  </span>
-                </span>
-                <span
-                  className={cn(
-                    "rf-num shrink-0 text-[20px] font-semibold",
-                    item.count > 0 ? item.tone : "text-muted-foreground",
-                  )}
-                >
-                  {item.count}
-                </span>
-              </Link>
-            ))}
-            <Link
-              href="/invoices"
-              className="mt-1 flex items-center justify-between gap-3 border-t border-border px-2 pt-3 transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-            >
-              <span className="flex min-w-0 items-center gap-2 text-[12.5px] font-medium text-muted-foreground">
-                <ICONS.cash className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">Collected this month</span>
-              </span>
-              <span className="rf-num shrink-0 text-[14px] font-semibold text-foreground">
-                {formatCents(monthPayments._sum.amountCents ?? 0)}
-              </span>
-            </Link>
-          </CardContent>
-        </Card>
+        <aside className="flex min-w-0 flex-col gap-4">
+          <AssistantPanel overdueCount={overdueCount} />
+          <Card id="attention" className="scroll-mt-6 p-4 shadow-none">
+            <h2 className="mb-3 text-lg font-semibold">Needs attention</h2>
+            <AttentionRow href="/tickets?due=overdue" icon={TriangleAlert} label={`${overdueCount} repair${overdueCount === 1 ? "" : "s"} overdue`} tone="text-destructive" />
+            <AttentionRow href={`/tickets?status=${NEEDS_REPLY_FILTER}`} icon={Users} label={`${awaitingReply.length} customer${awaitingReply.length === 1 ? "" : "s"} need a reply`} tone="text-status-in-progress-fg" />
+            <AttentionRow href="/inventory?filter=low" icon={Package} label={`${lowStockCount} product${lowStockCount === 1 ? "" : "s"} low in stock`} tone="text-status-in-progress-fg" />
+          </Card>
+          <Card className="p-4 shadow-none">
+            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Next appointments</h2><Link href="/appointments" className="text-xs text-accent-soft-foreground hover:underline">View all</Link></div>
+            {appointments.length === 0 ? <p className="py-2 text-sm text-muted-foreground">No upcoming appointments.</p> : <ul className="flex flex-col gap-3">
+              {appointments.map((appointment) => <li key={appointment.id}>
+                <Link href={`/appointments?date=${appointment.startsAt.toISOString().slice(0, 10)}`} className="flex items-center gap-3 rounded-md hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <span className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appointment.startsAt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="min-w-0"><span className="block truncate text-sm font-medium">{appointment.customer ? customerLabel(appointment.customer) : appointment.title}</span><span className="block truncate text-xs text-muted-foreground">{appointment.startsAt.toLocaleDateString("en", { month: "short", day: "numeric" })} · {appointment.title}</span></span>
+                </Link>
+              </li>)}
+            </ul>}
+          </Card>
+        </aside>
       </div>
-      <Card className="min-w-0 overflow-hidden">
-        <CardHeader
-          icon={ICONS.dashboard}
-          title="Repair pipeline"
-          description={`${totalTickets} ticket${totalTickets === 1 ? "" : "s"} by current status`}
-          action={
-            <Link
-              href="/tickets?status=all"
-              className="inline-flex items-center gap-1 rounded-sm text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              All tickets
-              <ACTIONS.next className="size-4" />
-            </Link>
-          }
-        />
-        <CardContent className="flex flex-col gap-4">
-          <div
-            role="img"
-            aria-label={`Ticket distribution: ${statusRows.map(({ status, count }) => `${count} ${status.toLowerCase()}`).join(", ")}`}
-            className="flex h-2 overflow-hidden rounded-full bg-surface-hover"
-          >
-            {totalTickets > 0
-              ? statusRows.map(({ status, count, meta }) =>
-                  count > 0 ? (
-                    <span
-                      key={status}
-                      aria-hidden
-                      title={`${status}: ${count}`}
-                      className={cn("h-full min-w-0", meta.dot)}
-                      style={{ width: `${(count / totalTickets) * 100}%` }}
-                    />
-                  ) : null,
-                )
-              : null}
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-            {statusRows.map(({ status, count, meta }) => (
-              <Link
-                key={status}
-                href={`/tickets?status=${encodeURIComponent(status)}`}
-                className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border px-3 py-2.5 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span aria-hidden className={cn("size-2 shrink-0 rounded-full", meta.dot)} />
-                  <span className="truncate text-[12.5px] font-medium text-muted-foreground">
-                    {status}
-                  </span>
-                </span>
-                <span className="rf-num shrink-0 text-[13px] font-semibold text-foreground">
-                  {count}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
-function QuickAction({
-  href,
-  icon: Icon,
-  title,
-  hint,
-}: {
-  href: string;
-  icon: LucideIcon;
-  title: string;
-  hint: string;
+function dueLabel(date: Date | null, now: Date) {
+  if (!date) return "No promised date";
+  const today = date.toDateString() === now.toDateString();
+  const label = today ? `Today, ${date.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}` : date.toLocaleDateString("en", { month: "short", day: "numeric" });
+  return date < now ? `Overdue · ${label}` : label;
+}
+
+function AttentionRow({ href, icon: Icon, label, tone }: {
+  href: string; icon: React.ComponentType<{ className?: string }>; label: string; tone: string;
 }) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-14 min-w-0 items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
-        <Icon aria-hidden="true" className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[13.5px] font-semibold text-foreground">{title}</span>
-        <span className="truncate text-xs text-muted-foreground">{hint}</span>
-      </span>
-      <ACTIONS.next className="ml-auto size-4 shrink-0 text-faint-foreground transition-transform group-hover:translate-x-0.5" />
-    </Link>
-  );
+  return <Link href={href} className="flex min-h-9 items-center gap-2 rounded-md text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon className={cn("size-[18px] shrink-0", tone)} /><span className="min-w-0 flex-1">{label}</span><ChevronRight className="size-4 text-muted-foreground" aria-hidden /></Link>;
 }

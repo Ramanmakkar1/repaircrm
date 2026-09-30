@@ -45,8 +45,8 @@ export async function setRailCollapsedAction(collapsed: boolean): Promise<void> 
 }
 
 /**
- * Simple mode on or off, for this device. Turning it on lands on the card home
- * screen; turning it off lands back on the full dashboard — either way the
+ * Easy mode on or off, for this device. Turning it on opens the visual register;
+ * turning it off lands back on the full repair workbench — either way the
  * person sees the change they just asked for instead of the same page minus a
  * menu.
  */
@@ -54,5 +54,5 @@ export async function setSimpleModeAction(simple: boolean): Promise<void> {
   await requireUser();
   await writeUiPrefs({ simple: simple === true });
   revalidatePath("/", "layout");
-  redirect(simple === true ? "/counter" : "/dashboard");
+  redirect(simple === true ? "/pos" : "/dashboard");
 }

@@ -41,6 +41,7 @@ import { useDictation } from "@/components/voice/use-dictation";
 import { RepairPilotMark } from "@/components/brand/repairpilot";
 import { assistantSuggestions } from "@/app/(app)/assistant/suggestions";
 import { commandSuggestions, type CommandSuggestion } from "@/lib/ai/quick-commands";
+import { OPEN_SHOP_ASSISTANT, type OpenShopAssistantDetail } from "./assistant-events";
 
 /**
  * One persistent assistant in the authenticated app shell. The dock's Talk
@@ -215,6 +216,23 @@ export function AssistantLauncher({
     (message) => setHint(message),
     { cloud: cloud && voiceMode === "cloud", language: voiceLanguage },
   );
+  const { supported: dictationSupported, start: startDictation } = dictation;
+
+  React.useEffect(() => {
+    function handleLaunch(event: Event) {
+      const detail = (event as CustomEvent<OpenShopAssistantDetail>).detail ?? {};
+      launchButtonRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
+      openedWithVoice.current = Boolean(detail.voice && enabled && dictationSupported);
+      if (detail.prompt) {
+        setInput(detail.prompt);
+        setHint("Ready to send — you can edit this first.");
+      }
+      setOpen(true);
+      if (openedWithVoice.current) startDictation();
+    }
+    window.addEventListener(OPEN_SHOP_ASSISTANT, handleLaunch);
+    return () => window.removeEventListener(OPEN_SHOP_ASSISTANT, handleLaunch);
+  }, [enabled, dictationSupported, startDictation]);
 
   function settle(id: number) {
     setTurns((current) =>

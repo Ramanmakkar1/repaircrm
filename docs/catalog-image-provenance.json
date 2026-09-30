@@ -1,0 +1,30 @@
+{
+  "mode": "built-in image_gen",
+  "transparent_background": false,
+  "assets": [
+    {
+      "name": "phone",
+      "path": "/Users/raman/Desktop/Repairs helper Figma/product-assets/phone.png",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f3e2-549a-7222-b4ba-b4f5270e0773/exec-0b806bff-078e-4c8b-8ef9-ddc9251f4920.png",
+      "prompt": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, text, labels, watermarks, UI, packaging or extra objects. Subject: Generic graphite modern smartphone shown front and back together, two views of the same fictional unbranded phone. Front screen is plain solid pale blue with no icons or interface. Refined rounded edges and plausible modern camera hardware."
+    },
+    {
+      "name": "screen-protector",
+      "path": "/Users/raman/Desktop/Repairs helper Figma/product-assets/screen-protector.png",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f3e2-549a-7222-b4ba-b4f5270e0773/exec-433f2b1c-ed29-4c58-87d5-eeeea8cdd6d9.png",
+      "prompt": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, text, labels, watermarks, UI, packaging or extra objects. Subject: One transparent tempered-glass smartphone screen protector with a thin black perimeter edge. Gently tilted in three-quarter view so its clear glass surface is visible through a subtle reflection. Plain slim glass panel, not a phone, no installation accessories."
+    },
+    {
+      "name": "clear-case",
+      "path": "/Users/raman/Desktop/Repairs helper Figma/product-assets/clear-case.png",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f3e2-549a-7222-b4ba-b4f5270e0773/exec-f6360cb9-b924-4733-9068-341234decfef.png",
+      "prompt": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, text, labels, watermarks, UI, packaging or extra objects. Subject: One transparent protective smartphone case with a solid blue perimeter edge, viewed at a gentle three-quarter angle. Clearly transparent hard-plastic back with realistic cutouts and rounded corners. No phone inside."
+    },
+    {
+      "name": "charger",
+      "path": "/Users/raman/Desktop/Repairs helper Figma/product-assets/charger.png",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f3e2-549a-7222-b4ba-b4f5270e0773/exec-3ab3c1be-e529-4a62-a0fa-2dbb86a0d95e.png",
+      "prompt": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, text, labels, watermarks, UI, packaging or extra objects. Subject: Compact white USB-C wall charger with one USB-C cable neatly coiled next to it, clean small commercial product arrangement. Minimal rectangular adapter with rounded corners and realistic plug prongs."
+    }
+  ]
+}

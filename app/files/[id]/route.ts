@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getSession } from "@/lib/auth";
+import { getSession, passwordVersion } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPortalSession } from "@/lib/portal-session";
 import { readUpload } from "@/lib/storage";
@@ -102,7 +102,14 @@ type Row = {
  */
 async function allowed(row: Row): Promise<boolean> {
   const staff = await getSession();
-  if (staff) return staff.shopId === row.shopId;
+  if (staff) {
+    if (staff.shopId !== row.shopId) return false;
+    const account = await db.user.findFirst({
+      where: { id: staff.userId, shopId: staff.shopId },
+      select: { active: true, passwordChangedAt: true, mustChangePassword: true },
+    });
+    return Boolean(account?.active && !account.mustChangePassword && (staff.pv ?? 0) >= passwordVersion(account.passwordChangedAt));
+  }
 
   const portal = await getPortalSession();
   if (!portal) return false;

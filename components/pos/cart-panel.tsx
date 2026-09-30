@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Lock, Minus, Plus, ScrollText, Trash2 } from "lucide-react";
+import { Lock, Mic, Minus, Plus, ScrollText, Sparkles, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { formatBps, formatCents, type Totals } from "@/lib/money";
+import { ProductImage } from "@/components/inventory/product-image";
+import { OPEN_SHOP_ASSISTANT } from "@/components/assistant/assistant-events";
 import { CustomerPicker } from "./customer-picker";
 import { CustomItemDialog } from "./custom-item-dialog";
 import { TicketPickerDialog } from "./ticket-picker-dialog";
@@ -18,6 +20,7 @@ import {
   METHOD_LABELS,
   type CartLine,
   type PosCustomer,
+  type PosProduct,
   type PosTicket,
   type TenderMethod,
 } from "./types";
@@ -43,6 +46,7 @@ const TENDER_BUTTONS: { method: TenderMethod; icon: React.ComponentType<{ classN
  */
 export function CartPanel({
   lines,
+  products = [],
   totals,
   taxRateBps,
   depositCents,
@@ -63,6 +67,7 @@ export function CartPanel({
   tendersRef,
 }: {
   lines: CartLine[];
+  products?: PosProduct[];
   totals: Totals;
   taxRateBps: number;
   /** Deposit already on account against the attached ticket, in cents. */
@@ -110,10 +115,10 @@ export function CartPanel({
   const creditReady = credit > 0;
 
   return (
-    <Card className="flex flex-col overflow-hidden lg:sticky lg:top-0">
+    <Card className="flex flex-col overflow-hidden shadow-none lg:sticky lg:top-0">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <h2 className="text-base font-bold tracking-tight text-foreground">
-          Cart
+          Current sale
           {itemCount > 0 ? (
             <span className="rf-num ml-2 rounded-md bg-accent-soft px-2 py-0.5 text-[12px] font-semibold text-accent-soft-foreground">
               {itemCount}
@@ -181,6 +186,7 @@ export function CartPanel({
                 <CartRow
                   key={line.key}
                   line={line}
+                  product={products.find((product) => product.id === line.productId)}
                   disabled={disabled}
                   onQuantityChange={onQuantityChange}
                   onRemove={onRemove}
@@ -212,7 +218,14 @@ export function CartPanel({
       </div>
 
       {/* ----------------------------------------------------------- totals */}
-      <div className="flex flex-col gap-2 border-t border-border bg-surface-hover px-5 py-4">
+      <div className="mx-5 mb-4 flex items-center gap-2 rounded-lg bg-accent-soft p-3">
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SHOP_ASSISTANT, { detail: { prompt: "Find products " } }))} className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Sparkles className="size-4 shrink-0 text-accent-soft-foreground" />
+          <span>Ask your shop assistant</span>
+        </button>
+        <button type="button" aria-label="Speak to your shop assistant" onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SHOP_ASSISTANT, { detail: { voice: true } }))} className="flex size-9 shrink-0 items-center justify-center rounded-md text-accent-soft-foreground hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Mic className="size-4" /></button>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-border bg-surface px-5 py-4">
         <Row label="Subtotal" value={formatCents(totals.subtotalCents)} />
         <Row
           label={`Sales tax (${formatBps(taxRateBps)})`}
@@ -328,11 +341,13 @@ function Row({ label, value }: { label: string; value: string }) {
  */
 function CartRow({
   line,
+  product,
   disabled,
   onQuantityChange,
   onRemove,
 }: {
   line: CartLine;
+  product?: PosProduct;
   disabled: boolean;
   onQuantityChange: (key: string, quantity: number) => void;
   onRemove: (key: string) => void;
@@ -344,7 +359,9 @@ function CartRow({
   const serialised = isSerialLine(line);
 
   return (
-    <li className="flex flex-col gap-2 px-5 py-3">
+    <li className="flex gap-3 px-5 py-4">
+      {product ? <ProductImage name={product.name} category={product.category} imageUrl={product.imageUrl} className="size-16 shrink-0 rounded-md" sizes="64px" /> : null}
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
         <span className="min-w-0 flex-1 text-[14px] font-bold leading-snug text-foreground">
           {line.name}
@@ -360,6 +377,7 @@ function CartRow({
         </button>
       </div>
 
+      {product && !serialised ? <span className="text-xs text-muted-foreground">{formatCents(line.unitPriceCents)} each</span> : null}
       {serialised ? (
         <span className="flex items-center gap-1.5 font-mono text-[12.5px] font-semibold text-accent-soft-foreground">
           <ICONS.serial className="size-3.5" />
@@ -392,9 +410,9 @@ function CartRow({
               />
               {/* The cart is a third of a 1024px tablet, less the sidebar: there
                   the unit price pushed the line total off the card's edge. */}
-              <span className="ml-1.5 text-[12.5px] tabular-nums text-faint-foreground lg:hidden xl:inline">
+              {product ? null : <span className="ml-1.5 whitespace-nowrap text-[12.5px] tabular-nums text-faint-foreground lg:hidden xl:inline">
                 × {formatCents(line.unitPriceCents)}
-              </span>
+              </span>}
             </>
           )}
         </div>
@@ -409,6 +427,7 @@ function CartRow({
           Only {Math.max(line.stockQty ?? 0, 0)} in stock — selling anyway.
         </span>
       ) : null}
+      </div>
     </li>
   );
 }

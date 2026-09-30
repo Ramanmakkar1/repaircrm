@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 
-import { ACTIONS } from "@/components/ui/icons";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PhoneScanDialog } from "@/components/scan/phone-scan-dialog";
 import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { ViewSwitch } from "@/components/counter/view-switch";
 import { calcTotals } from "@/lib/money";
 import { resolveCardFlow, type CardMachineSetting } from "@/lib/payments/card-machine";
 import { normalizeScan, scanCodeVariants } from "@/lib/scan/codes";
@@ -57,6 +59,7 @@ import {
  * catalogue line, so a stale tile or a tampered client cannot set a price.
  */
 export function Register({
+  simple = false,
   products,
   customers,
   tickets,
@@ -64,6 +67,7 @@ export function Register({
   cardReader,
   drawer,
 }: {
+  simple?: boolean;
   products: PosProduct[];
   customers: PosCustomer[];
   /** Open tickets with un-invoiced work — the "Add from ticket" list. */
@@ -525,7 +529,7 @@ export function Register({
     return (
       <div className="flex flex-col gap-5">
         <PageHeader
-          title="POS"
+          title="Point of sale"
           description="Ring up walk-in sales at the counter."
         />
         {drawer}
@@ -537,16 +541,17 @@ export function Register({
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="POS"
-        description="Ring up walk-in sales at the counter."
+        title="Point of sale"
+        description="Browse products and parts. Add items to the current sale."
+        className="[&_h1]:text-[28px] sm:[&_h1]:text-[32px]"
         actions={
-          /* The counter machine usually has no camera. This is the bridge: the
-             phone in your pocket becomes the gun, and what it reads lands in
-             this cart about a second later. */
+          <>
+          <ViewSwitch simple={simple} />
           <Button variant="outline" onClick={() => setPhonePairing(true)}>
             <ACTIONS.scan />
             Use my phone as a scanner
           </Button>
+          </>
         }
       />
 
@@ -562,8 +567,8 @@ export function Register({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0">
           <ProductGrid
             products={products}
             onAdd={addProduct}
@@ -580,11 +585,11 @@ export function Register({
               <ScanButton
                 continuous
                 showLabel
-                variant="default"
+                variant="outline"
                 size="lg"
-                className="h-14 shrink-0 gap-2 px-4 sm:px-5"
+                className="h-11 shrink-0 gap-2 px-4 sm:px-5"
                 labelClassName="hidden sm:inline"
-                label="Scan"
+                label="Scan barcode"
                 title="Scan into the cart"
                 description="Every code adds a line. Keep scanning until the pile is done."
                 onScan={async (hit) => (await handleScan(hit.value)).message}
@@ -595,6 +600,7 @@ export function Register({
 
         <CartPanel
           lines={lines}
+          products={products}
           totals={totals}
           taxRateBps={effectiveTaxRateBps}
           depositCents={depositCents}
@@ -615,6 +621,17 @@ export function Register({
           tendersRef={tendersRef}
         />
       </div>
+
+      <nav aria-label="Everyday tools" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          { href: "/tickets/new", label: "New repair", icon: ACTIONS.add },
+          { href: "/tickets", label: "Repairs", icon: ICONS.ticket },
+          { href: "/customers", label: "Customers", icon: ICONS.customer },
+          { href: "/appointments", label: "Appointments", icon: ICONS.appointment },
+          { href: "/inventory", label: "Inventory", icon: ICONS.inventory },
+          { href: "/counter", label: "All tools", icon: ICONS.settings },
+        ].map(({ href, label, icon: Icon }) => <Button key={href} asChild variant="outline" className="h-12 justify-start"><Link href={href}><Icon />{label}</Link></Button>)}
+      </nav>
 
       <PayBar
         itemCount={lines.reduce((sum, line) => sum + line.quantity, 0)}

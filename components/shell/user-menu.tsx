@@ -109,7 +109,7 @@ function SimpleModeItem({ simple }: { simple: boolean }) {
       onSelect={() => start(() => void setSimpleModeAction(!simple))}
     >
       <LayoutGrid className="size-4 text-muted-foreground" />
-      {simple ? "Show the full menu" : "Easy mode (big cards)"}
+      {simple ? "Full workbench" : "Easy mode (visual POS)"}
     </DropdownMenuItem>
   );
 }

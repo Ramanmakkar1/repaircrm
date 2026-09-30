@@ -18,6 +18,8 @@ import {
 import { ReorderPointEditor } from "@/components/inventory/reorder-point-editor";
 import { SerialsCard, type SerialRow } from "@/components/inventory/serials-card";
 import { StockBadge } from "@/components/inventory/stock-badge";
+import { ProductPhotoEditor } from "@/components/inventory/product-photo-editor";
+import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
 import { StatusPill } from "@/components/ui/badge";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
@@ -90,6 +92,7 @@ export default async function ProductPage({
       active: true,
       createdAt: true,
       updatedAt: true,
+      attachments: PRODUCT_IMAGE_SELECT,
     },
   });
   if (!product) notFound();
@@ -225,6 +228,11 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Product photo</CardTitle></CardHeader>
+        <CardContent><ProductPhotoEditor productId={product.id} name={product.name} category={product.category} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} /></CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* ------------------------------------------------------ stock --- */}

@@ -34,6 +34,8 @@ export type PosProduct = {
   sku: string | null;
   upc: string | null;
   category: string | null;
+  /** Private product photo; category imagery is used only when no photo exists. */
+  imageUrl?: string | null;
   lowStockAt: number | null;
   /** True when every unit is tracked by serial number. */
   serialized: boolean;

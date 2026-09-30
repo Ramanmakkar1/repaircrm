@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { WARRANTY_PRESETS } from "@/lib/warranty-presets";
 import { marginPct } from "./format";
+import { NewProductPhoto, ProductPhotoEditor } from "./product-photo-editor";
 
 export type ProductFormValues = {
   id: string;
@@ -46,6 +47,7 @@ export type ProductFormValues = {
   vendorSku: string | null;
   serialized: boolean;
   active: boolean;
+  imageUrl?: string | null;
 };
 
 /** A supplier the product can be sourced from. */
@@ -147,6 +149,7 @@ export function ProductForm({
   );
   const [confirmed, setConfirmed] = React.useState(false);
   const [customSku, setCustomSku] = React.useState(Boolean(defaults?.sku));
+  const [photo, setPhoto] = React.useState<File | null>(null);
 
   // Turning serial tracking ON for a product that already has stock is the one
   // destructive edit on this form, so it asks first (and the server refuses
@@ -180,7 +183,7 @@ export function ProductForm({
   }, [values.price, values.cost]);
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form action={(formData) => { if (photo) formData.set("photo", photo); formAction(formData); }} className="flex flex-col gap-5">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
 
       {state?.error ? (
@@ -192,6 +195,13 @@ export function ProductForm({
           <span>{state.error}</span>
         </div>
       ) : null}
+
+      <Card>
+        <CardHeader><CardTitle>Product photo</CardTitle></CardHeader>
+        <CardContent>
+          {product ? <ProductPhotoEditor productId={product.id} name={values.name} category={values.category} imageUrl={product.imageUrl ?? null} /> : <NewProductPhoto name={values.name} category={values.category} file={photo} onChange={setPhoto} error={errors.photo} />}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

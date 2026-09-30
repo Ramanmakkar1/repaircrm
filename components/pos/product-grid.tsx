@@ -11,9 +11,10 @@ import { ACTIONS } from "@/components/ui/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { looksLikeUpc } from "@/lib/scan/codes";
 import { formatCents } from "@/lib/money";
+import { ProductImage } from "@/components/inventory/product-image";
 import { tracksStock, type PosProduct } from "./types";
 
-const ALL = "All";
+const ALL = "All products";
 const UNCATEGORISED = "Other";
 
 function categoryOf(product: PosProduct): string {
@@ -77,6 +78,7 @@ export function ProductGrid({
   const [query, setQuery] = React.useState("");
   const [category, setCategory] = React.useState(ALL);
   const [miss, setMiss] = React.useState<string | null>(null);
+  const [sort, setSort] = React.useState("name");
 
   const categories = React.useMemo(() => {
     const seen = new Set<string>();
@@ -87,22 +89,28 @@ export function ProductGrid({
   const needle = query.trim().toLowerCase();
 
   const visible = React.useMemo(() => {
-    return products.filter((product) => {
+    const filtered = products.filter((product) => {
       if (category !== ALL && categoryOf(product) !== category) return false;
       if (!needle) return true;
       return (
         product.name.toLowerCase().includes(needle) ||
         product.sku?.toLowerCase().includes(needle) ||
-        product.upc?.toLowerCase().includes(needle)
+        product.upc?.toLowerCase().includes(needle) ||
+        product.category?.toLowerCase().includes(needle)
       );
     });
-  }, [products, category, needle]);
+    return filtered.sort((a, b) => {
+      if (sort === "price-asc") return a.priceCents - b.priceCents || a.name.localeCompare(b.name);
+      if (sort === "price-desc") return b.priceCents - a.priceCents || a.name.localeCompare(b.name);
+      return a.name.localeCompare(b.name);
+    });
+  }, [products, category, needle, sort]);
 
   const add = (product: PosProduct) => {
     onAdd(product);
     setQuery("");
     setMiss(null);
-    inputRef.current?.focus();
+    inputRef.current?.focus({ preventScroll: true });
   };
 
   const onSubmit = (event: React.FormEvent) => {
@@ -134,7 +142,6 @@ export function ProductGrid({
               setQuery(event.target.value);
               setMiss(null);
             }}
-            autoFocus
             // Named as well as labelled: an unnamed field makes the browser
             // guess at autofill, and a guess in the scanner box costs a sale.
             name="pos-scan"
@@ -145,8 +152,8 @@ export function ProductGrid({
             className={cn(
               // The right padding only clears the "Enter adds" hint at the widths
               // that actually render it; below `sm` the field gets the space back.
-              "h-14 w-full rounded-lg border bg-surface pl-12 pr-4 text-base font-medium text-foreground shadow-sm outline-none transition-colors sm:pr-36",
-              "placeholder:font-normal placeholder:text-faint-foreground",
+              "h-11 w-full rounded-lg border bg-surface pl-12 pr-4 text-sm font-medium text-foreground outline-none transition-colors sm:pr-32",
+              "placeholder:font-normal placeholder:text-muted-foreground",
               "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring/30",
               miss
                 ? "border-destructive/60 ring-2 ring-destructive/20"
@@ -182,8 +189,8 @@ export function ProductGrid({
 
       {/* One swipeable row on a phone rather than ten pills stacked four deep —
           at 390px the wrapped version pushed the first tile below the fold. */}
-      {categories.length > 2 ? (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:flex-wrap lg:overflow-visible lg:pb-0">
+      {categories.length > 1 ? (
+        <div aria-label="Product categories" className="-order-1 flex gap-5 overflow-x-auto border-b border-border pb-0.5">
           {categories.map((name) => {
             const active = name === category;
             return (
@@ -200,11 +207,11 @@ export function ProductGrid({
                  * touch one.
                  */
                 className={cn(
-                  "h-10 shrink-0 rounded-md border px-3.5 text-[13.5px] font-semibold transition-colors",
+                  "h-11 shrink-0 border-b-2 px-1 text-sm font-medium transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   active
-                    ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"
-                    : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
+                    ? "border-ring text-foreground"
+                    : "border-transparent text-muted-foreground hover:border-border-strong hover:text-foreground",
                 )}
               >
                 {name}
@@ -213,6 +220,18 @@ export function ProductGrid({
           })}
         </div>
       ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span aria-live="polite">{visible.length} {visible.length === 1 ? "product" : "products"}</span>
+        <label className="flex items-center gap-2">
+          Sort by
+          <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 rounded-md border border-border bg-surface px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            <option value="name">Name</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+          </select>
+        </label>
+      </div>
 
       {visible.length === 0 ? (
         <Card>
@@ -241,7 +260,7 @@ export function ProductGrid({
                 >
                   <ACTIONS.cancel /> Show everything
                 </Button>
-              ) : undefined
+              ) : <Button asChild variant="outline"><Link href="/inventory/new"><ACTIONS.add /> Add your first product</Link></Button>
             }
           />
         </Card>
@@ -254,7 +273,7 @@ export function ProductGrid({
          * so the cap comes off.
          */
         <div className="max-h-[52vh] overflow-y-auto pr-0.5 lg:max-h-none lg:overflow-visible lg:pr-0">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 xl:gap-4">
             {visible.map((product) => (
               <ProductTile
                 key={product.id}
@@ -295,35 +314,41 @@ function ProductTile({
     <Card
       interactive
       tone={out ? "danger" : undefined}
-      className="flex overflow-hidden"
+      className="flex overflow-hidden shadow-none hover:shadow-none"
     >
       <button
         type="button"
         onClick={onClick}
+        aria-label={`Add ${product.name} to sale`}
         title={product.sku ? `${product.name} · ${product.sku}` : product.name}
         className={cn(
-          "flex min-h-[7.5rem] flex-1 flex-col justify-between gap-2 rounded-lg p-4 text-left",
+          "group flex min-w-0 flex-1 flex-col rounded-lg text-left",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         )}
       >
-        <span className="line-clamp-2 text-[14px] font-bold leading-snug text-foreground">
+        <ProductImage name={product.name} category={product.category} imageUrl={product.imageUrl} className="aspect-[1.5] w-full rounded-none bg-white p-3 sm:p-4" sizes="(max-width: 639px) 44vw, (max-width: 1023px) 30vw, 300px" showFallbackLabel />
+        <span className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
+        <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">
           {product.name}
         </span>
+        <span className="truncate text-xs text-muted-foreground">{product.sku || product.category || "Product"}</span>
 
-        <span className="flex items-end justify-between gap-2">
-          <span className="text-lg font-bold tabular-nums tracking-tight text-foreground">
+        <span className="flex flex-wrap items-end justify-between gap-2">
+          <span className="text-base font-semibold tabular-nums tracking-tight text-foreground sm:text-lg">
             {formatCents(product.priceCents)}
           </span>
           {tracked ? (
             <span
               className={cn(
                 "shrink-0 text-[12px] font-semibold tabular-nums",
-                out ? "text-status-overdue-fg" : "text-faint-foreground",
+                out ? "text-status-overdue-fg" : "text-status-resolved-fg",
               )}
             >
-              {out ? "Out of stock" : `${product.stockQty} left`}
+              {out ? "Out of stock" : `${product.stockQty} in stock`}
             </span>
           ) : null}
+        </span>
+        <span aria-hidden className="mt-1 flex min-h-10 items-center justify-center gap-1 rounded-md border border-border bg-surface text-[13px] font-medium text-foreground transition-colors group-hover:bg-surface-hover"><ACTIONS.add className="size-3.5" /> Add to sale</span>
         </span>
       </button>
     </Card>

@@ -12,6 +12,7 @@ import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosProduct, PosTicket } from "@/components/pos/types";
 import { resolveTaxRate } from "@/lib/tax";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata = { title: "POS · Repairs helper" };
 
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function PosPage() {
   const { shopId, userId, role } = await requireUser();
+  const prefs = await readUiPrefs();
   // The branch this till is standing in. Resolved before the queries because
   // the drawer session is scoped to it.
   const drawerLocationId = await newRecordLocationId(shopId, userId);
@@ -47,6 +49,12 @@ export default async function PosPage() {
           category: true,
           lowStockAt: true,
           serialized: true,
+          attachments: {
+            where: { mimeType: { startsWith: "image/" } },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: 1,
+            select: { id: true },
+          },
           // Only what's on the shelf: the picker at the counter must never offer
           // a unit that has already been sold.
           serials: {
@@ -170,10 +178,14 @@ export default async function PosPage() {
     ),
   }));
 
-  const posProducts: PosProduct[] = products;
+  const posProducts: PosProduct[] = products.map(({ attachments, ...product }) => ({
+    ...product,
+    imageUrl: attachments[0] ? `/files/${attachments[0].id}` : null,
+  }));
 
   return (
     <Register
+      simple={prefs.simple}
       products={posProducts}
       customers={customerRows.map((c) => {
         // The rate each customer resolves to, so attaching them at the counter

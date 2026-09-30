@@ -12,6 +12,8 @@ import {
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { nextSku } from "@/lib/inventory/sku";
+import { validateProductPhoto } from "@/lib/inventory/product-images";
+import { removeUpload, storeUpload, type StoredUpload } from "@/lib/storage";
 import { parseCents } from "@/lib/money";
 import { MAX_WARRANTY_DAYS } from "@/lib/warranty";
 import {
@@ -228,6 +230,7 @@ async function skuTaken(
 async function createProductCore(
   ctx: { shopId: string; userId: string; role: string },
   input: ProductInput,
+  photo?: StoredUpload,
 ): Promise<
   { ok: true; id: string; sku: string } | { ok: false; skuTaken: boolean }
 > {
@@ -286,6 +289,12 @@ async function createProductCore(
           });
         }
 
+        if (photo) {
+          await tx.attachment.create({
+            data: { ...photo, shopId, productId: product.id, uploadedById: userId },
+          });
+        }
+
         return { ok: true as const, id: product.id, sku: product.sku ?? sku };
       });
     } catch (error) {
@@ -318,8 +327,25 @@ export async function createProductAction(
     };
   }
 
-  const result = await createProductCore({ shopId, userId, role }, parsed.data);
+  let photo: StoredUpload | undefined;
+  const file = formData.get("photo");
+  if (file instanceof File) {
+    const reason = await validateProductPhoto(file);
+    if (reason) return { error: "Please fix the highlighted fields.", fieldErrors: { photo: reason } };
+    const stored = await storeUpload(shopId, file);
+    if (!stored.ok) return { error: stored.reason, fieldErrors: { photo: stored.reason } };
+    photo = stored.upload;
+  }
+
+  let result: Awaited<ReturnType<typeof createProductCore>>;
+  try { result = await createProductCore({ shopId, userId, role }, parsed.data, photo); }
+  catch (error) {
+    if (photo) await removeUpload(photo.storage, photo.path);
+    console.error("[inventory] product creation failed:", error);
+    return { error: "Couldn't save the product just now — please try again." };
+  }
   if (!result.ok) {
+    if (photo) await removeUpload(photo.storage, photo.path);
     return result.skuTaken
       ? { error: "Please fix the highlighted fields.", fieldErrors: { sku: DUPLICATE_SKU } }
       : { error: "Couldn't save the product just now — please try again." };

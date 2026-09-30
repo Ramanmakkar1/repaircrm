@@ -37,10 +37,12 @@ const ALL = "all";
 export function LocationSwitcher({
   locations,
   currentId,
+  compact = false,
 }: {
   locations: SwitcherLocation[];
   /** "all", or the id of the branch currently in view. */
   currentId: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -67,13 +69,15 @@ export function LocationSwitcher({
           type="button"
           disabled={pending}
           className={cn(
-            "flex h-10 max-w-[13rem] shrink-0 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13.5px] font-semibold text-foreground transition-colors",
+            compact
+              ? "flex h-5 max-w-[11rem] items-center gap-1 rounded-sm text-xs text-muted-foreground transition-colors"
+              : "flex h-10 max-w-[13rem] shrink-0 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13.5px] font-semibold text-foreground transition-colors",
             "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             "disabled:opacity-60",
           )}
           aria-label={`Location: ${label}`}
         >
-          <LocationIcon className="size-4 shrink-0 text-muted-foreground" />
+          {compact ? null : <LocationIcon className="size-4 shrink-0 text-muted-foreground" />}
           <span className="truncate">{label}</span>
           <ChevronDown className="size-4 shrink-0 text-faint-foreground" />
         </button>
