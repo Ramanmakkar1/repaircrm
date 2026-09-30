@@ -26,6 +26,8 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { consumeAiQuota } from "@/lib/ai/quota";
+import { quickCommand } from "@/lib/ai/quick-commands";
+import { rateLimit } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
 import { emitCustomerEvent } from "@/lib/events";
 import { customerIdsByPhone, samePhoneClause } from "@/lib/customers/phone-search";
@@ -91,11 +93,17 @@ export async function runAssistantAction(
 ): Promise<AssistantOutcome> {
   const { shopId, userId, role } = await requireUser();
 
-  if (!text.trim()) return { kind: "error", message: "Say or type a command first." };
+  if (typeof text !== "string" || !text.trim()) return { kind: "error", message: "Say or type a command first." };
+  if (text.length > 1500) return { kind: "error", message: "Please keep the request short." };
+  if (!rateLimit(`assistant:${shopId}:${userId}`, 60, 60_000).allowed) return { kind: "error", message: "Give me a moment, then try again." };
+  const context = await loadContext(shopId, client);
+  const quick = quickCommand(text, context);
+  if (quick) {
+    if (quick.action === "clarify") return { kind: "info", message: quick.message };
+    return dispatch(quick, text, { shopId, userId, role }, context);
+  }
   const quota = await consumeAiQuota(shopId, "text");
   if (!quota.ok) return { kind: "error", message: quota.reason };
-
-  const context = await loadContext(shopId, client);
   const interpreted = await interpretCommand(text, context);
   if (!interpreted.ok) return { kind: "error", message: interpreted.reason };
 

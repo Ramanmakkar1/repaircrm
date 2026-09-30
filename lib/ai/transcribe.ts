@@ -38,6 +38,8 @@ export async function transcribe(
     form.set("file", audio, filename);
     form.set("model", target.model);
     form.set("response_format", "json");
+    // Vocabulary only; no customer records or instructions from the database.
+    if (target.model === "whisper-1") form.set("prompt", "Repair shop. Repairs helper, iPhone, iPad, Samsung, MacBook, screen, battery, charging port, repair ticket, stock, invoice, pickup.");
 
     const response = await fetch(`${target.baseUrl}/audio/transcriptions`, {
       method: "POST",
@@ -48,10 +50,11 @@ export async function transcribe(
     });
 
     if (!response.ok) {
-      const detail = await response.text().catch(() => "");
       return {
         ok: false,
-        reason: reason(`${target.name} returned ${response.status} ${detail}`),
+        reason: response.status === 429
+          ? "Voice is busy or its allowance is used up. Try browser voice or type your request."
+          : `${target.name} returned ${response.status}. Please try again or type your request.`,
       };
     }
 

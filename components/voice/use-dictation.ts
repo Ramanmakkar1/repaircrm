@@ -66,6 +66,9 @@ const MIC_SILENT = "I couldn't hear anything — check the microphone isn't mute
 export type DictationState = "idle" | "listening" | "transcribing";
 export type Dictation = {
   supported: boolean;
+  browserSupported: boolean;
+  level: number;
+  seconds: number;
   state: DictationState;
   start: () => void;
   stop: () => void;
@@ -75,9 +78,10 @@ export type Dictation = {
 export function useDictation(
   onText: (transcript: string) => void,
   onError?: (message: string) => void,
-  options?: { cloud?: boolean },
+  options?: { cloud?: boolean; language?: string },
 ): Dictation {
   const cloud = options?.cloud ?? false;
+  const language = options?.language;
 
   // Client-only capability with an SSR snapshot of false — no hydration mismatch.
   const supported = React.useSyncExternalStore(
@@ -87,6 +91,17 @@ export function useDictation(
   );
 
   const [state, setState] = React.useState<DictationState>("idle");
+  const [level, setLevel] = React.useState(0);
+  const [seconds, setSeconds] = React.useState(0);
+  const activeRef = React.useRef(false);
+  const browserSupported = React.useSyncExternalStore(subscribe, () => getRecognitionCtor() !== null, () => false);
+  React.useEffect(() => {
+    activeRef.current = state !== "idle";
+    if (state !== "listening") return;
+    const started = Date.now();
+    const interval = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 250);
+    return () => clearInterval(interval);
+  }, [state]);
 
   const onTextRef = React.useRef(onText);
   const onErrorRef = React.useRef(onError);
@@ -121,6 +136,7 @@ export function useDictation(
   }, []);
 
   const cancel = React.useCallback(() => {
+    activeRef.current = false;
     generation.current += 1;
     if (timer.current) clearTimeout(timer.current);
     stopSilenceMonitor();
@@ -142,6 +158,7 @@ export function useDictation(
   );
 
   const fail = React.useCallback((message: string) => {
+    activeRef.current = false;
     setState("idle");
     onErrorRef.current?.(message);
   }, []);
@@ -151,7 +168,7 @@ export function useDictation(
     if (!Recognition) return;
 
     const recognition = new Recognition();
-    recognition.lang = navigator.language || "en-IN";
+    recognition.lang = language || navigator.language || "en-IN";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.continuous = false;
@@ -179,14 +196,14 @@ export function useDictation(
     } catch {
       setState("idle");
     }
-  }, [fail]);
+  }, [fail, language]);
 
   const startCloud = React.useCallback(async () => {
     const capture = ++generation.current;
     setState("listening");
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
     } catch {
       if (capture === generation.current) fail(MIC_BLOCKED);
       return;
@@ -194,9 +211,13 @@ export function useDictation(
     if (capture !== generation.current) { stream.getTracks().forEach(track => track.stop()); return; }
 
     let recorder: MediaRecorder;
-    try { recorder = new MediaRecorder(stream); }
+    try {
+      const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(type => MediaRecorder.isTypeSupported(type));
+      recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: 64_000 });
+    }
     catch { stream.getTracks().forEach(track => track.stop()); fail("Recording is unavailable. Please type your request."); return; }
     const chunks: BlobPart[] = [];
+    recorder.onerror = () => { cancel(); onErrorRef.current?.("The microphone disconnected. Check it and try again."); };
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunks.push(event.data);
     };
@@ -257,6 +278,7 @@ export function useDictation(
 
           const samples = new Uint8Array(analyser.fftSize);
           const gate = createVoiceGate(Date.now());
+          let lastMeterAt = 0;
           const inspectAudio = () => {
             if (recorder.state !== "recording") {
               stopSilenceMonitor();
@@ -268,7 +290,9 @@ export function useDictation(
               const normalized = (sample - 128) / 128;
               sum += normalized * normalized;
             }
-            if (gate.push(Math.sqrt(sum / samples.length), Date.now()) === "stop") {
+            const rms = Math.sqrt(sum / samples.length);
+            if (Date.now() - lastMeterAt > 100) { setLevel(Math.min(1, rms * 10)); lastMeterAt = Date.now(); }
+            if (gate.push(rms, Date.now()) === "stop") {
               discardCaptureRef.current = !gate.worthSending();
               recorder.stop();
               stopSilenceMonitor();
@@ -283,10 +307,13 @@ export function useDictation(
       }
       timer.current = setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 60_000);
     } catch { stopSilenceMonitor(); stream.getTracks().forEach(track => track.stop()); fail("Recording didn't start. Please type your request."); }
-  }, [fail, stopSilenceMonitor]);
+  }, [cancel, fail, stopSilenceMonitor]);
 
   const start = React.useCallback(() => {
-    if (state !== "idle") return;
+    if (state !== "idle" || activeRef.current) return;
+    activeRef.current = true;
+    setLevel(0);
+    setSeconds(0);
     if (cloud) void startCloud();
     else startBrowser();
   }, [cloud, startBrowser, startCloud, state]);
@@ -296,5 +323,5 @@ export function useDictation(
     else recognitionRef.current?.stop();
   }, [cloud]);
 
-  return { supported, state, start, stop, cancel };
+  return { supported, browserSupported, state, level, seconds, start, stop, cancel };
 }

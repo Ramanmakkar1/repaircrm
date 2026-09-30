@@ -42,6 +42,10 @@ describe("transcribeAudioAction", () => {
     expect(result).toMatchObject({ ok: false });
     expect(transcribeMock).not.toHaveBeenCalled();
   });
+  it("rejects non-audio uploads before calling the provider", async () => {
+    expect(await transcribeAudioAction(form(new Blob(["not audio"], { type: "text/plain" })))).toMatchObject({ ok: false });
+    expect(transcribeMock).not.toHaveBeenCalled();
+  });
 
   it("rejects an oversized recording", async () => {
     const big = new Blob([new Uint8Array(9 * 1024 * 1024)], { type: "audio/webm" });

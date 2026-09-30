@@ -39,6 +39,8 @@ import {
 } from "@/app/(app)/assistant/actions";
 import { useDictation } from "@/components/voice/use-dictation";
 import { RepairPilotMark } from "@/components/brand/repairpilot";
+import { assistantSuggestions } from "@/app/(app)/assistant/suggestions";
+import { commandSuggestions, type CommandSuggestion } from "@/lib/ai/quick-commands";
 
 /**
  * One persistent assistant in the authenticated app shell. The dock's Talk
@@ -120,6 +122,22 @@ export function AssistantLauncher({
   const launchButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const openedWithVoice = React.useRef(false);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const busyRef = React.useRef(false);
+  const [matches, setMatches] = React.useState<{ input: string; rows: CommandSuggestion[] }>({ input: "", rows: [] });
+  const [voiceMode, setVoiceMode] = React.useState<"cloud" | "browser">(cloud ? "cloud" : "browser");
+  const [voiceLanguage, setVoiceLanguage] = React.useState("en-CA");
+  const suggestions = continuation || !input.trim() ? [] : [
+    ...(matches.input === input ? matches.rows : []), ...commandSuggestions(input, showMoney),
+  ].slice(0, 4);
+
+  React.useEffect(() => {
+    if (!open || pending || continuation || !/^(?:find|search|look up|show) (?:customers?|parts?|products?|repair|ticket) .{2}/i.test(input)) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void assistantSuggestions(input).then(rows => { if (!cancelled) setMatches({ input, rows }); }).catch(() => undefined);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [open, input, pending, continuation]);
 
   // A per-device convenience, so localStorage and not the prefs cookie: the
   // first paint is right either way (the dock is fixed and overlays content),
@@ -153,7 +171,8 @@ export function AssistantLauncher({
   const run = React.useCallback(
     (text: string) => {
       const answer = text.trim();
-      if (!answer || !enabled || pending) return;
+      if (!answer || !enabled || pending || busyRef.current) return;
+      busyRef.current = true;
       const command = continuation
         ? `${continuation}\nThe user answered the clarification with: ${answer}`
         : answer;
@@ -180,6 +199,7 @@ export function AssistantLauncher({
           });
           setInput(answer);
         }
+        busyRef.current = false;
         inputRef.current?.focus();
       });
     },
@@ -193,7 +213,7 @@ export function AssistantLauncher({
       inputRef.current?.focus();
     },
     (message) => setHint(message),
-    { cloud },
+    { cloud: cloud && voiceMode === "cloud", language: voiceLanguage },
   );
 
   function settle(id: number) {
@@ -204,7 +224,8 @@ export function AssistantLauncher({
 
   function confirm(turn: AssistantTurn) {
     const outcome = turn.outcome;
-    if (outcome.kind !== "confirm") return;
+    if (outcome.kind !== "confirm" || busyRef.current || turn.settled) return;
+    busyRef.current = true;
     startTransition(async () => {
       try {
         const result =
@@ -220,6 +241,7 @@ export function AssistantLauncher({
           outcome: { kind: "error", message: "That didn't go through — nothing was changed. Try again?" },
         });
       }
+      busyRef.current = false;
     });
   }
 
@@ -258,7 +280,9 @@ export function AssistantLauncher({
         ? hint
         : !dictation.supported
           ? "Voice isn't available in this browser — typing works just the same."
-          : "Type, or tap the mic and just say it. Any language.";
+          : cloud && voiceMode === "cloud"
+            ? "Speak English, Hindi, Punjabi, Chinese or Filipino. Review before sending."
+            : "Type, or tap the mic. Check your selected language and review before sending.";
 
   return (
     <>
@@ -431,6 +455,20 @@ export function AssistantLauncher({
           </div>
 
           <div className="border-t border-border bg-surface px-5 pb-4 pt-3 sm:px-6">
+            {suggestions.length > 0 && !pending && dictation.state === "idle" ? (
+              <div aria-label="Suggested requests" className="mb-3 grid gap-1">
+                {suggestions.map((suggestion, index) => <button key={`${suggestion.command}-${index}`} type="button"
+                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={() => { setInput(suggestion.command); setHint("Ready to send — you can edit this first."); inputRef.current?.focus(); }}>
+                  <span className="truncate font-medium">{suggestion.label}</span><span className="shrink-0 text-xs text-muted-foreground">{suggestion.detail}</span>
+                </button>)}
+              </div>
+            ) : null}
+            {listening ? <div role="status" className="mb-3 flex items-center gap-3 text-sm">
+              <span className="size-2 rounded-full bg-red-600" /><span>Listening · {dictation.seconds}s</span>
+              {voiceMode === "cloud" ? <meter aria-label="Microphone level" min={0} max={1} value={dictation.level} className="h-2 min-w-0 flex-1" /> : <span className="flex-1" />}
+              <button type="button" className="underline" onClick={dictation.cancel}>Cancel</button>
+            </div> : null}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -445,7 +483,7 @@ export function AssistantLauncher({
                 maxLength={500}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={continuation ? "Your answer…" : "Ask or tell me anything about the shop…"}
-                disabled={pending || !enabled}
+                disabled={pending || !enabled || listening || transcribing}
                 // 16px: anything smaller makes iOS zoom the whole page on focus.
                 className="h-13 min-w-0 flex-1 rounded-full border border-border-strong bg-background px-5 text-[16px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-60"
               />
@@ -492,6 +530,16 @@ export function AssistantLauncher({
                 </button>
               ) : null}
             </div>
+            {cloud && dictation.browserSupported ? <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">Voice engine
+              <select aria-label="Voice engine" value={voiceMode} disabled={listening || transcribing || pending} onChange={event => { dictation.cancel(); setVoiceMode(event.target.value as "cloud" | "browser"); }} className="rounded border border-border bg-background px-2 py-1 text-foreground">
+                <option value="cloud">Whisper · multilingual</option><option value="browser">Browser · no AI credits</option>
+              </select>
+            </label> : null}
+            {voiceMode === "browser" && dictation.browserSupported ? <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">Spoken language
+              <select aria-label="Spoken language" value={voiceLanguage} disabled={listening || transcribing || pending} onChange={event => setVoiceLanguage(event.target.value)} className="rounded border border-border bg-background px-2 py-1 text-foreground">
+                <option value="en-CA">English</option><option value="hi-IN">हिन्दी · Hindi</option><option value="pa-IN">ਪੰਜਾਬੀ · Punjabi</option><option value="zh-CN">普通话 · Mandarin Chinese</option><option value="zh-HK">廣東話 · Cantonese</option><option value="fil-PH">Filipino / Tagalog</option>
+              </select>
+            </label> : null}
           </div>
         </DialogContent>
       </Dialog>

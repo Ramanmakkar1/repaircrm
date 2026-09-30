@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calls, callsTo, dataOf, handlers, resetDb, whereOf } from "./helpers/db-mock";
+import { clearRateLimit } from "@/lib/rate-limit";
 
 /**
  * The inventory assistant (lib/ai/assistant.ts + app/(app)/assistant/actions.ts).
@@ -60,6 +61,7 @@ function says(intent: unknown) {
 }
 
 beforeEach(() => {
+  clearRateLimit("assistant:shop_1:user_1");
   resetDb();
   generateMock.mockReset();
   quickAddMock.mockReset();
@@ -450,9 +452,24 @@ describe("the wider shop assistant", () => {
         ? { count: 1 }
         : { count: 401 };
 
-    const result = await runAssistantAction("what's ready for pickup");
-
+    const result = await runAssistantAction("show all repairs for Sarah that are waiting for parts");
     expect(result.kind).toBe("error");
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("answers quick requests with fresh tenant-scoped rows without spending AI quota", async () => {
+    handlers["ticket.findMany"] = () => [];
+    handlers["usageCounter.upsert"] = () => { throw new Error("Quota must not be touched"); };
+    expect(await runAssistantAction("my repairs")).toMatchObject({ kind: "info" });
+    expect(whereOf("ticket.findMany")).toMatchObject({ shopId: "shop_1", assignedToId: "user_1" });
+    await runAssistantAction("my repairs");
+    expect(callsTo("ticket.findMany")).toHaveLength(2);
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it("explains capabilities without spending AI or keeping an unwanted clarification", async () => {
+    expect(await runAssistantAction("What can you help me with?")).toMatchObject({ kind: "info", message: expect.stringContaining("find repairs") });
+    expect(callsTo("usageCounter.upsert")).toHaveLength(0);
     expect(generateMock).not.toHaveBeenCalled();
   });
 

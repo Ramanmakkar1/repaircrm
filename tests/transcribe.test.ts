@@ -98,6 +98,8 @@ describe("transcribe", () => {
     const form = init.body as FormData;
     expect(form.get("model")).toBe("whisper-1");
     expect(form.get("file")).toBeInstanceOf(Blob);
+    expect(form.get("prompt")).toContain("Repair shop");
+    expect(form.get("language")).toBeNull();
   });
 
   it("fails clearly when transcription isn't configured", async () => {

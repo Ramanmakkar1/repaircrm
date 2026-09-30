@@ -17,6 +17,7 @@
 import { requireUser } from "@/lib/auth";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { transcribe, type TranscribeResult } from "@/lib/ai/transcribe";
+import { rateLimit } from "@/lib/rate-limit";
 
 export type { TranscribeResult };
 
@@ -26,7 +27,7 @@ const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 export async function transcribeAudioAction(
   formData: FormData,
 ): Promise<TranscribeResult> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const audio = formData.get("audio");
   if (!(audio instanceof Blob)) return { ok: false, reason: "No audio received." };
@@ -34,6 +35,8 @@ export async function transcribeAudioAction(
   if (audio.size > MAX_AUDIO_BYTES) {
     return { ok: false, reason: "That recording is too long — keep it short." };
   }
+  if (!/^(?:audio\/(?:webm|mp4|mpeg|mp3|ogg|wav|x-wav|flac|x-m4a)|video\/(?:webm|mp4))(?:;|$)/i.test(audio.type)) return { ok: false, reason: "Unsupported recording format. Please record again in your browser." };
+  if (!rateLimit(`voice:${shopId}:${userId}`, 20, 60_000).allowed) return { ok: false, reason: "Please wait a moment before recording again." };
 
   const quota = await consumeAiQuota(shopId, "audio");
   if (!quota.ok) return quota;

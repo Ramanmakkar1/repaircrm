@@ -67,7 +67,8 @@ export default function PrivacyPage() {
         <p>
           We use service providers to host the application and database, store
           files, monitor performance and support integrations. Current core
-          infrastructure includes Cloudflare and PlanetScale. When you connect a
+          infrastructure uses a VPS for the website and PostgreSQL database,
+          Cloudflare R2 for attachments, and Hostinger for email. When you connect a
           third-party service, information needed for that feature is also
           handled under that provider&apos;s privacy terms. We may disclose
           information when required by law, to protect people or the service, or

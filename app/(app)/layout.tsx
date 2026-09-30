@@ -4,8 +4,7 @@ import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { HardwareScanRouter } from "@/components/scan/hardware-scan-router";
-import { aiEnabled, sttEnabled } from "@/lib/ai";
-import { jevConfigured } from "@/lib/ai/jev";
+import { sttEnabled } from "@/lib/ai";
 
 export default async function AppLayout({
   children,
@@ -34,7 +33,7 @@ export default async function AppLayout({
       locations={locations}
       currentLocationId={locationId}
       prefs={prefs}
-      assistant={{ enabled: aiEnabled() || jevConfigured(), cloud: sttEnabled() }}
+      assistant={{ enabled: true, cloud: sttEnabled() }}
     >
       {/* Production only; see the note in the component. */}
       <RegisterServiceWorker />
