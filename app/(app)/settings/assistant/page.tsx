@@ -4,7 +4,7 @@ import { aiDriverName, aiEnabled, sttDriverName, sttEnabled } from "@/lib/ai/con
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const metadata = { title: "Assistant setup · RepairPilot" };
+export const metadata = { title: "Assistant setup · Repairs helper" };
 
 export default async function AssistantSetupPage() {
   const { role } = await requireUser();

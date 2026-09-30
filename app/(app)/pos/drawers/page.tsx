@@ -14,7 +14,7 @@ import {
   drawerVerdict,
 } from "@/components/pos/drawer-types";
 
-export const metadata = { title: "Cash drawers · RepairPilot" };
+export const metadata = { title: "Cash drawers · Repairs helper" };
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 40;

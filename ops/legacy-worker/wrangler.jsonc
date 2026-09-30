@@ -1,0 +1,9 @@
+{
+  "name": "repairpilot",
+  "account_id": "4056308adc2ced0072049e5283ffc072",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-30",
+  "workers_dev": true,
+  "vars": { "MAINTENANCE": "0" },
+  "triggers": { "crons": [] }
+}

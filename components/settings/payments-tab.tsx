@@ -307,11 +307,11 @@ function ProviderCatalogCard({
           </summary>
           <div className="flex flex-col gap-2 pt-3">
             <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-              Some processors use API credentials instead of an account approval. RepairPilot does not accept payment secrets in this browser. A key alone cannot turn on a provider; its secure server-side connector must be available first.
+              Some processors use API credentials instead of an account approval. Repairs helper does not accept payment secrets in this browser. A key alone cannot turn on a provider; its secure server-side connector must be available first.
             </p>
             <p className="text-[13.5px] leading-relaxed text-muted-foreground">
               {visibleProviders.some((provider) => provider.connectionMode === "api_credentials")
-                ? `For ${visibleProviders.filter((provider) => provider.connectionMode === "api_credentials").map((provider) => provider.name).join(", ")}, setup is not available in RepairPilot yet.`
+                ? `For ${visibleProviders.filter((provider) => provider.connectionMode === "api_credentials").map((provider) => provider.name).join(", ")}, setup is not available in Repairs helper yet.`
                 : "No API-key payment gateway is enabled for this shop yet."}
             </p>
           </div>
@@ -353,7 +353,7 @@ function ProviderOption({
       ? config.square.configured
       : false;
 
-  let status = "Not available in RepairPilot";
+  let status = "Not available in Repairs helper";
   let tone: "success" | "neutral" | "waiting" | "info" = "neutral";
   let detail = provider.description;
 
@@ -365,11 +365,11 @@ function ProviderOption({
     } else if (connectionConfigured) {
       status = "Ready to connect";
       tone = "info";
-      detail = "Connect your Stripe account with a secure approval. No payment keys are copied into RepairPilot.";
+      detail = "Connect your Stripe account with a secure approval. No payment keys are copied into Repairs helper.";
     } else {
       status = "Server setup needed";
       tone = "waiting";
-      detail = "A RepairPilot admin must configure Stripe on the server before shops can connect.";
+      detail = "A Repairs helper admin must configure Stripe on the server before shops can connect.";
     }
   } else if (provider.id === "square") {
     if (linked) {
@@ -393,14 +393,14 @@ function ProviderOption({
         : "success";
       detail = squareUnavailableInNZ
         ? squareAccountCountry === "NZ" && country !== "NZ"
-          ? "This Square account is registered in New Zealand, where RepairPilot cannot process Square payments. Connect an account in the shop’s country."
+          ? "This Square account is registered in New Zealand, where Repairs helper cannot process Square payments. Connect an account in the shop’s country."
           : "Square payment processing is not available for New Zealand shops. Stripe remains available here."
         : squareCountryMismatch
           ? `The Square account is registered in ${squareAccountCountry ? COUNTRY_NAMES[squareAccountCountry] : "a different country"}, but this shop is set to ${country ? COUNTRY_NAMES[country] : "another country"}. Confirm the shop country and connect the matching Square account.`
         : !config.square.configured
           ? "The Square account is linked, but this server no longer has the Square application credentials it needs."
         : config.square.hasError
-          ? "Square is linked, but RepairPilot could not refresh its account details. Disconnect and reconnect if this continues."
+          ? "Square is linked, but Repairs helper could not refresh its account details. Disconnect and reconnect if this continues."
           : !config.square.webhookReady
             ? "Square is linked, but payment confirmations are not ready. Ask the server admin to set SQUARE_WEBHOOK_SIGNATURE_KEY before taking payments."
           : `Connected to ${config.square.merchantName || "your Square account"}${config.square.locationName ? ` · ${config.square.locationName}` : ""}.`;
@@ -421,15 +421,15 @@ function ProviderOption({
     } else if (connectionConfigured && config.square.hasError) {
       status = "Reconnect needed";
       tone = "waiting";
-      detail = "RepairPilot could not refresh the previous Square connection. Reconnect to restore access.";
+      detail = "Repairs helper could not refresh the previous Square connection. Reconnect to restore access.";
     } else if (connectionConfigured) {
       status = "Ready to connect";
       tone = "info";
-      detail = "Approve Square access and return here. Credentials stay on the RepairPilot server.";
+      detail = "Approve Square access and return here. Credentials stay on the Repairs helper server.";
     } else {
       status = "Server setup needed";
       tone = "waiting";
-      detail = "A RepairPilot admin must set SQUARE_APPLICATION_ID and SQUARE_APPLICATION_SECRET on the server.";
+      detail = "A Repairs helper admin must set SQUARE_APPLICATION_ID and SQUARE_APPLICATION_SECRET on the server.";
     }
   } else if (!provider.availableNow) {
     status = provider.connectionMode === "api_credentials"
@@ -510,12 +510,12 @@ function SquareTerminalCard({
           <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
             {hasError
               ? "Square needs attention before another Terminal can be paired. Reconnect the Square account above."
-              : "Square’s server credentials are missing, so RepairPilot cannot pair another Terminal right now."}
+              : "Square’s server credentials are missing, so Repairs helper cannot pair another Terminal right now."}
           </p>
         ) : null}
         {!webhookReady ? (
           <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
-            Terminal pairing does not need a webhook, but payment confirmations are not ready. Ask the server admin to set <Env>SQUARE_WEBHOOK_SIGNATURE_KEY</Env> before taking Square payments in RepairPilot.
+            Terminal pairing does not need a webhook, but payment confirmations are not ready. Ask the server admin to set <Env>SQUARE_WEBHOOK_SIGNATURE_KEY</Env> before taking Square payments in Repairs helper.
           </p>
         ) : null}
         {devices.length === 0 ? (
@@ -722,7 +722,7 @@ function SquareDisconnectButton({
         <DialogHeader>
           <DialogTitle>Disconnect this Square account?</DialogTitle>
           <DialogDescription>
-            RepairPilot will revoke its Square access. Sales already recorded in Square are unaffected, and you can reconnect later.
+            Repairs helper will revoke its Square access. Sales already recorded in Square are unaffected, and you can reconnect later.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -790,7 +790,7 @@ function NotConfiguredCard({ env }: { env: PaymentsTabConfig["env"] }) {
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
           Stripe online payments aren&rsquo;t set up on this server yet — the
-          RepairPilot admin needs to set <Env>STRIPE_SECRET_KEY</Env> and{" "}
+          Repairs helper admin needs to set <Env>STRIPE_SECRET_KEY</Env> and{" "}
           <Env>STRIPE_CLIENT_ID</Env>. Until then invoices show no pay button
           and the portal only displays the balance.
         </p>
@@ -1113,13 +1113,13 @@ function GettingPaidCard({
           <SetupRow
             tone="muted"
             title="Nothing to set up yet"
-            body="Connect your Stripe account above and RepairPilot will set up the rest for you — there is no second step."
+            body="Connect your Stripe account above and Repairs helper will set up the rest for you — there is no second step."
           />
         ) : setup.automatic ? (
           <SetupRow
             tone="ok"
             title="Payments confirm themselves"
-            body={`RepairPilot set this up for you${
+            body={`Repairs helper set this up for you${
               setup.setUpAt ? ` on ${formatDate(setup.setUpAt)}` : ""
             }. When a card is charged, Stripe tells this app and the invoice marks itself paid.`}
           />
@@ -1399,7 +1399,7 @@ function CardMachinesCard({
             hint={
               config.hasReaderLocation
                 ? "Put yours on wifi, read the pairing code off its screen, and press Connect a card machine."
-                : "Press Connect a card machine — RepairPilot files it under this shop's address for you."
+                : "Press Connect a card machine — Repairs helper files it under this shop's address for you."
             }
             className="rounded-lg border border-dashed border-border py-10"
           />
@@ -1863,7 +1863,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
       <CardHeader
         icon={ICONS.settings}
         title="Server setup"
-        description="Set by whoever runs this RepairPilot server, not from this screen. Only whether each value is present is shown — never the value."
+        description="Set by whoever runs this Repairs helper server, not from this screen. Only whether each value is present is shown — never the value."
       />
 
       <CardContent className="flex flex-col gap-4">
@@ -1913,7 +1913,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
           <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
             <Env>PAYMENTS_CURRENCY</Env> is set to{" "}
             <span className="font-mono">{env.currency}</span>, which is not a
-            two-decimal currency. RepairPilot stores every amount in cents, so
+            two-decimal currency. Repairs helper stores every amount in cents, so
             checkout is refused rather than risk charging the wrong amount.
           </p>
         ) : null}

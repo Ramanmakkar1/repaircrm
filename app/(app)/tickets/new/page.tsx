@@ -18,7 +18,7 @@ import {
   problemTypes,
 } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "New ticket · RepairPilot" };
+export const metadata: Metadata = { title: "New ticket · Repairs helper" };
 
 export const dynamic = "force-dynamic";
 

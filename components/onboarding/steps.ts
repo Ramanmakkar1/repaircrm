@@ -17,7 +17,7 @@ export const STEPS = [
   {
     key: "team",
     title: "Your team",
-    blurb: "Add the people who will use RepairPilot with you.",
+    blurb: "Add the people who will use Repairs helper with you.",
   },
   {
     key: "payments",

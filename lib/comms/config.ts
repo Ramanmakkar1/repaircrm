@@ -24,13 +24,12 @@
  * real customers from a staging box.
  */
 
-export type EmailDriverName = "log" | "resend";
+export type EmailDriverName = "log" | "resend" | "smtp";
 export type SmsDriverName = "log" | "twilio" | "android_gateway";
 
 export function emailDriverName(): EmailDriverName {
-  return process.env.EMAIL_DRIVER?.trim().toLowerCase() === "resend"
-    ? "resend"
-    : "log";
+  const driver = process.env.EMAIL_DRIVER?.trim().toLowerCase();
+  return driver === "resend" || driver === "smtp" ? driver : "log";
 }
 
 export function smsDriverName(): SmsDriverName {

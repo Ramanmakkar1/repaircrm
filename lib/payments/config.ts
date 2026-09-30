@@ -76,7 +76,7 @@ export function paymentsCurrency(): string {
 }
 
 /**
- * RepairPilot stores every amount as an integer number of CENTS — one
+ * Repairs helper stores every amount as an integer number of CENTS — one
  * hundredth of the unit, everywhere, by schema invariant. That maps 1:1 onto
  * Stripe's minor units only for two-decimal currencies.
  *

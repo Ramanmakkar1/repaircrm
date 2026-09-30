@@ -267,7 +267,7 @@ export function AssistantLauncher({
           type="button"
           onClick={(event) => launch(event, false)}
           aria-label="Open the shop assistant"
-          title="Ask RepairPilot"
+          title="Ask Repairs helper"
           aria-haspopup="dialog"
           aria-expanded={open}
           className={cn(
@@ -297,7 +297,7 @@ export function AssistantLauncher({
           >
             <RepairPilotMark className="size-10 shrink-0 rounded-full sm:size-11" />
             <span className="truncate text-sm font-medium sm:text-lg">
-              Ask RepairPilot<span className="hidden min-[400px]:inline"> anything</span>
+              Ask Repairs helper<span className="hidden min-[400px]:inline"> anything</span>
             </span>
           </button>
           <button

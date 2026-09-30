@@ -233,7 +233,7 @@ export async function ensureShopWebhook(
         body: {
           enabled_events: [...WEBHOOK_EVENTS],
           disabled: false,
-          description: "RepairPilot payment confirmations",
+          description: "Repairs helper payment confirmations",
         },
       },
     );
@@ -258,7 +258,7 @@ export async function ensureShopWebhook(
       body: {
         url: address.url,
         enabled_events: [...WEBHOOK_EVENTS],
-        description: "RepairPilot payment confirmations",
+        description: "Repairs helper payment confirmations",
         metadata: { [OWNER_TAG]: shopId },
       },
     },
@@ -297,7 +297,7 @@ export async function ensureShopWebhook(
  * completely unusable opening line.
  */
 async function fail(shopId: string, reason: string): Promise<WebhookSetupResult> {
-  const message = `RepairPilot couldn't finish setting this up with Stripe. Stripe said: ${reason}`;
+  const message = `Repairs helper couldn't finish setting this up with Stripe. Stripe said: ${reason}`;
   await db.shop.updateMany({
     where: { id: shopId },
     data: { stripeWebhookError: message },

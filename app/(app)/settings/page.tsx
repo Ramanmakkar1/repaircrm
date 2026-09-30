@@ -52,7 +52,7 @@ import { parseTemplateItems } from "@/lib/checklist";
 import { readLabourSettings } from "@/lib/labour";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 
-export const metadata = { title: "Settings · RepairPilot" };
+export const metadata = { title: "Settings · Repairs helper" };
 
 /**
  * Everything a shop can configure, in one place.
@@ -522,7 +522,7 @@ export default async function SettingsPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Settings"
-        description="Your shop, your team, how you get paid, and everything RepairPilot connects to."
+        description="Your shop, your team, how you get paid, and everything Repairs helper connects to."
       />
 
       <SettingsTabs

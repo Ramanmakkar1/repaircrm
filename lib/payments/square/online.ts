@@ -52,7 +52,7 @@ export async function createSquareInvoicePaymentLink(input: {
             location_id: locationId,
             reference_id: `rp:invoice:${invoice.id}`,
             line_items: [{
-              name: `RepairPilot invoice ${invoice.number}`,
+              name: `Repairs helper invoice ${invoice.number}`,
               quantity: "1",
               base_price_money: { amount: amountCents, currency: invoice.shop.currency.toUpperCase() },
             }],
@@ -93,7 +93,7 @@ export async function settleSquarePayment(input: {
     return { status: "ignored", reason: `payment ${input.payment.status ?? "unknown"}` };
   }
   const orderId = input.payment.order_id?.trim();
-  if (!orderId) return { status: "ignored", reason: "payment has no RepairPilot order" };
+  if (!orderId) return { status: "ignored", reason: "payment has no Repairs helper order" };
 
   try {
     const invoiceId = await withSquareConnection(input.shopId, async (connection) => {

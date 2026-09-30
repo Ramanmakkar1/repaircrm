@@ -13,7 +13,7 @@ import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosProduct, PosTicket } from "@/components/pos/types";
 import { resolveTaxRate } from "@/lib/tax";
 
-export const metadata = { title: "POS · RepairPilot" };
+export const metadata = { title: "POS · Repairs helper" };
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";

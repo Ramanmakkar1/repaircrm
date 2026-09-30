@@ -16,7 +16,7 @@ import { cn } from "./cn";
  * That sameness is the feature. A tech who has opened one detail screen has
  * opened all of them: the balance is always in the same place, the status is
  * always beside it, "back to the list" is always the same link in the same
- * corner. RepairPilot's detail pages each grew their own hero block, so the
+ * corner. Repairs helper's detail pages each grew their own hero block, so the
  * invoice total, the ticket's device and the PO's vendor all sat somewhere
  * different.
  *

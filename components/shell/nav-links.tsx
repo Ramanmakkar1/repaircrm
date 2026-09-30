@@ -17,13 +17,10 @@ import { NAV_ITEMS, type NavItem } from "./nav-items";
  * adding a nav entry can never make it silently disappear from the rail.
  */
 const NAV_GROUPS: { label: string; hrefs: string[] }[] = [
-  {
-    label: "Work",
-    hrefs: ["/dashboard", "/leads", "/appointments", "/customers", "/tickets"],
-  },
-  { label: "Money", hrefs: ["/estimates", "/invoices", "/pos"] },
-  { label: "Grow", hrefs: ["/marketing", "/reports"] },
-  { label: "Shop", hrefs: ["/inventory", "/display", "/time-clock", "/settings"] },
+  { label: "Workspace", hrefs: ["/dashboard", "/tickets", "/appointments", "/customers"] },
+  { label: "Sales & payments", hrefs: ["/pos", "/estimates", "/invoices"] },
+  { label: "Shop management", hrefs: ["/inventory", "/time-clock", "/reports"] },
+  { label: "Grow your shop", hrefs: ["/leads", "/marketing", "/display", "/settings"] },
 ];
 
 function groupNavItems(): { label: string; items: NavItem[] }[] {
@@ -31,7 +28,7 @@ function groupNavItems(): { label: string; items: NavItem[] }[] {
 
   const groups = NAV_GROUPS.map((group) => {
     // iterate NAV_ITEMS (not group.hrefs) so the flat list keeps owning order
-    const items = NAV_ITEMS.filter((item) => group.hrefs.includes(item.href));
+    const items = group.hrefs.flatMap((href) => NAV_ITEMS.filter((item) => item.href === href));
     items.forEach((item) => claimed.add(item.href));
     return { label: group.label, items };
   }).filter((group) => group.items.length > 0);
@@ -91,7 +88,7 @@ export function NavLinks({
             // The groups still exist; the rule between them is what says so.
             <span aria-hidden className="mb-2 h-px w-6 bg-border first:hidden" />
           ) : (
-            <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-foreground">
+            <p className="px-2.5 pb-1.5 text-[11px] font-medium tracking-wide text-faint-foreground">
               {group.label}
             </p>
           )}
@@ -108,7 +105,7 @@ export function NavLinks({
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                   collapsed ? "w-9 justify-center" : "gap-2.5 pl-3 pr-2",
                   isActive
-                    ? "bg-accent font-semibold text-accent-foreground shadow-xs"
+                    ? "bg-accent-soft font-semibold text-accent-soft-foreground"
                     : "font-medium text-foreground hover:bg-surface-hover",
                 )}
               >
@@ -116,8 +113,8 @@ export function NavLinks({
                   className={cn(
                     "size-4 shrink-0 transition-colors",
                     isActive
-                      ? "text-accent-foreground"
-                      : "text-foreground",
+                      ? "text-accent-soft-foreground"
+                      : "text-muted-foreground",
                   )}
                   strokeWidth={2}
                 />

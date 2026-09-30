@@ -556,7 +556,7 @@ function PaymentsStep({ data, onDone, onSkip }: StepProps) {
           <Method
             icon={ICONS.pos}
             title="Cash and cheque"
-            body="Already works, nothing to configure. Record the tender on the invoice and RepairPilot keeps the balance."
+            body="Already works, nothing to configure. Record the tender on the invoice and Repairs helper keeps the balance."
             state="Ready"
             live
           />

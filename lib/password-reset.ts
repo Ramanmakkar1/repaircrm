@@ -116,7 +116,7 @@ function esc(value: string): string {
 /**
  * A plain staff notice: one heading, one sentence, one button, the raw URL
  * underneath for the mail clients that eat buttons. No shop branding — this is
- * about the RepairPilot account, not about the shop's customers.
+ * about the Repairs helper account, not about the shop's customers.
  */
 function staffEmail(input: {
   heading: string;
@@ -134,14 +134,14 @@ function staffEmail(input: {
     "",
     input.footer,
     "",
-    "— RepairPilot",
+    "— Repairs helper",
   ].join("\n");
 
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f6f6f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#18181b">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e7ea;border-radius:12px">
     <tr><td style="padding:28px">
-      <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280">RepairPilot</p>
+      <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#6b7280">Repairs helper</p>
       <h1 style="margin:0 0 14px;font-size:20px;line-height:1.3">${esc(input.heading)}</h1>
       <p style="margin:0 0 22px;font-size:15px;line-height:1.55;color:#3f3f46">${esc(input.intro)}</p>
       <p style="margin:0 0 22px">
@@ -165,7 +165,7 @@ export async function sendResetEmail(input: {
 }): Promise<string> {
   const body = staffEmail({
     heading: "Reset your password",
-    intro: `Hi ${input.name} — use the link below to choose a new RepairPilot password. It stops working in one hour.`,
+    intro: `Hi ${input.name} — use the link below to choose a new Repairs helper password. It stops working in one hour.`,
     buttonLabel: "Choose a new password",
     url: input.url,
     footer:
@@ -174,7 +174,7 @@ export async function sendResetEmail(input: {
 
   return deliverEmail({
     to: input.to,
-    subject: "Reset your RepairPilot password",
+    subject: "Reset your Repairs helper password",
     text: body.text,
     html: body.html,
   });
@@ -188,7 +188,7 @@ export async function sendInviteEmail(input: {
 }): Promise<string> {
   const body = staffEmail({
     heading: `You've been invited to ${input.shopName}`,
-    intro: `Hi ${input.name} — your RepairPilot account is ready. Set a password to sign in. This link works for three days.`,
+    intro: `Hi ${input.name} — your Repairs helper account is ready. Set a password to sign in. This link works for three days.`,
     buttonLabel: "Set your password",
     url: input.url,
     footer:
@@ -197,8 +197,14 @@ export async function sendInviteEmail(input: {
 
   return deliverEmail({
     to: input.to,
-    subject: `Set your password for ${input.shopName} · RepairPilot`,
+    subject: `Set your password for ${input.shopName} · Repairs helper`,
     text: body.text,
     html: body.html,
   });
+}
+
+/** Sent once, after the new shop transaction commits. */
+export async function sendWelcomeEmail(input: { to: string; name: string }): Promise<string> {
+  const body = staffEmail({ heading: "Welcome to Repairs helper", intro: `Hi ${input.name} — your shop workspace is ready. Start with a repair, add your team, or choose Easy mode for the counter.`, buttonLabel: "Open your workspace", url: `${appUrl()}/dashboard`, footer: "Need a hand getting started? Reply to this email to reach our support team." });
+  return deliverEmail({ to: input.to, from: process.env.EMAIL_WELCOME_FROM?.trim() || undefined, subject: "Welcome to Repairs helper", ...body });
 }

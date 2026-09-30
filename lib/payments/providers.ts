@@ -26,7 +26,7 @@ export type PaymentProviderDefinition = {
 };
 
 /**
- * `availableNow` means RepairPilot has an executable connector, not merely that
+ * `availableNow` means Repairs helper has an executable connector, not merely that
  * the provider operates in the country. Partner-certified terminal products
  * stay visible without presenting a button that cannot finish.
  */

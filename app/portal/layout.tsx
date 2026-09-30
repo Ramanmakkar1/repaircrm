@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Your repairs · RepairPilot",
+  title: "Your repairs · Repairs helper",
   description: "Track your repairs, estimates and invoices.",
   robots: { index: false, follow: false },
 };

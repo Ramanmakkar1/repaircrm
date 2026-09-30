@@ -56,8 +56,8 @@ export async function generateMetadata({
   });
   return {
     title: estimate
-      ? `Estimate #${estimate.number} · RepairPilot`
-      : "Estimate · RepairPilot",
+      ? `Estimate #${estimate.number} · Repairs helper`
+      : "Estimate · Repairs helper",
   };
 }
 

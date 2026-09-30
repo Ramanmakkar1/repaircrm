@@ -23,7 +23,7 @@ export async function generateMetadata({
 }) {
   const { id } = await params;
   const session = await getPortalSession();
-  if (!session) return { title: "Estimate · RepairPilot" };
+  if (!session) return { title: "Estimate · Repairs helper" };
 
   const estimate = await db.estimate.findFirst({
     where: {
@@ -37,8 +37,8 @@ export async function generateMetadata({
   });
   return {
     title: estimate
-      ? `Estimate #${estimate.number} · RepairPilot`
-      : "Estimate · RepairPilot",
+      ? `Estimate #${estimate.number} · Repairs helper`
+      : "Estimate · Repairs helper",
   };
 }
 

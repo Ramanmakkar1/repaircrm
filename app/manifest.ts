@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next";
  * The web app manifest, served at /manifest.webmanifest.
  *
  * What it buys a repair shop: the counter machine and the tech's phone can
- * install RepairPilot to the home screen and open it without browser chrome, so
+ * install Repairs helper to the home screen and open it without browser chrome, so
  * the ticket board fills the screen and nobody navigates away by mistake.
  *
  * `start_url` is /dashboard rather than /: the marketing page is not what an
@@ -16,8 +16,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "RepairPilot",
-    short_name: "RepairPilot",
+    name: "Repairs helper",
+    short_name: "Repairs helper",
     description: "Repair shop management, done right.",
     start_url: "/dashboard",
     scope: "/",
@@ -36,30 +36,30 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Check in a repair",
         short_name: "New repair",
         url: "/tickets/new",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Take a payment",
         short_name: "Register",
         url: "/pos",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Find a repair",
         short_name: "Repairs",
         url: "/tickets",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],
     icons: [
       {
-        src: "/icons/icon-192.png",
+        src: "/icons/helper-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/icons/helper-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
@@ -67,7 +67,7 @@ export default function manifest(): MetadataRoute.Manifest {
       // The same art declared maskable: Android crops icons to the launcher's
       // shape, and the glyph is inside the safe zone (see public/icons/icon.svg).
       {
-        src: "/icons/icon-512.png",
+        src: "/icons/helper-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

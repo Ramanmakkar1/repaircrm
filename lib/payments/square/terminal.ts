@@ -55,7 +55,7 @@ export async function createSquareDeviceCode(input: {
         body: {
           idempotency_key: randomUUID(),
           device_code: {
-            name: input.name.trim().slice(0, 60) || "RepairPilot counter",
+            name: input.name.trim().slice(0, 60) || "Repairs helper counter",
             product_type: "TERMINAL_API",
             location_id: locationId,
           },
@@ -160,7 +160,7 @@ export async function createSquareTerminalCheckout(input: {
             amount_money: { amount: amountCents, currency: invoice.shop.currency.toUpperCase() },
             device_options: { device_id: input.deviceId },
             reference_id: `rp:invoice:${invoice.id}`,
-            note: `RepairPilot invoice ${invoice.number}`,
+            note: `Repairs helper invoice ${invoice.number}`,
           },
         },
       });
@@ -196,7 +196,7 @@ export async function createSquarePosTerminalCheckout(input: {
             amount_money: { amount: amountCents, currency: shop.currency.toUpperCase() },
             device_options: { device_id: input.deviceId },
             reference_id: `rp:pos:${input.shopId}:${input.cartKey}`,
-            note: "RepairPilot counter sale",
+            note: "Repairs helper counter sale",
           },
         },
       });
@@ -279,7 +279,7 @@ export async function inspectSquareTerminalCheckout(input: {
         ? checkout.reference_id.slice("rp:invoice:".length)
         : null;
       const paymentId = checkout.payment_ids?.[0];
-      if (!invoiceId || !paymentId) throw new Error("Completed Square checkout is missing its RepairPilot reference.");
+      if (!invoiceId || !paymentId) throw new Error("Completed Square checkout is missing its Repairs helper reference.");
       const paymentData = await squareRequest<SquarePaymentResponse>({
         path: `/v2/payments/${encodeURIComponent(paymentId)}`,
         accessToken: connection.accessToken,

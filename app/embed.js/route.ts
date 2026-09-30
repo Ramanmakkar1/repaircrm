@@ -6,7 +6,7 @@
  * That is the entire integration. No account on our side to create, no key to
  * copy, no library to install, no build step, nothing to keep up to date — the
  * shop's web person adds one tag and the widget follows whatever the shop later
- * switches on in RepairPilot.
+ * switches on in Repairs helper.
  *
  * ---------------------------------------------------------------------------
  * WHY IT LOOKS LIKE THIS
@@ -20,7 +20,7 @@
  *        page's CSS cannot reach in (so a theme's `button { … }` cannot restyle
  *        our launcher) and our styles cannot reach out (so nothing we write can
  *        move the shop's own layout).
- *     2. The RepairPilot UI itself is an IFRAME. The app's stylesheet, fonts and
+ *     2. The Repairs helper UI itself is an IFRAME. The app's stylesheet, fonts and
  *        JavaScript never enter the host document at all — the only thing we
  *        add to their page is one empty <div> and this script.
  *   Between them, the worst a broken host page can do is make our button ugly,
@@ -50,7 +50,7 @@ const SCRIPT = String.raw`(function () {
   if (!shop) {
     // Nothing to point at. Say so once, in their console, and stop — a widget
     // that silently does nothing is a support call for somebody.
-    if (window.console) console.warn("[RepairPilot] embed.js needs a data-shop attribute.");
+    if (window.console) console.warn("[Repairs helper] embed.js needs a data-shop attribute.");
     return;
   }
 

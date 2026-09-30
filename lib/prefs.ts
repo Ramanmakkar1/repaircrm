@@ -49,7 +49,7 @@ export interface UiPrefs {
 
 export const DEFAULT_PREFS: UiPrefs = {
   density: "comfortable",
-  theme: "system",
+  theme: "light",
   railCollapsed: false,
   simple: false,
 };
@@ -63,7 +63,7 @@ function parse(raw: string | undefined): UiPrefs {
       theme:
         value.theme === "dark" || value.theme === "light"
           ? value.theme
-          : "system",
+          : value.theme === "system" ? "system" : "light",
       railCollapsed: value.railCollapsed === true,
       simple: value.simple === true,
     };

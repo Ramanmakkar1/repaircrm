@@ -21,8 +21,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Edit invoice #${invoice.number} · RepairPilot`
-      : "Edit invoice · RepairPilot",
+      ? `Edit invoice #${invoice.number} · Repairs helper`
+      : "Edit invoice · Repairs helper",
   };
 }
 

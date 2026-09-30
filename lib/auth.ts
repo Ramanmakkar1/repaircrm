@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+import { sendWelcomeEmail } from "@/lib/password-reset";
 import { audit } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { setPending2faCookie } from "@/lib/pending-2fa";
@@ -87,7 +88,7 @@ export async function completeSignIn(user: {
   name: string;
   email: string;
   passwordChangedAt?: Date | null;
-}, options: { via?: "password" | "totp" | "recovery_code" | "google" } = {}): Promise<SessionUser> {
+}, options: { via?: "password" | "totp" | "recovery_code" | "google" | "email_code" } = {}): Promise<SessionUser> {
   const session = sessionFor(user);
   await setSessionCookie(session);
 
@@ -402,7 +403,7 @@ export async function createShopWithOwner(input: {
 }> {
   const slug = await uniqueShopSlug(input.shopName);
 
-  return db.$transaction(async (tx) => {
+  const created = await db.$transaction(async (tx) => {
     const shop = await tx.shop.create({
       data: {
         name: input.shopName,
@@ -444,6 +445,9 @@ export async function createShopWithOwner(input: {
       },
     });
   });
+  const welcomeStatus = await sendWelcomeEmail({ to: created.email, name: created.name }).catch(() => "failed: unexpected delivery error");
+  if (welcomeStatus.startsWith("failed:")) console.error("[welcome] Delivery failed; shop was created successfully.");
+  return created;
 }
 
 export function slugify(value: string): string {

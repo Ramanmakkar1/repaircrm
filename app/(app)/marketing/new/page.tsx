@@ -8,7 +8,7 @@ import { CampaignForm } from "@/components/marketing/campaign-form";
 import { findTemplate } from "@/components/marketing/meta";
 import { createCampaignAction } from "../actions";
 
-export const metadata = { title: "New campaign · RepairPilot" };
+export const metadata = { title: "New campaign · Repairs helper" };
 
 export default async function NewCampaignPage({
   searchParams,

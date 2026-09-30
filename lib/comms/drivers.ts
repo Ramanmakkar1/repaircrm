@@ -56,14 +56,20 @@ export async function deliverEmail(message: {
   subject: string;
   text: string;
   html: string;
+  from?: string;
 }): Promise<string> {
   if (emailDriverName() === "log") {
     logBlock("EMAIL", [`to:      ${message.to}`, `subject: ${message.subject}`], message.text);
     return "logged";
   }
 
+  if (emailDriverName() === "smtp") {
+    const { deliverSmtp } = await import("./smtp");
+    return deliverSmtp(message);
+  }
+
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.EMAIL_FROM?.trim();
+  const from = message.from || process.env.EMAIL_FROM?.trim();
   if (!apiKey) return "failed: RESEND_API_KEY is not set";
   if (!from) return "failed: EMAIL_FROM is not set";
 
@@ -151,7 +157,7 @@ export async function deliverSms(message: {
  * has three modes with three addresses and the app's own screen prints the right
  * one: its cloud relay, a self-hosted private server, or the phone itself on the
  * shop's network (`http://<phone-ip>:8080/message` — which a cloud-hosted
- * RepairPilot cannot reach, so use the cloud or private mode there).
+ * Repairs helper cannot reach, so use the cloud or private mode there).
  *
  * The gateway answers 202: the message is QUEUED on the phone, not delivered.
  * "sent" here therefore means what it means for Twilio — accepted for delivery.

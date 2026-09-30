@@ -1,10 +1,10 @@
 /**
- * How this shop's card machine works with RepairPilot.
+ * How this shop's card machine works with Repairs helper.
  *
  *   auto    the amount is SENT to a connected machine (Stripe or Square
  *           Terminal); the sale or invoice marks itself paid when the card is
  *           approved. Nobody re-types a number.
- *   manual  the shop owns a standalone machine from its bank. RepairPilot shows
+ *   manual  the shop owns a standalone machine from its bank. Repairs helper shows
  *           the amount, the cashier keys it in over there, then records the
  *           payment here with one tap.
  *

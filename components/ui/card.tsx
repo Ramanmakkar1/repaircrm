@@ -4,7 +4,7 @@ import { TONE_CLASS, type StatusTone } from "./badge";
 import { cn } from "./cn";
 
 /**
- * The box everything in RepairPilot lives in.
+ * The box everything in Repairs helper lives in.
  *
  * The card is white on a light-gray canvas, so its own fill plus one hairline
  * is all the separation it needs — the shadow is now almost nothing on

@@ -25,7 +25,7 @@ import {
   EstimateStatusBadge,
 } from "@/components/billing/status-badge";
 
-export const metadata = { title: "Estimates · RepairPilot" };
+export const metadata = { title: "Estimates · Repairs helper" };
 
 const STATUS_SET = new Set<string>(ESTIMATE_STATUSES);
 

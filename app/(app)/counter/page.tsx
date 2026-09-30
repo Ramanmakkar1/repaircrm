@@ -3,7 +3,9 @@ import Link from "next/link";
 import { endOfDay, startOfDay } from "date-fns";
 import { ChevronRight } from "lucide-react";
 
-import { SimpleModeButton } from "@/components/counter/simple-mode-button";
+import { ViewSwitch } from "@/components/counter/view-switch";
+import { NAV_ITEMS } from "@/components/shell/nav-items";
+import { RepairPilotMark } from "@/components/brand/repairpilot";
 import { cn } from "@/components/ui/cn";
 import { ICONS, type LucideIcon } from "@/components/ui/icons";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
@@ -12,7 +14,7 @@ import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { readUiPrefs } from "@/lib/prefs";
 
-export const metadata: Metadata = { title: "Home · RepairPilot" };
+export const metadata: Metadata = { title: "Home · Repairs helper" };
 export const dynamic = "force-dynamic";
 
 type CounterCard = {
@@ -34,7 +36,7 @@ type CounterCard = {
  * wide, there is no side menu to get lost in, and nothing here is a setting.
  * The cards are the jobs a shop does all day, in the order they happen: a
  * device comes in, gets found again, gets paid for, goes home. Everything else
- * RepairPilot does is still there — one tap on "Full menu" — it is just not in
+ * Repairs helper does is still there — one tap on "Full menu" — it is just not in
  * the way.
  *
  * Each count is one indexed `count()`; the page stays fast enough to be the
@@ -63,7 +65,7 @@ export default async function CounterPage() {
       },
     }),
     showMoney
-      ? db.invoice.count({ where: { shopId, status: { in: ["SENT", "PARTIAL"] } } })
+      ? db.invoice.count({ where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } } })
       : Promise.resolve(0),
   ]);
 
@@ -138,42 +140,46 @@ export default async function CounterPage() {
   const firstName = name.trim().split(/\s+/)[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-[28px]">
-          {firstName ? `Hi ${firstName}` : "Welcome"} — what&rsquo;s next?
-        </h1>
-        <p className="text-[15px] text-muted-foreground">
-          Tap a card. Or press Talk at the bottom and just say it.
-        </p>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <header className="flex flex-wrap items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <RepairPilotMark className="hidden size-20 sm:flex" />
+          <div>
+            <p className="mb-2 text-xs font-semibold text-accent-soft-foreground">YOUR SHOP, SIMPLIFIED</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-[30px]">
+              {firstName ? `Hi ${firstName}` : "Welcome"}. Let’s get to work.
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">Everything you need at the counter. Choose a task to get started.</p>
+          </div>
+        </div>
+        <ViewSwitch simple={prefs.simple} />
       </header>
 
-      <ul className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4">
+      <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {cards.map((card) => (
           <li key={card.title}>
             <Link
               href={card.href}
               className={cn(
-                "group flex min-h-[6.5rem] items-center gap-4 rounded-2xl border border-border bg-surface p-4 shadow-xs transition-colors sm:p-5",
-                "hover:border-border-strong hover:bg-surface-hover active:bg-surface-hover",
+                "group relative flex h-full min-h-48 flex-col items-start gap-4 rounded-xl border border-border bg-white p-4 transition-colors sm:min-h-52 sm:p-6",
+                "hover:border-[#006aff] hover:bg-white active:bg-surface-hover",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               )}
             >
               <span
                 className={cn(
-                  "flex size-14 shrink-0 items-center justify-center rounded-xl",
-                  card.tone,
+                  "flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-white text-[#006aff]",
                 )}
               >
                 <card.icon className="size-7" aria-hidden />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[17px] font-bold leading-tight text-foreground">
+                <span className="block text-[17px] font-semibold leading-tight text-foreground">
                   {card.title}
                 </span>
                 <span
                   className={cn(
-                    "mt-1 block text-[14px] leading-snug",
+                    "mt-1 block text-[13px] leading-snug",
                     card.urgent ? "font-semibold text-status-overdue-fg" : "text-muted-foreground",
                   )}
                 >
@@ -181,33 +187,35 @@ export default async function CounterPage() {
                 </span>
               </span>
               {card.count !== undefined && card.count > 0 ? (
-                <span className="rf-num shrink-0 text-[26px] font-bold leading-none text-foreground">
+                <span className="rf-num absolute top-6 right-5 text-[26px] font-semibold leading-none text-foreground">
                   {card.count}
                 </span>
               ) : (
-                <ChevronRight className="size-5 shrink-0 text-faint-foreground" aria-hidden />
+                <ChevronRight className="absolute right-5 top-6 size-5 text-faint-foreground" aria-hidden />
               )}
             </Link>
           </li>
         ))}
       </ul>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-[14px] text-muted-foreground">
-        <span>
-          {prefs.simple
-            ? "Simple mode is on for this device."
-            : "This is Simple mode’s home screen."}
-        </span>
-        {prefs.simple ? (
-          <SimpleModeButton on={false} variant="outline">
-            Show the full menu
-          </SimpleModeButton>
-        ) : (
-          <SimpleModeButton on variant="outline">
-            Use Simple mode on this device
-          </SimpleModeButton>
-        )}
-      </footer>
+      <details className="group rounded-xl border border-border bg-white p-5 sm:p-6">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="flex items-center gap-3"><ICONS.settings className="size-5 text-[#006aff]" />All tools & settings</span>
+          <ChevronRight className="size-5 transition-transform group-open:rotate-90" />
+        </summary>
+        <p className="mt-3 text-sm text-muted-foreground">Every feature is still here. Opening a tool keeps Easy mode on.</p>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {NAV_ITEMS.filter((item) => item.href !== "/dashboard").map((item) => (
+            <div key={item.href}>
+              <Link href={item.href} className="flex min-h-12 items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:border-[#006aff] focus-visible:ring-2 focus-visible:ring-ring">
+                <item.icon className="size-4 shrink-0 text-[#006aff]" />{item.label}
+              </Link>
+              {item.children?.map((child) => <Link key={child.href} href={child.href} className="mt-2 block px-3 text-xs text-muted-foreground hover:underline">{child.label}</Link>)}
+            </div>
+          ))}
+        </div>
+      </details>
+      <p className="text-center text-xs text-muted-foreground">Easy mode changes the layout, not your features. Your view is remembered on this device.</p>
     </div>
   );
 }

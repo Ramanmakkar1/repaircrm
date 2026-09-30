@@ -37,7 +37,7 @@
 
 import { appUrl } from "@/lib/comms/config";
 
-/** Everything RepairPilot needs: who you are, and the name to put on tickets. */
+/** Everything Repairs helper needs: who you are, and the name to put on tickets. */
 export const GOOGLE_SCOPE = "openid email profile";
 
 /**

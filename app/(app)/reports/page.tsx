@@ -36,7 +36,7 @@ import { db } from "@/lib/db";
 import { ALL_LOCATIONS, currentLocationId } from "@/lib/location";
 import { formatCents } from "@/lib/money";
 
-export const metadata = { title: "Reports · RepairPilot" };
+export const metadata = { title: "Reports · Repairs helper" };
 
 // Every number here is "as of now"; a cached report is a wrong report.
 export const dynamic = "force-dynamic";

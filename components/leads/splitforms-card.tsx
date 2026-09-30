@@ -20,7 +20,7 @@ import { SPLITFORMS_SIGNUP_URL } from "@/lib/splitforms";
  * "Get website leads with Splitforms" — the recommended way to capture leads.
  *
  * Splitforms does the form (spam filtering, uploads, alerts, auto-replies);
- * RepairPilot gets every submission as a lead through one pasted webhook link.
+ * Repairs helper gets every submission as a lead through one pasted webhook link.
  * Three steps, each one line, because the person doing this is a shop owner
  * with a website builder open in the other tab, not a developer.
  */
@@ -138,7 +138,7 @@ export function SplitformsCard({
             </summary>
             <div className="mt-3 flex flex-col gap-3">
               <p className="text-muted-foreground">
-                Paste the webhook&rsquo;s <b>signing secret</b> from Splitforms and RepairPilot will only accept
+                Paste the webhook&rsquo;s <b>signing secret</b> from Splitforms and Repairs helper will only accept
                 requests Splitforms signed. {hasSecret ? "A secret is saved." : ""}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">

@@ -91,7 +91,7 @@ async function readPlatformCounts(): Promise<PlatformCounts> {
   return { shops, staff, customers, tickets, invoices };
 }
 
-/** Attachment rows are the billable objects RepairPilot intentionally owns. */
+/** Attachment rows are the billable objects Repairs helper intentionally owns. */
 async function readStorageFootprint(): Promise<StorageFootprint> {
   try {
     const result = await db.attachment.aggregate({

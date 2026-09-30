@@ -185,7 +185,7 @@ function DisplayVignette() {
         <div aria-label="Shop display preview with ten repairs grouped by status" role="img" className="bg-[#111214] p-5 text-white sm:p-6">
           <div className="flex items-center justify-between border-b border-white/15 pb-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">RepairPilot · Live board</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">Repairs helper · Live board</p>
               <p className="mt-1 text-[16px] font-semibold tracking-tight sm:text-[19px]">Today&apos;s repair queue</p>
             </div>
             <span className="flex items-center gap-2 text-[10px] font-medium text-white/65">
@@ -246,7 +246,7 @@ function DisplayVignette() {
 export function DeepDives() {
   return (
     <section
-      aria-label="How RepairPilot works"
+      aria-label="How Repairs helper works"
       className="border-t border-border bg-surface-hover/50 py-20 sm:py-28"
     >
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-24 px-5 sm:gap-32 sm:px-8">

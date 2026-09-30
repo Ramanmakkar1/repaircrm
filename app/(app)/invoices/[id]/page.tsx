@@ -107,8 +107,8 @@ export async function generateMetadata({
   });
   return {
     title: invoice
-      ? `Invoice #${invoice.number} · RepairPilot`
-      : "Invoice · RepairPilot",
+      ? `Invoice #${invoice.number} · Repairs helper`
+      : "Invoice · Repairs helper",
   };
 }
 

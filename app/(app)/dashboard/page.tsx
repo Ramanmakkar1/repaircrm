@@ -9,7 +9,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  StatBand,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { redirect } from "next/navigation";
-import { SimpleModeButton } from "@/components/counter/simple-mode-button";
+import { ViewSwitch } from "@/components/counter/view-switch";
 import { requireUser } from "@/lib/auth";
 import { readUiPrefs } from "@/lib/prefs";
 import { db } from "@/lib/db";
@@ -30,7 +29,7 @@ import { formatCents, invoiceTotals } from "@/lib/money";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
 import { NEEDS_REPLY_FILTER } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "Dashboard · RepairPilot" };
+export const metadata: Metadata = { title: "Dashboard · Repairs helper" };
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +43,7 @@ const TICKET_STATUSES = [
 ] as const;
 
 export default async function DashboardPage() {
-  const { shopId } = await requireUser();
+  const { shopId, name } = await requireUser();
   // Login, the installed app's start_url and the logo all point here. On a
   // device set to Simple mode, "home" is the card screen instead.
   if ((await readUiPrefs()).simple) redirect("/counter");
@@ -201,36 +200,42 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="rh-dashboard flex flex-col gap-6">
       <PageHeader
-        title="Dashboard"
-        description="Your repair pipeline, customer follow-ups and today's priorities."
+        title={`Welcome back, ${name.split(" ")[0]}.`}
+        description={now.toLocaleDateString("en", { weekday: "long", month: "long", day: "numeric" }) + " · Here’s what’s happening in your shop."}
         actions={
+          <div className="flex flex-wrap items-center gap-3">
+          <ViewSwitch simple={false} />
           <Button asChild>
             <Link href="/tickets/new">
               <ACTIONS.add />
-              New Ticket
+              New repair
             </Link>
           </Button>
+          </div>
         }
       />
-
-      {/* Phones and tablets only. The full dashboard is a desk tool; someone
-          holding the shop in one hand is better served by six big cards. */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3.5 lg:hidden">
-        <p className="min-w-0 text-[14px] leading-snug text-muted-foreground">
-          <span className="font-bold text-foreground">On a phone or tablet?</span>{" "}
-          Simple mode swaps the menus for a few big cards.
-        </p>
-        <SimpleModeButton on size="sm" variant="outline">
-          Try Simple mode
-        </SimpleModeButton>
-      </div>
 
       {/* Renders nothing once the shop is set up, or once it is dismissed. */}
       <SetupChecklist />
 
-      <Card className="grid gap-2 p-2 sm:grid-cols-3">
+
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        {stats.map((stat) => (
+          <Link key={stat.label} href={stat.href} className="rh-metric group rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent/40 sm:p-5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground sm:text-sm">{stat.label}</span>
+              <stat.icon className="size-4 text-muted-foreground" aria-hidden />
+            </div>
+            <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground tabular-nums">{stat.value}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{stat.hint}</p>
+          </Link>
+        ))}
+      </div>
+
+      <Card className="grid gap-2 border-dashed p-2 shadow-none sm:grid-cols-3">
         <QuickAction
           href="/appointments?new=1"
           icon={ICONS.appointment}
@@ -251,19 +256,7 @@ export default async function DashboardPage() {
         />
       </Card>
 
-      <StatBand
-        columns={4}
-        items={stats.map((stat) => ({
-          label: stat.label,
-          value: stat.value,
-          hint: stat.hint,
-          tone: stat.tone,
-          href: stat.href,
-          icon: stat.icon,
-        }))}
-      />
-
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.8fr)] 2xl:items-start">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(18rem,0.8fr)] xl:items-start">
         <Card className="min-w-0 overflow-hidden">
           <CardHeader
             icon={ICONS.ticket}
@@ -289,7 +282,7 @@ export default async function DashboardPage() {
                   <Button asChild>
                     <Link href="/tickets/new">
                       <ACTIONS.add />
-                      New Ticket
+                      New repair
                     </Link>
                   </Button>
                 }

@@ -10,7 +10,7 @@ import { assertIdPresent } from "@/lib/db-guard";
  *  MULTI-TENANCY RULE — READ BEFORE WRITING ANY QUERY
  * ============================================================================
  *
- *  RepairPilot is multi-tenant. Every tenant-owned row carries a `shopId`.
+ *  Repairs helper is multi-tenant. Every tenant-owned row carries a `shopId`.
  *
  *  EVERY query in app code MUST filter by the session's `shopId`:
  *

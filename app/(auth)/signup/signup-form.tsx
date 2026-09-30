@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { signupAction, type AuthFormState } from "../actions";
 import { ErrorBanner, Field, SubmitButton } from "../form-parts";
 
-export function SignupForm() {
+export function SignupForm({ email }: { email?: string }) {
   const [state, formAction] = useActionState<AuthFormState, FormData>(
     signupAction,
     undefined
@@ -30,6 +30,7 @@ export function SignupForm() {
       <Field
         label="Email"
         name="email"
+        defaultValue={email}
         type="email"
         autoComplete="email"
         placeholder="you@shop.com"

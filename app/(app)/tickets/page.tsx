@@ -36,7 +36,7 @@ import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { listSavedViews } from "@/lib/saved-views-query";
 import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
 
-export const metadata: Metadata = { title: "Tickets · RepairPilot" };
+export const metadata: Metadata = { title: "Tickets · Repairs helper" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";

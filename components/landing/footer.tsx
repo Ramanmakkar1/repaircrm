@@ -76,7 +76,7 @@ export function LandingFooter() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] text-faint-foreground">© {year} RepairPilot</p>
+          <p className="text-[13px] text-faint-foreground">© {year} Repairs helper</p>
           <nav aria-label="Legal" className="flex gap-5">
             <Link
               href="/privacy"

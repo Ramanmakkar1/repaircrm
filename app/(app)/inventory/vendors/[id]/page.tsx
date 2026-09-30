@@ -36,7 +36,7 @@ export async function generateMetadata({
     where: { id, shopId },
     select: { name: true },
   });
-  return { title: vendor ? `${vendor.name} · RepairPilot` : "Vendor · RepairPilot" };
+  return { title: vendor ? `${vendor.name} · Repairs helper` : "Vendor · Repairs helper" };
 }
 
 export default async function VendorPage({

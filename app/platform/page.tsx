@@ -14,7 +14,7 @@ import {
 import { readPlatformConsole } from "@/lib/platform-console-data";
 import { platformLogoutAction } from "./actions";
 
-export const metadata = { title: "Platform operations · RepairPilot" };
+export const metadata = { title: "Platform operations · Repairs helper" };
 
 function countLabel(value: number | null): string {
   return value === null ? "Unavailable" : new Intl.NumberFormat("en-US").format(value);
@@ -148,7 +148,7 @@ export default async function PlatformPage() {
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                RepairPilot / Platform
+                Repairs helper / Platform
               </p>
               <p className="truncate text-sm font-medium text-foreground">Operations console</p>
             </div>
@@ -189,7 +189,7 @@ export default async function PlatformPage() {
           </p>
         </section>
 
-        <section aria-label="RepairPilot data footprint" className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section aria-label="Repairs helper data footprint" className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={Store} label="Shops" value={countLabel(counts.shops)} detail="All tenant workspaces" />
           <MetricCard icon={Users} label="Active staff" value={countLabel(counts.staff)} detail="Enabled user accounts" />
           <MetricCard icon={Users} label="Customers" value={countLabel(counts.customers)} detail="Across all shops" />
@@ -408,7 +408,7 @@ export default async function PlatformPage() {
               </div>
             ) : null}
             <p className="mt-4 border-t border-border pt-3 text-xs leading-5 text-faint-foreground">
-              General Worker exceptions are not retained in RepairPilot today. Use Cloudflare Worker Logs for invocation-level details.
+              General Worker exceptions are not retained in Repairs helper today. Use Cloudflare Worker Logs for invocation-level details.
             </p>
           </article>
 
@@ -445,7 +445,7 @@ export default async function PlatformPage() {
                   name="Cloudflare R2"
                   status="Active"
                   price="$0 base"
-                  detail={`${storage.r2RecordedBytes === null ? "Recorded use unavailable" : `${formatBytes(storage.r2RecordedBytes)} in ${countLabel(storage.r2Objects)} object${storage.r2Objects === 1 ? "" : "s"}`} · RepairPilot stops new uploads at 8 GiB`}
+                  detail={`${storage.r2RecordedBytes === null ? "Recorded use unavailable" : `${formatBytes(storage.r2RecordedBytes)} in ${countLabel(storage.r2Objects)} object${storage.r2Objects === 1 ? "" : "s"}`} · Repairs helper stops new uploads at 8 GiB`}
                 />
                 <PlanRow name="Cloudflare Workers" status="Free plan" price="$0 base" detail="No paid Workers upgrade enabled" />
                 <PlanRow
@@ -459,7 +459,7 @@ export default async function PlatformPage() {
 
               <div className="border-t border-border bg-background px-5 py-4 sm:px-6">
                 <p className="text-xs leading-5 text-muted-foreground">
-                  RepairPilot never upgrades a provider plan. R2 can still bill usage above its free operation allowances, so provider invoices remain the source of truth. Any new plan that would take the known base commitment above {formatUsd(monthlyBudgetUsd)} requires manual approval.
+                  Repairs helper never upgrades a provider plan. R2 can still bill usage above its free operation allowances, so provider invoices remain the source of truth. Any new plan that would take the known base commitment above {formatUsd(monthlyBudgetUsd)} requires manual approval.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
                   {accountId ? (

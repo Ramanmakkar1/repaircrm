@@ -141,6 +141,11 @@ function checkPayments(out: Findings): void {
 }
 
 function checkComms(out: Findings): void {
+  if (process.env.EMAIL_DRIVER === "smtp") {
+    for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "EMAIL_FROM"]) {
+      if (!set(key)) out.fatal.push(`EMAIL_DRIVER=smtp requires ${key}.`);
+    }
+  }
   if (process.env.EMAIL_DRIVER === "resend" && !set("RESEND_API_KEY")) {
     out.warn.push("EMAIL_DRIVER=resend but RESEND_API_KEY is not set — no email will leave the app.");
   }
@@ -181,7 +186,7 @@ function checkScheduler(out: Findings): void {
 
 function checkStorage(out: Findings): void {
   const driver: string | undefined = process.env.STORAGE_DRIVER;
-  if (driver !== "s3") return;
+  if (driver !== "s3" && !(driver === "r2" && process.env.R2_TRANSPORT === "s3")) return;
   for (const key of ["S3_BUCKET", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"]) {
     if (!set(key)) out.warn.push(`STORAGE_DRIVER=s3 but ${key} is not set — attachment uploads will fail.`);
   }
@@ -229,7 +234,7 @@ export function preflight(): void {
   }
 
   throw new Error(
-    `RepairPilot refused to start: ${fatal.length} fatal configuration problem${
+    `Repairs helper refused to start: ${fatal.length} fatal configuration problem${
       fatal.length === 1 ? "" : "s"
     } (see [preflight] FATAL above).`,
   );

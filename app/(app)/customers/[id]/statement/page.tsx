@@ -45,8 +45,8 @@ export async function generateMetadata({
 
   return {
     title: customer
-      ? `Statement · ${statementCustomerName(customer)} · RepairPilot`
-      : "Statement · RepairPilot",
+      ? `Statement · ${statementCustomerName(customer)} · Repairs helper`
+      : "Statement · Repairs helper",
   };
 }
 

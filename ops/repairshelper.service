@@ -1,0 +1,23 @@
+[Unit]
+Description=Repairs helper web application
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=repairshelper
+Group=repairshelper
+WorkingDirectory=/srv/repairshelper/current
+EnvironmentFile=/etc/repairshelper/app.env
+ExecStart=/usr/local/bin/node server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/repairshelper
+MemoryMax=1G
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

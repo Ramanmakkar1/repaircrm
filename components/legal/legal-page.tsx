@@ -54,7 +54,7 @@ export function LegalPage({
 
       <footer className="border-t border-border">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <p>© {new Date().getFullYear()} RepairPilot</p>
+          <p>© {new Date().getFullYear()} Repairs helper</p>
           <nav aria-label="Legal" className="flex gap-5">
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>

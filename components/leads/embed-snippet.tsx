@@ -65,7 +65,7 @@ export function EmbedSnippet({ shopSlug, endpoint }: { shopSlug: string; endpoin
 }
 
 function buildSnippet(shopSlug: string, endpoint: string): string {
-  return `<!-- RepairPilot lead capture -->
+  return `<!-- Repairs helper lead capture -->
 <form id="rf-lead-form">
   <input name="name" placeholder="Your name" required />
   <input name="phone" type="tel" placeholder="Phone" />

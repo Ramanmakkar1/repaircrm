@@ -102,7 +102,7 @@ export function TenderDialog({
   /**
    * What Card opens on, already resolved against what is paired (see
    * lib/payments/card-machine.ts). "manual" when the shop keys the amount into
-   * its own machine — or has no machine wired to RepairPilot at all.
+   * its own machine — or has no machine wired to Repairs helper at all.
    */
   cardFlow?: CardFlow;
   onClose: () => void;
@@ -447,7 +447,7 @@ function MachineTroubleNote({ onManual }: { onManual: () => void }) {
       <p className="text-[13.5px] leading-relaxed text-muted-foreground">
         <span className="font-semibold text-foreground">Machine not working?</span>{" "}
         Take the card on any machine you have, then record it here. Nothing was
-        charged by RepairPilot.
+        charged by Repairs helper.
       </p>
       <Button type="button" size="lg" className="w-full" onClick={onManual}>
         Record it manually

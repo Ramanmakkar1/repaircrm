@@ -1,9 +1,9 @@
 /**
- * Splitforms → RepairPilot leads.
+ * Splitforms → Repairs helper leads.
  *
  * Splitforms (splitforms.com) is a hosted form backend: the shop builds its
  * website form there (spam filtering, file uploads, email alerts, auto-replies)
- * and adds one webhook — the private URL RepairPilot shows on the Leads page.
+ * and adds one webhook — the private URL Repairs helper shows on the Leads page.
  * Every submission then arrives here and becomes a lead.
  *
  * Trust: the URL carries a 32-byte random token, which is what Splitforms'
@@ -42,7 +42,7 @@ export function newSplitformsToken(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Where RepairPilot sends a shop to build its form — tagged so Splitforms can see who referred them. */
+/** Where Repairs helper sends a shop to build its form — tagged so Splitforms can see who referred them. */
 export const SPLITFORMS_SIGNUP_URL =
   "https://splitforms.com/?ref=repairpilot&utm_source=repairpilot&utm_medium=integration&utm_campaign=leads";
 

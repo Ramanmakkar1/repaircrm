@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth";
 import { ForgotForm } from "./forgot-form";
 
 export const metadata: Metadata = {
-  title: "Reset your password · RepairPilot",
+  title: "Reset your password · Repairs helper",
 };
 
 export default async function ForgotPasswordPage() {
@@ -26,6 +26,7 @@ export default async function ForgotPasswordPage() {
       </div>
 
       <ForgotForm />
+      <Link href="/email-code?purpose=reset" className="mt-4 flex min-h-11 items-center justify-center rounded-md border border-border text-sm font-semibold hover:bg-surface-hover">Use a 6-digit email code instead</Link>
 
       <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
         Remembered it?{" "}

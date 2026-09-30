@@ -77,6 +77,6 @@ const nextConfig: NextConfig = {
 // Enables Cloudflare bindings in the dev server only. Production builds must be
 // independent of local Hyperdrive credentials; Wrangler injects its binding
 // into the OpenNext Worker at runtime.
-if (process.env.NODE_ENV === "development") initOpenNextCloudflareForDev();
+if (process.env.NODE_ENV === "development" && process.env.DATABASE_DRIVER === "hyperdrive") initOpenNextCloudflareForDev();
 
 export default nextConfig;

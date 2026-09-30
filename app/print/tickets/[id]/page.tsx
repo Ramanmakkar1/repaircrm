@@ -7,7 +7,7 @@ import { loadPrintShop } from "@/components/billing/print-queries";
 import { ticketSheetProps } from "@/components/billing/print-mappers";
 import { TicketSheet } from "@/components/billing/print-ticket-sheet";
 
-export const metadata: Metadata = { title: "Work order · RepairPilot" };
+export const metadata: Metadata = { title: "Work order · Repairs helper" };
 
 /**
  * The printable work order for one ticket.

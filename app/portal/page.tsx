@@ -22,7 +22,7 @@ import { requestPortalLinkAction } from "./actions";
  * address at the counter.
  */
 
-export const metadata = { title: "Sign in to your repair portal · RepairPilot" };
+export const metadata = { title: "Sign in to your repair portal · Repairs helper" };
 
 const ERRORS: Record<string, string> = {
   email: "That doesn't look like a valid email address — try again?",

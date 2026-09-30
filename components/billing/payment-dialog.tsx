@@ -350,7 +350,7 @@ function MachineTroubleNote({ onManual }: { onManual: () => void }) {
       <p className="text-[13.5px] leading-relaxed text-muted-foreground">
         <span className="font-semibold text-foreground">Machine not working?</span>{" "}
         Take the card on any machine you have, then record it here. Nothing was
-        charged by RepairPilot.
+        charged by Repairs helper.
       </p>
       <Button type="button" size="lg" className="w-full" onClick={onManual}>
         Record it manually

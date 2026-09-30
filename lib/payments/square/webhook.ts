@@ -76,6 +76,6 @@ export async function applySquareWebhook(event: SquareWebhook): Promise<{
 
   // payment.updated is retained for visibility and future hosted-checkout
   // adapters. Terminal money is settled from terminal.checkout.updated because
-  // that object carries RepairPilot's invoice reference.
+  // that object carries Repairs helper's invoice reference.
   return { status: "ignored", reason: `event ${event.type ?? "unknown"}` };
 }

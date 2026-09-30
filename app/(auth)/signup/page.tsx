@@ -14,18 +14,18 @@ import {
 import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
-  title: "Create your shop · RepairPilot",
+  title: "Create your shop · Repairs helper",
 };
 
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string }>;
+  searchParams: Promise<{ google?: string; email?: string }> ;
 }) {
   const session = await getSession();
   if (session) redirect("/");
 
-  const { google } = await searchParams;
+  const { google, email } = await searchParams;
 
   return (
     <>
@@ -49,7 +49,7 @@ export default async function SignupPage({
         </>
       ) : null}
 
-      <SignupForm />
+      <SignupForm email={email?.slice(0, 254)} />
 
       <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
         Already have an account?{" "}

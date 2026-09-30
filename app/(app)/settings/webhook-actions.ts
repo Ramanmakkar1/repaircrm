@@ -219,7 +219,7 @@ export async function sendTestWebhookAction(
         event: "ping",
         created: new Date().toISOString(),
         shopId: session.shopId,
-        data: { message: "Test event from RepairPilot." },
+        data: { message: "Test event from Repairs helper." },
       },
       status: "pending",
       nextAttemptAt: new Date(),

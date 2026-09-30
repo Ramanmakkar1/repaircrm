@@ -28,7 +28,7 @@ const MOMENTS = [
 ] as const;
 
 /**
- * Show the moments RepairPilot supports using original workshop photography.
+ * Show the moments Repairs helper supports using original workshop photography.
  * The product preview lives in the hero, where sample UI is clearly labeled.
  */
 export function Showcase() {

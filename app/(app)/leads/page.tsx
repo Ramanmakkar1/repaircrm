@@ -39,7 +39,7 @@ import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
 
-export const metadata: Metadata = { title: "Leads · RepairPilot" };
+export const metadata: Metadata = { title: "Leads · Repairs helper" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";

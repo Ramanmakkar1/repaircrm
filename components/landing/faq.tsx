@@ -11,7 +11,7 @@ import { ChevronIcon } from "./icons";
 const FAQS = [
   {
     q: "Is my data mine?",
-    a: "Your shop's records belong to you. Owners can export customers, invoices, payments and report data to CSV. A complete archive of every record is not available yet. RepairPilot does not sell your shop records.",
+    a: "Your shop's records belong to you. Owners can export customers, invoices, payments and report data to CSV. A complete archive of every record is not available yet. Repairs helper does not sell your shop records.",
   },
   {
     q: "Can customers pay online?",
@@ -19,11 +19,11 @@ const FAQS = [
   },
   {
     q: "Will my existing EFTPOS terminal update the invoice automatically?",
-    a: "Only if it is a compatible terminal connected through a supported payment provider. Stripe Terminal and Square Terminal workflows are implemented; a generic EFTPOS machine will not automatically report its payment to RepairPilot. Confirm your provider and reader model before relying on automatic settlement.",
+    a: "Only if it is a compatible terminal connected through a supported payment provider. Stripe Terminal and Square Terminal workflows are implemented; a generic EFTPOS machine will not automatically report its payment to Repairs helper. Confirm your provider and reader model before relying on automatic settlement.",
   },
   {
     q: "Does it work on a tablet at the counter?",
-    a: "Yes. RepairPilot runs in the browser with nothing to install, and every screen is laid out to work from a phone up to a shop monitor — so a tablet on the counter is a first-class way to use it. Intake photos use the tablet's own camera, and the wall display has a full-screen mode for a spare monitor.",
+    a: "Yes. Repairs helper runs in the browser with nothing to install, and every screen is laid out to work from a phone up to a shop monitor — so a tablet on the counter is a first-class way to use it. Intake photos use the tablet's own camera, and the wall display has a full-screen mode for a spare monitor.",
   },
   {
     q: "Do I need a credit card to start?",

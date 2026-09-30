@@ -36,7 +36,7 @@ import {
   InvoiceStatusBadge,
 } from "@/components/billing/status-badge";
 
-export const metadata = { title: "Invoices · RepairPilot" };
+export const metadata = { title: "Invoices · Repairs helper" };
 
 const STATUS_SET = new Set<string>(INVOICE_STATUSES);
 

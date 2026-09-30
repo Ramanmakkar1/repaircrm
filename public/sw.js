@@ -1,10 +1,10 @@
 /*
- * RepairPilot service worker.
+ * Repairs helper service worker.
  *
  * ---------------------------------------------------------------------------
  * WHAT IT IS FOR, AND WHAT IT IS DELIBERATELY NOT FOR
  * ---------------------------------------------------------------------------
- * RepairPilot is a live view of a shop's tickets, invoices and stock. A cached
+ * Repairs helper is a live view of a shop's tickets, invoices and stock. A cached
  * ticket list is a LIE — it shows a job as "In Progress" that was picked up an
  * hour ago. So this worker does not try to make the app work offline. It does
  * exactly two things:
@@ -34,11 +34,11 @@
  * Without the bump a browser would keep serving whatever the old worker cached.
  */
 
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE = `repairpilot-${VERSION}`;
 
 /** Fetched during install, alongside whatever the offline page itself needs. */
-const PRECACHE = ["/offline", "/icons/icon-192.png"];
+const PRECACHE = ["/offline", "/icons/helper-192.png"];
 
 /**
  * Caching /offline's HTML is not enough.

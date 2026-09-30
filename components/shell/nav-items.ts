@@ -39,7 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ICONS.customer,
     children: [{ label: "Import", href: "/customers/import" }],
   },
-  { label: "Tickets", href: "/tickets", icon: ICONS.ticket },
+  { label: "Repairs", href: "/tickets", icon: ICONS.ticket },
   { label: "Estimates", href: "/estimates", icon: ICONS.estimate },
   {
     label: "Invoices",
@@ -48,7 +48,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [{ label: "Recurring", href: "/invoices/recurring" }],
   },
   {
-    label: "POS",
+    label: "Point of sale",
     href: "/pos",
     icon: ICONS.pos,
     children: [{ label: "Cash drawers", href: "/pos/drawers" }],

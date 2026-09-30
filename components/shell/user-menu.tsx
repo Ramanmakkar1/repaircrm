@@ -97,7 +97,7 @@ export function UserMenu({
 }
 
 /**
- * Simple mode, on THIS device: big cards and no side menu, for the counter
+ * Easy mode, on THIS device: big cards and no side menu, for the counter
  * tablet and the phone. Lives here because this menu is the one control that
  * survives the side menu being gone — so it is also always the way back.
  */
@@ -109,7 +109,7 @@ function SimpleModeItem({ simple }: { simple: boolean }) {
       onSelect={() => start(() => void setSimpleModeAction(!simple))}
     >
       <LayoutGrid className="size-4 text-muted-foreground" />
-      {simple ? "Show the full menu" : "Simple mode (big cards)"}
+      {simple ? "Show the full menu" : "Easy mode (big cards)"}
     </DropdownMenuItem>
   );
 }

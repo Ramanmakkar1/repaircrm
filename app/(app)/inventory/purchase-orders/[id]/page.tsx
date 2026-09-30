@@ -40,7 +40,7 @@ export async function generateMetadata({
     select: { number: true },
   });
   return {
-    title: order ? `PO #${order.number} · RepairPilot` : "Purchase order · RepairPilot",
+    title: order ? `PO #${order.number} · Repairs helper` : "Purchase order · Repairs helper",
   };
 }
 

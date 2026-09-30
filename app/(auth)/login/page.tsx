@@ -14,7 +14,7 @@ import {
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "Sign in · RepairPilot",
+  title: "Sign in · Repairs helper",
 };
 
 /**
@@ -84,6 +84,7 @@ export default async function LoginPage({
       ) : null}
 
       <LoginForm redirectTo={redirectTo} />
+      <Link href="/email-code" className="mt-4 flex min-h-11 items-center justify-center rounded-md border border-border text-sm font-semibold hover:bg-surface-hover">Email me a sign-in code</Link>
 
       <p className="mt-6 text-center text-[14.5px]">
         <Link

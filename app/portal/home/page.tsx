@@ -20,7 +20,7 @@ import {
   PortalShell,
 } from "../_components/shell";
 
-export const metadata = { title: "Your repairs · RepairPilot" };
+export const metadata = { title: "Your repairs · Repairs helper" };
 
 // The same three glyphs the shop's own screens use for these records, so a
 // customer who is also a walk-in never sees a repair drawn two ways.

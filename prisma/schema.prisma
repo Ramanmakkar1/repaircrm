@@ -199,6 +199,7 @@ model User {
   defaultLocationId  String?
   defaultLocation    Location?            @relation(fields: [defaultLocationId], references: [id], onDelete: SetNull)
   passwordResets     PasswordResetToken[]
+  emailCodes         EmailAuthCode[]
   auditLogs          AuditLog[]
   savedViews         SavedView[]
   purchaseOrders     PurchaseOrder[]
@@ -1122,6 +1123,23 @@ model PasswordResetToken {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Short-lived email verification challenges. Only keyed hashes are stored.
+model EmailAuthCode {
+  id          String    @id @default(cuid())
+  userId      String
+  email       String
+  purpose     String
+  challenge   String    @unique
+  codeHash    String
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  lastSentAt  DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([email, purpose])
   @@index([expiresAt])
 }
 

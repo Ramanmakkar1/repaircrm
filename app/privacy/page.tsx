@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/legal-page";
 
 export const metadata: Metadata = {
-  title: "Privacy policy · RepairPilot",
-  description: "How RepairPilot collects, uses, protects and shares information.",
+  title: "Privacy policy · Repairs helper",
+  description: "How Repairs helper collects, uses, protects and shares information.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Effective September 12, 2026"
       title="Privacy policy"
-      intro="RepairPilot is repair shop management software operated by Townmedia Labs. This policy explains what information we handle, why we use it and the choices available to you."
+      intro="Repairs helper is repair shop management software operated by Townmedia Labs. This policy explains what information we handle, why we use it and the choices available to you."
     >
       <section>
         <h2>Information we collect</h2>
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Usage and device information:</strong> IP address, browser,
             device type, timestamps, security events, error logs and the parts
-            of RepairPilot you use.
+            of Repairs helper you use.
           </li>
           <li>
             <strong>Integration information:</strong> identifiers and limited
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
       <section>
         <h2>How we use information</h2>
         <p>
-          We use information to provide and secure RepairPilot, authenticate
+          We use information to provide and secure Repairs helper, authenticate
           users, operate shop workflows, deliver requested messages, process
           connected-service actions, answer support requests, diagnose failures,
           prevent abuse and improve reliability. We do not sell personal
@@ -55,10 +55,10 @@ export default function PrivacyPage() {
         <h2>Your responsibility for customer data</h2>
         <p>
           A shop controls the customer and repair data it enters into
-          RepairPilot. The shop is responsible for giving its customers any
+          Repairs helper. The shop is responsible for giving its customers any
           required privacy notices, collecting information lawfully and limiting
           staff access. If you are a customer of a repair shop, contact that shop
-          first about data in its RepairPilot account.
+          first about data in its Repairs helper account.
         </p>
       </section>
 
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Cookies and authentication</h2>
         <p>
-          RepairPilot uses essential cookies and similar browser storage to keep
+          Repairs helper uses essential cookies and similar browser storage to keep
           you signed in, protect sessions, remember interface preferences and
           support offline behavior. We do not use third-party advertising
           cookies. Google sign-in shares your basic profile and email with us
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Children and international processing</h2>
         <p>
-          RepairPilot is a business service and is not directed to children under
+          Repairs helper is a business service and is not directed to children under
           13. Information may be processed in Canada, the United States or other
           places where our service providers operate, with safeguards required by
           applicable law.
@@ -122,7 +122,7 @@ export default function PrivacyPage() {
       <section>
         <h2>Changes and contact</h2>
         <p>
-          We may update this policy as RepairPilot changes. We will revise the
+          We may update this policy as Repairs helper changes. We will revise the
           effective date above and provide additional notice when required. For
           privacy questions or requests, email{" "}
           <a href="mailto:townmedialabs@gmail.com">townmedialabs@gmail.com</a>.

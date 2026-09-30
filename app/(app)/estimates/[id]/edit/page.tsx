@@ -21,8 +21,8 @@ export async function generateMetadata({
   });
   return {
     title: estimate
-      ? `Edit estimate #${estimate.number} · RepairPilot`
-      : "Edit estimate · RepairPilot",
+      ? `Edit estimate #${estimate.number} · Repairs helper`
+      : "Edit estimate · Repairs helper",
   };
 }
 

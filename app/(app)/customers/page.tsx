@@ -17,7 +17,7 @@ import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-sear
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Customers · RepairPilot" };
+export const metadata: Metadata = { title: "Customers · Repairs helper" };
 
 const PAGE_SIZE = 25;
 

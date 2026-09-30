@@ -2,16 +2,9 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { getSession } from "@/lib/auth";
-import { DeepDives } from "@/components/landing/deep-dives";
-import { Faq } from "@/components/landing/faq";
-import { Features } from "@/components/landing/features";
-import { LandingFooter } from "@/components/landing/footer";
-import { Hero } from "@/components/landing/hero";
-import { LandingNav } from "@/components/landing/nav";
-import { Pricing } from "@/components/landing/pricing";
-import { Showcase } from "@/components/landing/showcase";
+import { RepairsHome } from "@/components/landing/repairs-home";
 
-const TITLE = "RepairPilot — repair shop software";
+const TITLE = "Repairs helper — repair shop software";
 const DESCRIPTION =
   "Repair shop CRM for phone, computer and console teams. Track repairs, parts, estimates, invoices and customer updates in one workspace. Free during early access.";
 
@@ -20,7 +13,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   openGraph: {
     type: "website",
-    siteName: "RepairPilot",
+    siteName: "Repairs helper",
     title: TITLE,
     description: DESCRIPTION,
     url: "/",
@@ -45,22 +38,5 @@ export default async function RootPage() {
   const session = await getSession();
   if (session) redirect("/dashboard");
 
-  return (
-    /*
-     * `rf-landing` re-declares the light tokens for this subtree — the landing
-     * page is light-only by design (see the block at the end of globals.css).
-     */
-    <div className="rf-landing flex min-h-screen flex-col">
-      <LandingNav />
-      <main className="flex-1">
-        <Hero />
-        <Features />
-        <DeepDives />
-        <Showcase />
-        <Pricing />
-        <Faq />
-      </main>
-      <LandingFooter />
-    </div>
-  );
+  return <RepairsHome />;
 }

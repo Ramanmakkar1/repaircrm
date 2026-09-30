@@ -6,7 +6,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link
       href="/dashboard"
-      aria-label="RepairPilot — go to the dashboard"
+      aria-label="Repairs helper — go to the dashboard"
       /* px-3 so the mark's left edge lines up with the nav row icons below */
       className={cn(
         "flex items-center rounded-md transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
