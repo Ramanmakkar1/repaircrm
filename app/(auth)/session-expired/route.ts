@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse } from "next/server";
 
 import { destroySession } from "@/lib/auth";
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
   const notice = NOTICES[reason] ?? "signed-out";
 
   return NextResponse.redirect(
-    new URL(`/login?notice=${notice}`, request.url),
+    new URL(`/login?notice=${notice}`, appOrigin(request.url)),
     { status: 303 },
   );
 }

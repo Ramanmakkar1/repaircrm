@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { PORTAL_COOKIE, portalCookieOptions } from "@/lib/portal-session";
@@ -11,7 +12,7 @@ import { PORTAL_COOKIE, portalCookieOptions } from "@/lib/portal-session";
  */
 export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(
-    new URL("/portal", request.nextUrl.origin),
+    new URL("/portal", appOrigin(request.url)),
   );
   response.cookies.set(PORTAL_COOKIE, "", portalCookieOptions(0));
   return response;

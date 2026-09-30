@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
@@ -69,13 +70,13 @@ export async function GET(
   if (!invoice) {
     // Deliberately the same destination a bad magic link reaches: a stranger
     // probing tokens learns nothing from the response about whether one exists.
-    const failed = new URL("/portal", request.nextUrl.origin);
+    const failed = new URL("/portal", appOrigin(request.url));
     failed.searchParams.set("error", "invalid");
     return NextResponse.redirect(failed);
   }
 
   const response = NextResponse.redirect(
-    new URL(`/portal/invoices/${invoice.id}`, request.nextUrl.origin),
+    new URL(`/portal/invoices/${invoice.id}`, appOrigin(request.url)),
   );
   // Written onto the redirect itself so the Set-Cookie header and the 302 are
   // unambiguously the same response — `cookies().set()` cannot be trusted to

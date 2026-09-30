@@ -49,3 +49,5 @@ The image-only badge is AI-generated: a solid blue shield with a negative-space 
 Easy mode is a persistent per-device layout preference. It uses the same records and role checks as Full view and exposes all navigation via All tools & settings.
 
 Email codes last ten minutes, are HMAC-hashed with the application secret, allow five attempts, and are single use with a database row lock. Login codes preserve two-factor requirements. Reset codes issue the existing short-lived reset token. Unknown/disabled addresses receive the same public response. Sender authentication was verified with real delivery and SPF/DKIM/DMARC passing.
+
+Reverse-proxy redirects use the configured `APP_URL` rather than the private Node request origin, including Google callback, logout and portal entry. Runtime scheduled jobs retain the original 15-minute cadence; builds explicitly disable the timer.

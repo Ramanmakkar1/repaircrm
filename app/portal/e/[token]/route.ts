@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
@@ -33,13 +34,13 @@ export async function GET(
   });
 
   if (!estimate) {
-    const failed = new URL("/portal", request.nextUrl.origin);
+    const failed = new URL("/portal", appOrigin(request.url));
     failed.searchParams.set("error", "invalid");
     return NextResponse.redirect(failed);
   }
 
   const response = NextResponse.redirect(
-    new URL(`/portal/estimates/${estimate.id}`, request.nextUrl.origin),
+    new URL(`/portal/estimates/${estimate.id}`, appOrigin(request.url)),
   );
   response.cookies.set(
     PORTAL_COOKIE,

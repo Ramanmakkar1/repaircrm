@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
@@ -26,13 +27,13 @@ export async function GET(request: NextRequest) {
   const session = await consumePortalToken(token);
 
   if (!session) {
-    const failed = new URL("/portal", request.nextUrl.origin);
+    const failed = new URL("/portal", appOrigin(request.url));
     failed.searchParams.set("error", token ? "expired" : "invalid");
     if (next) failed.searchParams.set("next", next);
     return NextResponse.redirect(failed);
   }
 
-  const destination = new URL(next ?? "/portal/home", request.nextUrl.origin);
+  const destination = new URL(next ?? "/portal/home", appOrigin(request.url));
   const response = NextResponse.redirect(destination);
   response.cookies.set(
     PORTAL_COOKIE,

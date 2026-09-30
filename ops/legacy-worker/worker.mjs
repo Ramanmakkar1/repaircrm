@@ -1,4 +1,4 @@
-export default {
+const legacyRedirect = {
   fetch(request, env) {
     if (env.MAINTENANCE === '1') return new Response('Repairs helper is moving to repairshelper.com. Please try again shortly.', {status:503,headers:{'Retry-After':'120','Cache-Control':'no-store'}});
     const url = new URL(request.url);
@@ -9,3 +9,5 @@ export default {
   },
   scheduled() {},
 };
+
+export default legacyRedirect;

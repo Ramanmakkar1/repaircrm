@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth";
@@ -79,7 +80,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     });
 
     return NextResponse.redirect(
-      new URL("/settings/integrations/xero-tenant", new URL(request.url).origin),
+      new URL("/settings/integrations/xero-tenant", appOrigin(request.url)),
     );
   } catch (error) {
     return connectFailure(request, "xero", error);

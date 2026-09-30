@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth";
@@ -29,7 +30,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = appOrigin(request.url);
 
   const back = (path: string, code: string) => {
     const target = new URL(path, origin);

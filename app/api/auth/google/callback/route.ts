@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse } from "next/server";
 
 import { clientIp } from "@/lib/audit";
@@ -49,7 +50,7 @@ const CALLBACK_WINDOW_MS = 15 * 60 * 1000;
 
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = appOrigin(request.url);
 
   /** Where a code lands, which depends on the button that was pressed. */
   const back = (intent: GoogleIntent | null, code: string) => {

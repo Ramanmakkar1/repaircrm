@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/comms/config";
 import { NextResponse } from "next/server";
 
 import { signOutCurrentUser } from "@/lib/auth";
@@ -8,7 +9,7 @@ import { signOutCurrentUser } from "@/lib/auth";
  */
 async function signOut(request: Request) {
   await signOutCurrentUser();
-  return NextResponse.redirect(new URL("/login", request.url), {
+  return NextResponse.redirect(new URL("/login", appOrigin(request.url)), {
     // 303 so a POST turns into a GET on /login.
     status: 303,
   });

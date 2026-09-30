@@ -12,7 +12,7 @@ chown repairshelper:repairshelper "$source_dir/.env.production"
 chmod 600 "$source_dir/.env.production"
 cd "$source_dir"
 sudo -u repairshelper env PATH=/opt/node-v22.23.3-linux-x64/bin:/usr/local/bin:/usr/bin:/bin npm ci --no-audit --no-fund
-sudo -u repairshelper env PATH=/opt/node-v22.23.3-linux-x64/bin:/usr/local/bin:/usr/bin:/bin NODE_OPTIONS=--max-old-space-size=2560 npm run build
+sudo -u repairshelper env PATH=/opt/node-v22.23.3-linux-x64/bin:/usr/local/bin:/usr/bin:/bin NODE_OPTIONS=--max-old-space-size=2560 JOBS_INTERVAL_MIN=0 npm run build
 /usr/local/sbin/repairshelper-backup
 sudo -u repairshelper /usr/local/bin/node --env-file=.env.production node_modules/prisma/build/index.js migrate deploy
 runtime="$source_dir/.next/standalone"

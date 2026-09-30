@@ -49,6 +49,13 @@ export function appUrl(): string {
   return raw.replace(/\/+$/, "");
 }
 
+/** Route handlers can see the private Node origin behind nginx. Always use
+ * the configured public origin for redirects, never an untrusted Host header. */
+export function appOrigin(requestUrl: string): string {
+  const configured = process.env.APP_URL?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim();
+  return new URL(configured || requestUrl).origin;
+}
+
 /** Absolute URL for a portal path (`/portal`, `/portal/invoices/abc`, …). */
 export function portalUrl(path: string = "/portal"): string {
   const suffix = path.startsWith("/") ? path : `/${path}`;
