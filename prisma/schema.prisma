@@ -707,10 +707,38 @@ model Product {
   adjustments    StockAdjustment[]
   partOrders     PartOrder[]
   attachments    Attachment[]
+  automaticPhoto AutomaticProductPhoto?
 
   @@unique([shopId, sku])
   @@index([shopId, name])
   @@index([shopId, category])
+}
+
+/// Licensed internet fallback, kept separate so it never replaces an uploaded photo.
+model AutomaticProductPhoto {
+  id            String   @id @default(cuid())
+  productId     String   @unique
+  shopId        String
+  lookupKey     String
+  status        String
+  searchedAt    DateTime
+  nextAttemptAt DateTime
+  leaseToken    String?
+  storage       String?
+  path          String?
+  mimeType      String?
+  sizeBytes     Int      @default(0)
+  title         String?
+  author        String?
+  sourceUrl     String?
+  license       String?
+  licenseUrl    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, searchedAt])
 }
 
 // ---------------------------------------------------------------------------

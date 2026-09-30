@@ -34,6 +34,13 @@ shop's everyday workspace.
 
 ## Design Principles
 
+- Start Easy mode with large task boxes: Repairs, Invoices, Sales, Customers,
+  Products, and Appointments. Each task opens its own organised workspace.
+- Treat the signed-in experience as a touch application on phones, tablets,
+  and counter PCs: no website masthead or footer, clear Home and Back controls,
+  and at least 48px controls in Easy mode.
+- Guide repair and invoice entry through short stages while retaining every
+  feature, form value, and the full workbench view.
 - Put the next useful action and the work needing attention first.
 - Keep repair status, ownership, and customer context easy to scan together.
 - Use consistent navigation and labels across the shop's workflow.

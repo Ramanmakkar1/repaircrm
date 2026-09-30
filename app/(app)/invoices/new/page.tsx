@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readUiPrefs } from "@/lib/prefs";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
@@ -15,8 +16,8 @@ export default async function NewInvoicePage({
   const { shopId } = await requireUser();
   const params = await searchParams;
 
-  const { customers, products, taxRateBps, taxRates } =
-    await loadDocumentFormData(shopId);
+  const [{ customers, products, taxRateBps, taxRates }, uiPrefs] =
+    await Promise.all([loadDocumentFormData(shopId), readUiPrefs()]);
 
   // Prefills arrive as query params from the customer and ticket screens. Both
   // are re-verified against the shop before they are trusted as defaults.
@@ -41,12 +42,13 @@ export default async function NewInvoicePage({
   ]);
 
   return (
-    <div className="flex flex-col">
+    <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-3xl flex-col gap-4" : "flex flex-col"}>
       <PageHeader
         title="New invoice"
         description="Add line items, then save as a draft you can review before sending."
       />
       <DocumentForm
+        simple={uiPrefs.simple}
         kind="invoice"
         action={createInvoiceAction}
         customers={customers}

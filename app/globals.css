@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Easy mode is a counter workspace: readable text and generous finger targets. */
+[data-touch-workspace="true"] :is(button:not([role="checkbox"]):not([role="switch"]), input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, [role="combobox"]) {
+  min-height: 48px;
+}
+[data-touch-workspace="true"] :is(input, select, textarea) { font-size: 16px; }
+[data-touch-workspace="true"] :is(button[aria-label], button:has(> svg:only-child)):not([role="checkbox"]):not([role="switch"]) { min-width: 48px; }
+[data-touch-workspace="true"] button:is([role="checkbox"], [role="switch"]) { position: relative; }
+[data-touch-workspace="true"] button[role="checkbox"]::before { content: ""; position: absolute; inset: -14px; }
+[data-touch-workspace="true"] button[role="switch"]::before { content: ""; position: absolute; inset: -12px -2px; }
+[data-touch-workspace="true"] td { padding-top: 14px; padding-bottom: 14px; }
+@media (pointer: coarse) {
+  :is([role="menuitem"], [role="option"]) { min-height: 48px; }
+  :is(input, select, textarea) { font-size: 16px; }
+}
+
 /* The persistent voice dock follows the supplied soft-glow pill reference. */
 .rf-assistant-dock { border: 1px solid var(--border); background: var(--surface); box-shadow: 0 4px 20px rgb(0 0 0 / .08); }
 .rf-assistant-prompt { color: var(--muted-foreground); }

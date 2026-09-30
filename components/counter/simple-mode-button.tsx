@@ -8,8 +8,7 @@ import { setSimpleModeAction } from "@/app/(app)/prefs-actions";
 
 /**
  * Turns Simple mode on or off for THIS device and lands on the matching home
- * screen. One control, used from the dashboard's phone/tablet prompt, the
- * counter screen's footer and the user menu.
+ * screen. Used by the workspace view switch and the account menu.
  */
 export function SimpleModeButton({
   on,

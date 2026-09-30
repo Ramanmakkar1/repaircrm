@@ -45,7 +45,7 @@ export async function setRailCollapsedAction(collapsed: boolean): Promise<void> 
 }
 
 /**
- * Easy mode on or off, for this device. Turning it on opens the visual register;
+ * Easy mode on or off, for this device. Turning it on opens the task home;
  * turning it off lands back on the full repair workbench — either way the
  * person sees the change they just asked for instead of the same page minus a
  * menu.
@@ -54,5 +54,5 @@ export async function setSimpleModeAction(simple: boolean): Promise<void> {
   await requireUser();
   await writeUiPrefs({ simple: simple === true });
   revalidatePath("/", "layout");
-  redirect(simple === true ? "/pos" : "/dashboard");
+  redirect(simple === true ? "/counter" : "/dashboard");
 }

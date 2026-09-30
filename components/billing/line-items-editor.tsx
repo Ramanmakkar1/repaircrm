@@ -18,6 +18,7 @@ import { cn } from "@/components/ui/cn";
 import { resolveScanAction } from "@/app/(app)/scan/actions";
 import { calcTotals, formatBps, formatCents, parseCents } from "@/lib/money";
 import type { ProductOption, SubmittedLine } from "./types";
+import { ProductImage } from "@/components/inventory/product-image";
 
 /**
  * The shared line-item editor used by every billing document — new invoice,
@@ -109,6 +110,7 @@ export function LineItemsEditor({
   initialLines,
   showSerial = false,
   name = "lines",
+  simple = false,
 }: {
   products: ProductOption[];
   taxRateBps: number;
@@ -116,6 +118,8 @@ export function LineItemsEditor({
   /** Invoices carry a per-unit serial; estimates do not. */
   showSerial?: boolean;
   name?: string;
+  /** The counter's guided invoice uses stacked touch-sized item cards. */
+  simple?: boolean;
 }) {
   const seeded = React.useMemo(
     () =>
@@ -262,7 +266,29 @@ export function LineItemsEditor({
     <div className="flex flex-col">
       <input type="hidden" name={name} value={JSON.stringify(payload)} />
 
-      <div className="w-full overflow-x-auto">
+      {simple ? <div className="flex flex-col gap-4">
+        {drafts.map((draft, index) => <div key={draft.key} className="border-b border-border bg-white px-1 py-4 last:border-b-0">
+          <div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-base font-semibold">Item {index + 1}</h3><Button type="button" variant="ghost" className="min-h-12 min-w-12 text-destructive" onClick={() => remove(draft.key)} aria-label={"Remove item " + (index + 1)}><ACTIONS.delete /> Remove</Button></div>
+          {draft.productId !== CUSTOM ? (() => {
+            const product = products.find((item) => item.id === draft.productId);
+            return product ? <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-white p-3"><ProductImage productId={product.id} name={product.name} category={product.category} imageUrl={product.imageUrl} sizes="80px" className="size-20 shrink-0 rounded-md border border-border" /><span className="min-w-0 break-words text-base font-semibold">{product.name}</span></div> : null;
+          })() : null}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Product or service
+              <Select value={draft.productId} onValueChange={(value) => pickProduct(draft.key, value)}><SelectTrigger aria-label="Product"><SelectValue placeholder="Custom" /></SelectTrigger><SelectContent className="max-h-64 overflow-y-auto"><SelectItem value={CUSTOM}>Custom line</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}{product.sku ? " · " + product.sku : ""}</SelectItem>)}</SelectContent></Select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Description<Input value={draft.description} onChange={(event) => update(draft.key, { description: event.target.value })} placeholder="What are you billing for?" aria-label="Description" maxLength={500} /></label>
+            <label className="flex flex-col gap-2 text-sm font-medium">Quantity<Input id={"line-quantity-" + draft.key} value={draft.quantity} onChange={(event) => update(draft.key, { quantity: event.target.value })} required type="number" min="1" max="100000" step="1" inputMode="numeric" aria-label="Quantity" className="tabular-nums" /></label>
+            <label className="flex flex-col gap-2 text-sm font-medium">Unit price<Input id={"line-price-" + draft.key} value={draft.unitPrice} onChange={(event) => update(draft.key, { unitPrice: event.target.value })} onBlur={(event) => update(draft.key, { unitPrice: centsToInput(parseCents(event.target.value)) })} required type="number" min="-1000000" max="1000000" step="0.01" inputMode="decimal" aria-label="Unit price" className="tabular-nums" /></label>
+            {showSerial ? <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Serial number
+              {serialsFor(draft) ? <Select value={draft.serial || NO_SERIAL} onValueChange={(value) => update(draft.key, { serial: value === NO_SERIAL ? "" : value })}><SelectTrigger aria-label="Serial number"><SelectValue placeholder="Pick a unit" /></SelectTrigger><SelectContent className="max-h-64 overflow-y-auto"><SelectItem value={NO_SERIAL}>No unit yet</SelectItem>{serialsFor(draft)?.map((serial) => <SelectItem key={serial} value={serial}>{serial}</SelectItem>)}</SelectContent></Select> : <Input value={draft.serial} onChange={(event) => update(draft.key, { serial: event.target.value })} placeholder="Optional" aria-label="Serial number" maxLength={120} />}
+            </label> : null}
+            <label className="flex min-h-12 items-center gap-3 text-sm sm:col-span-2"><Checkbox checked={draft.taxable} onCheckedChange={(value) => update(draft.key, { taxable: value === true })} aria-label="Taxable" /> Apply tax to this item</label>
+          </div>
+          <div className="mt-4 flex justify-between border-t border-border pt-4 text-base font-semibold"><span>Item total</span><span className="tabular-nums">{formatCents(draftQty(draft) * draftUnitCents(draft))}</span></div>
+        </div>)}
+        <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="outline" className="min-h-12 px-5" onClick={addRow}><ACTIONS.add /> Add another item</Button><ScanButton continuous size="lg" showLabel label="Scan" title="Scan to add a line" description="Each code adds a line at the price on file." onScan={(hit) => onScan(hit.value)} /></div>
+      </div> : <div className="w-full overflow-x-auto">
         <table className="w-full min-w-[780px] caption-bottom text-sm">
           <thead className="border-b border-border">
             <tr>
@@ -441,7 +467,7 @@ export function LineItemsEditor({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </div>}
 
       <div className="mt-2 flex justify-end rounded-md bg-surface-hover px-4 py-4">
         <dl className="flex w-full max-w-[300px] flex-col gap-2.5 text-sm">

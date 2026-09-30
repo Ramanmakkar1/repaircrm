@@ -7,7 +7,7 @@ import { CommandPalette } from "@/components/search/command-palette";
 import type { UiPrefs } from "@/lib/prefs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SwitcherLocation } from "./location-switcher";
-import { Topbar } from "./topbar";
+import { WorkspaceControls } from "./workspace-controls";
 import type { CurrentUser } from "./user-menu";
 
 export function AppShell({
@@ -41,20 +41,15 @@ export function AppShell({
       */}
       <div
         data-density={prefs.density}
+        data-touch-workspace={prefs.simple ? "true" : undefined}
         className="flex h-dvh w-full flex-col overflow-hidden bg-background"
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <Topbar
-            user={user}
-            locations={locations}
-            currentLocationId={currentLocationId}
-            onSearchClick={() => setSearchOpen(true)}
-            density={prefs.density}
-            theme={prefs.theme}
-            simple={prefs.simple}
-          />
           <main className="min-h-0 flex-1 overflow-y-auto pt-6 pb-28">
-            <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 xl:px-12">{children}</div>
+            <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 xl:px-12">
+              <WorkspaceControls user={user} locations={locations} currentLocationId={currentLocationId} prefs={prefs} onSearch={() => setSearchOpen(true)} />
+              {children}
+            </div>
           </main>
         </div>
       </div>

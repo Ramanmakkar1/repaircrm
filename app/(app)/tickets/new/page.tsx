@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { activeLocations, newRecordLocationId } from "@/lib/location";
 import { readSla } from "@/lib/sla";
+import { readUiPrefs } from "@/lib/prefs";
 import { activeWarrantiesByCustomer } from "@/lib/warranty";
 import { PageHeader } from "@/components/ui/page-header";
 import {
@@ -34,7 +35,7 @@ export default async function NewTicketPage({
   const prefillId =
     (Array.isArray(rawCustomerId) ? rawCustomerId[0] : rawCustomerId) ?? "";
 
-  const [customers, techs, shop] = await Promise.all([
+  const [customers, techs, shop, uiPrefs] = await Promise.all([
     db.customer.findMany({
       where: { shopId },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -63,6 +64,7 @@ export default async function NewTicketPage({
       select: { id: true, name: true },
     }),
     db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
+    readUiPrefs(),
   ]);
 
   const [locations, defaultLocationId, checklists, warranties] = await Promise.all([
@@ -107,11 +109,12 @@ export default async function NewTicketPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <PageHeader
-        breadcrumbs={[{ label: "Tickets", href: "/tickets" }, { label: "New ticket" }]}
-        title="New ticket"
-        description="Check a device in and start the repair clock."
+        breadcrumbs={[{ label: "Repairs", href: "/tickets" }, { label: uiPrefs.simple ? "New repair" : "New ticket" }]}
+        title={uiPrefs.simple ? "New repair" : "New ticket"}
+        description={uiPrefs.simple ? "Add the customer and device, then review the repair." : "Check a device in and start the repair clock."}
       />
       <TicketForm
+        simple={uiPrefs.simple}
         customers={customers.map((customer) => ({
           value: customer.id,
           label: customerLabel(customer),

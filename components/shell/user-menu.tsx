@@ -44,7 +44,7 @@ export function UserMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex items-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring/40">
+      <DropdownMenuTrigger aria-label="Your account and display settings" className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring/40">
         <Avatar>
           <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
         </Avatar>
@@ -109,7 +109,7 @@ function SimpleModeItem({ simple }: { simple: boolean }) {
       onSelect={() => start(() => void setSimpleModeAction(!simple))}
     >
       <LayoutGrid className="size-4 text-muted-foreground" />
-      {simple ? "Full workbench" : "Easy mode (visual POS)"}
+      {simple ? "Full workbench" : "Easy mode (task boxes)"}
     </DropdownMenuItem>
   );
 }

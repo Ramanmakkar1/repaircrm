@@ -1,0 +1,134 @@
+{
+  "createdAt": "2026-09-30",
+  "mode": "built-in image_gen",
+  "useCase": "product-mockup",
+  "note": "Illustrative unbranded category photographs; not verified product fitment or actual stock.",
+  "format": {
+    "width": 768,
+    "height": 768,
+    "format": "webp",
+    "quality": 88
+  },
+  "assets": [
+    {
+      "name": "tablet",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: A generic premium tablet, one slim graphite tablet showing its black turned-off glass face in three-quarter view, with a second matching tablet behind it showing graphite back and a single rear camera. Both complete with separate readable silhouettes, no branded features.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-dfaad480-0f5c-43f5-8661-a62015fc6dc0.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/tablet.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/tablet.webp",
+      "publicPath": "/images/products/tablet.webp",
+      "inspected": true
+    },
+    {
+      "name": "phone-battery",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose unlabelled replacement smartphone lithium-ion pouch battery. Flat rectangular silver aluminum foil pouch with a black upper protection strip and small orange flexible connector tab. Realistic delicate crimped foil edges and compact phone-battery proportions. No visible printed specifications, symbols or lettering.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-1d624759-146f-461b-923b-b9e3863a553a.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/phone-battery.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/phone-battery.webp",
+      "publicPath": "/images/products/phone-battery.webp",
+      "inspected": true
+    },
+    {
+      "name": "camera-module",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose smartphone rear camera replacement module: a compact square metallic camera unit with a prominent round black glass lens and a small orange flexible ribbon connector. Complete hardware with realistic precision electronics details. It must look like a smartphone repair part, not a large standalone camera.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-11819f6b-fd35-4673-8766-aab9cb230f8a.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/camera-module.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/camera-module.webp",
+      "publicPath": "/images/products/camera-module.webp",
+      "inspected": true
+    },
+    {
+      "name": "earpiece-speaker",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose replacement smartphone earpiece speaker: a small narrow rectangular black micro-speaker with metallic protective mesh on the face, delicate gold contact points, and black plastic housing. An enlarged detailed macro product view, complete part visible.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-4a52fa24-d783-4d8e-8f58-031282d486f9.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/earpiece-speaker.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/earpiece-speaker.webp",
+      "publicPath": "/images/products/earpiece-speaker.webp",
+      "inspected": true
+    },
+    {
+      "name": "circuit-board",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose modern smartphone logic board: an elongated irregular dark green multilayer PCB with compact silver shield cans, tiny chips and gold edge contacts. Realistic mobile phone repair part, no outer phone housing. No readable manufacturing identifiers.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-250e093f-b46f-4fb3-9214-97c6afa54294.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/circuit-board.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/circuit-board.webp",
+      "publicPath": "/images/products/circuit-board.webp",
+      "inspected": true
+    },
+    {
+      "name": "usb-c-cable",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One neatly coiled white USB-C to USB-C charging cable, both metallic USB-C plugs clearly visible and facing diagonally outward. Realistic smooth white silicone sheath and connector housings, tidy circular coil. No wall charger or other accessories.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-ed04917b-5f26-4e4e-99ee-0838cd1637bd.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/usb-c-cable.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/usb-c-cable.webp",
+      "publicPath": "/images/products/usb-c-cable.webp",
+      "inspected": true
+    },
+    {
+      "name": "back-glass",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose glossy black replacement smartphone back-glass panel, seen from the outside in slightly elevated three-quarter view. Rounded rectangular panel with three circular camera cutouts and one smaller flash cutout at its upper corner. No cameras installed, no phone body, no logos. Complete unbroken rear-glass repair part.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-1f5eb468-cf4a-41d5-a33f-901ba9e2ae61.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/back-glass.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/back-glass.webp",
+      "publicPath": "/images/products/back-glass.webp",
+      "inspected": true
+    },
+    {
+      "name": "television",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One modern slim black flat-screen television with its screen powered off, front three-quarter view. A large widescreen black glass panel with narrow matte black bezel and two discreet black feet. Entire television and both feet completely visible, realistic consumer TV proportions. No remote or other products.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-6b3c09f1-fb0c-4f79-b209-186e2527833e.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/television.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/television.webp",
+      "publicPath": "/images/products/television.webp",
+      "inspected": true
+    },
+    {
+      "name": "tv-remote",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One modern unbranded black television remote control, fully visible in slightly elevated diagonal front view. Realistic rectangular body with rounded corners, a circular navigation ring, small blank solid buttons and a few tiny colored buttons. Every button surface must be free of legible text or symbols. No TV or other products.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-d1dc159d-4a62-4abd-8b43-b97645a03677.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/tv-remote.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/tv-remote.webp",
+      "publicPath": "/images/products/tv-remote.webp",
+      "inspected": true
+    },
+    {
+      "name": "tv-power-board",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose television power-supply circuit board, realistic yellow-brown PCB rectangle with a prominent yellow transformer, silver heatsinks, black cylindrical capacitors and small white connection sockets. Complete board in elevated three-quarter view, wide isolated component. Distinct power electronics hardware, no TV housing, no readable printing.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-0d95322e-534c-4d9b-bd46-a339846c8f53.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/tv-power-board.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/tv-power-board.webp",
+      "publicPath": "/images/products/tv-power-board.webp",
+      "inspected": true
+    },
+    {
+      "name": "tv-main-board",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: One loose television main logic board, realistic compact dark green PCB with black processor chip, silver RF tuner can and side-mounted HDMI and USB metal sockets. Small silver capacitors and white cable connectors. Complete board in elevated three-quarter view. It must visibly differ from a yellow television power board: dark green signal-processing board without a large yellow transformer. No readable printing.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-903cb4f2-89f1-404d-827c-c8f1d8c15406.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/tv-main-board.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/tv-main-board.webp",
+      "publicPath": "/images/products/tv-main-board.webp",
+      "inspected": true
+    },
+    {
+      "name": "tv-backlight-strips",
+      "prompt": "Use case: product-mockup. Asset type: square repair shop catalog photograph. Scene/backdrop: pure solid white #FFFFFF studio background and white ground, no gradients or environment. Style: high-resolution photorealistic commercial product photography. Composition: centered, fully visible complete hardware, single coherent subject group occupying about 72% of square canvas, generous clean whitespace around all edges, slightly elevated three-quarter angle. Lighting: soft neutral studio illumination with a very subtle natural contact shadow only. Constraints: no lettering, no logos, no model names, no watermark, no labels, no packaging, no people, no hands, no unrelated tools, no decorative props. Sharp clean edges and realistic materials. Subject: Three complete television LED backlight bars arranged parallel at a gentle diagonal. Long slender white aluminum LED strips, each with a row of evenly spaced clear round optical LED lenses and tiny connection terminals at one end. Precisely three separate bars visible, realistic television repair parts. No wires, tools, TV housing or readable printing.",
+      "original": "/Users/raman/.codex/generated_images/01a0f425-e7ba-7671-a050-6b8ab1c20317/exec-a8c09b19-d3e2-4405-bb81-2b9f9de05227.png",
+      "mode": "built-in image_gen",
+      "pngMaster": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/tv-backlight-strips.png",
+      "webp": "/Users/raman/Desktop/repair shop/app/public/images/products/tv-backlight-strips.webp",
+      "publicPath": "/images/products/tv-backlight-strips.webp",
+      "inspected": true
+    }
+  ]
+}

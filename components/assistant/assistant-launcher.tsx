@@ -110,6 +110,8 @@ export function AssistantLauncher({
   // At the register the wide dock would sit on the cart, so it is always the
   // small button there — without touching the remembered preference.
   const atRegister = pathname === "/pos";
+  // Keep entry forms clear while retaining one-tap AI and voice access.
+  const atEntryForm = /\/(?:new|edit)$/.test(pathname);
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [pending, startTransition] = React.useTransition();
@@ -304,7 +306,7 @@ export function AssistantLauncher({
 
   return (
     <>
-      {collapsed || atRegister ? (
+      {collapsed || atRegister || atEntryForm ? (
         <button
           type="button"
           onClick={(event) => launch(event, false)}

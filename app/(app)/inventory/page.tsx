@@ -261,7 +261,7 @@ export default async function InventoryPage({
                       <RowLink key={product.id} href={`/inventory/${product.id}`}>
                         <Td>
                           <span className="flex items-center gap-3">
-                            <ProductImage name={product.name} category={product.category} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} className="size-14 shrink-0 border" sizes="56px" />
+                            <ProductImage productId={product.id} name={product.name} category={product.category} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} className="size-14 shrink-0 border" sizes="56px" />
                             <Link
                               href={`/inventory/${product.id}`}
                               title={product.name}

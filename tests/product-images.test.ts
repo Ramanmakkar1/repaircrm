@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productImageKind, productImageSource, PRODUCT_PHOTO_MAX_BYTES, validateProductPhoto } from "@/lib/inventory/product-images";
+import { deviceImageSource, productImageKind, productImageSource, PRODUCT_PHOTO_MAX_BYTES, validateProductPhoto } from "@/lib/inventory/product-images";
 
 const PNG_HEADER = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82]);
 
@@ -21,6 +21,29 @@ describe("product image choices", () => {
     expect(productImageKind({ name: "Tempered glass screen guard", category: "Repair parts" })).toBe("protector");
     expect(productImageKind({ name: "Clear case for iPhone 14", category: "Accessories" })).toBe("case");
     expect(productImageKind({ name: "USB-C fast charger" })).toBe("charger");
+  });
+
+  it.each([
+    ["iPad tablet", "tablet"], ["iPhone battery", "phone-battery"], ["Galaxy camera module", "camera-module"],
+    ["iPhone earpiece speaker", "earpiece-speaker"], ["Mobile logic board", "circuit-board"], ["USB-C charging cable", "usb-c-cable"],
+    ["iPhone back glass", "back-glass"], ["Smart television", "television"], ["TV remote", "tv-remote"],
+    ["TV power supply board", "tv-power-board"], ["TV motherboard", "tv-main-board"], ["TV LED backlight strips", "tv-backlight-strips"],
+    ["Precision repair tools", "repair-tools"], ["PlayStation PS5", "game-console"], ["Xbox controller", "game-controller"],
+    ["Nintendo Switch handheld", "handheld-console"], ["Controller analog stick", "analog-stick"], ["PS5 cooling fan", "console-cooling-fan"],
+    ["PS5 HDMI port", "hdmi-port"], ["DJI Mavic drone", "drone"], ["DJI propellers", "drone-propellers"],
+    ["Mavic battery", "drone-battery"], ["Drone gimbal camera", "drone-camera-gimbal"], ["Drone motor", "drone-motor"],
+    ["Drone controller", "drone-controller"],
+  ])("chooses the right family and part for %s", (name, file) => {
+    expect(productImageSource({ name }).src).toBe(`/images/products/${file}.webp`);
+  });
+
+  it("uses device illustrations for services and leaves unsupported parts for lookup", () => {
+    expect(productImageSource({ name: "TV repair", category: "Services" }).src).toBe("/images/products/television.webp");
+    expect(productImageSource({ name: "Drone motor repair", category: "Services" }).src).toBe("/images/products/drone.webp");
+    expect(productImageSource({ name: "TV replacement LCD panel", category: "Parts" }).src).toBeNull();
+    expect(productImageSource({ name: "PS5 motherboard", category: "Parts" }).src).toBeNull();
+    expect(productImageSource({ name: "ThinkPad T420" }).src).toBeNull();
+    expect(deviceImageSource("Drone DJI Mavic")?.src).toBe("/images/products/drone.webp");
   });
 });
 

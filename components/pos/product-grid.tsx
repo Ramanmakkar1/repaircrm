@@ -326,7 +326,7 @@ function ProductTile({
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         )}
       >
-        <ProductImage name={product.name} category={product.category} imageUrl={product.imageUrl} className="aspect-[1.5] w-full rounded-none bg-white p-3 sm:p-4" sizes="(max-width: 639px) 44vw, (max-width: 1023px) 30vw, 300px" showFallbackLabel />
+        <ProductImage productId={product.id} name={product.name} category={product.category} imageUrl={product.imageUrl} className="aspect-[1.5] w-full rounded-none bg-white p-3 sm:p-4" sizes="(max-width: 639px) 44vw, (max-width: 1023px) 30vw, 300px" showFallbackLabel />
         <span className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
         <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground">
           {product.name}

@@ -1,0 +1,122 @@
+{
+  "createdAt": "2026-09-30",
+  "generator": "built-in image_gen",
+  "useCase": "product-mockup",
+  "note": "Generic illustrative repair-shop category photographs, not exact manufacturer or SKU images.",
+  "inspection": {
+    "method": "view_image",
+    "result": "All 13 photographs visually inspected; complete hardware subjects, white studio backgrounds, no logos or legible text."
+  },
+  "export": {
+    "format": "WebP",
+    "width": 768,
+    "height": 768,
+    "quality": 88
+  },
+  "assets": [
+    {
+      "name": "repair-tools",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: a neatly arranged compact electronics precision repair tool kit, containing a small precision screwdriver handle, a few metal bits, a blue plastic pry tool, a suction cup and fine tweezers. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-60e562c6-de0f-4851-b0c9-2ea0ce836376.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/repair-tools.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/repair-tools.webp",
+      "publicPath": "/images/products/repair-tools.webp"
+    },
+    {
+      "name": "game-console",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: a compact generic matte black modern video game console standing horizontally with one separate matching gamepad beside it. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-c30254ed-6b2a-409d-b3cb-91459817e586.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/game-console.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/game-console.webp",
+      "publicPath": "/images/products/game-console.webp"
+    },
+    {
+      "name": "game-controller",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one generic modern wireless video game controller in matte white and black, two analog sticks, directional pad and four unlabeled face buttons. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-13b8bf5b-da84-4728-b235-edfd38b8801b.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/game-controller.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/game-controller.webp",
+      "publicPath": "/images/products/game-controller.webp"
+    },
+    {
+      "name": "handheld-console",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one generic handheld gaming console with dark powered-off screen, dark charcoal body and side joystick controls. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-b2ef9e27-93e7-48ea-a980-825e73721c10.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/handheld-console.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/handheld-console.webp",
+      "publicPath": "/images/products/handheld-console.webp"
+    },
+    {
+      "name": "analog-stick",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one replacement game-controller analog thumbstick module, black plastic joystick mounted on small green circuit board, metal contact frame clearly visible. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-cefe05cf-510a-4595-aea1-31efe4e4d6d7.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/analog-stick.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/analog-stick.webp",
+      "publicPath": "/images/products/analog-stick.webp"
+    },
+    {
+      "name": "console-cooling-fan",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one replacement game-console cooling fan and finned aluminum heatsink module, black circular fan in gray metal housing. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-0592adec-333a-492b-a3d2-58dd61385c70.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/console-cooling-fan.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/console-cooling-fan.webp",
+      "publicPath": "/images/products/console-cooling-fan.webp"
+    },
+    {
+      "name": "hdmi-port",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one replacement HDMI female port socket, small silver metal connector housing, black interior and row of fine gold solder pins. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-c05c9b1f-aa7f-46af-95ac-2fb2d3534e43.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/hdmi-port.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/hdmi-port.webp",
+      "publicPath": "/images/products/hdmi-port.webp"
+    },
+    {
+      "name": "drone",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one generic compact gray foldable camera quadcopter drone with four arms unfolded and propellers attached, front-mounted stabilized camera visible. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-2d135f38-3a65-438d-ae89-94d0d209c8cf.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone.webp",
+      "publicPath": "/images/products/drone.webp"
+    },
+    {
+      "name": "drone-propellers",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one set of four matching black lightweight replacement drone propellers neatly arranged, two clockwise and two counterclockwise blades with mounting hubs. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-5dedfad3-f21f-431d-a867-073e3669594d.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone-propellers.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone-propellers.webp",
+      "publicPath": "/images/products/drone-propellers.webp"
+    },
+    {
+      "name": "drone-battery",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one generic rechargeable clip-in camera drone battery pack with matte gray plastic housing, small battery indicator dots and connector contact edge, no writing. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-3e5de12f-f540-4935-a008-354dac18d708.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone-battery.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone-battery.webp",
+      "publicPath": "/images/products/drone-battery.webp"
+    },
+    {
+      "name": "drone-camera-gimbal",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one separated replacement drone camera and three-axis gimbal assembly, compact black camera with round lens held inside a silver stabilizing mount. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-c7d1c5d5-558e-4f09-a034-76a8361874e3.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone-camera-gimbal.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone-camera-gimbal.webp",
+      "publicPath": "/images/products/drone-camera-gimbal.webp"
+    },
+    {
+      "name": "drone-motor",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one small replacement brushless drone motor, metallic dark gray cylindrical motor housing and orange copper coils visible, short connector wires. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-87833025-3108-4537-b654-3622a68f1640.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone-motor.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone-motor.webp",
+      "publicPath": "/images/products/drone-motor.webp"
+    },
+    {
+      "name": "drone-controller",
+      "prompt": "Use case: product-mockup. Asset type: square repair-shop catalog photograph. Primary request: one generic handheld camera-drone controller with two thumb joysticks, charcoal gray body, folded phone mount and two short antennas. Scene/backdrop: pure solid white seamless studio background. Style: photorealistic e-commerce product photograph, realistic materials and precise hardware details. Composition: one centered isolated complete product, entire subject visible, generous clean white space at all edges, modest three-quarter view, square composition. Lighting: soft neutral studio light with only a subtle contact shadow. Constraints: no logo, no watermark, no text, no legible model names, no people, no decorative graphics, no collage, no gradient background.",
+      "originalPath": "/Users/raman/.codex/generated_images/01a0f427-4290-7a72-80b1-c79f3c4456e2/exec-97a43467-2180-4fda-93d4-c099dd967d94.png",
+      "pngMasterPath": "/Users/raman/Desktop/Repairs helper Figma/product-assets/expanded/drone-controller.png",
+      "installedPath": "/Users/raman/Desktop/repair shop/app/public/images/products/drone-controller.webp",
+      "publicPath": "/images/products/drone-controller.webp"
+    }
+  ]
+}

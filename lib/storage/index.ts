@@ -113,15 +113,16 @@ export async function storeUpload(
   const driver = activeDriver();
 
   // Keep production R2 use below its 10 GB-month free storage allowance.
-  // This quota counts persisted R2 attachment rows across all shops; if its
+  // This quota counts persisted R2 attachments and licensed automatic photos
+  // across all shops; if its
   // usage query fails, fail closed rather than accepting unmetered storage.
   if (driver.name === "r2") {
     try {
-      const usage = await db.attachment.aggregate({
-        where: { storage: "r2" },
-        _sum: { sizeBytes: true },
-      });
-      const usedBytes = usage._sum.sizeBytes ?? 0;
+      const [usage, automaticPhotos] = await Promise.all([
+        db.attachment.aggregate({ where: { storage: "r2" }, _sum: { sizeBytes: true } }),
+        db.automaticProductPhoto.aggregate({ where: { storage: "r2" }, _sum: { sizeBytes: true } }),
+      ]);
+      const usedBytes = (usage._sum.sizeBytes ?? 0) + (automaticPhotos._sum.sizeBytes ?? 0);
       const appLimitBytes = 8 * 1024 * 1024 * 1024;
       if (usedBytes + file.size > appLimitBytes) {
         return {

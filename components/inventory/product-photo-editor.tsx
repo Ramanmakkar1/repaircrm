@@ -19,6 +19,21 @@ export function ProductPhotoEditor({ productId, name, category, imageUrl }: Prod
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState("");
   const [error, setError] = React.useState("");
+  const [hasAutomatic, setHasAutomatic] = React.useState(false);
+  const [photoRevision, setPhotoRevision] = React.useState(0);
+
+  async function dismissAutomatic() {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch(`/inventory/${productId}/photo/automatic`, { method: "DELETE" });
+      if (!response.ok) { setError("Could not remove that internet photo. Try again."); return; }
+      setPhotoRevision(previous => previous + 1);
+      setHasAutomatic(false);
+      setMessage("Internet photo removed. You can upload your own photo.");
+      router.refresh();
+    } catch { setError("Check your connection and try again."); }
+    finally { setBusy(false); }
+  }
 
   async function update(file?: File) {
     setError("");
@@ -46,7 +61,7 @@ export function ProductPhotoEditor({ productId, name, category, imageUrl }: Prod
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <ProductImage name={name} category={category} imageUrl={photo} className="w-full shrink-0 border sm:w-40" sizes="160px" showFallbackLabel />
+      <ProductImage productId={productId} name={name} category={category} imageUrl={photo} photoRevision={photoRevision} onAutomaticReady={setHasAutomatic} className="w-full shrink-0 border sm:w-40" sizes="160px" showFallbackLabel showAttributionLinks />
       <div className="flex flex-col gap-3">
         <p className="max-w-md text-sm text-muted-foreground">Add a photo of this exact product. It appears in your catalog, checkout, and inventory. Photo changes are saved immediately.</p>
         <input ref={input} type="file" accept={PRODUCT_PHOTO_ACCEPT} className="sr-only" aria-label="Choose product photo" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void update(file); }} />
@@ -56,8 +71,9 @@ export function ProductPhotoEditor({ productId, name, category, imageUrl }: Prod
             {photo ? "Replace photo" : "Upload photo"}
           </Button>
           {photo ? <Button type="button" variant="ghost" disabled={busy} onClick={() => void update()}><Trash2 className="size-4" aria-hidden />Remove</Button> : null}
+          {!photo && hasAutomatic ? <Button type="button" variant="ghost" disabled={busy} onClick={() => void dismissAutomatic()}><Trash2 className="size-4" aria-hidden />Remove internet photo</Button> : null}
         </div>
-        <p className="text-xs text-muted-foreground">JPG, PNG, or WebP · up to 5 MB</p>
+        <p className="max-w-md text-xs leading-relaxed text-muted-foreground">JPG, PNG, or WebP · up to 5 MB. Without an upload or category image, we look for a licensed internet reference photo. Check that it matches your product.</p>
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
         <p className="text-sm text-muted-foreground" role="status" aria-live="polite">{message}</p>
       </div>

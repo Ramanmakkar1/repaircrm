@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { NO_TAX, resolveTaxRate, type TaxRateOption } from "@/lib/tax";
 import type { CustomerOption, ProductOption } from "./types";
+import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
 
 /**
  * Server-only loaders shared by the estimate and invoice route segments.
@@ -51,6 +52,8 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         sku: true,
         priceCents: true,
         taxable: true,
+        category: true,
+        attachments: PRODUCT_IMAGE_SELECT,
         serialized: true,
         // A serialized line picks one of these; anything already sold is
         // deliberately absent so it cannot be billed twice.
@@ -95,8 +98,9 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         hasCard: Boolean(c.stripePaymentMethodId),
       };
     }),
-    products: productRows.map((product) => ({
+    products: productRows.map(({ attachments, ...product }) => ({
       ...product,
+      imageUrl: attachments[0] ? `/files/${attachments[0].id}` : null,
       serials: product.serials.map((unit) => unit.serial),
     })),
     taxRateBps: shop?.taxRateBps ?? 0,

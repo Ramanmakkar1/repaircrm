@@ -51,13 +51,13 @@ export const DEFAULT_PREFS: UiPrefs = {
   density: "comfortable",
   theme: "light",
   railCollapsed: false,
-  simple: false,
+  simple: true,
 };
 
 function parse(raw: string | undefined): UiPrefs {
   if (!raw) return DEFAULT_PREFS;
   try {
-    const value = JSON.parse(raw) as Partial<UiPrefs>;
+    const value = JSON.parse(raw) as Partial<UiPrefs> & { taskHomeVersion?: number };
     return {
       density: value.density === "compact" ? "compact" : "comfortable",
       theme:
@@ -65,7 +65,9 @@ function parse(raw: string | undefined): UiPrefs {
           ? value.theme
           : value.theme === "system" ? "system" : "light",
       railCollapsed: value.railCollapsed === true,
-      simple: value.simple === true,
+      // Older cookies inherited the former full-view default. Introduce the
+      // task home once; an explicit Full view choice after that is remembered.
+      simple: value.taskHomeVersion === 1 ? value.simple !== false : true,
     };
   } catch {
     return DEFAULT_PREFS;
@@ -86,7 +88,7 @@ export async function writeUiPrefs(next: Partial<UiPrefs>): Promise<UiPrefs> {
   const jar = await cookies();
   const merged: UiPrefs = { ...parse(jar.get(UI_COOKIE)?.value), ...next };
 
-  jar.set(UI_COOKIE, JSON.stringify(merged), {
+  jar.set(UI_COOKIE, JSON.stringify({ ...merged, taskHomeVersion: 1 }), {
     path: "/",
     maxAge: MAX_AGE,
     sameSite: "lax",

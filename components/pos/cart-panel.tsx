@@ -360,7 +360,7 @@ function CartRow({
 
   return (
     <li className="flex gap-3 px-5 py-4">
-      {product ? <ProductImage name={product.name} category={product.category} imageUrl={product.imageUrl} className="size-16 shrink-0 rounded-md" sizes="64px" /> : null}
+      {product ? <ProductImage productId={product.id} name={product.name} category={product.category} imageUrl={product.imageUrl} className="size-16 shrink-0 rounded-md" sizes="64px" /> : null}
       <div className="flex min-w-0 flex-1 flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
         <span className="min-w-0 flex-1 text-[14px] font-bold leading-snug text-foreground">

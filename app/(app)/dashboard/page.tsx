@@ -32,7 +32,7 @@ export default async function DashboardPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [user, prefs, branch, params] = await Promise.all([requireUser(), readUiPrefs(), locationWhere(), searchParams]);
-  if (prefs.simple) redirect("/pos");
+  if (prefs.simple) redirect("/counter");
   const { shopId, role } = user;
   const now = new Date();
   const showMoney = role !== "TECH";
