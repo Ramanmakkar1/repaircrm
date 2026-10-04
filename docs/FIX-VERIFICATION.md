@@ -225,7 +225,11 @@ with that explicit URL, preventing the generated-client fallback. The URL is cap
 
 ## Release and remaining verification
 
-Commit/CI/deployment/live smoke results are pending. Source manifests and logs
+Release **f28e30b** is live. [CI run 37225579996](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37225579996) passed migrations, types, lint, **4,498 unit tests with no skips**, **8 real PostgreSQL integration checks** and the production build. The VPS deploy script completed its backup and additive migration, selected `/srv/repairshelper/releases/f28e30b/.next/standalone` and passed health. Production is on Node 22.23.3 / tz2026c; its automation timer starts every 15 minutes. The same migration was applied to the local development database without replacing records.
+
+Post-deploy HTTP checks: health 200 with `{"ok":true}`, landing/sign-in/Privacy/Terms/expired-link pages 200, unauthenticated attention 401, unknown shop logo 404. The live browser already had an owner session; read-only checks confirmed the Shop overview, Switch staff menu, My profile PIN/push controls and Shop details logo form. No browser console errors were recorded. No production business record, credential, notification subscription or logo was changed by the smoke checks.
+
+Logs: `/private/tmp/repairshelper-ci-f28e30b.log`, `/private/tmp/repairshelper-live-smoke.json`, `/private/tmp/repairshelper-local-migration.log`; server deployment log: `/srv/repairshelper/releases/f28e30b/deploy.log`. A documentation-only follow-up records these results; deployed application code remains f28e30b. Source manifests and logs
 are under `/private/tmp/repairshelper-verification-*`; the isolated production
 source is `/private/tmp/repairshelper-final-verification-20261004`.
 

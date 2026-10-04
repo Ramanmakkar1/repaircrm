@@ -5,12 +5,11 @@ hands. I changed no keys or accounts; the commit and the deploy were done when y
 
 ## 1. Protect and publish the work (do this first)
 
-- [x] **Commit the work.** Done: pushed to `main` (latest `7a2d6fc`, CI green).
-- [x] **Deploy to the live site.** Done 4 Oct 2026: repairshelper.com runs `7a2d6fc`.
+- [x] **Commit the work.** Done: pushed to `main` (application release `f28e30b`, CI green).
+- [x] **Deploy to the live site.** Done 4 Oct 2026: repairshelper.com runs `f28e30b`.
       The steps are in the deploy note (git archive of a pushed commit, then
       `/usr/local/sbin/repairshelper-deploy` on the server, which backs up the database
-      first and puts the old code back if the health check fails). The server now runs
-      in Edmonton time (all live shops are there); see docs/FIX-LIST.md.
+      first and puts the old code back if the health check fails). The app uses each shop’s time zone and the server has current Alberta timezone data; see docs/FIX-LIST.md.
 - [ ] **Back up off the server.** Daily backups are only stored on the same server as the
       database. Copy them somewhere else (another machine or a storage bucket) and try
       one restore. If the server is lost today, everything entered since launch is lost.
@@ -39,7 +38,7 @@ hands. I changed no keys or accounts; the commit and the deploy were done when y
 - [ ] **Voice language.** Voice now starts in live English. It used to auto-detect Hindi,
       Punjabi and Hinglish through the cloud service. Which should be the default?
 - [ ] **Text-message consent.** The verified new-customer form starts text updates OFF. Confirm your shop’s consent process before enabling messages for customers.
-- [x] **Duplicate customers.** Requested 4 Oct: warn on an existing phone number and require an explicit override to create a separate customer. Implemented locally.
+- [x] **Duplicate customers.** Requested 4 Oct: warn on an existing phone number and require an explicit override to create a separate customer. Deployed.
 - [x] **Split payment.** Requested 4 Oct and implemented for sales and invoice payments. See the setup notes below.
 - [ ] **Assistant stock changes.** Adding or changing stock by voice runs immediately with no
       confirmation tap (removing a product does ask). Keep or add a confirm?
@@ -62,9 +61,11 @@ hands. I changed no keys or accounts; the commit and the deploy were done when y
 - [x] Dark theme: the assistant’s Talk control now uses paired theme colours. Browser check: dark text rgb(17,18,20) on rgb(241,242,243), 48px height.
 - [ ] Newer version of the design tool available (`npx impeccable update`): optional.
 
-## 6. Set up the new counter features after release
+## 6. Set up the new counter features
 
 - Each staff member sets their own six-digit PIN under **Settings → My profile** using their current password. Use **Switch staff** in the account menu on a shared tablet. Accounts with two-step sign-in keep full sign-in.
 - Upload your shop logo under **Settings → Shop details** (PNG, JPEG or WebP, up to 2 MB).
 - On each personal phone, open **My profile → Phone notifications**, opt in and send a test. On iPhone, add the app to the Home Screen first. Check delivery with the app closed; alerts follow the automation interval. Do not opt a shared tablet into someone’s private notifications.
 - For **Cash + card**, approve the displayed card remainder on your separate card machine before recording both parts. This does not initiate a connected-reader split charge.
+
+For local development, use Node 22.23.3 as pinned in `.nvmrc`. The Mac’s previous Node 22.22.3 has outdated Alberta timezone data; verification used a temporary current runtime without replacing the system installation.
