@@ -28,11 +28,11 @@ export function TabletFrame({ src, alt, className, sizes = "(min-width: 1024px) 
   return (
     <div
       className={cn(
-        "rounded-[1.4rem] bg-[#0b0f1a] p-2 shadow-[0_30px_70px_-30px_rgba(11,15,26,0.5)] sm:rounded-[2rem] sm:p-3",
+        "rounded-2xl bg-[#0b0f1a] p-2 shadow-[0_12px_24px_-12px_rgba(11,15,26,0.25)] sm:rounded-2xl sm:p-3",
         className,
       )}
     >
-      <div className="aspect-[4/3] overflow-hidden rounded-[0.9rem] bg-white sm:rounded-[1.35rem]">
+      <div className="aspect-[4/3] overflow-hidden rounded-[0.9rem] bg-white sm:rounded-2xl">
         <Image
           src={src}
           alt={alt}
@@ -52,7 +52,7 @@ export function PhoneFrame({ src, alt, className, sizes = "(min-width: 1024px) 2
   return (
     <div
       className={cn(
-        "rounded-[1.7rem] bg-[#0b0f1a] p-1.5 shadow-[0_30px_70px_-30px_rgba(11,15,26,0.5)] sm:rounded-[2.3rem] sm:p-2",
+        "rounded-[1.7rem] bg-[#0b0f1a] p-1.5 shadow-[0_12px_24px_-12px_rgba(11,15,26,0.25)] sm:rounded-[2.3rem] sm:p-2",
         className,
       )}
     >

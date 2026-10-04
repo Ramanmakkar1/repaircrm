@@ -30,8 +30,8 @@ export const metadata: Metadata = {
 /**
  * "/" is two pages in one.
  *
- * Signed-in staff never see marketing — they land on their home (the box home
- * in Easy mode, the dashboard in Full mode). Everyone else gets the landing page.
+ * Signed-in staff land on Counter in either view.
+ * Signed-out visitors get the public product page.
  * Reading the session cookie makes this route dynamic, which is what we want:
  * the copyright year and the redirect decision are both evaluated per request.
  */

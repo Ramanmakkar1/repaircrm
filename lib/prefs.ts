@@ -79,14 +79,9 @@ export async function readUiPrefs(): Promise<UiPrefs> {
   return parse(jar.get(UI_COOKIE)?.value);
 }
 
-/**
- * Where "home" is on this device: the box home in Easy mode, the full
- * workbench otherwise. Sign-in lands here, so staff never start on the
- * dashboard by accident. (`/dashboard` itself stays reachable from
- * Home → More tools → Shop overview.)
- */
-export async function homePath(): Promise<"/counter" | "/dashboard"> {
-  return (await readUiPrefs()).simple ? "/counter" : "/dashboard";
+/** Counter is the shared home in both Easy mode and Full view. */
+export async function homePath(): Promise<"/counter"> {
+  return "/counter";
 }
 
 /**

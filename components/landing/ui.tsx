@@ -10,7 +10,7 @@ export function Serif({ children }: { children: ReactNode }) {
 }
 
 /**
- * A rounded-3xl panel on the grey page frame. `white` or the warm `tray`;
+ * A full-width section. `white` or the cool slate `tray`;
  * sections alternate between the two so the page keeps its rhythm.
  */
 export function Panel({
@@ -31,7 +31,7 @@ export function Panel({
       id={id}
       aria-labelledby={labelledBy}
       className={cn(
-        "relative scroll-mt-4 overflow-hidden rounded-2xl px-5 py-14 sm:rounded-3xl sm:px-10 sm:py-20 lg:px-16 lg:py-24",
+        "site-panel relative scroll-mt-4 overflow-hidden rounded-2xl px-5 py-14 sm:rounded-3xl sm:px-10 sm:py-20 lg:px-16 lg:py-24",
         tone === "white" ? "bg-white" : "bg-(--site-tray)",
         className,
       )}
@@ -70,7 +70,7 @@ export function DarkCta({
   );
 }
 
-/** A small orange dot used as a list marker. */
+/** A small brand-blue dot used as a list marker. */
 export function Dot() {
   return <span aria-hidden="true" className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-(--site-accent)" />;
 }

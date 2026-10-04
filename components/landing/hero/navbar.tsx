@@ -8,7 +8,7 @@ import { BrandMark } from "../brand";
 
 /** Where the website links go. Kept as data so tests (and the footer) can read them. */
 export const NAV_ITEMS = [
-  { label: "Home", href: "/", current: true },
+  { label: "Home", href: "#top", current: true },
   { label: "Product", href: "#product" },
   { label: "AI assistant", href: "#assistant" },
   { label: "Pricing", href: "#pricing" },
@@ -84,13 +84,13 @@ export function Navbar() {
         aria-label="Main"
         className="relative flex w-full max-w-[760px] items-center rounded-full border border-neutral-200 bg-white py-2 pl-2 pr-2 shadow-sm"
       >
-        <Link
-          href="/"
+        <a
+          href="#top"
           aria-label="Repairs helper home"
           className="flex h-11 shrink-0 items-center rounded-full px-1.5 sm:h-10"
         >
           <BrandMark priority className="h-7 w-7 sm:h-8 sm:w-8" />
-        </Link>
+        </a>
 
         <ul className="hidden items-center gap-6 pl-5 md:flex">
           {NAV_ITEMS.map((link) => (

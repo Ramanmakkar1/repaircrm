@@ -34,7 +34,8 @@ shop's everyday workspace.
 
 ## Design Principles
 
-- Start Easy mode at a Home built like a register: New repair and New sale
+- Start both Easy mode and Full view at Counter, including after login and when
+  an existing session opens the root or login page. Build Home like a register: New repair and New sale
   pinned as the two big buttons, a Needs attention list under them, and tabs for
   Counter, Stock & purchasing and Shop management. Settings stays a separate
   row. Keep every tool reachable: the longer list lives under More tools. A slim

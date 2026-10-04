@@ -9,7 +9,7 @@ export type AuthFormState = { error?: string } | undefined;
 function safeRedirectTarget(value: FormDataEntryValue | null): string {
   const target = typeof value === "string" ? value : "";
   // Only allow same-origin, non-protocol-relative paths.
-  return target.startsWith("/") && !target.startsWith("//") ? target : "/";
+  return target.startsWith("/") && !target.startsWith("//") ? target : "/counter";
 }
 
 export async function loginAction(

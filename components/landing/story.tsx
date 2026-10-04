@@ -193,8 +193,8 @@ const payments: { title: string; body: string }[] = [
     body: "Use the bank terminal you already own, then record the approved card payment against the sale.",
   },
   {
-    title: "Cash and store credit",
-    body: "See the change due, take a deposit at check-in, and apply store credit at the till.",
+    title: "Cash, split payments and credit",
+    body: "See the change due, split cash and an approved card payment, take a deposit at check-in, or apply store credit at the till.",
   },
 ];
 
@@ -244,8 +244,8 @@ export function ModesSection() {
           Easy mode at the counter. <Serif>Full</Serif> view at the desk.
         </h2>
         <p className="site-lede mt-5">
-          Easy mode is big boxes and big buttons for the counter. Full view adds the Shop
-          overview and dense tables. Both use the same records, you switch from the
+          Easy mode is big boxes and big buttons for the counter. Full view adds dense tables for detailed work. Counter is always your home, with the Shop
+          overview one tap away. Both use the same records, you switch from the
           account menu on each device, and every tool stays reachable from Home under More tools.
         </p>
       </div>

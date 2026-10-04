@@ -125,7 +125,7 @@ describe("the whole page", () => {
     expect(words).toMatch(/Stripe and Square need your own account/);
     expect(words).toMatch(/email or SMS provider is set up/);
     expect(words).toMatch(/Free during early access/);
-    expect(words).toMatch(/Sample shop data/);
+    expect(words).toMatch(/Demo shop data/);
   });
 
   it("has no invented customers, ratings, statistics or testimonials", () => {

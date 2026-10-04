@@ -4,26 +4,22 @@
  * Imported once, from components/landing/repairs-home.tsx. Everything is scoped
  * under `.site`, so nothing here can leak into the signed-in app.
  *
- * THE BRAND ORANGE LIVES ON ONE LINE: `--site-accent` below. Change it there and
- * the hero gauge, dots, buttons and highlights all follow. The two darker
- * variants are derived from it so small text and white-on-orange buttons keep
- * WCAG AA contrast (the raw orange is only about 3.6:1 on white):
- *   --site-accent       fills, dots, icons, gauge ticks, large text
- *   --site-accent-fill  background of buttons that carry white 14px text (4.7:1)
- *   --site-accent-ink   small orange text on white / the light tray (4.8:1+)
+ * Blue actions match the app badge. White and slate surfaces keep real
+ * product images legible, with a navy final invitation.
  */
 
 .site {
-  --site-accent: #ef4d23;
+  --site-accent: #2563eb;
 
   /* Fallbacks for browsers without color-mix(); same maths, written out. */
-  --site-accent-fill: #ce421e;
-  --site-accent-ink: #bf3e1c;
+  --site-accent-fill: #1d4ed8;
+  --site-accent-ink: #1e40af;
 
   --site-ink: #0b0f1a; /* dark CTA + headline ink */
-  --site-page: #ededed; /* the frame the whole page sits on */
+  --site-page: #ffffff; /* the frame the whole page sits on */
   --site-hero: #d9d9d9; /* hero base, shown until the video / poster paints */
-  --site-tray: #f5f2ee; /* warm light panels */
+  --site-tray: #f1f5fb; /* cool light panels */
+  --site-muted: #42516a;
   --site-poster: url("/marketing/hero/hero-poster.webp");
 
   color-scheme: light;
@@ -43,11 +39,11 @@
 /* The app's global base sets a dark page and 14px text; the website is always light. */
 html:has(.site) {
   color-scheme: light;
-  background: #ededed;
+  background: #ffffff;
   scroll-behavior: smooth;
 }
 body:has(.site) {
-  background: #ededed;
+  background: #ffffff;
   color: #0b0f1a;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -59,10 +55,9 @@ body:has(.site) {
 /*
  * Real Tailwind corner sizes for the website.
  *
- * The signed-in app deliberately caps rounded-xl / 2xl / 3xl at 8 / 12 / 12px
- * (@theme inline in app/globals.css). The website is meant to have big soft
- * corners: the hero container is 16px on a phone and 24px from 40rem up, the
- * dashboard tray and every section panel are 24px, the cards 16px.
+ * The signed-in app caps rounded-xl / 2xl / 3xl at 8 / 12 / 12px.
+ * Keep the owner's hero at 16 / 24px; screenshot frames use 16px.
+ * The continuous story sections override panel rounding below.
  *
  * @theme inline writes those caps as literal values, so a variable override on
  * .site cannot work. These rules sit outside every cascade layer, so they beat
@@ -83,6 +78,8 @@ body:has(.site) {
   .site .sm\:rounded-3xl {
     border-radius: 1.5rem;
   }
+  .site .sm\:rounded-2xl { border-radius: 1rem; }
+  .site .sm\:rounded-full { border-radius: 9999px; }
 }
 
 /* One emphasised word per heading: Instrument Serif italic, loaded by next/font. */
@@ -142,6 +139,7 @@ body:has(.site) {
  */
 .site .site-hero {
   background: var(--site-hero) var(--site-poster) center / cover no-repeat;
+  min-height: calc(100vh - 24px);
 }
 @media (max-width: 767px) {
   .site {
@@ -152,11 +150,11 @@ body:has(.site) {
 /* The spec's calc(100vh - ...) is kept; browsers that know dvh follow the mobile address bar instead. */
 @supports (height: 100dvh) {
   .site .site-hero {
-    height: calc(100dvh - 24px);
+    min-height: calc(100dvh - 24px);
   }
   @media (min-width: 40rem) {
     .site .site-hero {
-      height: calc(100dvh - 32px);
+      min-height: calc(100dvh - 32px);
     }
   }
 }
@@ -181,4 +179,30 @@ body:has(.site) {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* Brand blue connects the public story to the counter application. */
+.site .site-hero { padding-bottom: 0; }
+.site .site-hero-wash { background: linear-gradient(180deg, rgb(255 255 255 / 48%), rgb(255 255 255 / 12%) 65%, rgb(241 245 251 / 70%)); }
+.site .site-counter-preview { max-width: 1040px; }
+.site .site-preview-screen { height: clamp(300px, 36vw, 460px); overflow: hidden; border: 6px solid #17233b; border-bottom: 0; border-radius: 16px 16px 0 0; background: white; }
+.site .site-preview-screen picture { display: block; height: 100%; }
+.site .site-panel { border-radius: 0; }
+.site .site-panel > div { min-width: 0; }
+.site .site-panel :is(h2, h3) { text-wrap: balance; }
+.site .site-panel .site-serif { white-space: normal; }
+.site :is(a, button) { transition: background-color 180ms ease-out, color 180ms ease-out; }
+.site a[href="/signup"]:hover, .site button[type="submit"]:hover { filter: brightness(1.12); }
+.site .site-faq details { border-bottom: 1px solid #d4dce9; border-radius: 0; background: transparent; }
+.site .site-final { background: #15243e; color: white; }
+.site .site-final :is(.site-lede, p) { color: #d7e3f5; }
+.site .site-final :is(input, button) { color: #0b0f1a; }
+.site .site-final button { background: #dce9ff; }
+.site .site-final :is(a, button, input):focus-visible { outline-color: #8db4ff; }
+.site .site-footer { border-top: 1px solid #d4dce9; border-radius: 0; }
+@media (max-width: 639px) {
+  .site .site-hero-copy { padding-top: 32px; }
+  .site .site-preview-screen { height: 340px; }
+  .site .site-counter-preview { max-width: 430px; }
+  .site .site-hero { min-height: 0; }
 }

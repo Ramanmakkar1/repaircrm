@@ -45,14 +45,14 @@ const link =
 export function SiteFooter() {
   const year = new Date().getFullYear();
   return (
-    <footer className="rounded-2xl bg-(--site-tray) px-5 py-12 sm:rounded-3xl sm:px-10 sm:py-14 lg:px-16">
+    <footer className="site-footer rounded-2xl bg-(--site-tray) px-5 py-12 sm:rounded-3xl sm:px-10 sm:py-14 lg:px-16">
       <div className="mx-auto max-w-[1120px]">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2.5">
+            <a href="#top" className="inline-flex items-center gap-2.5">
               <BrandMark className="size-10" />
               <RepairPilotWordmark className="text-xl text-neutral-900" />
-            </Link>
+            </a>
             <p className="mt-4 max-w-xs text-[15px] leading-relaxed text-neutral-700">
               Made for independent repair shops: phones, computers, consoles, TVs and drones.
             </p>

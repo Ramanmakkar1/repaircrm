@@ -14,7 +14,7 @@ export const FAQS = [
   },
   {
     q: "Can I switch between Easy mode and Full view?",
-    a: "Yes. Easy mode gives you big picture boxes for the counter, with New repair and New sale always one tap away. Full view adds the Shop overview and dense tables. Both use the same records, and every tool stays reachable from Home under More tools.",
+    a: "Yes. Easy mode gives you big picture boxes for the counter, with New repair and New sale always one tap away. Full view adds dense tables for detailed work. Both views start at Counter, with Shop overview a tap away. Both use the same records, and every tool stays reachable from Home under More tools.",
   },
   {
     q: "What can the AI assistant do?",
@@ -52,7 +52,7 @@ export const FAQS = [
 
 export function Faq() {
   return (
-    <Panel id="faq" labelledBy="faq-title" tone="tray">
+    <Panel className="site-faq" id="faq" labelledBy="faq-title" tone="tray">
       <div className="mx-auto grid max-w-[1120px] gap-10 lg:grid-cols-12 lg:gap-14">
         <div className="lg:col-span-4">
           <h2 id="faq-title" className="site-h2">

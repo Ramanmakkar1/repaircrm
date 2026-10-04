@@ -12,9 +12,9 @@ describe("where signing in lands", () => {
     expect(await homePath()).toBe("/counter");
   });
 
-  it("sends a device that chose the full workbench to the dashboard", async () => {
+  it("keeps Counter as home after an explicit Full view choice", async () => {
     jar.raw = JSON.stringify({ simple: false, taskHomeVersion: 1 });
-    expect(await homePath()).toBe("/dashboard");
+    expect(await homePath()).toBe("/counter");
   });
 
   it("treats an older cookie (from before the task home) as Easy mode", async () => {

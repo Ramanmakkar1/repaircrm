@@ -56,13 +56,12 @@ describe("hero section", () => {
   });
 
   it("keeps the owner's frame measurements and colours", () => {
-    expect(out).toContain("h-[calc(100vh-24px)]");
-    expect(out).toContain("sm:h-[calc(100vh-32px)]");
+    expect(out).toContain("site-hero");
     expect(out).toContain("overflow-hidden");
     expect(out).toContain("bg-[#d9d9d9]");
     expect(out).toContain("rounded-2xl");
     expect(out).toContain("sm:rounded-3xl");
-    expect(out).toContain("bg-white/10");
+    expect(out).toContain("site-hero-wash");
   });
 
   it("uses the owner's clip, hosted here (web encodes, first frame as the CSS-background poster), with every playback attribute", () => {
@@ -100,21 +99,21 @@ describe("hero section", () => {
     expect(video).toContain("w-full");
   });
 
-  it("shows the badge and a dark 'Get started' pill to the sign-up route", () => {
+  it("shows the badge and a dark 'Start your shop' pill to the sign-up route", () => {
     expect(out).toContain("Repairs helper");
-    const cta = out.match(/<a[^>]*href="\/signup"[^>]*>(?:(?!<\/a>)[\s\S])*Get started[\s\S]*?<\/a>/)![0];
+    const cta = out.match(/<a[^>]*href="\/signup"[^>]*>(?:(?!<\/a>)[\s\S])*Start your shop[\s\S]*?<\/a>/)![0];
     expect(cta).toContain("bg-[#0b0f1a]");
     expect(cta).toContain("rounded-full");
     expect(cta).toContain("bg-white/15");
-    expect(out).toContain("clamp(13px, 3.5vw, 16px)");
-    expect(out).toContain("The all-in-one software for phone, computer and console repair shops");
+    expect(out).toContain("clamp(16px, 1.3vw, 18px)");
+    expect(out).toContain("Repairs, sales and customer updates — together, from check-in to pickup.");
   });
 
   it("is a banner landmark holding a labelled nav and the preview", () => {
     expect(out).toContain("<header");
     expect(out).toContain('<link rel="preload" as="image"');
     expect(out).toContain('<nav aria-label="Main"');
-    expect(out).toContain('role="img"');
+    expect(out).toContain("<figure");
   });
 });
 
@@ -198,7 +197,7 @@ describe("corner radii", () => {
     for (const [, source] of landingSources()) {
       for (const m of source.matchAll(/(?<![\w-])((?:[a-z0-9-]+:)*)rounded-(xl|2xl|3xl)(?![\w-])/g)) used.add(m[0]);
     }
-    expect([...used].sort()).toEqual(expect.arrayContaining(["rounded-2xl", "rounded-3xl", "sm:rounded-3xl"]));
+    expect([...used].sort()).toEqual(expect.arrayContaining(["rounded-2xl", "sm:rounded-3xl"]));
     for (const cls of used) {
       const prefixes = cls.split(":").slice(0, -1);
       expect(prefixes.every((p) => p === "sm"), `${cls}: only the sm: variant has an override in site.css`).toBe(true);
@@ -219,6 +218,7 @@ describe("navbar", () => {
 
   it("links Home, Product, AI assistant, Pricing and the accent Sign in", () => {
     expect(NAV_ITEMS.map((i) => i.label)).toEqual(["Home", "Product", "AI assistant", "Pricing"]);
+    expect(out).toContain('href="#top"');
     expect(out).toContain('href="#product"');
     expect(out).toContain('href="#assistant"');
     expect(out).toContain('href="#pricing"');
@@ -310,79 +310,38 @@ describe("gauge", () => {
   });
 });
 
-describe("dashboard preview", () => {
+describe("counter preview", () => {
   const out = html(React.createElement(DashboardPreview));
 
-  it("shows the three repair-shop cards from the brief", () => {
-    for (const text of [
-      "Takings",
-      "This Month",
-      "$6,896",
-      "+$1,284 (23%)",
-      "Compared to last month",
-      "Compared to yesterday",
-      "Month target achieved",
-      "$0",
-      "$7.5K",
-      "Sales",
-      "Repairs",
-      "Show figures for",
-      "This month",
-      "Compare period by",
-      "Month-to-date",
-      "Sales target (this month)",
-      "Sales target (this year)",
-      "Save",
-      "Cancel",
-      "Ready for pickup",
-      "today",
-      "Ready",
-      "Waiting",
-      "Sample shop data",
-    ]) {
-      expect(out).toContain(text);
-    }
-    expect(out).toContain("92%");
-    expect(out).toContain("68%");
-    expect(out.match(/<line /g)).toHaveLength(80);
-    expect(out).toContain("#9ca3af");
+  it("shows real counter screenshots for desktop and phone, labelled as demo data", () => {
+    expect(out).toContain('/marketing/app/home-tablet.webp');
+    expect(out).toContain('/marketing/app/home-phone.webp');
+    expect(out).toContain('(max-width: 639px)');
+    expect(out).toContain('Demo shop data');
+    expect(out).toContain('<figure');
+    expect(out).toContain('<figcaption');
+    expect(out).toContain('alt="The Home screen on a counter tablet:');
   });
 
-  it("keeps the spec's tray measurements and responsive grid", () => {
-    expect(out).toContain("max-w-[880px]");
-    expect(out).toContain("rounded-3xl");
-    expect(out).toContain("p-4");
-    expect(out).toContain("sm:p-6");
-    expect(out).toContain("grid-cols-1");
-    expect(out).toContain("sm:grid-cols-2");
-    expect(out).toContain("lg:grid-cols-3");
-    expect(out).toContain("gap-3");
-    expect(out).toContain("sm:gap-4");
-    expect(out).toContain("px-3");
-    expect(out).toContain("sm:px-4");
-    expect(out).toContain("text-[28px]");
-  });
-
-  it("is one labelled image with nothing a keyboard can reach inside", () => {
-    expect(out).toContain('role="img"');
-    expect(out).toMatch(/aria-label="Preview of a repair shop dashboard with sample data/);
-    expect(out).toContain("inert");
+  it("has no fake editable controls, invented gauges or sales figures", () => {
     expect(out).not.toMatch(/<(button|input|select|textarea|a)[\s>]/);
-    expect(out).not.toContain("tabindex");
+    expect(out).not.toContain('tabindex');
+    expect(out).not.toContain('$6,896');
+    expect(out).not.toContain('92%');
   });
 });
 
-describe("the brand orange lives on one line", () => {
+describe("the brand blue lives on one line", () => {
   const css = read("components/landing/site.css");
 
   it("declares --site-accent exactly once and derives the darker variants from it", () => {
-    expect(css.match(/--site-accent:\s*#ef4d23/g)).toHaveLength(1);
+    expect(css.match(/--site-accent:\s*#2563eb/g)).toHaveLength(1);
     expect(css).toMatch(/--site-accent-fill:\s*color-mix\(in srgb, var\(--site-accent\)/);
     expect(css).toMatch(/--site-accent-ink:\s*color-mix\(in srgb, var\(--site-accent\)/);
     expect(css).toContain("--site-ink: #0b0f1a");
-    expect(css).toContain("--site-page: #ededed");
+    expect(css).toContain("--site-page: #ffffff");
     expect(css).toContain("--site-hero: #d9d9d9");
-    expect(css).toContain("--site-tray: #f5f2ee");
+    expect(css).toContain("--site-tray: #f1f5fb");
   });
 
   it("falls back to the poster when motion is reduced and progressively enhances with dvh", () => {

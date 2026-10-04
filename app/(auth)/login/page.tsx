@@ -37,10 +37,10 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; notice?: string; google?: string }>;
 }) {
   const session = await getSession();
-  if (session) redirect("/");
+  if (session) redirect("/counter");
 
   const { next, notice, google } = await searchParams;
-  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/counter";
   const noticeText = notice ? NOTICES[notice] : undefined;
   const googleOn = googleConfigured();
 
