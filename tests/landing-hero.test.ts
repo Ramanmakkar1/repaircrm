@@ -11,24 +11,26 @@ const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url)
 
 describe("hero", () => {
   const out = html(React.createElement(HeroSection));
-  it("preserves the approved headline and serif emphasis", () => {
+  it("keeps one clear headline above a wide repair film", () => {
     expect(out.match(/<h1[\s>]/g)).toHaveLength(1);
-    expect(out).toContain('<span class="site-serif">repair shop</span>');
-    expect(out).toContain("on one calm screen");
-    expect(out).toContain("font-size:clamp(36px, 8vw, 72px)");
+    expect(out).toContain("Repair shop software.");
+    expect(out).toContain("Built for your counter.");
+    expect(out.indexOf("<h1")).toBeLessThan(out.indexOf("<video"));
   });
-  it("uses a clean background without requesting the former sky media", () => {
-    expect(out).not.toContain("<video");
+  it("shows a responsive poster without requesting video before checking visitor preferences", () => {
+    const video = out.match(/<video[^>]*>/)![0];
+    expect(video).not.toMatch(/\ssrc=/);
+    expect(video).toContain('preload="none"');
+    expect(video).toContain('aria-hidden="true"');
+    expect(out).toContain("/marketing/repair-film/repair-poster.webp");
+    expect(out).toContain("/marketing/repair-film/repair-poster-mobile.webp");
+    expect(out).toContain("Film by Tima Miroshnichenko / Pexels");
     expect(out).not.toContain("/marketing/hero/");
-    const css = read("components/landing/site.css");
-    expect(css).not.toMatch(/site-poster|background-image|url\(/);
-    expect(css).toContain("background: var(--site-hero)");
-    expect(css).toContain("prefers-reduced-motion");
   });
   it("offers working signup and product links in a banner landmark", () => {
     expect(out).toContain("<header");
     expect(out).toContain('<nav aria-label="Main"');
-    expect(out).toMatch(/href="\/signup"[^>]*>Start your shop/);
+    expect(out).toMatch(/href="\/signup"[^>]*>Get started free/);
     expect(out).toContain('href="#product"');
     expect(out).toContain("No credit card needed");
   });
@@ -37,7 +39,7 @@ describe("hero", () => {
 describe("navigation", () => {
   const out = html(React.createElement(Navbar));
   it("shows the panda identity and all product and account destinations", () => {
-    expect(out).toContain("panda-repair-mark.webp");
+    expect(out).toContain("panda-symbol.svg");
     expect(out).toContain("Repairs ");
     for (const link of NAV_ITEMS) expect(out).toContain(`href="${link.href}"`);
     expect(out).toContain('href="/login"');

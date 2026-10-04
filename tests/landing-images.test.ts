@@ -6,8 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/landing/fonts", () => ({
-  inter: { className: "font-inter", variable: "var-inter" },
-  instrumentSerif: { className: "font-serif", variable: "var-serif" },
+  manrope: { className: "font-manrope", variable: "var-manrope" },
+  heroDisplay: { className: "font-serif", variable: "var-serif" },
 }));
 
 const { SHOTS } = await import("@/components/landing/media");
@@ -36,7 +36,7 @@ describe("website images", () => {
     expect(sources.length).toBeGreaterThanOrEqual(8);
     for (const shot of [SHOTS.home, SHOTS.job, SHOTS.sell, SHOTS.stock, SHOTS.assistant]) expect(sources).toContain(shot.src);
     for (const scene of Object.values(SHOP_SCENES)) expect(sources).toContain(scene.src);
-    expect(sources).toContain("/brand/panda-repair-mark.webp");
+    expect(sources).toContain("/brand/panda-symbol.svg");
   });
 
   it("only points at files that exist in public/", () => {
@@ -94,7 +94,7 @@ describe("app screenshots in public/marketing/app", () => {
     for (const f of files) {
       if (f.startsWith("dashboard")) continue; // re-captured whenever the Shop overview changes
       const meta = await sharp(join(dir, f)).metadata();
-      if (f.includes("-tablet")) expect([meta.width, meta.height], f).toEqual([2048, 1536]);
+      if (f.includes("-tablet")) expect([meta.width, meta.height], f).toEqual(f === "assistant-panda-tablet.webp" ? [1024, 768] : [2048, 1536]);
       if (f.includes("-phone")) expect([meta.width, meta.height], f).toEqual([1170, 2532]);
       expect(meta.format).toBe("webp");
     }

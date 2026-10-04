@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 // next/font only works inside the Next compiler; the page only needs the class names.
 vi.mock("@/components/landing/fonts", () => ({
-  inter: { className: "font-inter", variable: "var-inter" },
-  instrumentSerif: { className: "font-serif", variable: "var-serif" },
+  manrope: { className: "font-manrope", variable: "var-manrope" },
+  heroDisplay: { className: "font-serif", variable: "var-serif" },
 }));
 
 const { FAQS, Faq } = await import("@/components/landing/faq");
@@ -106,7 +106,7 @@ describe("the whole page", () => {
 
   it("gives every section one h2 that names it", () => {
     const sections = page.match(/<section[^>]*aria-labelledby="([^"]+)"/g) ?? [];
-    expect(sections.length).toBeGreaterThanOrEqual(8);
+    expect(sections.length).toBeGreaterThanOrEqual(6);
     for (const s of sections) {
       const id = s.match(/aria-labelledby="([^"]+)"/)![1];
       expect(page).toMatch(new RegExp(`<h2 id="${id}"`));

@@ -34,7 +34,11 @@ function NavLink({
   current?: boolean;
   children: ReactNode;
 }) {
-  const props = { className, onClick, "aria-current": current ? ("page" as const) : undefined };
+  const props = {
+    className,
+    onClick,
+    "aria-current": current ? ("page" as const) : undefined,
+  };
   return href.startsWith("#") ? (
     <a href={href} {...props}>
       {children}
@@ -66,7 +70,8 @@ export function Navbar() {
       }
     };
     const onPointer = (e: PointerEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onPointer);
@@ -97,9 +102,16 @@ export function Navbar() {
         <ul className="hidden items-center gap-6 pl-10 lg:flex">
           {NAV_ITEMS.map((link) => (
             <li key={link.label}>
-              <NavLink href={link.href} className={item} current={"current" in link}>
+              <NavLink
+                href={link.href}
+                className={item}
+                current={"current" in link}
+              >
                 {"current" in link ? (
-                  <span aria-hidden="true" className="mr-1.5 h-1.5 w-1.5 rounded-full bg-black" />
+                  <span
+                    aria-hidden="true"
+                    className="mr-1.5 h-1.5 w-1.5 rounded-full bg-black"
+                  />
                 ) : null}
                 {link.label}
               </NavLink>
@@ -119,15 +131,10 @@ export function Navbar() {
         <div className="ml-auto flex items-center gap-1">
           <Link
             href={SIGN_UP_HREF}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full bg-(--site-accent-fill) py-1.5 pl-4 pr-1.5 text-sm font-semibold text-white transition-[filter] hover:brightness-95 sm:min-h-10 sm:pl-5"
+            className="site-button !min-h-11 !px-5 !py-2"
           >
             Start free
-            <span
-              aria-hidden="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </span>
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
           </Link>
           <button
             ref={buttonRef}
@@ -138,7 +145,11 @@ export function Navbar() {
             onClick={() => setOpen((v) => !v)}
             className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-900 hover:bg-neutral-100 lg:hidden"
           >
-            {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+            {open ? (
+              <X aria-hidden="true" className="h-5 w-5" />
+            ) : (
+              <Menu aria-hidden="true" className="h-5 w-5" />
+            )}
           </button>
         </div>
 
@@ -157,7 +168,10 @@ export function Navbar() {
                   className={`${item} w-full`}
                 >
                   {"current" in link ? (
-                    <span aria-hidden="true" className="mr-2 h-1.5 w-1.5 rounded-full bg-black" />
+                    <span
+                      aria-hidden="true"
+                      className="mr-2 h-1.5 w-1.5 rounded-full bg-black"
+                    />
                   ) : null}
                   {link.label}
                 </NavLink>

@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Terms of service · Repairs helper",
   description: "Terms governing access to and use of Repairs helper.",
   alternates: { canonical: "/terms" },
+  robots: { index: true, follow: true },
 };
 
 export default function TermsPage() {

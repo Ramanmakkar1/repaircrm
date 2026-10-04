@@ -1,24 +1,39 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { Pause, Play } from "lucide-react";
+import {
+  HERO_MOBILE_QUERY,
+  HERO_POSTER_MOBILE_SRC,
+  HERO_POSTER_SRC,
+  HERO_VIDEO_MOBILE_SRC,
+  HERO_VIDEO_SRC,
+  shouldLoadHeroVideo,
+} from "./hero-media";
 
-import { HERO_MOBILE_QUERY, HERO_VIDEO_MOBILE_SRC, HERO_VIDEO_SRC, shouldLoadHeroVideo } from "./hero-media";
-
-type Connection = { saveData?: boolean; effectiveType?: string };
-
+type Connection = {
+  saveData?: boolean;
+  effectiveType?: string;
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
+};
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
-
-// Not in TypeScript's DOM types: a Chromium API, so every read is optional.
-const connection = (): Connection | undefined => (navigator as Navigator & { connection?: Connection }).connection;
-
+const connection = () =>
+  (navigator as Navigator & { connection?: Connection }).connection;
 function subscribe(onChange: () => void) {
-  const query = window.matchMedia(REDUCED_MOTION);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
+  const queries = [
+    window.matchMedia(REDUCED_MOTION),
+    window.matchMedia(HERO_MOBILE_QUERY),
+  ];
+  queries.forEach((query) => query.addEventListener("change", onChange));
+  const network = connection();
+  network?.addEventListener?.("change", onChange);
+  return () => {
+    queries.forEach((query) => query.removeEventListener("change", onChange));
+    network?.removeEventListener?.("change", onChange);
+  };
 }
-
-/** The file this visitor should stream, or null when they should keep the poster picture only. */
-const chooseSource = (): string | null =>
+const chooseSource = () =>
   shouldLoadHeroVideo({
     reducedMotion: window.matchMedia(REDUCED_MOTION).matches,
     saveData: connection()?.saveData === true,
@@ -28,38 +43,88 @@ const chooseSource = (): string | null =>
       ? HERO_VIDEO_MOBILE_SRC
       : HERO_VIDEO_SRC
     : null;
+const noSourceYet = () => null;
 
-// On the server, and for the first client render, there is no src: nothing can start downloading
-// before this component has checked the visitor's motion and data settings.
-const noSourceYet = (): string | null => null;
-
-// Attributes some mobile in-app browsers still look for. Spread so React passes them through untouched.
-const legacyInlinePlayback = { "webkit-playsinline": "true", "x5-playsinline": "true" } as Record<string, string>;
-
-/**
- * The owner's looping muted background video, with all of their playback
- * attributes. The file is attached after hydration, and only for visitors who
- * have not asked for reduced motion, turned on data saver or are on a 2G/3G
- * connection; phones get the smaller encode. Everyone else keeps the poster
- * picture (the first frame of the same clip, see .site-hero in site.css), so the
- * hero never looks empty and never jumps when the video starts.
- */
+/** No video source is attached until motion and data preferences have been checked. */
 export function HeroVideo() {
   const source = useSyncExternalStore(subscribe, chooseSource, noSourceYet);
-
+  const video = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const available = source && failedSource !== source;
+  async function togglePlayback() {
+    if (!video.current) return;
+    if (!video.current.paused) {
+      setUserPaused(true);
+      video.current.pause();
+    } else {
+      setUserPaused(false);
+      try {
+        await video.current.play();
+      } catch {
+        setPlaying(false);
+      }
+    }
+  }
   return (
-    <video
-      className="site-hero-video pointer-events-none absolute inset-0 h-full w-full object-cover"
-      src={source ?? undefined}
-      autoPlay
-      loop
-      muted
-      playsInline
-      preload="auto"
-      disableRemotePlayback
-      aria-hidden="true"
-      tabIndex={-1}
-      {...legacyInlinePlayback}
-    />
+    <figure className="site-hero-film site-container">
+      <div className="site-film-frame">
+        <picture>
+          <source media={HERO_MOBILE_QUERY} srcSet={HERO_POSTER_MOBILE_SRC} />
+          {/* Native picture gives the poster its own responsive source before hydration. */}
+          <img
+            src={HERO_POSTER_SRC}
+            alt="A technician carefully repairing a smartphone at a workbench"
+            width={1600}
+            height={900}
+            fetchPriority="high"
+          />
+        </picture>
+        <video
+          key={source ?? "poster"}
+          ref={video}
+          src={available ? source : undefined}
+          hidden={!available}
+          autoPlay={!userPaused}
+          loop
+          muted
+          playsInline
+          preload="none"
+          disableRemotePlayback
+          aria-hidden="true"
+          tabIndex={-1}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onError={() => setFailedSource(source)}
+        />
+        {available && (
+          <button
+            type="button"
+            onClick={togglePlayback}
+            aria-label={playing ? "Pause repair video" : "Play repair video"}
+            className="site-film-control"
+          >
+            {playing ? (
+              <Pause size={16} aria-hidden="true" />
+            ) : (
+              <Play size={16} aria-hidden="true" />
+            )}
+            <span>{playing ? "Pause" : "Play"}</span>
+          </button>
+        )}
+      </div>
+      <figcaption>
+        <span>For the people behind the repairs.</span>
+        <a
+          href="https://www.pexels.com/video/man-repairing-a-broken-phone-6754828/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Film by Tima Miroshnichenko / Pexels{" "}
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      </figcaption>
+    </figure>
   );
 }

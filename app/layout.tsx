@@ -2,20 +2,17 @@ import type { Metadata, Viewport } from "next";
 import { readUiPrefs } from "@/lib/prefs";
 import { AppToaster } from "@/components/ui/toaster";
 import "./globals.css";
+import { PUBLIC_SITE_URL } from "@/lib/public-site";
 
 /** Relative metadata URLs (canonical, social image) resolve against the public origin. */
-const siteOrigin = (() => {
-  try {
-    return new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://repairshelper.com");
-  } catch {
-    return new URL("https://repairshelper.com");
-  }
-})();
+const siteOrigin = new URL(PUBLIC_SITE_URL);
 
 export const metadata: Metadata = {
   metadataBase: siteOrigin,
   title: "Repairs helper",
   description: "Repair shop management, done right.",
+  // Public marketing and legal pages opt in; account and shop screens stay out of search.
+  robots: { index: false, follow: true },
   // The manifest lives at app/manifest.ts; naming it here is what puts the
   // <link rel="manifest"> in the document, which is what makes the app
   // installable.
@@ -30,11 +27,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/panda-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/panda-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/symbol-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/symbol-512.png", sizes: "512x512", type: "image/png" },
     ],
     // iOS ignores the manifest for this one and reads the tag.
-    apple: [{ url: "/icons/panda-apple.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/symbol-apple.png", sizes: "180x180" }],
   },
 };
 

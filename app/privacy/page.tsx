@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Privacy policy · Repairs helper",
   description: "How Repairs helper collects, uses, protects and shares information.",
   alternates: { canonical: "/privacy" },
+  robots: { index: true, follow: true },
 };
 
 export default function PrivacyPage() {

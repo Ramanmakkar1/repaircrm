@@ -11,7 +11,13 @@ export function RepairPilotMark({ className }: { className?: string }) {
         className,
       )}
     >
-      <Image src="/brand/panda-repair-mark.webp" alt="" fill sizes="64px" className="object-contain" />
+      <Image
+        src="/brand/panda-symbol.svg"
+        alt=""
+        fill
+        sizes="64px"
+        className="object-contain"
+      />
     </span>
   );
 }

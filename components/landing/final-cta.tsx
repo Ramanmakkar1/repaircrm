@@ -31,7 +31,10 @@ export function SignupEmail({ id }: { id: string }) {
         className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#0b0f1a] py-1.5 pl-5 pr-1.5 text-sm font-medium text-white"
       >
         Start free
-        <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">
+        <span
+          aria-hidden="true"
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15"
+        >
           <ChevronRight className="h-4 w-4" />
         </span>
       </button>
@@ -41,16 +44,22 @@ export function SignupEmail({ id }: { id: string }) {
 
 export function FinalCta() {
   return (
-    <Panel labelledBy="final-title" className="site-final text-center sm:py-24 lg:py-28">
+    <Panel
+      labelledBy="final-title"
+      className="site-final text-center sm:py-24 lg:py-28"
+    >
       <h2 id="final-title" className="site-h2 mx-auto max-w-3xl">
         Start with your <Serif>next repair</Serif>
       </h2>
       <p className="site-lede mx-auto mt-5 max-w-xl">
-        Open tomorrow with the whole shop on one calm screen. We’ll help you get organised.
+        Bring your repairs, sales and customers together. Create your shop and
+        get ready for your next customer.
       </p>
       <div className="mt-9">
         <SignupEmail id="footer-email" />
-        <p className="mt-4 text-[13px] text-neutral-600">Free during early access · No card needed</p>
+        <p className="mt-4 text-[13px] text-neutral-600">
+          Free during early access · No card needed
+        </p>
       </div>
     </Panel>
   );

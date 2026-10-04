@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
 
-/** The one emphasised word (or two) in a heading: Instrument Serif italic. */
+/** Inline heading phrase, using the same typeface as its surrounding heading. */
 export function Serif({ children }: { children: ReactNode }) {
   return <span className="site-serif">{children}</span>;
 }
@@ -52,25 +52,19 @@ export function DarkCta({
   className?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex min-h-11 items-center gap-3 rounded-full bg-[#0b0f1a] py-2 pl-6 pr-2 text-sm font-medium text-white sm:py-2.5 sm:pl-7",
-        className,
-      )}
-    >
+    <Link href={href} className={cn("site-button", className)}>
       {children}
-      <span
-        aria-hidden="true"
-        className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 sm:h-7 sm:w-7"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </span>
+      <ChevronRight aria-hidden="true" className="h-4 w-4" />
     </Link>
   );
 }
 
 /** A small brand-blue dot used as a list marker. */
 export function Dot() {
-  return <span aria-hidden="true" className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-(--site-accent)" />;
+  return (
+    <span
+      aria-hidden="true"
+      className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-(--site-accent)"
+    />
+  );
 }
