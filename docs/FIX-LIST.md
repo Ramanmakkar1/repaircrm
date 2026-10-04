@@ -17,7 +17,7 @@ Status words: **Fixed** (done and live), **Fixing now** (being built and reviewe
 | Website front page with the new hero; hero video shrunk from 33 MB to 3.4 MB and hosted on your server | Fixed |
 | **Live server ran on UTC time while all 5 shops are in Edmonton**: dates, "due today" and server-rendered times could be 6 hours off in the evening | Fixed for now (server set to Edmonton time); proper per-shop fix in the packages below |
 
-## B. Seven fix packages fixed and live — release f28e30b
+## B. Seven fix packages fixed and live — release 08c2020
 
 The other implementation sessions were stopped and this session took over the remaining work.
 Independent findings, corrections and evidence are in [FIX-VERIFICATION.md](FIX-VERIFICATION.md).
@@ -116,8 +116,8 @@ Work-order PDF page count remains unverified because browser debugging permissio
 
 ## Release
 
-Release **f28e30b** deployed on 4 October 2026. [CI passed](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37225579996): types, lint, 4,498 unit tests, 8 PostgreSQL checks, migrations and production build. The deploy script completed its database backup and applied the counter-feature migration. The service is active and `/api/health` returns `{"ok":true}`.
+Release **08c2020** deployed on 4 October 2026. [CI passed](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37226400752): types, lint, 4,502 unit tests, 8 PostgreSQL checks, migrations and production build. The deploy script completed its database backup and applied the counter-feature migration. The service is active and `/api/health` returns `{"ok":true}`.
 
 Live HTTP checks passed for the landing page, sign-in, Privacy, Terms and expired-link page; unauthenticated attention returns 401 and an unknown logo returns 404. An existing signed-in owner browser also confirmed the Shop overview, staff-switch menu, PIN/push settings and logo upload form, with no console errors. No production sale, PIN change, notification opt-in or logo upload was submitted.
 
-A PIN-session renewal follow-up preserves its original expiry when a display name changes. Local checks pass; its CI/deployment record will replace this note.
+The deployed PIN renewal guard preserves the original eight-hour deadline when a display name changes.

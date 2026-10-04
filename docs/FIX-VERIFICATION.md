@@ -6,7 +6,7 @@ This report separates local evidence from release and physical-device checks.
 
 **Latest local result:** 201 test files, **4,502 unit tests passed (no skips)**;
 **8 real PostgreSQL integration checks passed**; TypeScript, lint, production build
-and `git diff --check` passed. The isolated credential-free production build covers the real job instrumentation.
+and `git diff --check` passed. The production build covers the real job instrumentation. Source snapshots exclude `.env` files and fixture routes; CI builds use throwaway authentication and database configuration. Local snapshots share dependencies, so their generated Prisma client can consult the shared environment.
 All 1,454 captured source-file hashes match the shared working tree.
 Release status is recorded below. Historical runs follow for traceability.
 
@@ -194,7 +194,7 @@ declined. No PDF was exported, and no alternate export path was attempted.
 - Added split cash/card payments to POS and invoice payments. Both rows commit together; the real database suite proves a failed second tender rolls back the first cash row and the POS invoice. A successful POS sale stores one PAID invoice, two tender rows and cash-only change.
 - Added normalized phone duplicate warnings, password-confirmed six-digit PIN setup and scoped switching, decoded/resized owner logo uploads, and opt-in encrypted phone push. Unit coverage checks ownership, tenant boundaries, PIN/session invalidation, invalid image files, cleanup on storage/database failure, push provider endpoints, role-aware counts and inactive/expired devices.
 - Added live PIN-session validation to nullable read-only API guards as well as page/action guards. Seven regressions cover role changes, PIN removal/version changes, inactive accounts, password changes and two-step/setup requirements.
-- Corrected display-name session renewal: it retains the PIN credential and the original JWT expiry. Signing/cookie helpers also cap every PIN session at eight hours. Four real JWT/cookie/action regressions prove rename cannot upgrade the session or extend its deadline; full password sessions retain seven days. This follow-up is locally checked and awaits its CI/deploy result below.
+- Corrected display-name session renewal: it retains the PIN credential and the original JWT expiry. Signing/cookie helpers also cap every PIN session at eight hours. Four real JWT/cookie/action regressions prove rename cannot upgrade the session or extend its deadline; full password sessions retain seven days. This follow-up passed CI and is deployed in 08c2020.
 - Fixed Node-only job instrumentation so the push dependency does not enter the Edge build graph.
 - Enabled the catalog image-on-disk check in CI and verified the complete local suite with CHECK_CATALOG_IMAGES=1.
 - Added the independent PostgreSQL suite and CI step. It refuses databases outside a local `verification` database and tests real transactions; authentication/cookie/event infrastructure is mocked, not browser-authenticated end to end.
@@ -226,11 +226,11 @@ with that explicit URL, preventing the generated-client fallback. The URL is cap
 
 ## Release and remaining verification
 
-Release **f28e30b** is live. [CI run 37225579996](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37225579996) passed migrations, types, lint, **4,498 unit tests with no skips**, **8 real PostgreSQL integration checks** and the production build. The VPS deploy script completed its backup and additive migration, selected `/srv/repairshelper/releases/f28e30b/.next/standalone` and passed health. Production is on Node 22.23.3 / tz2026c; its automation timer starts every 15 minutes. The same migration was applied to the local development database without replacing records.
+Release **08c2020** is live. [CI run 37226400752](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37226400752) passed migrations, types, lint, **4,502 unit tests with no skips**, **8 real PostgreSQL integration checks** and the production build. The VPS deploy script completed its backup and additive migration, selected `/srv/repairshelper/releases/08c2020/.next/standalone` and passed health. Production is on Node 22.23.3 / tz2026c; its automation timer starts every 15 minutes. Its first post-deploy run completed for all five shops with zero failures. The same migration was applied to the local development database without replacing records. The final deployment confirmed no pending migrations and created `/var/backups/repairshelper/20261004T190435Z.dump` (366,827 bytes, mode 600). An aggregate query found zero PIN-configured production accounts at follow-up deployment; no PIN session was created by this verification.
 
 Post-deploy HTTP checks: health 200 with `{"ok":true}`, landing/sign-in/Privacy/Terms/expired-link pages 200, unauthenticated attention 401, unknown shop logo 404. The live browser already had an owner session; read-only checks confirmed the Shop overview, Switch staff menu, My profile PIN/push controls and Shop details logo form. No browser console errors were recorded. No production business record, credential, notification subscription or logo was changed by the smoke checks.
 
-Logs: `/private/tmp/repairshelper-ci-f28e30b.log`, `/private/tmp/repairshelper-live-smoke.json`, `/private/tmp/repairshelper-local-migration.log`; server deployment log: `/srv/repairshelper/releases/f28e30b/deploy.log`. A documentation-only follow-up records these results; deployed application code remains f28e30b. Source manifests and logs
+Logs: `/private/tmp/repairshelper-ci-08c2020.log`, `/private/tmp/repairshelper-live-smoke.json`, `/private/tmp/repairshelper-local-migration.log`; server deployment log: `/srv/repairshelper/releases/08c2020/deploy.log`. A documentation-only follow-up records these results; deployed application code remains 08c2020. Source manifests and logs
 are under `/private/tmp/repairshelper-verification-*`; the isolated production
 source is `/private/tmp/repairshelper-final-verification-20261004`.
 

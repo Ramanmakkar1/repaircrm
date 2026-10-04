@@ -5,8 +5,8 @@ hands. I changed no keys or accounts; the commit and the deploy were done when y
 
 ## 1. Protect and publish the work (do this first)
 
-- [x] **Commit the work.** Done: pushed to `main` (application release `f28e30b`, CI green).
-- [x] **Deploy to the live site.** Done 4 Oct 2026: repairshelper.com runs `f28e30b`.
+- [x] **Commit the work.** Done: pushed to `main` (application release `08c2020`, CI green).
+- [x] **Deploy to the live site.** Done 4 Oct 2026: repairshelper.com runs `08c2020`.
       The steps are in the deploy note (git archive of a pushed commit, then
       `/usr/local/sbin/repairshelper-deploy` on the server, which backs up the database
       first and puts the old code back if the health check fails). The app uses each shop’s time zone and the server has current Alberta timezone data; see docs/FIX-LIST.md.
