@@ -57,11 +57,17 @@ export function TicketToolbar({
   values,
   problemTypes,
   techs,
+  simple = false,
 }: {
   values: TicketFilterValues;
   problemTypes: string[];
   /** For the Tech filter, which now lives inside the Filters dialog. */
   techs: { id: string; name: string }[];
+  /**
+   * Easy mode: one big search field that takes the whole row, a big Filters
+   * button beside it, and "repair" instead of "ticket" in every word.
+   */
+  simple?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -103,26 +109,26 @@ export function TicketToolbar({
     >
       <form
         key={values.q}
-        className="relative min-w-[220px] flex-1 sm:max-w-xs"
+        className={simple ? "relative min-w-[200px] flex-1" : "relative min-w-[220px] flex-1 sm:max-w-xs"}
         onSubmit={(event) => {
           event.preventDefault();
           push({ q: queryRef.current?.value.trim() ?? "" });
         }}
       >
-        <ICONS.search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+        <ICONS.search className={simple ? "pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-faint-foreground" : "pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground"} />
         <Input
           ref={queryRef}
           name="q"
           defaultValue={values.q}
-          placeholder="Search ticket #, customer, phone or IMEI…"
-          aria-label="Search tickets"
-          className="pl-9"
+          placeholder={simple ? "Search name, phone or #" : "Search ticket #, customer, phone or IMEI…"}
+          aria-label={simple ? "Search repairs" : "Search tickets"}
+          className={simple ? "h-12 rounded-xl pl-11 text-base" : "pl-9"}
         />
       </form>
 
       <Dialog open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline">
+          <Button variant="outline" className={simple ? "h-12 rounded-xl px-5 text-base" : undefined}>
             <ACTIONS.filter />
             Filters
             {advancedCount > 0 ? (
@@ -136,6 +142,7 @@ export function TicketToolbar({
           values={values}
           problemTypes={problemTypes}
           techs={techs}
+          simple={simple}
           onApply={(patch) => {
             setAdvancedOpen(false);
             push(patch);
@@ -146,6 +153,7 @@ export function TicketToolbar({
       {isFiltered ? (
         <Button
           variant="ghost"
+          className={simple ? "h-12 rounded-xl px-4 text-base" : undefined}
           onClick={() =>
             startTransition(() =>
               // Clearing drops the filters, not the customer this list is
@@ -208,11 +216,13 @@ function AdvancedFilters({
   values,
   problemTypes,
   techs,
+  simple,
   onApply,
 }: {
   values: TicketFilterValues;
   problemTypes: string[];
   techs: { id: string; name: string }[];
+  simple: boolean;
   onApply: (patch: Partial<TicketFilterValues>) => void;
 }) {
   const [problemType, setProblemType] = React.useState(values.problemType);
@@ -225,7 +235,9 @@ function AdvancedFilters({
       <DialogHeader>
         <DialogTitle>More filters</DialogTitle>
         <DialogDescription>
-          Narrow the board to one tech, one kind of problem, or what is due.
+          {simple
+            ? "Narrow the list to one person, one kind of problem, or what is due."
+            : "Narrow the board to one tech, one kind of problem, or what is due."}
         </DialogDescription>
       </DialogHeader>
 
@@ -309,7 +321,7 @@ function AdvancedFilters({
           onClick={() => onApply({ problemType, sort, due, tech })}
         >
           <ACTIONS.filter />
-          Show tickets
+          {simple ? "Show repairs" : "Show tickets"}
         </Button>
       </DialogFooter>
     </DialogContent>

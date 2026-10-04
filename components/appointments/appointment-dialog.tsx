@@ -26,49 +26,48 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { AppointmentConflict, Option } from "./appointment-state";
+import {
+  appointmentFormData,
+  type AppointmentConflict,
+  type AppointmentFormValues,
+  type AppointmentPickers,
+  type Option,
+} from "./appointment-state";
+import { BookingDialog } from "./booking/booking-dialog";
 import { DURATION_OPTIONS } from "./calendar-meta";
+import { NONE } from "./dialog-meta";
 
-const NONE = "none";
+// The shapes live in appointment-state.ts (the Easy-mode flow shares them);
+// they stay importable from here, where the page has always taken them from.
+export type { AppointmentFormValues, AppointmentPickers };
+
 /** `customerId` while booking someone who is not a customer yet. */
 const NEW = "new";
 
-export type AppointmentPickers = {
-  customers: Option[];
-  /** Only the tickets belonging to each customer — one query at page load. */
-  ticketsByCustomer: Record<string, Option[]>;
-  techs: Option[];
-  locations: Option[];
-};
-
-export type AppointmentFormValues = {
-  id: string | null;
-  title: string;
-  customerId: string;
-  /** Filled when `customerId` is "new" — a first-time caller booked from here. */
-  newCustomerName?: string;
-  newCustomerPhone?: string;
-  newCustomerEmail?: string;
-  /** Undefined reads as yes: the box starts ticked, and unticking is the act. */
-  newCustomerSmsOk?: boolean;
-  ticketId: string;
-  assignedToId: string;
-  locationId: string;
-  /** Pre-formatted yyyy-MM-dd / HH:mm so the inputs never re-parse a timestamp. */
-  startDate: string;
-  startTime: string;
-  duration: string;
-  endTime: string;
-  notes: string;
-  /**
-   * "Sep 1, 9:14 AM" when the reminder has already gone out, null otherwise.
-   * Pre-formatted on the server so the dialog never reaches for its own clock.
-   */
-  reminderSentLabel?: string | null;
-};
-
 /**
  * Create / edit an appointment.
+ *
+ * Easy mode (`simple`) gets the step-by-step booking flow (booking/); Full mode
+ * keeps the dense dialog below, exactly as it was. Both build the request with
+ * `appointmentFormData` and call the same server action.
+ */
+export function AppointmentDialog({
+  simple = false,
+  ...props
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  values: AppointmentFormValues;
+  pickers: AppointmentPickers;
+  onSaved?: () => void;
+  /** Easy mode: Who - When - What for, one step at a time, one big button. */
+  simple?: boolean;
+}) {
+  return simple ? <BookingDialog {...props} /> : <DenseAppointmentDialog {...props} />;
+}
+
+/**
+ * The Full-mode dialog: every field on one screen.
  *
  * Two things here are deliberate:
  *
@@ -80,7 +79,7 @@ export type AppointmentFormValues = {
  *    double-book on purpose — a 10-minute pickup during a bench job is normal —
  *    so blocking it outright would just teach staff to keep the diary elsewhere.
  */
-export function AppointmentDialog({
+function DenseAppointmentDialog({
   open,
   onOpenChange,
   values: initial,
@@ -115,22 +114,7 @@ export function AppointmentDialog({
       : [];
 
   async function save(confirmOverlap: boolean) {
-    const formData = new FormData();
-    formData.set("title", values.title);
-    formData.set("customerId", values.customerId || NONE);
-    formData.set("newCustomerName", values.newCustomerName ?? "");
-    formData.set("newCustomerPhone", values.newCustomerPhone ?? "");
-    formData.set("newCustomerEmail", values.newCustomerEmail ?? "");
-    if (values.newCustomerSmsOk !== false) formData.set("newCustomerSmsOk", "on");
-    formData.set("ticketId", values.ticketId);
-    formData.set("assignedToId", values.assignedToId);
-    formData.set("locationId", values.locationId);
-    formData.set("startDate", values.startDate);
-    formData.set("startTime", values.startTime);
-    formData.set("duration", values.duration);
-    formData.set("endTime", values.endTime);
-    formData.set("notes", values.notes);
-    if (confirmOverlap) formData.set("confirmOverlap", "on");
+    const formData = appointmentFormData(values, confirmOverlap);
 
     setBusy(true);
     const result = await saveAppointmentAction(initial.id, formData);
@@ -153,11 +137,226 @@ export function AppointmentDialog({
     router.refresh();
   }
 
+  const titleField = (
+    <Field label="Title" htmlFor="title" required>
+      <Input
+        id="title"
+        value={values.title}
+        onChange={(event) => set("title", event.target.value)}
+        maxLength={160}
+        autoFocus
+        required
+        placeholder="Screen swap drop-off"
+      />
+    </Field>
+  );
+
+  const customerField = (
+    <Field
+      label="Customer"
+      hint={
+        values.customerId === NEW
+          ? "They're saved as a customer when you book — no need to add them first."
+          : "Optional — a walk-in slot doesn't need one. New caller? Type their name."
+      }
+    >
+      <CustomerPicker
+        customers={pickers.customers}
+        value={values.customerId}
+        newName={values.newCustomerName ?? ""}
+        newPhone={values.newCustomerPhone ?? ""}
+        newEmail={values.newCustomerEmail ?? ""}
+        smsOk={values.newCustomerSmsOk !== false}
+        onSmsOkChange={(ok) => setValues((prev) => ({ ...prev, newCustomerSmsOk: ok }))}
+        onNewChange={(person) =>
+          setValues((prev) => ({
+            ...prev,
+            newCustomerName: person.name,
+            newCustomerPhone: person.phone,
+            newCustomerEmail: person.email,
+          }))
+        }
+        onChange={(next, name) =>
+          setValues((prev) => ({
+            ...prev,
+            customerId: next,
+            newCustomerName: next === NEW ? (name ?? "") : "",
+            newCustomerPhone: next === NEW ? (prev.newCustomerPhone ?? "") : "",
+            newCustomerEmail: next === NEW ? (prev.newCustomerEmail ?? "") : "",
+            // The previous ticket belongs to the previous customer.
+            ticketId: NONE,
+          }))
+        }
+      />
+    </Field>
+  );
+
+  const ticketField = (
+    <Field
+      label="Ticket"
+      htmlFor="ticketId"
+      hint={
+        values.customerId && tickets.length === 0
+          ? "No tickets on file for them."
+          : undefined
+      }
+    >
+      <Select
+        value={values.ticketId}
+        onValueChange={(next) => set("ticketId", next)}
+        disabled={!values.customerId || tickets.length === 0}
+      >
+        <SelectTrigger id="ticketId">
+          <SelectValue placeholder="No ticket" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          <SelectItem value={NONE}>No ticket</SelectItem>
+          {tickets.map((ticket) => (
+            <SelectItem key={ticket.value} value={ticket.value}>
+              {ticket.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+
+  const techField = (
+    <Field label="Tech" htmlFor="assignedToId">
+      <Select
+        value={values.assignedToId}
+        onValueChange={(next) => {
+          set("assignedToId", next);
+          // A different tech means a different diary — re-check it.
+          setConflict(null);
+        }}
+      >
+        <SelectTrigger id="assignedToId">
+          <SelectValue placeholder="Unassigned" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          <SelectItem value={NONE}>Unassigned</SelectItem>
+          {pickers.techs.map((tech) => (
+            <SelectItem key={tech.value} value={tech.value}>
+              {tech.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+
+  const dateField = (
+    <Field label="Date" htmlFor="startDate" required>
+      <Input
+        id="startDate"
+        type="date"
+        value={values.startDate}
+        onChange={(event) => {
+          set("startDate", event.target.value);
+          setConflict(null);
+        }}
+        required
+      />
+    </Field>
+  );
+
+  const timeField = (
+    <Field label="Start time" htmlFor="startTime" required>
+      <Input
+        id="startTime"
+        type="time"
+        step={300}
+        value={values.startTime}
+        onChange={(event) => {
+          set("startTime", event.target.value);
+          setConflict(null);
+        }}
+        required
+      />
+    </Field>
+  );
+
+  const durationField = (
+    <Field label="Duration" htmlFor="duration">
+      <Select
+        value={values.duration}
+        onValueChange={(next) => {
+          set("duration", next);
+          setConflict(null);
+        }}
+      >
+        <SelectTrigger id="duration">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DURATION_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+
+  const endTimeField = (
+    <Field label="End time" htmlFor="endTime" required>
+      <Input
+        id="endTime"
+        type="time"
+        step={300}
+        value={values.endTime}
+        onChange={(event) => {
+          set("endTime", event.target.value);
+          setConflict(null);
+        }}
+        required
+      />
+    </Field>
+  );
+
+  const locationField = (
+    <Field label="Location" htmlFor="locationId">
+      <LocationSelect
+        locations={pickers.locations}
+        value={values.locationId}
+        onChange={(next) => set("locationId", next)}
+      />
+    </Field>
+  );
+
+  const locationCustomField = (
+    <Field label="Location" htmlFor="locationIdCustom">
+      <LocationSelect
+        id="locationIdCustom"
+        locations={pickers.locations}
+        value={values.locationId}
+        onChange={(next) => set("locationId", next)}
+      />
+    </Field>
+  );
+
+  const notesField = (
+    <Field label="Notes" htmlFor="notes">
+      <Textarea
+        id="notes"
+        rows={3}
+        value={values.notes}
+        onChange={(event) => set("notes", event.target.value)}
+        maxLength={2000}
+        placeholder="Bringing the charger too. Parking round the back."
+      />
+    </Field>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit appointment" : "New appointment"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit appointment" : "New appointment"}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
               ? "Move it, reassign it, or write down what changed."
@@ -212,204 +411,24 @@ export function AppointmentDialog({
             </div>
           ) : null}
 
-          <Field label="Title" htmlFor="title" required>
-            <Input
-              id="title"
-              value={values.title}
-              onChange={(event) => set("title", event.target.value)}
-              maxLength={160}
-              autoFocus
-              required
-              placeholder="Screen swap drop-off"
-            />
-          </Field>
-
-          <Field
-            label="Customer"
-            hint={
-              values.customerId === NEW
-                ? "They're saved as a customer when you book — no need to add them first."
-                : "Optional — a walk-in slot doesn't need one. New caller? Type their name."
-            }
-          >
-            <CustomerPicker
-              customers={pickers.customers}
-              value={values.customerId}
-              newName={values.newCustomerName ?? ""}
-              newPhone={values.newCustomerPhone ?? ""}
-              newEmail={values.newCustomerEmail ?? ""}
-              smsOk={values.newCustomerSmsOk !== false}
-              onSmsOkChange={(ok) => setValues((prev) => ({ ...prev, newCustomerSmsOk: ok }))}
-              onNewChange={(person) =>
-                setValues((prev) => ({
-                  ...prev,
-                  newCustomerName: person.name,
-                  newCustomerPhone: person.phone,
-                  newCustomerEmail: person.email,
-                }))
-              }
-              onChange={(next, name) =>
-                setValues((prev) => ({
-                  ...prev,
-                  customerId: next,
-                  newCustomerName: next === NEW ? (name ?? "") : "",
-                  newCustomerPhone: next === NEW ? (prev.newCustomerPhone ?? "") : "",
-                  newCustomerEmail: next === NEW ? (prev.newCustomerEmail ?? "") : "",
-                  // The previous ticket belongs to the previous customer.
-                  ticketId: NONE,
-                }))
-              }
-            />
-          </Field>
+          {titleField}
+          {customerField}
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field
-              label="Ticket"
-              htmlFor="ticketId"
-              hint={
-                values.customerId && tickets.length === 0
-                  ? "No tickets on file for them."
-                  : undefined
-              }
-            >
-              <Select
-                value={values.ticketId}
-                onValueChange={(next) => set("ticketId", next)}
-                disabled={!values.customerId || tickets.length === 0}
-              >
-                <SelectTrigger id="ticketId">
-                  <SelectValue placeholder="No ticket" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value={NONE}>No ticket</SelectItem>
-                  {tickets.map((ticket) => (
-                    <SelectItem key={ticket.value} value={ticket.value}>
-                      {ticket.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field label="Tech" htmlFor="assignedToId">
-              <Select
-                value={values.assignedToId}
-                onValueChange={(next) => {
-                  set("assignedToId", next);
-                  // A different tech means a different diary — re-check it.
-                  setConflict(null);
-                }}
-              >
-                <SelectTrigger id="assignedToId">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value={NONE}>Unassigned</SelectItem>
-                  {pickers.techs.map((tech) => (
-                    <SelectItem key={tech.value} value={tech.value}>
-                      {tech.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            {ticketField}
+            {techField}
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Date" htmlFor="startDate" required>
-              <Input
-                id="startDate"
-                type="date"
-                value={values.startDate}
-                onChange={(event) => {
-                  set("startDate", event.target.value);
-                  setConflict(null);
-                }}
-                required
-              />
-            </Field>
-
-            <Field label="Start time" htmlFor="startTime" required>
-              <Input
-                id="startTime"
-                type="time"
-                step={300}
-                value={values.startTime}
-                onChange={(event) => {
-                  set("startTime", event.target.value);
-                  setConflict(null);
-                }}
-                required
-              />
-            </Field>
-
-            <Field label="Duration" htmlFor="duration">
-              <Select
-                value={values.duration}
-                onValueChange={(next) => {
-                  set("duration", next);
-                  setConflict(null);
-                }}
-              >
-                <SelectTrigger id="duration">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            {values.duration === "custom" ? (
-              <Field label="End time" htmlFor="endTime" required>
-                <Input
-                  id="endTime"
-                  type="time"
-                  step={300}
-                  value={values.endTime}
-                  onChange={(event) => {
-                    set("endTime", event.target.value);
-                    setConflict(null);
-                  }}
-                  required
-                />
-              </Field>
-            ) : (
-              <Field label="Location" htmlFor="locationId">
-                <LocationSelect
-                  locations={pickers.locations}
-                  value={values.locationId}
-                  onChange={(next) => set("locationId", next)}
-                />
-              </Field>
-            )}
+            {dateField}
+            {timeField}
+            {durationField}
+            {values.duration === "custom" ? endTimeField : locationField}
           </div>
 
-          {values.duration === "custom" ? (
-            <Field label="Location" htmlFor="locationIdCustom">
-              <LocationSelect
-                id="locationIdCustom"
-                locations={pickers.locations}
-                value={values.locationId}
-                onChange={(next) => set("locationId", next)}
-              />
-            </Field>
-          ) : null}
+          {values.duration === "custom" ? locationCustomField : null}
 
-          <Field label="Notes" htmlFor="notes">
-            <Textarea
-              id="notes"
-              rows={3}
-              value={values.notes}
-              onChange={(event) => set("notes", event.target.value)}
-              maxLength={2000}
-              placeholder="Bringing the charger too. Parking round the back."
-            />
-          </Field>
+          {notesField}
 
           <DialogFooter>
             <Button

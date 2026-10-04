@@ -41,7 +41,7 @@ export function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-sm text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        <DialogPrimitive.Close className="absolute right-2 top-2 flex size-12 items-center justify-center rounded-md text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:right-4 sm:top-4 sm:size-8">
           <X className="size-[18px]" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -51,7 +51,7 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-col gap-1", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-1 pr-10", className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

@@ -170,7 +170,7 @@ function TimeRow({ entry }: { entry: TimeEntryRow }) {
           checked={entry.billable}
           disabled={busy || billed || entry.running}
           onCheckedChange={(next) => toggle(next === true)}
-          aria-label={`Bill ${entry.userName}'s time on this ticket`}
+          aria-label={`Bill ${entry.userName}'s time on this repair`}
         />
         <div className="min-w-0">
           <p className="truncate text-foreground">

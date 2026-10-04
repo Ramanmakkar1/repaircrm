@@ -1,9 +1,11 @@
 import type { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
 
 import { db } from "@/lib/db";
 import type { ImportBatch } from "@/lib/import-store";
 import {
   fieldsFor,
+  GENERATE_SKU,
   looksLikeEmail,
   readBool,
   readInt,
@@ -31,6 +33,15 @@ import {
  * One 5,000-row transaction would hold locks for the whole upload and lose
  * everything to a single bad row; per-batch keeps failures small and progress
  * real.
+ *
+ * ONE BAD ROW MUST NOT SINK ITS NEIGHBOURS. Postgres aborts a whole transaction
+ * when any statement in it fails, so a try/catch around one row inside the batch
+ * transaction cannot save the rows after it. Instead a failed batch is rolled
+ * back and replayed row by row, one small transaction each: the bad row is
+ * listed with a reason, every other row is saved. Everything a try learns (new
+ * ids, vendors, counts) stays in that try's own `Attempt` and joins the shared
+ * state only once its transaction has committed, so the summary can never claim
+ * a row that was rolled back.
  */
 
 const BATCH_SIZE = 200;
@@ -72,6 +83,12 @@ function cell(row: readonly string[], index: number): string {
   return index < 0 ? "" : (row[index] ?? "").trim();
 }
 
+/** Stable across repeated imports; prices/counts never change item identity. */
+export function sheetProductCode(name: string, upc: string): string {
+  const identity = [name, upc].map(value => value.trim().toLowerCase().replace(/\s+/g, " "));
+  return `IMP-${createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 20).toUpperCase()}`;
+}
+
 /** Pulls the mapped columns out of one row and says what's wrong with it. */
 function readRow(
   fields: ImportField[],
@@ -82,7 +99,9 @@ function readRow(
   const errors: string[] = [];
 
   for (const field of fields) {
-    const raw = cell(row, mapping[field.key] ?? -1);
+    const raw = field.key === "sku" && mapping.sku === GENERATE_SKU
+      ? sheetProductCode(cell(row, mapping.name ?? -1), cell(row, mapping.upc ?? -1))
+      : cell(row, mapping[field.key] ?? -1);
     values[field.key] = raw;
 
     if (field.required && raw === "") {
@@ -97,10 +116,14 @@ function readRow(
     if (field.kind === "money" && Number.isNaN(readMoney(raw))) {
       errors.push(`${field.label} “${raw}” isn't a number`);
     }
+    if (field.kind === "money" && !Number.isNaN(readMoney(raw))) {
+      const cents = readMoney(raw);
+      if (cents !== null && (cents < 0 || cents > 100_000_000)) errors.push(`${field.label} must be between 0 and 1,000,000`);
+    }
     if (field.kind === "int") {
       const parsed = readInt(raw);
       if (Number.isNaN(parsed)) errors.push(`${field.label} “${raw}” isn't a whole number`);
-      else if (parsed !== null && parsed < 0) errors.push(`${field.label} can't be negative`);
+      else if (parsed !== null && (parsed < 0 || parsed > 2_147_483_647)) errors.push(`${field.label} must be a whole number from 0 to 2,147,483,647`);
     }
   }
 
@@ -129,6 +152,14 @@ type Existing = {
   byPhone: Map<string, string>;
   bySku: Map<string, string>;
 };
+
+/** What the row writers need from a key -> id table; a Map or a Layer. */
+type Lookup = {
+  get(key: string): string | undefined;
+  has(key: string): boolean;
+  set(key: string, id: string): unknown;
+};
+type Seen = Record<keyof Existing, Lookup>;
 
 /**
  * Everything already in the shop that a row could collide with.
@@ -171,7 +202,7 @@ async function loadExisting(shopId: string, kind: ImportKind): Promise<Existing>
 function findDuplicate(
   kind: ImportKind,
   values: Record<string, string>,
-  existing: Existing,
+  existing: Seen,
 ): { id: string; label: string } | null {
   if (kind === "customers") {
     const email = emailKey(values.email ?? "");
@@ -237,7 +268,7 @@ export async function previewImport(
     if (duplicate) duplicates += 1;
 
     if (rows.length < PREVIEW_ROWS) {
-      rows.push({ row: index + 2, values, errors, duplicate });
+      rows.push({ row: index + (batch.headerRow ?? 1) + 1, values, errors, duplicate });
     }
   });
 
@@ -260,6 +291,53 @@ function selfKeyFor(kind: ImportKind, values: Record<string, string>): string | 
 // Commit
 // ---------------------------------------------------------------------------
 
+/**
+ * A key -> id table that keeps its own additions apart from `base` until
+ * `merge()`. An attempt at some rows registers new ids only here, so one that
+ * rolls back leaves the shared lookups exactly as they were.
+ */
+class Layer implements Lookup {
+  private readonly added = new Map<string, string>();
+
+  constructor(private readonly base: Map<string, string>) {}
+
+  get(key: string): string | undefined {
+    return this.added.get(key) ?? this.base.get(key);
+  }
+
+  has(key: string): boolean {
+    return this.added.has(key) || this.base.has(key);
+  }
+
+  set(key: string, id: string): this {
+    this.added.set(key, id);
+    return this;
+  }
+
+  merge(): void {
+    for (const [key, id] of this.added) this.base.set(key, id);
+  }
+}
+
+/** Everything one try at some rows reads, registers and counts. */
+type Attempt = {
+  seen: { byEmail: Layer; byPhone: Layer; bySku: Layer };
+  vendors: Layer;
+  tally: ImportSummary;
+};
+
+function startAttempt(existing: Existing, vendorIds: Map<string, string>): Attempt {
+  return {
+    seen: {
+      byEmail: new Layer(existing.byEmail),
+      byPhone: new Layer(existing.byPhone),
+      bySku: new Layer(existing.bySku),
+    },
+    vendors: new Layer(vendorIds),
+    tally: { created: 0, updated: 0, skipped: 0, errors: [] },
+  };
+}
+
 export async function commitImport(
   shopId: string,
   batch: ImportBatch,
@@ -272,54 +350,118 @@ export async function commitImport(
 
   const summary: ImportSummary = { created: 0, updated: 0, skipped: 0, errors: [] };
 
+  /** Only called once the attempt's transaction has committed. */
+  const keep = (attempt: Attempt) => {
+    attempt.seen.byEmail.merge();
+    attempt.seen.byPhone.merge();
+    attempt.seen.bySku.merge();
+    attempt.vendors.merge();
+    summary.created += attempt.tally.created;
+    summary.updated += attempt.tally.updated;
+    summary.skipped += attempt.tally.skipped;
+    summary.errors.push(...attempt.tally.errors);
+  };
+
+  /**
+   * Settles a row without the database when it can be (bad values, a duplicate
+   * being skipped); otherwise returns what has to be written.
+   */
+  const prepare = (row: readonly string[], rowNumber: number, attempt: Attempt) => {
+    const { values, errors } = readRow(fields, mapping, row);
+
+    if (errors.length > 0) {
+      attempt.tally.errors.push({ row: rowNumber, message: errors[0] });
+      attempt.tally.skipped += 1;
+      return null;
+    }
+
+    const clash = findDuplicate(batch.kind, values, attempt.seen);
+    if (clash && mode === "skip") {
+      attempt.tally.skipped += 1;
+      return null;
+    }
+    return { values, duplicateId: clash?.id ?? null };
+  };
+
+  const write = (
+    tx: Prisma.TransactionClient,
+    job: NonNullable<ReturnType<typeof prepare>>,
+    attempt: Attempt,
+  ) =>
+    batch.kind === "customers"
+      ? writeCustomer(tx, shopId, job.values, job.duplicateId, attempt.tally, attempt.seen)
+      : writeProduct(
+          tx,
+          shopId,
+          job.values,
+          job.duplicateId,
+          attempt.tally,
+          attempt.seen,
+          attempt.vendors,
+        );
+
   for (let start = 0; start < batch.rows.length; start += BATCH_SIZE) {
     const slice = batch.rows.slice(start, start + BATCH_SIZE);
+    const rowNumber = (offset: number) => start + offset + (batch.headerRow ?? 1) + 1;
 
-    await db.$transaction(async (tx) => {
-      for (let offset = 0; offset < slice.length; offset++) {
-        const rowNumber = start + offset + 2;
-        const { values, errors } = readRow(fields, mapping, slice[offset]);
-
-        if (errors.length > 0) {
-          summary.errors.push({ row: rowNumber, message: errors[0] });
-          summary.skipped += 1;
-          continue;
+    // Fast path: the whole batch in one transaction.
+    const whole = startAttempt(existing, vendorIds);
+    let saved = false;
+    try {
+      await db.$transaction(async (tx) => {
+        for (let offset = 0; offset < slice.length; offset++) {
+          const job = prepare(slice[offset], rowNumber(offset), whole);
+          if (job) await write(tx, job, whole);
         }
+      });
+      saved = true;
+    } catch (error) {
+      // Rolled back, so nothing from this batch exists and `whole` is simply
+      // dropped. Say why on the server console, then find the bad row below.
+      console.warn(
+        `[import] a batch of ${slice.length} rows failed, retrying row by row: ${technicalMessage(error)}`,
+      );
+    }
+    if (saved) {
+      keep(whole);
+      continue;
+    }
 
-        const clash = findDuplicate(batch.kind, values, existing);
-        if (clash && mode === "skip") {
-          summary.skipped += 1;
-          continue;
-        }
-
-        try {
-          if (batch.kind === "customers") {
-            await writeCustomer(tx, shopId, values, clash?.id ?? null, summary, existing);
-          } else {
-            await writeProduct(
-              tx,
-              shopId,
-              values,
-              clash?.id ?? null,
-              summary,
-              existing,
-              vendorIds,
-            );
-          }
-        } catch (error) {
-          summary.errors.push({ row: rowNumber, message: messageOf(error) });
-          summary.skipped += 1;
-        }
+    // Slow path: one small transaction per row, so a bad row costs only itself.
+    for (let offset = 0; offset < slice.length; offset++) {
+      const single = startAttempt(existing, vendorIds);
+      const job = prepare(slice[offset], rowNumber(offset), single);
+      try {
+        if (job) await db.$transaction((tx) => write(tx, job, single));
+      } catch (error) {
+        console.warn(`[import] row ${rowNumber(offset)} failed: ${technicalMessage(error)}`);
+        summary.errors.push({ row: rowNumber(offset), message: plainReason(error) });
+        summary.skipped += 1;
+        continue;
       }
-    });
+      keep(single);
+    }
   }
 
   return summary;
 }
 
-function messageOf(error: unknown): string {
-  if (error instanceof Error) return error.message.split("\n")[0].slice(0, 200);
-  return "Could not save this row.";
+/** Raised for a row's own problem, already worded for the person reading the summary. */
+class RowProblem extends Error {}
+
+/** For the server console only — never shown to the shop. */
+function technicalMessage(error: unknown): string {
+  return error instanceof Error ? error.message.split("\n")[0].slice(0, 200) : "unknown error";
+}
+
+/** What the summary says about a row the database refused, in plain words. */
+function plainReason(error: unknown): string {
+  if (error instanceof RowProblem) return error.message;
+  const code =
+    typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  if (code === "P2002") return "Something with the same code, email or phone is already on file.";
+  if (code === "P2000") return "One of the values in this row is too long to save.";
+  return "Couldn't save this row. Check its values and try again.";
 }
 
 /** Blank cells never overwrite existing data — an import fills gaps, not holes. */
@@ -338,7 +480,7 @@ async function writeCustomer(
   values: Record<string, string>,
   duplicateId: string | null,
   summary: ImportSummary,
-  existing: Existing,
+  existing: Seen,
 ): Promise<void> {
   const text = filled(values, [
     "businessName",
@@ -355,8 +497,9 @@ async function writeCustomer(
   if (text.email) text.email = emailKey(text.email);
 
   if (duplicateId) {
-    await tx.customer.update({
-      where: { id: duplicateId },
+    // updateMany with the shop in the filter, as lib/db.ts asks of every write by id.
+    const { count } = await tx.customer.updateMany({
+      where: { id: duplicateId, shopId },
       data: {
         ...text,
         // A name is always present on an update path too; the row passed
@@ -365,6 +508,7 @@ async function writeCustomer(
         ...(values.lastName ? { lastName: values.lastName } : {}),
       },
     });
+    if (count === 0) throw new RowProblem("That customer was removed while the import was running.");
     summary.updated += 1;
     return;
   }
@@ -396,8 +540,8 @@ async function writeProduct(
   values: Record<string, string>,
   duplicateId: string | null,
   summary: ImportSummary,
-  existing: Existing,
-  vendorIds: Map<string, string>,
+  existing: Seen,
+  vendorIds: Lookup,
 ): Promise<void> {
   const vendorId = await resolveVendor(tx, shopId, values.vendor ?? "", vendorIds);
 
@@ -421,7 +565,8 @@ async function writeProduct(
     // Stock is deliberately NOT updated on an existing product: the level is an
     // audited quantity, and a spreadsheet column would move it with no
     // StockAdjustment behind it. Counts belong in the Adjust Stock dialog.
-    await tx.product.update({ where: { id: duplicateId }, data });
+    const { count } = await tx.product.updateMany({ where: { id: duplicateId, shopId }, data });
+    if (count === 0) throw new RowProblem("That product was removed while the import was running.");
     summary.updated += 1;
     return;
   }
@@ -467,7 +612,7 @@ async function resolveVendor(
   tx: Prisma.TransactionClient,
   shopId: string,
   name: string,
-  cache: Map<string, string>,
+  cache: Lookup,
 ): Promise<string | null> {
   const trimmed = name.trim();
   if (!trimmed) return null;

@@ -108,7 +108,11 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
       <Banners state={state} />
 
       <Card>
-        <CardHeader icon={ICONS.profile} title="Your details" />
+        <CardHeader
+          icon={ICONS.profile}
+          title="Your details"
+          description="Your name as colleagues see it, and the email you sign in with."
+        />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="profile-name">Display name</Label>
@@ -119,7 +123,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
               maxLength={120}
               required
             />
-            <p className="text-[13.5px] text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               What colleagues see on tickets, notes and time entries.
             </p>
           </div>
@@ -127,7 +131,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
           <div className="flex flex-col gap-2">
             <Label htmlFor="profile-email">Email</Label>
             <Input id="profile-email" value={profile.email} readOnly disabled />
-            <p className="text-[13.5px] text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               Your sign-in address. Ask an owner to change it for you.
             </p>
           </div>
@@ -139,7 +143,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
                 {ROLE_LABEL[profile.role] ?? profile.role}
               </Badge>
               {profile.lastLoginAt ? (
-                <span className="text-[13.5px] text-muted-foreground">
+                <span className="text-[14px] text-muted-foreground">
                   Last sign-in {formatDateTime(profile.lastLoginAt)}
                 </span>
               ) : null}
@@ -235,7 +239,7 @@ function GoogleCard({ profile }: { profile: ProfileValues }) {
                   <GoogleMark className="size-4" />
                   {profile.googleEmail}
                 </span>
-                <span className="text-[13.5px] text-muted-foreground">
+                <span className="text-[14px] text-muted-foreground">
                   {profile.googleLinkedAt
                     ? `Connected ${formatDateTime(profile.googleLinkedAt)}`
                     : "Connected"}
@@ -263,7 +267,7 @@ function GoogleCard({ profile }: { profile: ProfileValues }) {
         )}
 
         {linked && !profile.hasPassword ? (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             You&apos;ve never set a password here, so Google is your only way
             in. To set one, sign out and use &ldquo;Forgot password?&rdquo; —
             after that you can disconnect.
@@ -296,7 +300,11 @@ function PasswordCard() {
       <Banners state={state} />
 
       <Card>
-        <CardHeader icon={ICONS.apiKey} title="Password" />
+        <CardHeader
+          icon={ICONS.apiKey}
+          title="Password"
+          description="Change the password you sign in with."
+        />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2 sm:col-span-2">
             <Label htmlFor="current-password">Current password</Label>
@@ -334,7 +342,7 @@ function PasswordCard() {
             />
           </div>
 
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground sm:col-span-2">
+          <p className="text-[14px] leading-relaxed text-muted-foreground sm:col-span-2">
             At least 8 characters. Changing it signs out every other device
             you&apos;re logged in on — this one stays put.
           </p>
@@ -378,7 +386,11 @@ function TwoFactorCard({ profile }: { profile: ProfileValues }) {
   return (
     <>
       <Card>
-        <CardHeader icon={ShieldIcon} title="Two-step verification" />
+        <CardHeader
+          icon={ShieldIcon}
+          title="Two-step verification"
+          description="An extra code from your phone every time you sign in."
+        />
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <StatusPill
@@ -541,7 +553,7 @@ function SetupForm({
           Can&apos;t scan? Type this key instead
         </span>
         <div className="flex items-center gap-2">
-          <code className="flex-1 select-all break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
+          <code className="flex-1 select-all break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
             {setup.manualKey}
           </code>
           <CopyButton value={setup.manualKey.replace(/\s/g, "")} />

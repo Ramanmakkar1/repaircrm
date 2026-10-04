@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { ConfirmActionDialog } from "./action-form";
+import { TILE_CLASS } from "./tile-style";
 import { ChargeCardButton } from "./charge-card-button";
 import { RefundDialog, type RefundablePayment } from "./refund-dialog";
 import { EmailReceiptMenuItem, type ReceiptAction } from "./send-receipt";
@@ -71,6 +73,8 @@ export function InvoiceActionMenu({
   chargeCard,
   refund,
   voidInvoice,
+  large = false,
+  tile = false,
 }: {
   invoiceId: string;
   invoiceNumber: number;
@@ -94,6 +98,16 @@ export function InvoiceActionMenu({
   } | null;
   /** OWNER only. `blockedReason` is set when payments are already recorded. */
   voidInvoice: { action: VoidAction; blockedReason: string | null } | null;
+  /**
+   * Easy mode: a labelled 48px "More" button instead of the 32px `⋯`, and
+   * 48px menu rows. Same items, same order, same behaviour.
+   */
+  large?: boolean;
+  /**
+   * The POS-style bill screen: "More" is one of the quick tiles (icon over the
+   * word, 64px) instead of an outline button. Same menu, same items.
+   */
+  tile?: boolean;
 }) {
   const [dialog, setDialog] = React.useState<DialogKey | null>(null);
 
@@ -115,19 +129,40 @@ export function InvoiceActionMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          {/* size-8, not the 36px `icon` default: it sits in a header row of
-              `sm` buttons and has to end level with them. */}
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8"
-            aria-label="More invoice actions"
-          >
-            <ACTIONS.more className="size-4" />
-          </Button>
+          {tile ? (
+            <button type="button" className={TILE_CLASS} aria-label="More invoice actions">
+              <ACTIONS.more aria-hidden />
+              More
+            </button>
+          ) : large ? (
+            <Button
+              variant="outline"
+              className="h-12 px-5 text-base"
+              aria-label="More invoice actions"
+            >
+              <ACTIONS.more /> More
+            </Button>
+          ) : (
+            /* size-8, not the 36px `icon` default: it sits in a header row of
+               `sm` buttons and has to end level with them. */
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8"
+              aria-label="More invoice actions"
+            >
+              <ACTIONS.more className="size-4" />
+            </Button>
+          )}
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="min-w-[13rem]">
+        <DropdownMenuContent
+          align="end"
+          className={cn(
+            "min-w-[13rem]",
+            (large || tile) && "min-w-60 [&_[role=menuitem]]:min-h-12 [&_[role=menuitem]]:text-base",
+          )}
+        >
           <DropdownMenuItem asChild>
             <Link href={printHref} target="_blank">
               <ACTIONS.print className="size-4 text-muted-foreground" />

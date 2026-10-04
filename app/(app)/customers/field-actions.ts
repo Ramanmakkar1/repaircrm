@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { renamedPlaceholder } from "@/lib/intake";
 import type { ActionResult } from "@/app/(app)/customers/actions";
 
 /**
@@ -21,6 +22,10 @@ import type { ActionResult } from "@/app/(app)/customers/actions";
  * so this endpoint cannot be pushed into setting `shopId`, `id`,
  * `creditBalanceCents` or `stripePaymentMethodId`. Anything not on the list is
  * refused before a query runs.
+ *
+ * ONE SIDE EFFECT. Changing the number a phone-only customer is named after
+ * ("Customer 7805550142") renames that placeholder to the new number. A name
+ * anybody typed is never touched — see `renamedPlaceholder`.
  *
  * NOT THE ADDRESS. address1/address2/city/state/postalCode/country are a
  * single unit — a street without its city is not a half-correct address, it is
@@ -48,6 +53,7 @@ export async function setCustomerFieldAction(
 
   let data:
     | { phone: string | null }
+    | { mobile: string | null }
     | { email: string | null }
     | { referredBy: string | null };
 
@@ -61,6 +67,15 @@ export async function setCustomerFieldAction(
         return { ok: false, error: "A phone number can be 40 characters at most." };
       }
       data = { phone: next === "" ? null : next };
+      break;
+    }
+
+    case "mobile": {
+      // Same rule as "phone": the counter form stores the main number here.
+      if (next.length > 40) {
+        return { ok: false, error: "A phone number can be 40 characters at most." };
+      }
+      data = { mobile: next === "" ? null : next };
       break;
     }
 
@@ -92,11 +107,31 @@ export async function setCustomerFieldAction(
       return { ok: false, error: "That field can't be edited from here." };
   }
 
+  // A phone-only customer is named "Customer <number>" (see splitCustomerName),
+  // so the name has to follow the number. Read the row first to know whether it
+  // still is that placeholder; same shop filter as the write below.
+  const before =
+    "phone" in data || "mobile" in data
+      ? await db.customer.findFirst({
+          where: { id: customerId, shopId },
+          select: { firstName: true, lastName: true, phone: true, mobile: true },
+        })
+      : null;
+
   const { count } = await db.customer.updateMany({
     where: { id: customerId, shopId },
     data,
   });
   if (count === 0) return { ok: false, error: "Customer not found." };
+
+  const renamed = before && renamedPlaceholder(before, before, { ...before, ...data });
+  if (before && renamed) {
+    // Matching on the name we read means a rename made in the meantime wins.
+    await db.customer.updateMany({
+      where: { id: customerId, shopId, firstName: before.firstName, lastName: before.lastName },
+      data: renamed,
+    });
+  }
 
   revalidatePath(`/customers/${customerId}`);
   revalidatePath("/customers");

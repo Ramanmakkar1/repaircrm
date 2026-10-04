@@ -80,6 +80,16 @@ export async function readUiPrefs(): Promise<UiPrefs> {
 }
 
 /**
+ * Where "home" is on this device: the box home in Easy mode, the full
+ * workbench otherwise. Sign-in lands here, so staff never start on the
+ * dashboard by accident. (`/dashboard` itself stays reachable from
+ * Home → More tools → Shop overview.)
+ */
+export async function homePath(): Promise<"/counter" | "/dashboard"> {
+  return (await readUiPrefs()).simple ? "/counter" : "/dashboard";
+}
+
+/**
  * Persist a change. Called only from the server action in
  * `app/(app)/prefs-actions.ts`, which is what makes it safe to write here —
  * a cookie cannot be set during a render.

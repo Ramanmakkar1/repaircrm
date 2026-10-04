@@ -33,7 +33,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { cn } from "@/components/ui/cn";
 
 const LocationIcon = ICONS.location;
@@ -95,7 +95,7 @@ export function LocationsTab({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           Every ticket and invoice is filed against a location. With two or more
           open, a switcher appears in the top bar to filter the whole app down to
           one of them.
@@ -230,7 +230,7 @@ function LocationCard({
 
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-hover px-2.5 py-1 text-[12.5px] font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-hover px-2.5 py-1 text-[14px] font-medium text-muted-foreground">
             <TeamIcon className="size-3.5" />
             {based.length === 0
               ? "Nobody based here"
@@ -260,7 +260,7 @@ function LocationCard({
         </div>
 
         {location.active && !canDeactivate && location.isDefault ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             The default location stays open. Make another one the default first.
           </p>
         ) : null}
@@ -543,7 +543,7 @@ function StaffDialog({
                     <span className="truncate text-sm font-semibold text-foreground">
                       {member.name}
                     </span>
-                    <span className="truncate text-[12.5px] text-muted-foreground">
+                    <span className="truncate text-[14px] text-muted-foreground">
                       {elsewhere && !checked
                         ? `Currently at ${member.defaultLocationName ?? "another location"}`
                         : member.email}

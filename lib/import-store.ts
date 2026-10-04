@@ -35,6 +35,7 @@ export type ImportBatch = {
   createdAt: number;
   headers: string[];
   rows: string[][];
+  headerRow?: number;
 };
 
 function fileFor(id: string): string {
@@ -51,6 +52,7 @@ export async function saveImportBatch(input: {
   fileName: string;
   headers: string[];
   rows: string[][];
+  headerRow?: number;
 }): Promise<string> {
   await mkdir(DIR, { recursive: true });
   void sweepImportBatches();

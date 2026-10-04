@@ -13,6 +13,7 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { RowLink } from "@/components/list/row-link";
 import { formatDate } from "@/components/billing/format";
+import { CampaignCards } from "@/components/marketing/campaign-cards";
 import { CampaignActiveSwitch, SyncAndSendButton } from "@/components/marketing/campaign-controls";
 import {
   TemplateGallery,
@@ -25,6 +26,7 @@ import {
   delayLabel,
   sendBucket,
 } from "@/components/marketing/meta";
+import { readUiPrefs } from "@/lib/prefs";
 import { countDueSends } from "./engine";
 
 export const metadata = { title: "Marketing · Repairs helper" };
@@ -53,7 +55,8 @@ export default async function MarketingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shopId } = await requireUser();
-  const view = asView((await searchParams).view);
+  const [query, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
+  const view = asView(query.view);
 
   const [campaigns, sendCounts, dueCount] = await Promise.all([
     db.campaign.findMany({
@@ -116,8 +119,8 @@ export default async function MarketingPage({
         }
         actions={
           <>
-            {!empty ? <SyncAndSendButton dueCount={dueCount} /> : null}
-            <Button variant={empty ? "default" : "outline"} asChild>
+            {!empty && !simple ? <SyncAndSendButton dueCount={dueCount} /> : null}
+            <Button variant={empty || simple ? "default" : "outline"} asChild>
               <Link href="/marketing/new">
                 <ACTIONS.add /> New campaign
               </Link>
@@ -141,6 +144,47 @@ export default async function MarketingPage({
           </p>
         </div>
       ) : (
+        simple ? (
+          <>
+            {dueCount > 0 ? (
+              <div className="flex flex-col gap-3 rounded-2xl border border-status-waiting/40 bg-status-waiting-bg p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-lg font-semibold text-status-waiting-fg">
+                    {dueCount} message{dueCount === 1 ? "" : "s"} due to go out
+                  </span>
+                  <span className="text-sm text-status-waiting-fg/80">
+                    They go out on their own within fifteen minutes, or send them now.
+                  </span>
+                </div>
+                <SyncAndSendButton dueCount={dueCount} quiet />
+              </div>
+            ) : null}
+
+            <FilterTabs
+              aria-label="Campaign views"
+              tabs={VIEWS.map((key) => ({
+                label: VIEW_LABELS[key],
+                href: hrefFor(key),
+                active: view === key,
+                count: counts[key],
+              }))}
+            />
+
+            <CampaignCards rows={rows} stats={stats} />
+
+            {dueCount === 0 ? (
+              <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Messages go out on their own every fifteen minutes. Nothing is
+                  waiting right now.
+                </p>
+                <SyncAndSendButton dueCount={0} />
+              </div>
+            ) : null}
+
+            <TemplateRow enabledNames={enabledNames} />
+          </>
+        ) : (
         <>
           <TemplateRow enabledNames={enabledNames} />
 
@@ -252,6 +296,7 @@ export default async function MarketingPage({
             </CardContent>
           </Card>
         </>
+        )
       )}
     </div>
   );

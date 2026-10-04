@@ -120,7 +120,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
         <CardContent className="flex flex-col gap-4">
           <VarRow name="JOBS_INTERVAL_MIN" value={String(config.intervalMin)} on={timerOn} />
           {timerOn ? (
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               After a restart the first run waits {config.firstDelayS} seconds
               (<Env>JOBS_FIRST_DELAY_S</Env>), so a busy boot is not spent on
               billing. Set <Env>JOBS_INTERVAL_MIN</Env> to <code>0</code> to
@@ -128,7 +128,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
               already calling the address below.
             </p>
           ) : (
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               Set <Env>JOBS_INTERVAL_MIN</Env> to a number of minutes and
               restart the app to switch it back on.
             </p>
@@ -157,7 +157,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
         />
 
         <CardContent className="flex flex-col gap-4">
-          <code className="w-fit max-w-full overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
+          <code className="w-fit max-w-full overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
             {config.cronUrl}
           </code>
 
@@ -167,7 +167,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
             on={config.cronSecretSet}
           />
 
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             {config.cronSecretSet ? (
               <>
                 Send the secret as{" "}
@@ -237,7 +237,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
             {config.recentRuns.map((run, index) => (
               <div
                 key={`${run.startedAt}-${index}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-hover px-3 py-2 text-[13px]"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-hover px-3 py-2 text-[14px]"
               >
                 <span className="font-medium text-foreground">
                   <Stamp iso={run.startedAt} />
@@ -266,7 +266,7 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
 function SummaryBlock({ summary }: { summary: JobsSummary }) {
   if (summary.skipped) {
     return (
-      <p className="rounded-md bg-surface-hover px-4 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
+      <p className="rounded-md bg-surface-hover px-4 py-3 text-[14px] leading-relaxed text-muted-foreground">
         {summary.skipped === "in-process"
           ? "A run was already going, so this one stopped rather than doing the work twice."
           : "Another run had just started, so this one stood down."}
@@ -300,7 +300,7 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
         </div>
       ) : null}
 
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-[14px] text-muted-foreground">
         {summary.shops} shop{summary.shops === 1 ? "" : "s"} checked ·{" "}
         {summary.sla?.breached ?? 0} overdue ticket
         {(summary.sla?.breached ?? 0) === 1 ? "" : "s"} flagged ·{" "}
@@ -313,7 +313,7 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
 
       {summary.errors.length > 0 ? (
         <div className="flex flex-col gap-2 rounded-md bg-status-overdue-bg px-4 py-3">
-          <span className="flex items-center gap-2 text-[13.5px] font-semibold text-status-overdue-fg">
+          <span className="flex items-center gap-2 text-[14px] font-semibold text-status-overdue-fg">
             <AlertTriangle className="size-4 shrink-0" />
             {summary.errors.length} problem
             {summary.errors.length === 1 ? "" : "s"} during the run
@@ -322,7 +322,7 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
             {summary.errors.map((error, index) => (
               <li
                 key={index}
-                className="text-[13px] leading-relaxed text-status-overdue-fg"
+                className="text-[14px] leading-relaxed text-status-overdue-fg"
               >
                 {error}
               </li>
@@ -379,7 +379,7 @@ function VarRow({
       <Env>{name}</Env>
       <code
         className={cn(
-          "rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
+          "rounded-full px-3 py-1 font-mono text-[14px] font-semibold",
           on
             ? "bg-status-resolved-bg text-status-resolved-fg"
             : "bg-surface-hover text-muted-foreground",
@@ -450,7 +450,7 @@ function useMounted(): boolean {
 
 function Env({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[13px] font-semibold text-foreground">
+    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] font-semibold text-foreground">
       {children}
     </code>
   );

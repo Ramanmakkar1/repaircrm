@@ -10,10 +10,12 @@ type Validator = (data: FormData, step: number) => GuidedIssue[];
 type NativeField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 
 /** Hidden stages stay mounted and enabled, so every field still posts normally. */
-export function useGuidedForm({ enabled, steps, validate }: {
+export function useGuidedForm({ enabled, steps, validate, staged = true }: {
   enabled: boolean;
   steps: number;
   validate: Validator;
+  /** Quick entry validates every section without requiring a review stage. */
+  staged?: boolean;
 }) {
   const formRef = React.useRef<HTMLFormElement>(null);
   const bindForm = React.useCallback((form: HTMLFormElement | null) => { formRef.current = form; }, []);
@@ -75,7 +77,7 @@ export function useGuidedForm({ enabled, steps, validate }: {
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     if (!enabled) return;
-    if (step < steps - 1) { event.preventDefault(); goTo(step + 1); return; }
+    if (staged && step < steps - 1) { event.preventDefault(); goTo(step + 1); return; }
     const nextIssues = Array.from({ length: steps }, (_, index) => collect(index)).flat();
     if (nextIssues.length) { event.preventDefault(); fail(nextIssues); }
   }
@@ -84,7 +86,7 @@ export function useGuidedForm({ enabled, steps, validate }: {
     if (!enabled || event.key !== "Enter" || event.nativeEvent.isComposing || !(event.target instanceof HTMLInputElement)) return;
     // A barcode reader or an on-screen keyboard must never create a document.
     event.preventDefault();
-    if (step < steps - 1) goTo(step + 1);
+    if (staged && step < steps - 1) goTo(step + 1);
   }
 
   function refreshReview() {
@@ -97,19 +99,19 @@ export function GuidedSteps({ labels, step, onStep, disabled = false }: { labels
   return <nav aria-label="Form progress" className="grid grid-cols-3 gap-2">
     {labels.map((label, index) => <button key={label} type="button" disabled={disabled} onClick={() => onStep(index)}
       aria-current={index === step ? "step" : undefined}
-      className={cn("flex min-h-16 min-w-0 flex-col items-start gap-2 rounded-lg border bg-white px-3 py-3 text-left text-sm font-semibold sm:flex-row sm:items-center sm:gap-3 sm:px-4",
-        index === step ? "border-blue-600 text-blue-700" : "border-border text-muted-foreground")}>
-      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full text-sm", index <= step ? "bg-blue-600 text-white" : "bg-surface-hover text-muted-foreground")}>
+      className={cn("flex min-h-16 min-w-0 flex-col items-start gap-2 rounded-lg border bg-surface px-3 py-3 text-left text-sm font-semibold sm:flex-row sm:items-center sm:gap-3 sm:px-4",
+        index === step ? "border-status-new text-status-new-fg" : "border-border text-muted-foreground")}>
+      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full text-sm", index <= step ? "bg-status-new text-accent-foreground" : "bg-surface-hover text-muted-foreground")}>
         {index < step ? <Check className="size-4" aria-hidden /> : index + 1}
       </span><span className="min-w-0 break-words">{label}</span>
     </button>)}
   </nav>;
 }
 
-export function GuidedErrors({ issues, step, onFocus }: { issues: GuidedIssue[]; step: number; onFocus: (issue: GuidedIssue) => void }) {
-  const active = issues.filter((issue) => issue.step === step);
+export function GuidedErrors({ issues, step, onFocus }: { issues: GuidedIssue[]; step?: number; onFocus: (issue: GuidedIssue) => void }) {
+  const active = step === undefined ? issues : issues.filter((issue) => issue.step === step);
   if (!active.length) return null;
-  return <div role="alert" className="rounded-lg border border-destructive/40 bg-white p-4 text-sm text-destructive">
+  return <div role="alert" className="rounded-lg border border-destructive/40 bg-surface p-4 text-sm text-destructive">
     <p className="font-semibold">Check these details before continuing</p>
     <ul className="mt-1 space-y-1">{active.map((issue, index) => <li key={issue.field + index}>
       <button type="button" onClick={() => onFocus(issue)} className="min-h-12 text-left underline underline-offset-2"><strong>{issue.label}:</strong> {issue.message}</button>
@@ -122,12 +124,12 @@ export function GuidedNavigation({ step, lastStep, onStep, children, disabled = 
 }) {
   return <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
     <div>{step > 0 ? <Button type="button" variant="outline" className="min-h-12 px-5" disabled={disabled} onClick={() => onStep(step - 1)}><ChevronLeft /> Back</Button> : null}</div>
-    <div className="flex items-center gap-3">{children}{step < lastStep ? <Button type="button" className="min-h-12 bg-black px-6 text-white hover:bg-zinc-800" disabled={disabled} onClick={() => onStep(step + 1)}>Continue <ChevronRight /></Button> : null}</div>
+    <div className="flex items-center gap-3">{children}{step < lastStep ? <Button type="button" className="min-h-12 px-6" disabled={disabled} onClick={() => onStep(step + 1)}>Continue <ChevronRight /></Button> : null}</div>
   </div>;
 }
 
 export function GuidedReview({ rows, className }: { rows: { label: string; value: React.ReactNode }[]; className?: string }) {
-  return <dl className={cn("divide-y divide-border rounded-lg border border-border bg-white px-4", className)}>
+  return <dl className={cn("divide-y divide-border rounded-lg border border-border bg-surface px-4", className)}>
     {rows.map((row) => <div key={row.label} className="grid gap-1 py-4 sm:grid-cols-[160px_1fr] sm:gap-4">
       <dt className="text-sm text-muted-foreground">{row.label}</dt><dd className="break-words text-sm font-semibold">{row.value || "Not entered"}</dd>
     </div>)}

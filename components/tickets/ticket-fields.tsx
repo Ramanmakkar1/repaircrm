@@ -56,6 +56,7 @@ export function TicketDueDate({
   value,
   resolved,
   nowMs,
+  exactDue,
 }: {
   ticketId: string;
   /** yyyy-mm-dd, or "" when the ticket has no promised date. */
@@ -69,6 +70,13 @@ export function TicketDueDate({
    * produce a mismatch on every ticket.
    */
   nowMs: number;
+  /**
+   * The stored due moment (an ISO string). The date field only keeps the day, so
+   * its chip ("Overdue 3d") can read a day apart from the repair list's, which
+   * measures from the exact time ("Overdue 2d"). Passing this makes the chip
+   * measure from the exact time too, for as long as the day has not been edited.
+   */
+  exactDue?: string | null;
 }) {
   return (
     <InlineEdit
@@ -80,7 +88,7 @@ export function TicketDueDate({
         const due = parseDateInput(raw);
         if (!due) return raw;
 
-        const chip = dueChip(due, resolved, nowMs);
+        const chip = dueChip(exactDue && raw === value ? exactDue : due, resolved, nowMs);
         // Same chip, same words as the tickets table — a due date must not
         // read one way in the list and another way here.
         return chip && chip.tone !== "later" ? (

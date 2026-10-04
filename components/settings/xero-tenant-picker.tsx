@@ -92,7 +92,7 @@ export function XeroTenantPicker({
           {busy ? <Loader2 className="animate-spin" /> : <ConnectIcon aria-hidden />}
           {busy ? "Connecting…" : "Use this organisation"}
         </Button>
-        <span className="text-[13px] text-muted-foreground">
+        <span className="text-[14px] text-muted-foreground">
           You can switch later by reconnecting Xero.
         </span>
       </div>

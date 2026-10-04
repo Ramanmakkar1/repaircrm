@@ -12,6 +12,7 @@ import {
   type SyncAndSendResult,
 } from "@/app/(app)/marketing/actions";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { ACTIONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
@@ -52,16 +53,8 @@ function report(result: SyncAndSendResult): void {
   else toast.success(summary, { description });
 }
 
-/** Inline on/off toggle on a campaign card. Optimistic, reverts on failure. */
-export function CampaignActiveSwitch({
-  campaignId,
-  active,
-  campaignName,
-}: {
-  campaignId: string;
-  active: boolean;
-  campaignName: string;
-}) {
+/** The on/off state shared by the table switch and the Easy-mode strip. Optimistic, reverts on failure. */
+function useCampaignToggle(campaignId: string, active: boolean, campaignName: string) {
   const router = useRouter();
   const [checked, setChecked] = React.useState(active);
   const [busy, setBusy] = React.useState(false);
@@ -90,6 +83,21 @@ export function CampaignActiveSwitch({
     router.refresh();
   }
 
+  return { checked, busy, toggle };
+}
+
+/** Inline on/off toggle for a campaign row in the Full-mode table. */
+export function CampaignActiveSwitch({
+  campaignId,
+  active,
+  campaignName,
+}: {
+  campaignId: string;
+  active: boolean;
+  campaignName: string;
+}) {
+  const { checked, busy, toggle } = useCampaignToggle(campaignId, active, campaignName);
+
   return (
     <Switch
       checked={checked}
@@ -97,6 +105,45 @@ export function CampaignActiveSwitch({
       onCheckedChange={toggle}
       aria-label={`${checked ? "Pause" : "Switch on"} ${campaignName}`}
     />
+  );
+}
+
+/**
+ * The Easy-mode on/off control under a campaign card: the whole 56px strip is
+ * the tap target (a bare switch is only 44 x 24), and the words follow the
+ * switch the instant it is pressed. The strip is a `<label>`, so pressing
+ * anywhere on it presses the switch inside it.
+ */
+export function CampaignActiveStrip({
+  campaignId,
+  active,
+  campaignName,
+}: {
+  campaignId: string;
+  active: boolean;
+  campaignName: string;
+}) {
+  const { checked, busy, toggle } = useCampaignToggle(campaignId, active, campaignName);
+
+  return (
+    <label
+      className={cn(
+        "flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4",
+        "transition-colors hover:border-ring active:bg-surface-hover",
+        "focus-within:ring-2 focus-within:ring-ring",
+        busy && "cursor-wait opacity-70",
+      )}
+    >
+      <span className="text-[15px] font-medium text-muted-foreground">
+        {checked ? "Sending on its own" : "Not sending"}
+      </span>
+      <Switch
+        checked={checked}
+        disabled={busy}
+        onCheckedChange={toggle}
+        aria-label={`${checked ? "Pause" : "Switch on"} ${campaignName}`}
+      />
+    </label>
   );
 }
 
@@ -138,7 +185,17 @@ export function CampaignActiveButton({
  * The list-page runner: queues newly qualifying events, then sends whatever is
  * due. Labelled with the count so pressing it is never a leap of faith.
  */
-export function SyncAndSendButton({ dueCount }: { dueCount: number }) {
+export function SyncAndSendButton({
+  dueCount,
+  quiet = false,
+}: {
+  dueCount: number;
+  /**
+   * Always the outline button, never the black one. Easy mode uses it so the
+   * page keeps one primary action ("New campaign") even when messages are due.
+   */
+  quiet?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
 
@@ -152,7 +209,7 @@ export function SyncAndSendButton({ dueCount }: { dueCount: number }) {
 
   return (
     <Button
-      variant={dueCount > 0 ? "default" : "outline"}
+      variant={dueCount > 0 && !quiet ? "default" : "outline"}
       disabled={busy}
       onClick={run}
     >

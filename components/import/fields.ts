@@ -7,6 +7,8 @@
  */
 
 export type ImportKind = "customers" | "products";
+/** Explicit mapping choice for sheets without their own product codes. */
+export const GENERATE_SKU = -2;
 
 export type FieldKind = "text" | "email" | "phone" | "money" | "int" | "bool";
 
@@ -158,19 +160,21 @@ export function readBool(value: string): boolean | null {
 export function readMoney(value: string): number | null {
   const text = value.trim();
   if (text === "") return null;
-  const cleaned = text.replace(/[^0-9.\-]/g, "");
-  const parsed = Number.parseFloat(cleaned);
-  if (!Number.isFinite(parsed)) return Number.NaN;
-  return Math.round(parsed * 100);
+  const cleaned = text.replace(/^(?:USD|CAD|NZD|AUD|GBP)\s*/i, "").replace(/^[$£€]\s*/, "");
+  // A decimal comma or mixed text must be reviewed, never converted to another price.
+  if (!/^-?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(cleaned)) return Number.NaN;
+  const cents = Math.round(Number(cleaned.replace(/,/g, "")) * 100);
+  return Number.isSafeInteger(cents) ? cents : Number.NaN;
 }
 
 /** "12 units" -> 12. Returns null for blank, NaN for unparseable. */
 export function readInt(value: string): number | null {
   const text = value.trim();
   if (text === "") return null;
-  const cleaned = text.replace(/[^0-9\-]/g, "");
-  const parsed = Number.parseInt(cleaned, 10);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
+  const match = /^(-?(?:\d+|\d{1,3}(?:,\d{3})+))(?:\s+(?:units?|pcs?|pieces?))?$/i.exec(text);
+  if (!match) return Number.NaN;
+  const parsed = Number(match[1].replace(/,/g, ""));
+  return Number.isSafeInteger(parsed) ? parsed : Number.NaN;
 }
 
 /**

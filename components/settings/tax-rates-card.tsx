@@ -73,6 +73,7 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
         <CardHeader
           icon={ICONS.tax}
           title="Tax rates"
+          description="Your named rates. The starred one is what new documents use."
           action={
             <Button
               type="button"
@@ -170,7 +171,7 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
             </ul>
           )}
 
-          <p className="max-w-prose text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="max-w-prose text-[14px] leading-relaxed text-muted-foreground">
             The starred rate is what new documents use, and it is the same number
             as the sales tax rate above. A customer can be pinned to a different
             rate, or marked tax exempt, on their own record.
@@ -327,7 +328,7 @@ function TaxRateDialog({
               <span className="text-[14px] font-semibold text-foreground">
                 Shop default
               </span>
-              <span className="text-[13px] text-muted-foreground">
+              <span className="text-[14px] text-muted-foreground">
                 What new documents use when the customer has no rate of their own.
               </span>
             </span>
@@ -343,7 +344,7 @@ function TaxRateDialog({
               <span className="text-[14px] font-semibold text-foreground">
                 Active
               </span>
-              <span className="text-[13px] text-muted-foreground">
+              <span className="text-[14px] text-muted-foreground">
                 Uncheck to retire it without touching old documents.
               </span>
             </span>

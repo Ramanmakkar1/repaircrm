@@ -20,6 +20,7 @@ export function Pagination({
   page,
   total,
   params,
+  big = false,
 }: {
   basePath: string;
   /** 1-based. */
@@ -27,6 +28,12 @@ export function Pagination({
   total: number;
   /** Filters to carry across pages. */
   params: Record<string, string | undefined>;
+  /**
+   * Easy mode: two big Previous / Next buttons with "Page 2 of 5" between them,
+   * sitting under a card grid rather than inside a table's footer. Renders
+   * nothing when everything fits on one page.
+   */
+  big?: boolean;
 }) {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -41,6 +48,58 @@ export function Pagination({
     const qs = search.toString();
     return qs ? `${basePath}?${qs}` : basePath;
   };
+
+  if (big) {
+    if (pageCount <= 1) return null;
+    return (
+      <nav aria-label="Pages" className="flex items-center justify-between gap-3">
+        <Button
+          asChild={page > 1}
+          variant="outline"
+          disabled={page <= 1}
+          className="h-12 flex-1 text-base sm:max-w-48 sm:flex-none"
+        >
+          {page > 1 ? (
+            <Link href={href(page - 1)} scroll={false}>
+              <ACTIONS.back />
+              Previous
+            </Link>
+          ) : (
+            <span>
+              <ACTIONS.back />
+              Previous
+            </span>
+          )}
+        </Button>
+        <p className="rf-num shrink-0 text-center leading-tight">
+          <span className="block text-base font-semibold text-foreground">
+            Page {page} of {pageCount}
+          </span>
+          <span className="block text-[13px] text-muted-foreground">
+            {from}–{to} of {total}
+          </span>
+        </p>
+        <Button
+          asChild={page < pageCount}
+          variant="outline"
+          disabled={page >= pageCount}
+          className="h-12 flex-1 text-base sm:max-w-48 sm:flex-none"
+        >
+          {page < pageCount ? (
+            <Link href={href(page + 1)} scroll={false}>
+              Next
+              <ACTIONS.next />
+            </Link>
+          ) : (
+            <span>
+              Next
+              <ACTIONS.next />
+            </span>
+          )}
+        </Button>
+      </nav>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5">

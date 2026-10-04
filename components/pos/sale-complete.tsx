@@ -56,7 +56,7 @@ export function SaleComplete({
     <div className="mx-auto flex w-full max-w-xl flex-col gap-5 py-6">
       <Card className="overflow-hidden">
         <div className="flex flex-col items-center gap-4 bg-status-resolved-bg px-6 py-10 text-center">
-          <span className="flex size-16 items-center justify-center rounded-full bg-status-resolved text-white shadow-md">
+          <span className="flex size-16 items-center justify-center rounded-full bg-status-resolved text-background shadow-md">
             <CheckCircle2 className="size-9" strokeWidth={2.25} />
           </span>
           <div className="flex flex-col gap-1.5">

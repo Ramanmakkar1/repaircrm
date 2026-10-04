@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { endOfDay } from "date-fns";
 import type { Prisma } from "@prisma/client";
 
@@ -7,13 +8,29 @@ import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-sear
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { locationWhere } from "@/lib/location";
+import { readUiPrefs } from "@/lib/prefs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { RecordGrid } from "@/components/ui/record-card";
 import { TicketCard } from "@/components/tickets/ticket-card";
+import { RepairCard } from "@/components/tickets/repair-card";
+import { RepairPager } from "@/components/tickets/repair-pager";
+import { PickupCounter } from "@/components/tickets/pickup-counter";
+import { loadPickupCards } from "@/components/tickets/pickup-data";
+import { isPickupView, pickupSearchFields } from "@/components/tickets/pickup-card-facts";
+import { RevealActiveTab } from "@/components/tickets/reveal-active-tab";
+import {
+  buildViewCounts,
+  repairEmpty,
+  repairViews,
+  viewCount,
+  viewIsActive,
+  viewPatch,
+} from "@/components/tickets/repair-card-facts";
 import { SavedViewsControl } from "@/components/list/saved-views";
 import {
   BulkBar,
@@ -36,7 +53,7 @@ import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { listSavedViews } from "@/lib/saved-views-query";
 import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
 
-export const metadata: Metadata = { title: "Tickets · Repairs helper" };
+export const metadata: Metadata = { title: "Repairs · Repairs helper" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -53,8 +70,15 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { shopId } = await requireUser();
-  const params = await searchParams;
+  const [{ shopId }, params, prefs, branch] = await Promise.all([
+    requireUser(),
+    searchParams,
+    readUiPrefs(),
+    locationWhere(),
+  ]);
+  // Easy mode: picture cards, big tabs with counts. Full mode keeps the dense
+  // card board with bulk selection.
+  const simple = prefs.simple;
 
   const filters: TicketFilterValues = {
     q: one(params.q, "").trim(),
@@ -69,19 +93,51 @@ export default async function TicketsPage({
   const page = Math.max(1, Number.parseInt(one(params.page, "1"), 10) || 1);
 
   // ------------------------------------------------------------- filters ---
-  // Every branch narrows an already shop-scoped `where`; shopId is never
+  // Every branch narrows an already shop-scoped `base`; shopId is never
   // overridable from the query string.
   // The branch on screen, when one is selected. `locationWhere()` re-validates
   // the cookie against this shop, so it can only ever narrow to our own rows.
-  const where: Prisma.TicketWhereInput = { shopId, ...(await locationWhere()) };
+  //
+  // `base` is everything EXCEPT the view (status / needs reply / due): it is
+  // what the Easy mode tab counts are measured over, so a tab promises exactly
+  // the number of repairs it will open under the same search and filters.
+  const base: Prisma.TicketWhereInput = { shopId, ...branch };
 
   // One request-time clock: the due filters below and every row in the render
   // must agree on where "now" is.
   const requestNow = new Date();
 
   // Computed for every render, not just the filtered one: the same set draws
-  // the blue dot on each row, so one query serves both.
-  const needsReply = new Set(await needsReplyTicketIds(shopId));
+  // the dot on each row, so one query serves both.
+  const needsReply = new Set(await needsReplyTicketIds(shopId, branch.locationId));
+
+  if (tech === "unassigned") {
+    base.assignedToId = null;
+  } else if (tech !== "all") {
+    base.assignedToId = tech;
+  }
+
+  if (problemType !== "all") {
+    base.problemType = problemType;
+  }
+
+  if (customerId) {
+    base.customerId = customerId;
+  }
+
+  if (q) {
+    const asNumber = documentNumber(q);
+    const like = { contains: q, mode: "insensitive" as const };
+    base.OR = [
+      { subject: like },
+      ...(await customerMatchClauses(shopId, q)).map((customer) => ({ customer })),
+      // The IMEI / serial on the device, or the device itself ("pixel 8").
+      { asset: { OR: [{ serial: like }, { make: like }, { model: like }] } },
+      ...(asNumber !== null ? [{ number: asNumber }] : []),
+    ];
+  }
+
+  const where: Prisma.TicketWhereInput = { ...base };
 
   if (status === NEEDS_REPLY_FILTER) {
     // An empty `in` is a legitimate "nothing matches" rather than a no-op, so
@@ -91,20 +147,6 @@ export default async function TicketsPage({
     where.status = { not: RESOLVED_STATUS };
   } else if (status !== "all") {
     where.status = status;
-  }
-
-  if (tech === "unassigned") {
-    where.assignedToId = null;
-  } else if (tech !== "all") {
-    where.assignedToId = tech;
-  }
-
-  if (problemType !== "all") {
-    where.problemType = problemType;
-  }
-
-  if (customerId) {
-    where.customerId = customerId;
   }
 
   // Due filters only ever mean anything for work that is still open, so they
@@ -117,18 +159,6 @@ export default async function TicketsPage({
     where.status = { not: RESOLVED_STATUS };
   }
 
-  if (q) {
-    const asNumber = documentNumber(q);
-    const like = { contains: q, mode: "insensitive" as const };
-    where.OR = [
-      { subject: like },
-      ...(await customerMatchClauses(shopId, q)).map((customer) => ({ customer })),
-      // The IMEI / serial on the device, or the device itself ("pixel 8").
-      { asset: { OR: [{ serial: like }, { make: like }, { model: like }] } },
-      ...(asNumber !== null ? [{ number: asNumber }] : []),
-    ];
-  }
-
   // "Due soonest" puts undated tickets last — otherwise a null dueDate would
   // sort to the top and bury the work that actually has a deadline.
   const orderBy: Prisma.TicketOrderByWithRelationInput[] =
@@ -136,7 +166,7 @@ export default async function TicketsPage({
       ? [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }]
       : [{ createdAt: "desc" }];
 
-  const [shop, techs, problems, total, tickets] = await Promise.all([
+  const [shop, techs, problems, total, tickets, statusRows, overdueCount, needsReplyCount] = await Promise.all([
     db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
     db.user.findMany({
       where: { shopId, active: true },
@@ -170,6 +200,18 @@ export default async function TicketsPage({
         },
         assignedTo: { select: { name: true } },
         asset: { select: { type: true, make: true, model: true } },
+        // Easy mode only: the intake photo for the card's picture. Image files
+        // only, oldest first (the check-in photo), a handful at most.
+        ...(simple
+          ? {
+              attachments: {
+                where: { mimeType: { in: ["image/jpeg", "image/png", "image/webp", "image/avif"] } },
+                orderBy: { createdAt: "asc" as const },
+                take: 8,
+                select: { id: true, fileName: true },
+              },
+            }
+          : {}),
         // The card shows these; the table it replaced did not, so they are
         // new to this query rather than left over from it.
         checklist: true,
@@ -185,6 +227,16 @@ export default async function TicketsPage({
         },
       },
     }),
+    // The tab counts (Easy mode only; Full mode does not show them).
+    simple
+      ? db.ticket.groupBy({ by: ["status"], where: base, _count: { _all: true } })
+      : Promise.resolve(null),
+    simple
+      ? db.ticket.count({ where: { ...base, dueDate: { lt: requestNow }, status: { not: RESOLVED_STATUS } } })
+      : Promise.resolve(0),
+    simple
+      ? db.ticket.count({ where: { ...base, id: { in: [...needsReply] } } })
+      : Promise.resolve(0),
   ]);
 
   // Single request-time clock, so every row in this render is measured against
@@ -233,34 +285,39 @@ export default async function TicketsPage({
     ...statuses.map((s) => ({ key: s, label: s })),
   ];
 
-  return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Tickets"
-        description="Track repair jobs from intake to pickup."
-        actions={
-          <Button asChild>
-            <Link href="/tickets/new">
-              <ACTIONS.add />
-              New Ticket
-            </Link>
-          </Button>
-        }
-      />
+  // ------------------------------------------------------------ Easy mode ---
+  // The register-style screen: one primary action, big tabs that carry their
+  // counts, one big search, and a picture card per repair. Everything the Full
+  // mode board can do is still here: the same filters, saved views, sort and
+  // paging, and the bulk actions stay in Full mode.
+  if (simple) {
+    // A page number past the end (an old link, a list that shrank) lands on the
+    // last page that exists instead of an empty list that says "no repairs".
+    if (tickets.length === 0 && total > 0 && page > 1) redirect(pageHref(pageCount));
 
-      <div className="flex flex-col gap-3">
-        {/*
-          The built-in views, then this user's saved ones, in one strip. A
-          saved view IS a view — rendering it as a different kind of control
-          would say it was a different kind of thing.
-        */}
+    const easyViews = repairViews(statuses);
+    const counts = statusRows
+      ? buildViewCounts(
+          statusRows.map((row) => ({ status: row.status, count: row._count._all })),
+          { needsReply: needsReplyCount, overdue: overdueCount },
+        )
+      : null;
+    const from = (page - 1) * PAGE_SIZE + 1;
+    const clearHref = filterHref({ q: "", status: "open", tech: "all", problemType: "all", due: "all" });
+    const empty = repairEmpty({ status, due, filtered: isFiltered });
+
+    // The view tabs are drawn once and shared by the ordinary Easy list and the
+    // pickup counter below, so the two can never offer different tabs.
+    const easyTabs = (
+      <RevealActiveTab>
         <FilterTabs
-          aria-label="Ticket views"
+          aria-label="Repair views"
           tabs={[
-            ...views.map((view) => ({
+            ...easyViews.map((view) => ({
               label: view.label,
-              href: filterHref({ status: view.key }),
-              active: status === view.key,
+              href: filterHref(viewPatch(view, due)),
+              active: viewIsActive(view, { status, due }),
+              count: viewCount(view, counts),
             })),
             ...savedViews.map((view) => ({
               label: view.name,
@@ -272,17 +329,180 @@ export default async function TicketsPage({
             <SavedViewsControl
               path="/tickets"
               views={savedViews}
-              builtIn={views.map((view) => ({
+              builtIn={easyViews.map((view) => ({
                 label: view.label,
                 query: normalizeViewQuery(
-                  new URLSearchParams(
-                    view.key ? { status: view.key } : {},
-                  ).toString(),
+                  new URLSearchParams({ status: view.status, ...(view.due ? { due: view.due } : {}) }).toString(),
                 ),
               }))}
             />
           }
         />
+      </RevealActiveTab>
+    );
+
+    // Ready for pickup is the moment a customer collects a device: a pickup
+    // counter instead of the list (cards with the money and one big button).
+    if (isPickupView({ status, due })) {
+      const cards = await loadPickupCards({ shopId, tickets, readyStatus: status });
+      return (
+        <PickupCounter
+          cards={cards}
+          now={now}
+          total={total}
+          q={q}
+          tabs={easyTabs}
+          searchFields={pickupSearchFields(filters)}
+          clearHref={filterHref({ q: "" })}
+          repairsHref={clearHref}
+          showTotals={pageCount <= 1}
+          pager={
+            <RepairPager
+              page={page}
+              pageCount={pageCount}
+              from={from}
+              to={Math.min(page * PAGE_SIZE, total)}
+              total={total}
+              previousHref={pageHref(page - 1)}
+              nextHref={pageHref(page + 1)}
+            />
+          }
+        />
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-5">
+        <PageHeader
+          title="Repairs"
+          description="Every job, from check-in to pickup."
+          actions={
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href="/tickets/new">
+                <ACTIONS.add />
+                New repair
+              </Link>
+            </Button>
+          }
+        />
+
+        <div className="flex flex-col gap-3">
+          {easyTabs}
+
+          <TicketToolbar
+            simple
+            values={filters}
+            problemTypes={problems.map((p) => p.problemType)}
+            techs={techs}
+          />
+        </div>
+
+        {tickets.length === 0 ? (
+          <Card className="rounded-2xl shadow-none">
+            <EmptyState
+              icon={ICONS.ticket}
+              title={empty.title}
+              hint={empty.hint}
+              action={
+                empty.action === "new" ? (
+                  <Button asChild variant="outline" size="lg">
+                    <Link href="/tickets/new">
+                      <ACTIONS.add />
+                      New repair
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild variant="outline" size="lg">
+                    <Link href={clearHref}>{empty.action === "open" ? "Show open repairs" : "Clear filters"}</Link>
+                  </Button>
+                )
+              }
+            />
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-5">
+            <RecordGrid>
+              {tickets.map((ticket) => (
+                <li key={ticket.id}>
+                  <RepairCard
+                    now={now}
+                    className="h-full"
+                    repair={{
+                      ...ticket,
+                      needsReply: needsReply.has(ticket.id),
+                      checklist: checklistProgress(parseChecklist(ticket.checklist)),
+                    }}
+                  />
+                </li>
+              ))}
+            </RecordGrid>
+            <RepairPager
+              page={page}
+              pageCount={pageCount}
+              from={from}
+              to={Math.min(page * PAGE_SIZE, total)}
+              total={total}
+              previousHref={pageHref(page - 1)}
+              nextHref={pageHref(page + 1)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Repairs"
+        description="Track repair jobs from intake to pickup."
+        actions={
+          <Button asChild>
+            <Link href="/tickets/new">
+              <ACTIONS.add />
+              New repair
+            </Link>
+          </Button>
+        }
+      />
+
+      <div className="flex flex-col gap-3">
+        {/*
+          The built-in views, then this user's saved ones, in one strip. A
+          saved view IS a view — rendering it as a different kind of control
+          would say it was a different kind of thing.
+        */}
+        <RevealActiveTab>
+          <FilterTabs
+            aria-label="Ticket views"
+            tabs={[
+              ...views.map((view) => ({
+                label: view.label,
+                href: filterHref({ status: view.key }),
+                active: status === view.key,
+              })),
+              ...savedViews.map((view) => ({
+                label: view.name,
+                href: savedViewHref("/tickets", view.query),
+                active: view.query === currentQuery,
+              })),
+            ]}
+            trailing={
+              <SavedViewsControl
+                path="/tickets"
+                views={savedViews}
+                builtIn={views.map((view) => ({
+                  label: view.label,
+                  query: normalizeViewQuery(
+                    new URLSearchParams(
+                      view.key ? { status: view.key } : {},
+                    ).toString(),
+                  ),
+                }))}
+              />
+            }
+          />
+        </RevealActiveTab>
 
         {/*
           One row of controls, not three. Due and Tech moved into the Filters
@@ -339,7 +559,7 @@ export default async function TicketsPage({
                   <Button asChild>
                     <Link href="/tickets/new">
                       <ACTIONS.add />
-                      New Ticket
+                      New repair
                     </Link>
                   </Button>
                 )
@@ -358,8 +578,8 @@ export default async function TicketsPage({
               A repair queue is not a spreadsheet. The question a front desk
               actually asks it is "what is on the bench and what is late",
               and a card answers that in one glance: whose it is, what it is,
-              how it is going, who has it. The status is a stripe down the
-              edge, so a board reads as colour before it reads as words.
+              how it is going, who has it. The status is a word with a dot
+              in the corner of the card.
 
               The table has not been thrown away — it is the right shape for
               money, and the invoice and estimate lists keep it.

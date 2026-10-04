@@ -1,0 +1,807 @@
+{
+ "createdAt": "2026-10-03",
+ "generator": "Codex built-in image_gen (delegated from Claude Code)",
+ "useCase": "product-mockup",
+ "note": "On-server picture library for automatic product pictures: generic, unbranded category photographs of the items a repair and accessories shop sells. Not exact manufacturer or SKU images. A few shapes resemble well-known products (e.g. detachable controllers, a VR headset, earbuds, a delivery van) but carry no logos or text.",
+ "inspection": {
+  "method": "seven contact sheets reviewed by eye plus the generator's own check",
+  "result": "Complete subjects on white studio backgrounds; no legible text, brand marks or packaging. Standard electrical dial symbols on the multimeter are the only markings. wallet-case was regenerated once because the first version showed a banknote and a wallpaper."
+ },
+ "export": {
+  "format": "WebP",
+  "width": 768,
+  "height": 768,
+  "quality": 88,
+  "tool": "sharp, fit=cover",
+  "folder": "public/images/catalog"
+ },
+ "styleTemplate": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, brand marks, text, numbers, labels, watermarks, UI or packaging; generic and unbranded.",
+ "assets": [
+  {
+   "path": "public/images/catalog/privacy-screen-protector.webp",
+   "label": "Privacy screen protector",
+   "group": "Screen & body protection",
+   "subject": "A tempered glass privacy screen protector for a smartphone shown at a slight angle, dark smoky glass with a thin black border"
+  },
+  {
+   "path": "public/images/catalog/camera-lens-protector.webp",
+   "label": "Camera lens protector",
+   "group": "Screen & body protection",
+   "subject": "Three small circular glass camera lens protector rings with thin black metal rims, laid out together"
+  },
+  {
+   "path": "public/images/catalog/hydrogel-film.webp",
+   "label": "Hydrogel screen film",
+   "group": "Screen & body protection",
+   "subject": "A clear flexible hydrogel screen protector film sheet, smartphone-sized, one corner peeled up from a blue backing layer"
+  },
+  {
+   "path": "public/images/catalog/back-skin-film.webp",
+   "label": "Back skin film",
+   "group": "Screen & body protection",
+   "subject": "A carbon-fibre textured black adhesive back skin film cut to a smartphone shape with a camera cut-out, one corner peeled up"
+  },
+  {
+   "path": "public/images/catalog/silicone-case.webp",
+   "label": "Silicone phone case",
+   "group": "Screen & body protection",
+   "subject": "A soft matte dark blue silicone smartphone case seen from the back with a camera cut-out"
+  },
+  {
+   "path": "public/images/catalog/wallet-case.webp",
+   "label": "Wallet flip case",
+   "group": "Screen & body protection",
+   "subject": "A black leather flip wallet case for a smartphone, opened to show card slots, no logo"
+  },
+  {
+   "path": "public/images/catalog/rugged-case.webp",
+   "label": "Rugged armor case",
+   "group": "Screen & body protection",
+   "subject": "A heavy-duty two-layer rugged armor smartphone case in black and grey with raised shock-absorbing corners"
+  },
+  {
+   "path": "public/images/catalog/magnetic-case.webp",
+   "label": "Magnetic phone case",
+   "group": "Screen & body protection",
+   "subject": "A clear smartphone case seen from the back showing a visible circular magnetic ring"
+  },
+  {
+   "path": "public/images/catalog/tablet-case.webp",
+   "label": "Tablet folio case",
+   "group": "Screen & body protection",
+   "subject": "A dark grey tablet folio case with a fold-out stand, opened at an angle with a blank pale blue tablet screen"
+  },
+  {
+   "path": "public/images/catalog/laptop-sleeve.webp",
+   "label": "Laptop sleeve",
+   "group": "Screen & body protection",
+   "subject": "A closed grey padded neoprene laptop sleeve with a zipper, no logo"
+  },
+  {
+   "path": "public/images/catalog/phone-grip.webp",
+   "label": "Phone grip stand",
+   "group": "Screen & body protection",
+   "subject": "A round black collapsible phone grip stand (pop-socket style) shown on its own, expanded"
+  },
+  {
+   "path": "public/images/catalog/phone-lanyard.webp",
+   "label": "Phone lanyard strap",
+   "group": "Screen & body protection",
+   "subject": "A black and white woven phone neck lanyard strap with a small clip, loosely coiled"
+  },
+  {
+   "path": "public/images/catalog/wall-charger.webp",
+   "label": "USB-C wall charger",
+   "group": "Chargers, cables & power",
+   "subject": "A compact white USB-C fast wall charger plug on its own, no cable"
+  },
+  {
+   "path": "public/images/catalog/car-charger.webp",
+   "label": "Car charger",
+   "group": "Chargers, cables & power",
+   "subject": "A small black dual-port USB car charger adapter with a glowing blue ring"
+  },
+  {
+   "path": "public/images/catalog/wireless-charger.webp",
+   "label": "Wireless charger pad",
+   "group": "Chargers, cables & power",
+   "subject": "A round black wireless charging pad with a thin cable attached"
+  },
+  {
+   "path": "public/images/catalog/power-bank.webp",
+   "label": "Power bank",
+   "group": "Chargers, cables & power",
+   "subject": "A slim silver portable power bank with a small LED indicator strip and a short cable beside it"
+  },
+  {
+   "path": "public/images/catalog/lightning-cable.webp",
+   "label": "Lightning cable",
+   "group": "Chargers, cables & power",
+   "subject": "A white Lightning charging cable loosely coiled, with the Lightning connector and USB-A end both visible"
+  },
+  {
+   "path": "public/images/catalog/micro-usb-cable.webp",
+   "label": "Micro-USB cable",
+   "group": "Chargers, cables & power",
+   "subject": "A black micro-USB charging cable loosely coiled, both connectors visible"
+  },
+  {
+   "path": "public/images/catalog/braided-cable.webp",
+   "label": "Braided charging cable",
+   "group": "Chargers, cables & power",
+   "subject": "A grey braided nylon USB-C to USB-C charging cable, coiled"
+  },
+  {
+   "path": "public/images/catalog/aux-cable.webp",
+   "label": "Aux audio cable",
+   "group": "Chargers, cables & power",
+   "subject": "A black 3.5 mm aux audio cable coiled with straight gold-tipped plugs"
+  },
+  {
+   "path": "public/images/catalog/hdmi-cable.webp",
+   "label": "HDMI cable",
+   "group": "Chargers, cables & power",
+   "subject": "A black HDMI cable loosely coiled with both connectors visible"
+  },
+  {
+   "path": "public/images/catalog/ethernet-cable.webp",
+   "label": "Ethernet cable",
+   "group": "Chargers, cables & power",
+   "subject": "A blue Cat6 ethernet network cable coiled with both RJ45 connectors visible"
+  },
+  {
+   "path": "public/images/catalog/usb-hub.webp",
+   "label": "USB-C hub",
+   "group": "Chargers, cables & power",
+   "subject": "A slim aluminium multi-port USB-C hub adapter with several ports, short cable"
+  },
+  {
+   "path": "public/images/catalog/charging-station.webp",
+   "label": "Charging station",
+   "group": "Chargers, cables & power",
+   "subject": "A black multi-device USB charging station with five ports"
+  },
+  {
+   "path": "public/images/catalog/laptop-charger.webp",
+   "label": "Laptop charger",
+   "group": "Chargers, cables & power",
+   "subject": "A black laptop power adapter brick with a coiled cable and a round barrel plug"
+  },
+  {
+   "path": "public/images/catalog/universal-adapter.webp",
+   "label": "Universal laptop adapter",
+   "group": "Chargers, cables & power",
+   "subject": "A universal laptop power adapter with a set of interchangeable tips arranged beside it"
+  },
+  {
+   "path": "public/images/catalog/surge-protector.webp",
+   "label": "Surge protector strip",
+   "group": "Chargers, cables & power",
+   "subject": "A white six-outlet power strip surge protector with an illuminated switch"
+  },
+  {
+   "path": "public/images/catalog/ac-power-cable.webp",
+   "label": "Power cable",
+   "group": "Chargers, cables & power",
+   "subject": "A black figure-8 AC power cable loosely coiled"
+  },
+  {
+   "path": "public/images/catalog/controller-dock.webp",
+   "label": "Controller charging dock",
+   "group": "Chargers, cables & power",
+   "subject": "A black dual game-controller charging dock with two plain controllers docked"
+  },
+  {
+   "path": "public/images/catalog/otg-adapter.webp",
+   "label": "OTG adapter",
+   "group": "Chargers, cables & power",
+   "subject": "A tiny black USB-C to USB-A OTG adapter"
+  },
+  {
+   "path": "public/images/catalog/aux-adapter.webp",
+   "label": "Audio adapter dongle",
+   "group": "Chargers, cables & power",
+   "subject": "A short white USB-C to 3.5 mm headphone jack adapter dongle"
+  },
+  {
+   "path": "public/images/catalog/smart-plug.webp",
+   "label": "Smart plug",
+   "group": "Chargers, cables & power",
+   "subject": "A white WiFi smart plug socket adapter"
+  },
+  {
+   "path": "public/images/catalog/wired-earphones.webp",
+   "label": "Wired earphones",
+   "group": "Audio",
+   "subject": "A pair of white wired in-ear earphones with a 3.5 mm plug, cable loosely coiled"
+  },
+  {
+   "path": "public/images/catalog/bluetooth-speaker.webp",
+   "label": "Bluetooth speaker",
+   "group": "Audio",
+   "subject": "A portable cylindrical black Bluetooth speaker with a mesh grille and a rubber strap"
+  },
+  {
+   "path": "public/images/catalog/gaming-headset.webp",
+   "label": "Gaming headset",
+   "group": "Audio",
+   "subject": "A black gaming headset with a boom microphone and padded headband"
+  },
+  {
+   "path": "public/images/catalog/microphone.webp",
+   "label": "Microphone",
+   "group": "Audio",
+   "subject": "A black USB condenser microphone on a small tabletop stand"
+  },
+  {
+   "path": "public/images/catalog/soundbar.webp",
+   "label": "Soundbar",
+   "group": "Audio",
+   "subject": "A slim black soundbar speaker"
+  },
+  {
+   "path": "public/images/catalog/earbuds-case.webp",
+   "label": "Earbuds case cover",
+   "group": "Audio",
+   "subject": "A small soft silicone protective cover for a wireless earbuds charging case with a carabiner clip"
+  },
+  {
+   "path": "public/images/catalog/touch-digitizer.webp",
+   "label": "Touch digitizer",
+   "group": "Phone & tablet parts",
+   "subject": "A black replacement touchscreen glass digitizer panel for a smartphone with a flex cable tail"
+  },
+  {
+   "path": "public/images/catalog/loudspeaker.webp",
+   "label": "Loudspeaker module",
+   "group": "Phone & tablet parts",
+   "subject": "A small rectangular smartphone loudspeaker buzzer module with a black housing and spring contacts"
+  },
+  {
+   "path": "public/images/catalog/mic-flex.webp",
+   "label": "Microphone flex",
+   "group": "Phone & tablet parts",
+   "subject": "A short smartphone microphone flex cable with a tiny microphone component"
+  },
+  {
+   "path": "public/images/catalog/vibration-motor.webp",
+   "label": "Vibration motor",
+   "group": "Phone & tablet parts",
+   "subject": "A small cylindrical smartphone vibration motor with two short wires"
+  },
+  {
+   "path": "public/images/catalog/power-volume-flex.webp",
+   "label": "Power & volume flex",
+   "group": "Phone & tablet parts",
+   "subject": "An orange flex cable with power and volume button contacts for a smartphone"
+  },
+  {
+   "path": "public/images/catalog/home-button.webp",
+   "label": "Home button",
+   "group": "Phone & tablet parts",
+   "subject": "A round smartphone home button with a flex cable, silver ring"
+  },
+  {
+   "path": "public/images/catalog/sim-tray.webp",
+   "label": "SIM tray",
+   "group": "Phone & tablet parts",
+   "subject": "A small metal smartphone SIM card tray with a SIM card seated in it"
+  },
+  {
+   "path": "public/images/catalog/sim-ejector.webp",
+   "label": "SIM ejector pin",
+   "group": "Phone & tablet parts",
+   "subject": "A small silver SIM card eject pin tool with a round loop end"
+  },
+  {
+   "path": "public/images/catalog/back-housing.webp",
+   "label": "Back housing",
+   "group": "Phone & tablet parts",
+   "subject": "A grey aluminium smartphone back housing frame with a camera opening and button cut-outs"
+  },
+  {
+   "path": "public/images/catalog/front-camera.webp",
+   "label": "Front camera module",
+   "group": "Phone & tablet parts",
+   "subject": "A small front camera module on a short flex cable for a smartphone"
+  },
+  {
+   "path": "public/images/catalog/battery-adhesive.webp",
+   "label": "Battery adhesive strips",
+   "group": "Phone & tablet parts",
+   "subject": "A few white battery adhesive tape strips with pull tabs"
+  },
+  {
+   "path": "public/images/catalog/repair-glue.webp",
+   "label": "Repair adhesive glue",
+   "group": "Phone & tablet parts",
+   "subject": "A small black bottle of repair adhesive glue with a fine nozzle tip, plain with no label text"
+  },
+  {
+   "path": "public/images/catalog/screw-set.webp",
+   "label": "Screw set",
+   "group": "Phone & tablet parts",
+   "subject": "A small round tray holding tiny assorted silver and black phone repair screws"
+  },
+  {
+   "path": "public/images/catalog/tablet-screen.webp",
+   "label": "Tablet screen",
+   "group": "Phone & tablet parts",
+   "subject": "A black tablet LCD touchscreen replacement panel with a flex cable tail"
+  },
+  {
+   "path": "public/images/catalog/tablet-battery.webp",
+   "label": "Tablet battery",
+   "group": "Phone & tablet parts",
+   "subject": "A flat tablet lithium battery pack with a connector and short cable"
+  },
+  {
+   "path": "public/images/catalog/phone-cooler.webp",
+   "label": "Phone cooling fan clip",
+   "group": "Phone & tablet parts",
+   "subject": "A small black clip-on phone cooling fan with a blue-lit fan"
+  },
+  {
+   "path": "public/images/catalog/clip-on-lens.webp",
+   "label": "Clip-on phone lens",
+   "group": "Phone & tablet parts",
+   "subject": "A clip-on phone camera lens attachment kit with a round lens and a spring clip"
+  },
+  {
+   "path": "public/images/catalog/microsd-card.webp",
+   "label": "MicroSD card",
+   "group": "Storage & memory",
+   "subject": "A microSD memory card next to its small SD adapter, blank unlabeled faces"
+  },
+  {
+   "path": "public/images/catalog/sd-card.webp",
+   "label": "SD card",
+   "group": "Storage & memory",
+   "subject": "A standard SD memory card, blank unlabeled face"
+  },
+  {
+   "path": "public/images/catalog/usb-flash-drive.webp",
+   "label": "USB flash drive",
+   "group": "Storage & memory",
+   "subject": "A silver USB flash drive with a cap beside it"
+  },
+  {
+   "path": "public/images/catalog/external-hard-drive.webp",
+   "label": "External hard drive",
+   "group": "Storage & memory",
+   "subject": "A black portable external hard drive with a short USB cable"
+  },
+  {
+   "path": "public/images/catalog/card-reader.webp",
+   "label": "Card reader",
+   "group": "Storage & memory",
+   "subject": "A small black USB SD and microSD card reader dongle"
+  },
+  {
+   "path": "public/images/catalog/sim-card.webp",
+   "label": "SIM card",
+   "group": "Storage & memory",
+   "subject": "A plain SIM card with gold contacts and a cut corner"
+  },
+  {
+   "path": "public/images/catalog/laptop-lcd.webp",
+   "label": "Laptop screen panel",
+   "group": "Laptop & computer parts",
+   "subject": "A thin bare laptop LCD screen panel with a display flex cable, pale blue screen"
+  },
+  {
+   "path": "public/images/catalog/laptop-keyboard.webp",
+   "label": "Laptop keyboard",
+   "group": "Laptop & computer parts",
+   "subject": "A black replacement laptop keyboard with blank unlabeled keys and a ribbon cable"
+  },
+  {
+   "path": "public/images/catalog/laptop-battery.webp",
+   "label": "Laptop battery",
+   "group": "Laptop & computer parts",
+   "subject": "A black rectangular laptop battery pack with a connector, plain label area"
+  },
+  {
+   "path": "public/images/catalog/ssd-drive.webp",
+   "label": "SSD drive",
+   "group": "Laptop & computer parts",
+   "subject": "A 2.5-inch SATA solid state drive in a plain silver case"
+  },
+  {
+   "path": "public/images/catalog/m2-ssd.webp",
+   "label": "M.2 SSD",
+   "group": "Laptop & computer parts",
+   "subject": "An M.2 NVMe SSD stick, green circuit board with black memory chips"
+  },
+  {
+   "path": "public/images/catalog/hard-drive.webp",
+   "label": "Hard disk drive",
+   "group": "Laptop & computer parts",
+   "subject": "A 2.5-inch laptop hard disk drive in a plain metallic case"
+  },
+  {
+   "path": "public/images/catalog/ram-module.webp",
+   "label": "RAM module",
+   "group": "Laptop & computer parts",
+   "subject": "A laptop SODIMM RAM memory module, green board with black chips"
+  },
+  {
+   "path": "public/images/catalog/laptop-fan.webp",
+   "label": "Laptop cooling fan",
+   "group": "Laptop & computer parts",
+   "subject": "A laptop cooling fan with a copper heat pipe attached"
+  },
+  {
+   "path": "public/images/catalog/thermal-paste.webp",
+   "label": "Thermal paste",
+   "group": "Laptop & computer parts",
+   "subject": "A small syringe of grey thermal paste with its cap, plain with no label text"
+  },
+  {
+   "path": "public/images/catalog/dc-jack.webp",
+   "label": "DC power jack",
+   "group": "Laptop & computer parts",
+   "subject": "A laptop DC power jack socket with a short pair of wires"
+  },
+  {
+   "path": "public/images/catalog/webcam.webp",
+   "label": "Webcam",
+   "group": "Laptop & computer parts",
+   "subject": "A black USB webcam on a clip stand"
+  },
+  {
+   "path": "public/images/catalog/mouse.webp",
+   "label": "Computer mouse",
+   "group": "Laptop & computer parts",
+   "subject": "A black wireless computer mouse"
+  },
+  {
+   "path": "public/images/catalog/keyboard.webp",
+   "label": "Computer keyboard",
+   "group": "Laptop & computer parts",
+   "subject": "A black wireless computer keyboard with blank unlabeled keys"
+  },
+  {
+   "path": "public/images/catalog/monitor.webp",
+   "label": "Monitor",
+   "group": "Laptop & computer parts",
+   "subject": "A black desktop LCD monitor on a stand, plain pale blue screen"
+  },
+  {
+   "path": "public/images/catalog/motherboard.webp",
+   "label": "Motherboard",
+   "group": "Laptop & computer parts",
+   "subject": "A computer ATX motherboard with sockets, slots and heatsinks"
+  },
+  {
+   "path": "public/images/catalog/graphics-card.webp",
+   "label": "Graphics card",
+   "group": "Laptop & computer parts",
+   "subject": "A graphics card with two fans and a black shroud, no logos"
+  },
+  {
+   "path": "public/images/catalog/pc-power-supply.webp",
+   "label": "PC power supply",
+   "group": "Laptop & computer parts",
+   "subject": "A black PC power supply unit with a bundle of cables"
+  },
+  {
+   "path": "public/images/catalog/cpu-processor.webp",
+   "label": "CPU processor",
+   "group": "Laptop & computer parts",
+   "subject": "A computer CPU processor chip with a silver heat spreader, plain with no markings"
+  },
+  {
+   "path": "public/images/catalog/wifi-router.webp",
+   "label": "WiFi router",
+   "group": "Laptop & computer parts",
+   "subject": "A white WiFi router with two antennas"
+  },
+  {
+   "path": "public/images/catalog/printer.webp",
+   "label": "Printer",
+   "group": "Laptop & computer parts",
+   "subject": "A compact white inkjet printer with its paper tray"
+  },
+  {
+   "path": "public/images/catalog/ink-cartridges.webp",
+   "label": "Ink cartridges",
+   "group": "Laptop & computer parts",
+   "subject": "A set of four small ink cartridges in cyan, magenta, yellow and black, no printing or labels"
+  },
+  {
+   "path": "public/images/catalog/laptop-stand.webp",
+   "label": "Laptop stand",
+   "group": "Laptop & computer parts",
+   "subject": "An aluminium adjustable laptop stand"
+  },
+  {
+   "path": "public/images/catalog/cooling-pad.webp",
+   "label": "Laptop cooling pad",
+   "group": "Laptop & computer parts",
+   "subject": "A black laptop cooling pad with two fans"
+  },
+  {
+   "path": "public/images/catalog/laptop-bag.webp",
+   "label": "Laptop bag",
+   "group": "Laptop & computer parts",
+   "subject": "A black padded laptop shoulder bag, no logo"
+  },
+  {
+   "path": "public/images/catalog/mouse-pad.webp",
+   "label": "Mouse pad",
+   "group": "Laptop & computer parts",
+   "subject": "A black rectangular desk mouse pad"
+  },
+  {
+   "path": "public/images/catalog/bluetooth-dongle.webp",
+   "label": "Bluetooth dongle",
+   "group": "Laptop & computer parts",
+   "subject": "A tiny black USB Bluetooth adapter dongle"
+  },
+  {
+   "path": "public/images/catalog/wifi-dongle.webp",
+   "label": "WiFi dongle",
+   "group": "Laptop & computer parts",
+   "subject": "A small black USB WiFi adapter dongle"
+  },
+  {
+   "path": "public/images/catalog/joycon-pair.webp",
+   "label": "Detachable controllers",
+   "group": "Game consoles & gaming",
+   "subject": "A pair of detachable handheld console controllers, neon blue and neon red, no logos"
+  },
+  {
+   "path": "public/images/catalog/thumbstick-caps.webp",
+   "label": "Thumbstick caps",
+   "group": "Game consoles & gaming",
+   "subject": "Four black rubber thumbstick caps"
+  },
+  {
+   "path": "public/images/catalog/disc-drive.webp",
+   "label": "Console disc drive",
+   "group": "Game consoles & gaming",
+   "subject": "A console blu-ray disc drive module, black"
+  },
+  {
+   "path": "public/images/catalog/gaming-mouse.webp",
+   "label": "Gaming mouse",
+   "group": "Game consoles & gaming",
+   "subject": "A black gaming mouse with a braided cable"
+  },
+  {
+   "path": "public/images/catalog/vr-headset.webp",
+   "label": "VR headset",
+   "group": "Game consoles & gaming",
+   "subject": "A white virtual reality headset with two hand controllers"
+  },
+  {
+   "path": "public/images/catalog/capture-card.webp",
+   "label": "Capture card",
+   "group": "Game consoles & gaming",
+   "subject": "A small black HDMI video capture card dongle"
+  },
+  {
+   "path": "public/images/catalog/game-disc.webp",
+   "label": "Game disc",
+   "group": "Game consoles & gaming",
+   "subject": "A plain blank silver game disc in a clear case, no printing"
+  },
+  {
+   "path": "public/images/catalog/mobile-controller.webp",
+   "label": "Phone gamepad",
+   "group": "Game consoles & gaming",
+   "subject": "A black clip-on mobile gamepad controller with a phone docked in the middle, blank phone screen"
+  },
+  {
+   "path": "public/images/catalog/tv-tcon-board.webp",
+   "label": "TV T-con board",
+   "group": "TV & video",
+   "subject": "A small green TV T-con board with ribbon cable connectors"
+  },
+  {
+   "path": "public/images/catalog/tv-panel.webp",
+   "label": "TV panel",
+   "group": "TV & video",
+   "subject": "A thin bare TV LCD panel with a plain pale blue screen"
+  },
+  {
+   "path": "public/images/catalog/tv-wall-mount.webp",
+   "label": "TV wall mount",
+   "group": "TV & video",
+   "subject": "A black TV wall mount bracket"
+  },
+  {
+   "path": "public/images/catalog/tv-stand-legs.webp",
+   "label": "TV stand legs",
+   "group": "TV & video",
+   "subject": "A pair of black TV stand legs"
+  },
+  {
+   "path": "public/images/catalog/streaming-stick.webp",
+   "label": "Streaming stick",
+   "group": "TV & video",
+   "subject": "A black HDMI streaming stick dongle with a short cable"
+  },
+  {
+   "path": "public/images/catalog/projector.webp",
+   "label": "Projector",
+   "group": "TV & video",
+   "subject": "A small white mini projector"
+  },
+  {
+   "path": "public/images/catalog/led-strip.webp",
+   "label": "LED strip light",
+   "group": "TV & video",
+   "subject": "A coil of white LED strip light with a small power adapter"
+  },
+  {
+   "path": "public/images/catalog/drone-case.webp",
+   "label": "Drone carrying case",
+   "group": "Drones",
+   "subject": "A black hard-shell drone carrying case, open to show grey foam cut-outs"
+  },
+  {
+   "path": "public/images/catalog/watch-band.webp",
+   "label": "Watch band",
+   "group": "Watches & wearables",
+   "subject": "A black silicone smartwatch band strap lying flat"
+  },
+  {
+   "path": "public/images/catalog/watch-charger.webp",
+   "label": "Watch charger",
+   "group": "Watches & wearables",
+   "subject": "A white magnetic smartwatch charging puck with its cable"
+  },
+  {
+   "path": "public/images/catalog/fitness-band.webp",
+   "label": "Fitness band",
+   "group": "Watches & wearables",
+   "subject": "A slim black fitness tracker band with a plain blank display"
+  },
+  {
+   "path": "public/images/catalog/pry-tools.webp",
+   "label": "Pry opening tools",
+   "group": "Tools & supplies",
+   "subject": "A set of plastic pry opening tools and spudgers in assorted colours"
+  },
+  {
+   "path": "public/images/catalog/suction-cup.webp",
+   "label": "Suction cup tool",
+   "group": "Tools & supplies",
+   "subject": "A black suction cup screen opener tool with a handle"
+  },
+  {
+   "path": "public/images/catalog/tweezers.webp",
+   "label": "Tweezers",
+   "group": "Tools & supplies",
+   "subject": "A pair of fine-tip stainless steel tweezers"
+  },
+  {
+   "path": "public/images/catalog/heat-gun.webp",
+   "label": "Heat gun",
+   "group": "Tools & supplies",
+   "subject": "A hot air rework heat gun with a nozzle"
+  },
+  {
+   "path": "public/images/catalog/soldering-iron.webp",
+   "label": "Soldering iron",
+   "group": "Tools & supplies",
+   "subject": "A soldering iron on its stand with a small coil of solder wire"
+  },
+  {
+   "path": "public/images/catalog/multimeter.webp",
+   "label": "Multimeter",
+   "group": "Tools & supplies",
+   "subject": "A yellow digital multimeter with red and black probes, plain display"
+  },
+  {
+   "path": "public/images/catalog/microscope.webp",
+   "label": "Repair microscope",
+   "group": "Tools & supplies",
+   "subject": "A binocular repair microscope on a stand"
+  },
+  {
+   "path": "public/images/catalog/repair-mat.webp",
+   "label": "Repair mat",
+   "group": "Tools & supplies",
+   "subject": "A magnetic anti-static repair mat with plain blank sections"
+  },
+  {
+   "path": "public/images/catalog/screen-separator.webp",
+   "label": "Screen separator machine",
+   "group": "Tools & supplies",
+   "subject": "A small screen separator machine with a flat heated plate and a clamp"
+  },
+  {
+   "path": "public/images/catalog/ultrasonic-cleaner.webp",
+   "label": "Ultrasonic cleaner",
+   "group": "Tools & supplies",
+   "subject": "A small stainless steel ultrasonic cleaner with a lid"
+  },
+  {
+   "path": "public/images/catalog/cleaning-spray.webp",
+   "label": "Cleaning spray",
+   "group": "Tools & supplies",
+   "subject": "A plain white trigger spray bottle of cleaning liquid, no label text"
+  },
+  {
+   "path": "public/images/catalog/microfiber-cloth.webp",
+   "label": "Microfibre cloth",
+   "group": "Tools & supplies",
+   "subject": "A folded grey microfibre cleaning cloth"
+  },
+  {
+   "path": "public/images/catalog/compressed-air.webp",
+   "label": "Compressed air",
+   "group": "Tools & supplies",
+   "subject": "A can of compressed air with a thin straw nozzle, plain with no label text"
+  },
+  {
+   "path": "public/images/catalog/wrist-strap.webp",
+   "label": "Anti-static wrist strap",
+   "group": "Tools & supplies",
+   "subject": "An anti-static wrist strap with a coiled cord and a clip"
+  },
+  {
+   "path": "public/images/catalog/cleaning-kit.webp",
+   "label": "Screen cleaning kit",
+   "group": "Tools & supplies",
+   "subject": "A small screen cleaning kit: a spray bottle, a microfibre cloth and a brush, plain with no text"
+  },
+  {
+   "path": "public/images/catalog/phone-stand.webp",
+   "label": "Phone stand",
+   "group": "Accessories & extras",
+   "subject": "A black adjustable desk phone stand holder"
+  },
+  {
+   "path": "public/images/catalog/car-mount.webp",
+   "label": "Car phone mount",
+   "group": "Accessories & extras",
+   "subject": "A black car dashboard phone mount holder with a clamp"
+  },
+  {
+   "path": "public/images/catalog/tripod.webp",
+   "label": "Tripod / selfie stick",
+   "group": "Accessories & extras",
+   "subject": "A black extendable selfie stick tripod"
+  },
+  {
+   "path": "public/images/catalog/ring-light.webp",
+   "label": "Ring light",
+   "group": "Accessories & extras",
+   "subject": "A round LED ring light on a tabletop stand"
+  },
+  {
+   "path": "public/images/catalog/stylus.webp",
+   "label": "Stylus pen",
+   "group": "Accessories & extras",
+   "subject": "A slim white stylus pen for tablets"
+  },
+  {
+   "path": "public/images/catalog/tracker-tag.webp",
+   "label": "Tracker tag",
+   "group": "Accessories & extras",
+   "subject": "A small round silver Bluetooth tracker tag with a key ring"
+  },
+  {
+   "path": "public/images/catalog/usb-fan.webp",
+   "label": "USB fan",
+   "group": "Accessories & extras",
+   "subject": "A small black desk USB fan"
+  },
+  {
+   "path": "public/images/catalog/water-damage.webp",
+   "label": "Water damage repair",
+   "group": "Repair services",
+   "subject": "A smartphone lying on white with clear water droplets on its blank screen"
+  },
+  {
+   "path": "public/images/catalog/unlock-service.webp",
+   "label": "Unlock service",
+   "group": "Repair services",
+   "subject": "A smartphone with a closed brass padlock resting in front of it, blank screen"
+  }
+ ]
+}

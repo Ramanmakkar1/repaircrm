@@ -1,13 +1,12 @@
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
 import { deleteChargeAction } from "@/app/(app)/tickets/actions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TBody, THead, Th, Td } from "@/components/ui/table";
-import { ChargeDialog, type ProductOption } from "./charge-dialog";
+import { AddChargeButton, EditChargeButton, type ProductOption } from "./charge-dialog";
 
 export type ChargeRow = {
   id: string;
@@ -32,6 +31,7 @@ export function ChargesCard({
   products,
   taxRateBps,
   warranty = false,
+  easy = false,
 }: {
   ticketId: string;
   charges: ChargeRow[];
@@ -39,6 +39,8 @@ export function ChargesCard({
   taxRateBps: number;
   /** Warranty job: new charges start at $0, since the work is already paid for. */
   warranty?: boolean;
+  /** Easy mode: each charge is a big row (what, how many at what price, the line total) instead of a table. */
+  easy?: boolean;
 }) {
   const totals = calcTotals(charges, taxRateBps);
   const uninvoiced = charges.filter((charge) => charge.invoiceId === null);
@@ -50,17 +52,7 @@ export function ChargesCard({
         icon={ICONS.invoice}
         title="Charges"
         action={
-          <ChargeDialog
-            ticketId={ticketId}
-            products={products}
-            warranty={warranty}
-            trigger={
-              <Button variant="outline" size="sm">
-                <ACTIONS.add className="size-4" />
-                Add charge
-              </Button>
-            }
-          />
+          <AddChargeButton ticketId={ticketId} products={products} warranty={warranty} large={easy} />
         }
       />
 
@@ -70,8 +62,44 @@ export function ChargesCard({
             className="px-5 py-10"
             icon={ICONS.invoice}
             title="No charges yet"
-            hint="Parts and labour added here become the lines on this ticket's invoice."
+            hint="Parts and labour added here become the lines on this repair's invoice."
           />
+        ) : easy ? (
+          <ul className="divide-y divide-border">
+            {charges.map((charge) => (
+              <li key={charge.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-base text-foreground">{charge.description}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {charge.quantity} × {formatCents(charge.unitPriceCents)}
+                    {!charge.taxable ? " · No tax" : ""}
+                    {charge.invoice ? ` · On invoice #${charge.invoice.number}` : ""}
+                  </span>
+                </div>
+                <span className="rf-num text-base font-semibold">
+                  {formatCents(charge.quantity * charge.unitPriceCents)}
+                </span>
+                {charge.invoiceId === null ? (
+                  <div className="flex shrink-0 gap-3">
+                    <EditChargeButton ticketId={ticketId} products={products} charge={charge} />
+                    <form action={deleteChargeAction.bind(null, charge.id)}>
+                      <SubmitButton
+                        variant="ghost"
+                        size="icon"
+                        pendingLabel=""
+                        aria-label={`Remove ${charge.description}`}
+                        className="text-faint-foreground hover:text-destructive"
+                      >
+                        <ACTIONS.delete className="size-4" />
+                      </SubmitButton>
+                    </form>
+                  </div>
+                ) : (
+                  <span className="shrink-0 text-sm text-muted-foreground">Locked</span>
+                )}
+              </li>
+            ))}
+          </ul>
         ) : (
           <Table>
             <THead>
@@ -111,19 +139,10 @@ export function ChargesCard({
                   <Td className="text-right">
                     {charge.invoiceId === null ? (
                       <div className="flex justify-end gap-0.5">
-                        <ChargeDialog
+                        <EditChargeButton
                           ticketId={ticketId}
                           products={products}
                           charge={charge}
-                          trigger={
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Edit ${charge.description}`}
-                            >
-                              <ACTIONS.edit className="size-4" />
-                            </Button>
-                          }
                         />
                         <form action={deleteChargeAction.bind(null, charge.id)}>
                           <SubmitButton
@@ -149,7 +168,7 @@ export function ChargesCard({
       </CardContent>
 
       {charges.length > 0 ? (
-        <div className="flex flex-col gap-1 border-t border-border px-4 py-3 text-sm">
+        <div className={easy ? "flex flex-col gap-1 border-t border-border px-4 py-3 text-base" : "flex flex-col gap-1 border-t border-border px-4 py-3 text-sm"}>
           <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
           <TotalRow
             label={`Tax (${formatBps(taxRateBps)})`}

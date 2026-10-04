@@ -31,12 +31,18 @@ export function PickupActions({
   ticketId,
   isReady,
   pickedUp,
+  prominent = false,
 }: {
   ticketId: string;
   /** Ticket is in the Ready for Pickup state. */
   isReady: boolean;
   /** `pickedUpAt` is already stamped. */
   pickedUp: boolean;
+  /**
+   * The one big black button at the top of a repair. Without it the button is
+   * the compact outline-weight one the header used to carry.
+   */
+  prominent?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<"notify" | "pickup" | null>(null);
@@ -89,9 +95,12 @@ export function PickupActions({
     });
   }
 
+  const size = prominent ? "lg" : "sm";
+  const big = prominent ? "h-12 px-6 text-base [&_svg]:size-5" : undefined;
+
   if (isReady) {
     return (
-      <Button size="sm" variant="soft" disabled={busy !== null} onClick={collect}>
+      <Button size={size} variant={prominent ? "default" : "soft"} className={big} disabled={busy !== null} onClick={collect}>
         <ACTIONS.receive className="size-4" />
         {busy === "pickup" ? "Closing…" : "Mark picked up"}
       </Button>
@@ -99,7 +108,7 @@ export function PickupActions({
   }
 
   return (
-    <Button size="sm" disabled={busy !== null} onClick={notify}>
+    <Button size={size} className={big} disabled={busy !== null} onClick={notify}>
       <BellRing className="size-4" />
       {busy === "notify" ? "Sending…" : "Notify: ready for pickup"}
     </Button>

@@ -123,7 +123,7 @@ export function ChargeDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit charge" : "Add charge"}</DialogTitle>
           <DialogDescription>
-            Parts and labour accrued on this ticket, ready to pull onto an invoice.
+            Parts and labour accrued on this repair, ready to pull onto an invoice.
           </DialogDescription>
         </DialogHeader>
 
@@ -228,5 +228,64 @@ export function ChargeDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The two buttons that open `ChargeDialog`, built here rather than by the card.
+ *
+ * `ChargesCard` is a Server Component, and a `<Button>` it created and handed
+ * down as `trigger` reaches the dialog's `DialogTrigger asChild` as something
+ * Radix cannot clone, so the server render of the whole card failed and the
+ * page fell back to client rendering (with a console error). Building the
+ * button on this side of the boundary means only plain data crosses it.
+ */
+export function AddChargeButton({
+  ticketId,
+  products,
+  warranty = false,
+  large = false,
+}: {
+  ticketId: string;
+  products: ProductOption[];
+  warranty?: boolean;
+  /** Easy mode: a bigger button with bigger words. */
+  large?: boolean;
+}) {
+  return (
+    <ChargeDialog
+      ticketId={ticketId}
+      products={products}
+      warranty={warranty}
+      trigger={
+        <Button variant="outline" size="sm" className={large ? "h-12 px-4 text-base [&_svg]:size-5" : undefined}>
+          <ACTIONS.add className="size-4" />
+          Add charge
+        </Button>
+      }
+    />
+  );
+}
+
+export function EditChargeButton({
+  ticketId,
+  products,
+  charge,
+}: {
+  ticketId: string;
+  products: ProductOption[];
+  charge: ChargeDraft;
+}) {
+  return (
+    <ChargeDialog
+      ticketId={ticketId}
+      products={products}
+      charge={charge}
+      trigger={
+        <Button variant="ghost" size="icon" aria-label={`Edit ${charge.description}`}>
+          <ACTIONS.edit className="size-4" />
+        </Button>
+      }
+    />
   );
 }

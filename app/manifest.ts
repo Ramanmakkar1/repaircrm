@@ -7,7 +7,7 @@ import type { MetadataRoute } from "next";
  * install Repairs helper to the home screen and open it without browser chrome, so
  * the ticket board fills the screen and nobody navigates away by mistake.
  *
- * `start_url` is /dashboard rather than /: the marketing page is not what an
+ * `start_url` is /counter rather than /: the marketing page is not what an
  * installed copy is for, and landing there would cost a redirect on every
  * launch. Someone who is signed out still gets sent to /login from there.
  *
@@ -19,7 +19,8 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Repairs helper",
     short_name: "Repairs helper",
     description: "Repair shop management, done right.",
-    start_url: "/dashboard",
+    id: "/",
+    start_url: "/counter",
     scope: "/",
     display: "standalone",
     orientation: "any",

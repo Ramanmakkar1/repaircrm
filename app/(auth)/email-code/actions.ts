@@ -7,6 +7,7 @@ import { setPending2faCookie } from "@/lib/pending-2fa";
 import { issueResetToken } from "@/lib/password-reset";
 import { requestEmailCode, verifyEmailCode, type EmailCodePurpose } from "@/lib/email-code";
 import { rateLimit } from "@/lib/rate-limit";
+import { homePath } from "@/lib/prefs";
 
 export type CodeState = { challenge?: string; email?: string; requestedAt?: number; error?: string };
 export async function emailCodeAction(purpose: EmailCodePurpose, previous: CodeState, form: FormData): Promise<CodeState> {
@@ -25,7 +26,7 @@ export async function emailCodeAction(purpose: EmailCodePurpose, previous: CodeS
       redirect("/login/verify");
     }
     await completeSignIn(user, { via: "email_code" });
-    redirect("/dashboard");
+    redirect(await homePath());
   }
   if (previous.challenge && previous.requestedAt && Date.now() - previous.requestedAt < 60_000) return { ...previous, error: "Please wait one minute before requesting another code. Your current code still works." };
   const email = String(form.get("email") || previous.email || "").trim().toLowerCase();

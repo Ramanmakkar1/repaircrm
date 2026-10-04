@@ -2,14 +2,26 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { aiDriverName, aiEnabled, sttDriverName, sttEnabled } from "@/lib/ai/config";
 import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ACTIONS } from "@/components/ui/icons";
 
 export const metadata = { title: "Assistant setup · Repairs helper" };
 
 export default async function AssistantSetupPage() {
   const { role } = await requireUser();
   return <div className="mx-auto flex max-w-3xl flex-col gap-5">
-    <PageHeader title="Assistant setup" description="Speak or type to work with your shop." />
+    <PageHeader
+      title="Assistant setup"
+      description="Speak or type to work with your shop."
+      actions={
+        <Button asChild variant="outline">
+          <Link href="/settings">
+            <ACTIONS.back aria-hidden /> Settings
+          </Link>
+        </Button>
+      }
+    />
     <Card><CardContent className="space-y-4 p-5">
       <div><h2 className="font-semibold">Quick answers and suggestions</h2><p>Common lookups use your shop&apos;s current records without an AI request. Try low stock, my repairs, appointments today, or find customer followed by a name. Suggestions appear as you type.</p></div>
       <div><h2 className="font-semibold">AI commands</h2><p>{aiEnabled() ? `Provider selected: ${aiDriverName()}. A successful request confirms the connection.` : "No AI provider is selected."}</p></div>
@@ -23,6 +35,5 @@ export default async function AssistantSetupPage() {
         <p>Changes take effect after updating the deployment environment. No provider is enabled by this screen.</p>
       </div> : <p>Ask your shop owner to finish connecting the assistant.</p>}
     </CardContent></Card>
-    <Link className="underline" href="/settings">Back to settings</Link>
   </div>;
 }

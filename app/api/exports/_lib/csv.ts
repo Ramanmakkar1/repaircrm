@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth";
+import { neutralizeFormula } from "@/lib/csv";
 
 /**
  * CSV plumbing for the accounting exports.
@@ -15,6 +16,9 @@ import { requireUser } from "@/lib/auth";
  *  - Amounts as plain decimals ("1284.50"), never "$1,284.50" — a currency
  *    symbol makes QuickBooks reject the row.
  *  - Dates as MM/DD/YYYY, the format QuickBooks' import mapper defaults to.
+ *  - Text that starts with = + - @ gets a leading single quote (see
+ *    neutralizeFormula), so a customer or part named like a formula cannot run
+ *    when the file is opened. Numbers, including negative amounts, are untouched.
  *
  * Directory is `_lib` so the App Router ignores it as a route.
  */
@@ -30,8 +34,7 @@ export type CsvValue = string | number | null | undefined;
 
 /** Quotes every field and doubles any embedded quote, per RFC 4180. */
 export function csvCell(value: CsvValue): string {
-  const text = value === null || value === undefined ? "" : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
+  return `"${neutralizeFormula(value).replace(/"/g, '""')}"`;
 }
 
 export function csvBody(rows: CsvValue[][]): string {

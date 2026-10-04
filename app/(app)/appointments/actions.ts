@@ -15,6 +15,7 @@ import {
 import { requireRole, requireUser } from "@/lib/auth";
 import { sendEmail, sendSms } from "@/lib/comms";
 import { samePhoneClause } from "@/lib/customers/phone-search";
+import { splitCustomerName } from "@/lib/intake";
 import { db } from "@/lib/db";
 import { emitAppointmentEvent, emitCustomerEvent } from "@/lib/events";
 
@@ -271,20 +272,20 @@ function readNewCustomer(
 ): { ok: true; value: NewCustomer } | { ok: false; error: string } | null {
   if (formData.get("customerId") !== "new") return null;
   const name = str(formData, "newCustomerName").slice(0, 120);
-  if (!name) return { ok: false, error: "Add the new customer's name." };
   const phone = str(formData, "newCustomerPhone").slice(0, 40) || null;
+  if (!name && !phone) return { ok: false, error: "Add a name or a phone number." };
   // Optional. But a typo'd address is worse than none: the booking confirmation
   // and every reminder after it would go nowhere without anyone noticing.
   const email = str(formData, "newCustomerEmail").slice(0, 200).toLowerCase() || null;
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "That email doesn't look right — fix it or leave it blank." };
   }
-  const parts = name.split(/\s+/);
+  const { firstName, lastName } = splitCustomerName(name, phone ?? "");
   return {
     ok: true,
     value: {
-      firstName: parts[0],
-      lastName: parts.slice(1).join(" "),
+      firstName,
+      lastName,
       phone,
       email,
       // Consent without a number to text is meaningless, so it is only kept

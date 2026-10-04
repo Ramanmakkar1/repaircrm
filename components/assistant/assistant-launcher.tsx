@@ -127,7 +127,7 @@ export function AssistantLauncher({
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const busyRef = React.useRef(false);
   const [matches, setMatches] = React.useState<{ input: string; rows: CommandSuggestion[] }>({ input: "", rows: [] });
-  const [voiceMode, setVoiceMode] = React.useState<"cloud" | "browser">(cloud ? "cloud" : "browser");
+  const [voiceMode, setVoiceMode] = React.useState<"live" | "cloud">("live");
   const [voiceLanguage, setVoiceLanguage] = React.useState("en-CA");
   const suggestions = continuation || !input.trim() ? [] : [
     ...(matches.input === input ? matches.rows : []), ...commandSuggestions(input, showMoney),
@@ -216,7 +216,7 @@ export function AssistantLauncher({
       inputRef.current?.focus();
     },
     (message) => setHint(message),
-    { cloud: cloud && voiceMode === "cloud", language: voiceLanguage },
+    { cloud, preferLive: voiceMode === "live", language: voiceLanguage },
   );
   const { supported: dictationSupported, start: startDictation } = dictation;
 
@@ -293,16 +293,16 @@ export function AssistantLauncher({
   const transcribing = dictation.state === "transcribing";
   const starters = STARTERS.filter((starter) => showMoney || !starter.money);
   const status = listening
-    ? "Listening… I'll stop when you pause."
+    ? dictation.engine === "browser" ? "Words appear as you speak. Pause or tap stop, then review and send." : "Recording… Your words will appear after you pause or tap stop."
     : transcribing
       ? "Writing down what you said…"
       : hint
         ? hint
         : !dictation.supported
           ? "Voice isn't available in this browser — typing works just the same."
-          : cloud && voiceMode === "cloud"
+          : dictation.engine === "cloud"
             ? "Speak English, Hindi, Punjabi, Chinese or Filipino. Review before sending."
-            : "Type, or tap the mic. Check your selected language and review before sending.";
+            : "Live voice: see your words as you speak. Review before sending.";
 
   return (
     <>
@@ -315,7 +315,7 @@ export function AssistantLauncher({
           aria-haspopup="dialog"
           aria-expanded={open}
           className={cn(
-            "rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] z-30 flex size-14 items-center justify-center rounded-full text-white shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden",
+            "rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] z-30 hidden size-14 sm:flex items-center justify-center rounded-full shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden",
             // The register pins its total and pay buttons to the bottom edge.
             atRegister
               ? "bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))]"
@@ -328,7 +328,7 @@ export function AssistantLauncher({
         <div
           role="group"
           aria-label="Shop assistant"
-          className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex w-[calc(100%-2rem)] max-w-[460px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 sm:p-2.5 print:hidden"
+          className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden w-[calc(100%-2rem)] sm:flex max-w-[460px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 sm:p-2.5 print:hidden"
         >
           <button
             type="button"
@@ -360,7 +360,7 @@ export function AssistantLauncher({
             title="Speak to assistant from any screen"
             aria-haspopup="dialog"
             aria-expanded={open}
-            className="rf-assistant-talk flex h-12 shrink-0 items-center gap-2 rounded-full px-4 text-white hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
+            className="rf-assistant-talk flex h-12 shrink-0 items-center gap-2 rounded-full px-4 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
           >
             <AudioLines className="size-5" aria-hidden />
             <span className="text-base font-medium sm:text-lg">Talk</span>
@@ -486,9 +486,10 @@ export function AssistantLauncher({
             ) : null}
             {listening ? <div role="status" className="mb-3 flex items-center gap-3 text-sm">
               <span className="size-2 rounded-full bg-red-600" /><span>Listening · {dictation.seconds}s</span>
-              {voiceMode === "cloud" ? <meter aria-label="Microphone level" min={0} max={1} value={dictation.level} className="h-2 min-w-0 flex-1" /> : <span className="flex-1" />}
+              {dictation.engine === "cloud" ? <meter aria-label="Microphone level" min={0} max={1} value={dictation.level} className="h-2 min-w-0 flex-1" /> : <span className="flex-1" />}
               <button type="button" className="underline" onClick={dictation.cancel}>Cancel</button>
             </div> : null}
+            {listening && dictation.engine === "browser" ? <p aria-label="Live transcript" className="mb-3 max-h-32 overflow-y-auto rounded-lg bg-surface px-3 py-2 text-base">{dictation.transcript || "Start speaking…"}</p> : null}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
@@ -498,9 +499,9 @@ export function AssistantLauncher({
             >
               <input
                 ref={inputRef}
-                value={input}
+                value={listening && dictation.engine === "browser" ? dictation.transcript : input}
                 aria-label="Message to the assistant"
-                maxLength={500}
+                maxLength={1500}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={continuation ? "Your answer…" : "Ask or tell me anything about the shop…"}
                 disabled={pending || !enabled || listening || transcribing}
@@ -550,16 +551,19 @@ export function AssistantLauncher({
                 </button>
               ) : null}
             </div>
-            {cloud && dictation.browserSupported ? <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">Voice engine
-              <select aria-label="Voice engine" value={voiceMode} disabled={listening || transcribing || pending} onChange={event => { dictation.cancel(); setVoiceMode(event.target.value as "cloud" | "browser"); }} className="rounded border border-border bg-background px-2 py-1 text-foreground">
-                <option value="cloud">Whisper · multilingual</option><option value="browser">Browser · no AI credits</option>
+            {dictation.browserSupported ? <details className="mt-1">
+            <summary className="flex min-h-12 cursor-pointer items-center text-xs font-medium text-muted-foreground">Voice settings</summary>
+            {cloud ? <label className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">Voice engine
+              <select aria-label="Voice engine" value={voiceMode} disabled={listening || transcribing || pending} onChange={event => { dictation.cancel(); setVoiceMode(event.target.value as "live" | "cloud"); }} className="rounded border border-border bg-background px-2 py-1 text-foreground">
+                <option value="live">Live words · browser</option><option value="cloud">Cloud · transcribe after recording</option>
               </select>
             </label> : null}
-            {voiceMode === "browser" && dictation.browserSupported ? <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">Spoken language
+            {dictation.engine === "browser" ? <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">Spoken language
               <select aria-label="Spoken language" value={voiceLanguage} disabled={listening || transcribing || pending} onChange={event => setVoiceLanguage(event.target.value)} className="rounded border border-border bg-background px-2 py-1 text-foreground">
                 <option value="en-CA">English</option><option value="hi-IN">हिन्दी · Hindi</option><option value="pa-IN">ਪੰਜਾਬੀ · Punjabi</option><option value="zh-CN">普通话 · Mandarin Chinese</option><option value="zh-HK">廣東話 · Cantonese</option><option value="fil-PH">Filipino / Tagalog</option>
               </select>
             </label> : null}
+            </details> : null}
           </div>
         </DialogContent>
       </Dialog>

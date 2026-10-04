@@ -50,7 +50,7 @@ export function VoiceCapture({
         .finally(() => setParsing(false));
     },
     (message) => toast.error(message),
-    { cloud },
+    { cloud, preferLive: true, language: "en-CA" },
   );
 
   if (!dictation.supported) return null;
@@ -59,6 +59,7 @@ export function VoiceCapture({
   const listening = dictation.state === "listening";
 
   return (
+    <span className="flex min-w-0 flex-col gap-2">
     <Button
       type="button"
       variant="soft"
@@ -78,5 +79,7 @@ export function VoiceCapture({
       )}
       {busy ? "Reading…" : listening ? "Listening…" : "Speak"}
     </Button>
+    {listening && dictation.engine === "browser" ? <span aria-label="Live transcript" className="max-w-sm text-sm">{dictation.transcript || "Start speaking…"}</span> : null}
+    </span>
   );
 }

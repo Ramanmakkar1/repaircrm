@@ -14,7 +14,7 @@ import {
 } from "@/app/(app)/settings/actions";
 import { formatDateTime } from "@/components/billing/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { ACTIONS } from "@/components/ui/icons";
 import { Badge, StatusPill } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { GoogleMark } from "@/components/auth/google-button";
@@ -76,9 +76,10 @@ export function TeamTab({
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Team</CardTitle>
-        </CardHeader>
+        <CardHeader
+          title="Team"
+          description="Everyone who can sign in. Set their role, or switch them off."
+        />
         <CardContent className="px-0 py-0">
           <div className="overflow-x-auto">
             <Table>
@@ -107,9 +108,10 @@ export function TeamTab({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>What each role can do</CardTitle>
-        </CardHeader>
+        <CardHeader
+          title="What each role can do"
+          description="What owners, front desk and technicians can open."
+        />
         <CardContent className="flex flex-col gap-3">
           {ROLE_OPTIONS.map((role) => (
             <div key={role.value} className="flex flex-col gap-0.5 sm:flex-row sm:gap-3">
@@ -275,7 +277,7 @@ function MemberRow({
               </Badge>
             ) : null}
           </div>
-          <span className="text-[12.5px] text-muted-foreground">
+          <span className="text-[14px] text-muted-foreground">
             {member.lastLoginAt
               ? `Last sign-in ${formatDateTime(member.lastLoginAt)}`
               : "Never signed in"}
@@ -490,7 +492,7 @@ function InviteDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               {ROLE_BLURB[role]}
             </p>
           </div>
@@ -558,7 +560,7 @@ function InviteLinkBody({ url, onClose }: { url: string; onClose: () => void }) 
 
   return (
     <>
-      <code className="select-all break-all rounded-md bg-surface-hover px-3.5 py-3 font-mono text-[13px] leading-relaxed text-foreground">
+      <code className="select-all break-all rounded-md bg-surface-hover px-3.5 py-3 font-mono text-[14px] leading-relaxed text-foreground">
         {url}
       </code>
 

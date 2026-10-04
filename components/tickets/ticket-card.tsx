@@ -10,12 +10,7 @@ import { BellRing, HandCoins } from "lucide-react";
 import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
 import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
 
-import {
-  STATUS_TONE,
-  StatusBadge,
-  TONE_CLASS,
-  normalizeStatus,
-} from "@/components/ui/badge";
+import { StatusBadge, TONE_CLASS } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { ICONS } from "@/components/ui/icons";
@@ -38,14 +33,17 @@ import { partsChipLabel } from "./part-meta";
 /**
  * One repair job as a single tappable box.
  *
- * One colour carries meaning: the shared `Card tone` stripe down the left edge
- * is the ticket's STATUS, in the same seven-tone language every other card in
- * the app speaks. Staleness — how long the job has sat untouched — used to
- * wash the whole card as well; it now says so in words in the footer chip,
- * because two colour axes on one box meant neither of them read.
+ * The status is the pill at the top right, in words. It used to be repeated as
+ * a coloured stripe down the left edge too; that stripe is gone (no side
+ * stripes anywhere), so the word and its dot are the only colour for status.
+ * Staleness — how long the job has sat untouched — says so in words in the
+ * footer chip.
  *
- * Everything below the subject is a quiet grey chip, so the stripe and the
- * status pill are never competing with the details.
+ * Everything below the subject is a quiet grey chip, so the status pill is
+ * never competing with the details.
+ *
+ * This is the Full mode card (with bulk selection). Easy mode uses
+ * `RepairCard`, which is the same on every screen.
  *
  * A plain server-rendered <Link> wraps the whole card: no client JS, and
  * middle-click / open-in-new-tab / copy-link all behave.
@@ -143,7 +141,6 @@ export function TicketCard({
     */
     <Card
       interactive
-      tone={STATUS_TONE[normalizeStatus(ticket.status)]}
       className={cn(
         "group relative flex h-full flex-col gap-3 p-5",
         "focus-within:ring-2 focus-within:ring-ring/50 focus-within:ring-offset-2 focus-within:ring-offset-background",

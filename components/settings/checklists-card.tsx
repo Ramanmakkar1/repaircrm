@@ -172,7 +172,7 @@ function TemplateRow({
         <span className="truncate text-[14.5px] font-bold text-foreground">
           {template.name}
         </span>
-        <span className="truncate text-[13px] text-muted-foreground">
+        <span className="truncate text-[14px] text-muted-foreground">
           {template.items.length} step{template.items.length === 1 ? "" : "s"}
           {template.problemType
             ? ` · auto-attaches to ${template.problemType}`
@@ -332,7 +332,7 @@ function TemplateDialog({
                   key={`${item}-${index}`}
                   className="flex items-center gap-2 rounded-md bg-surface-hover px-3 py-2"
                 >
-                  <span className="w-5 shrink-0 text-[12.5px] font-bold tabular-nums text-faint-foreground">
+                  <span className="w-5 shrink-0 text-[14px] font-bold tabular-nums text-faint-foreground">
                     {index + 1}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[14px] text-foreground">
@@ -363,7 +363,7 @@ function TemplateDialog({
                 </div>
               ))}
               {items.length === 0 ? (
-                <p className="px-1 text-[13.5px] text-muted-foreground">
+                <p className="px-1 text-[14px] text-muted-foreground">
                   No steps yet — add the first one below.
                 </p>
               ) : null}

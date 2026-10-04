@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { cn } from "@/components/ui/cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeysTab } from "./api-keys-tab";
 import { AuditTab } from "./audit-tab";
@@ -19,6 +20,14 @@ import { IntegrationsTab, type IntegrationsConfig } from "./integrations-tab";
 import { MessagingTab } from "./messaging-tab";
 import { ProfileTab } from "./profile-tab";
 import { PaymentsTab } from "./payments-tab";
+import { SettingsPillNav } from "./settings-nav";
+import {
+  groupPanels,
+  hasGroupLabels,
+  panelsForRole,
+  resolvePanel,
+  tabFromHref,
+} from "./settings-panels";
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
@@ -50,128 +59,19 @@ import {
   testPaymentsAction,
 } from "@/app/(app)/settings/payments-actions";
 
-interface SettingsPanel {
-  /** Mirrored into `?tab=` — never rename one of these, links depend on them. */
-  value: string;
-  label: string;
-  /** The one line under the panel title. Says what this screen is *for*. */
-  blurb: string;
-  group: string;
-}
-
 /**
- * Owner settings, grouped the way a shop owner thinks about them rather than
- * the order the features happened to be built in. Thirteen flat tabs across
- * the top wrapped onto a second row on a laptop and read as one undifferentiated
- * wall; five short lists down the side do not.
- *
- * Order within a group is deliberate: the thing you configure first comes first.
+ * Easy mode restyles every card on every panel from this one place instead of
+ * from fourteen files: a bigger title and description, more room in the header
+ * band, and the icon lined up with the title rather than floating mid-block.
+ * It targets the `data-card` hooks `Card` exposes for exactly this, and leaves
+ * card bodies alone (some hold tables that run edge to edge).
  */
-const OWNER_PANELS: SettingsPanel[] = [
-  {
-    value: "shop",
-    label: "Shop details",
-    blurb: "Your shop's name, address, timezone, tax rates and labour rate.",
-    group: "Shop",
-  },
-  {
-    value: "workflow",
-    label: "Workflow",
-    blurb:
-      "Problem types, ticket statuses, response targets and repair checklists.",
-    group: "Shop",
-  },
-  {
-    value: "locations",
-    label: "Locations",
-    blurb: "The branches you work out of, and which one each person starts in.",
-    group: "Shop",
-  },
-  {
-    value: "canned",
-    label: "Canned responses",
-    blurb: "Saved replies your team can drop into a message to a customer.",
-    group: "Shop",
-  },
-  {
-    value: "team",
-    label: "Team",
-    blurb: "Who can sign in, what each of them can do, and pending invites.",
-    group: "People",
-  },
-  {
-    value: "profile",
-    label: "My profile",
-    blurb: "Your own name, your password and your two-factor security.",
-    group: "People",
-  },
-  {
-    value: "payments",
-    label: "Payments",
-    blurb:
-      "Card processing, in-store terminals, and how customers pay an invoice.",
-    group: "Money",
-  },
-  {
-    // The front door: one screen an owner can work top to bottom. It leads the
-    // group because "how do I connect this to my website?" is the first
-    // question a new shop asks, and every row below it links to the tab that
-    // actually owns that setting.
-    value: "connect",
-    label: "Connect",
-    blurb:
-      "Your one shop link, card payments, messages — everything, one button each.",
-    group: "Connections",
-  },
-  {
-    value: "messaging",
-    label: "Messaging",
-    blurb: "How email and text messages leave Repairs helper, and replies come back.",
-    group: "Connections",
-  },
-  {
-    value: "checkin",
-    label: "Check-in & reviews",
-    blurb: "Your public check-in page and the review request sent after pickup.",
-    group: "Connections",
-  },
-  {
-    value: "integrations",
-    label: "Integrations",
-    blurb:
-      "Accounting sync, and where every other connection in Repairs helper is set up.",
-    group: "Connections",
-  },
-  {
-    // Webhooks live on this panel too, and nobody found them under "API keys".
-    value: "api-keys",
-    label: "API & webhooks",
-    blurb: "Keys for the Repairs helper API, and where events get posted to.",
-    group: "Connections",
-  },
-  {
-    value: "automation",
-    label: "Automation",
-    blurb: "The background timer: what it sends, and what it did on its last run.",
-    group: "System",
-  },
-  {
-    value: "audit",
-    label: "Audit log",
-    blurb: "A record of who changed what in this shop, and when they did it.",
-    group: "System",
-  },
-];
-
-/**
- * Everyone who is not an owner. My profile leads, because a technician opening
- * Settings is nearly always here to change their own password.
- */
-const STAFF_PANELS: SettingsPanel[] = ["profile", "canned", "messaging"].map(
-  (value) => OWNER_PANELS.find((panel) => panel.value === value)!,
-);
-
-const GROUP_ORDER = ["Shop", "People", "Money", "Connections", "System"];
+const EASY_CARDS = [
+  "[&_[data-card=header]]:px-5 [&_[data-card=header]]:py-4",
+  "[&_[data-card=header]_h3]:text-[17px] [&_[data-card=header]_h3]:leading-snug",
+  "[&_[data-card=header]_p]:text-[14px]",
+  "[&_[data-card=header]>div:first-child>svg:first-child]:mt-0.5 [&_[data-card=header]>div:first-child>svg:first-child]:size-5 [&_[data-card=header]>div:first-child>svg:first-child]:self-start",
+].join(" ");
 
 /**
  * The settings shell.
@@ -211,10 +111,16 @@ export function SettingsTabs({
   checkin,
   integrations,
   connect,
+  simple,
 }: {
   role: string;
   currentUserId: string;
   activeTab: string;
+  /**
+   * Easy mode (the default): big pill navigation and larger cards. Full mode
+   * keeps the compact side rail. Same panels, same forms, either way.
+   */
+  simple: boolean;
   shop: ShopSettingsValues;
   /** Owner-only; empty for everyone else because the query never ran. */
   taxRates: TaxRateOption[];
@@ -254,26 +160,11 @@ export function SettingsTabs({
   const isOwner = role === "OWNER";
   const canManageCanned = isOwner || role === "FRONT_DESK";
 
-  const panels = isOwner ? OWNER_PANELS : STAFF_PANELS;
+  const panels = panelsForRole(role);
+  const groups = React.useMemo(() => groupPanels(panels), [panels]);
+  const showGroupLabels = hasGroupLabels(panels);
 
-  // Three links do not need five headings over them; thirteen do.
-  const showGroupLabels = panels.length > 5;
-
-  const groups = React.useMemo(
-    () =>
-      showGroupLabels
-        ? GROUP_ORDER.map((label) => ({
-            label,
-            items: panels.filter((panel) => panel.group === label),
-          })).filter((group) => group.items.length > 0)
-        : [{ label: "", items: panels }],
-    [panels, showGroupLabels],
-  );
-
-  const initial = panels.some((panel) => panel.value === activeTab)
-    ? activeTab
-    : panels[0].value;
-  const [value, setValue] = React.useState(initial);
+  const [value, setValue] = React.useState(() => resolvePanel(panels, activeTab));
 
   const active = panels.find((panel) => panel.value === value) ?? panels[0];
 
@@ -283,23 +174,184 @@ export function SettingsTabs({
     router.replace(`${pathname}?tab=${next}`, { scroll: false });
   }
 
+  const root = React.useRef<HTMLDivElement>(null);
+
+  // The panels link to each other ("Open" on the Connect panel, "Set up
+  // payments" on Integrations). Those are `/settings?tab=…` links, and since
+  // this component stays mounted a soft navigation would change the URL
+  // without ever changing the panel. Taking the click here switches panels
+  // directly: no second server render, and `value` stays the one thing that
+  // decides what is on screen, so a late response can never flip it back.
+  function takeTabLinks(event: React.MouseEvent) {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    const link = (event.target as Element).closest?.("a");
+    if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+    const target = tabFromHref(link.getAttribute("href"), pathname);
+    if (target === null || !panels.some((panel) => panel.value === target)) return;
+    event.preventDefault();
+    select(target);
+    root.current?.scrollIntoView({ block: "start" });
+  }
+
+  const panelContent = (
+    <>
+      {isOwner ? (
+        <TabsContent value="shop">
+          <ShopTab shop={shop} taxRates={taxRates} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="workflow">
+          <WorkflowTab
+            problemTypes={problemTypes}
+            ticketStatuses={ticketStatuses}
+            sla={sla}
+            checklists={checklists}
+          />
+        </TabsContent>
+      ) : null}
+
+      <TabsContent value="canned">
+        <CannedTab responses={cannedResponses} canManage={canManageCanned} />
+      </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="locations">
+          <LocationsTab locations={locations} members={locationStaff} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="team">
+          <TeamTab members={members} currentUserId={currentUserId} />
+        </TabsContent>
+      ) : null}
+
+      <TabsContent value="messaging">
+        <MessagingTab config={messaging} />
+      </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="payments">
+          <PaymentsTab
+            config={payments}
+            disconnectAction={disconnectStripeAction}
+            disconnectSquareAction={disconnectSquareAction}
+            createSquareDeviceCodeAction={createSquareDeviceCodeAction}
+            registerReaderAction={registerReaderAction}
+            pairPracticeReaderAction={pairPracticeReaderAction}
+            renameReaderAction={renameReaderAction}
+            forgetReaderAction={forgetReaderAction}
+            retrySetupAction={retryPaymentSetupAction}
+            testPaymentsAction={testPaymentsAction}
+            setCardMachineAction={setCardMachineAction}
+          />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="checkin">
+          <CheckinTab config={checkin} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="connect">
+          <ConnectTab config={connect} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="integrations">
+          <IntegrationsTab config={integrations} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="automation">
+          <AutomationTab config={automation} />
+        </TabsContent>
+      ) : null}
+
+      <TabsContent value="profile">
+        <ProfileTab profile={profile} />
+      </TabsContent>
+
+      {isOwner ? (
+        <TabsContent value="audit">
+          <AuditTab initial={auditPage} members={members} />
+        </TabsContent>
+      ) : null}
+
+      {isOwner ? (
+        <TabsContent value="api-keys">
+          <ApiKeysTab
+            keys={apiKeys}
+            appUrl={messaging.appUrl}
+            webhooks={webhooks}
+            deliveries={webhookDeliveries}
+          />
+        </TabsContent>
+      ) : null}
+    </>
+  );
+
+  if (simple) {
+    return (
+      <Tabs
+        ref={root}
+        value={value}
+        onValueChange={select}
+        onClickCapture={takeTabLinks}
+        className="flex min-w-0 flex-col gap-5"
+      >
+        <SettingsPillNav groups={groups} value={value} onSelect={select} />
+
+        <div className={cn("flex min-w-0 flex-col gap-5", EASY_CARDS)}>
+          {/*
+            The pill above already names the screen, so the heading is for
+            screen readers and the one line says what the screen is for.
+          */}
+          <div className="-mt-2">
+            <h2 className="sr-only">{active.label}</h2>
+            <p className="text-[15px] leading-snug text-muted-foreground">
+              {active.blurb}
+            </p>
+          </div>
+
+          <div className="min-w-0 [&>[role=tabpanel]]:mt-0">{panelContent}</div>
+        </div>
+      </Tabs>
+    );
+  }
+
   return (
     <Tabs
+      ref={root}
       value={value}
       onValueChange={select}
+      onClickCapture={takeTabLinks}
       orientation="vertical"
       className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8"
     >
       {/*
-        A rail of quiet rows on a laptop, exactly like the main sidebar; a
-        single scrollable strip of pills on a phone, where a 224px column would
-        eat half the screen. It sticks to the top of the scrollport on a tall
-        window and simply scrolls with the page on a short one — which beats
-        giving a thirteen-row nav a scrollbar of its own.
+        Full mode keeps the compact rail: a column of quiet rows on a laptop,
+        exactly like the main sidebar; a single scrollable strip on a phone,
+        where a 224px column would eat half the screen. It sticks to the top of
+        the scrollport on a tall window and simply scrolls with the page on a
+        short one — which beats giving a fourteen-row nav a scrollbar of its own.
       */}
-      <TabsList
-        className="h-auto shrink-0 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 lg:sticky lg:top-6 lg:w-52 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-x-visible"
-      >
+      <TabsList className="h-auto shrink-0 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 lg:sticky lg:top-6 lg:w-52 lg:flex-col lg:items-stretch lg:gap-4 lg:overflow-x-visible">
         {groups.map((group) => (
           <div
             key={group.label || "all"}
@@ -314,13 +366,9 @@ export function SettingsTabs({
               <TabsTrigger
                 key={panel.value}
                 value={panel.value}
-                /*
-                 * Same row treatment as the main sidebar — faint tint, accent
-                 * ink, and a 2px bar on the left edge — so a settings rail and
-                 * the app rail read as one navigation system rather than two
-                 * that happen to sit near each other.
-                 */
-                className="relative h-8 shrink-0 justify-start whitespace-nowrap rounded-md px-3 text-left text-[13.5px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=active]:bg-surface-hover data-[state=active]:font-semibold data-[state=active]:text-accent-soft-foreground data-[state=active]:shadow-none lg:data-[state=active]:before:absolute lg:data-[state=active]:before:inset-y-1.5 lg:data-[state=active]:before:left-0 lg:data-[state=active]:before:w-[2px] lg:data-[state=active]:before:rounded-full lg:data-[state=active]:before:bg-accent"
+                // The current row is a faint tint with accent ink and a bold
+                // label; no coloured bar, so it never reads as a status stripe.
+                className="h-8 shrink-0 justify-start whitespace-nowrap rounded-md px-3 text-left text-[14px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground data-[state=active]:bg-surface-hover data-[state=active]:font-semibold data-[state=active]:text-accent-soft-foreground data-[state=active]:shadow-none"
               >
                 {panel.label}
               </TabsTrigger>
@@ -335,110 +383,12 @@ export function SettingsTabs({
           <h2 className="text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground">
             {active.label}
           </h2>
-          <p className="text-[13.5px] leading-snug text-muted-foreground">
+          <p className="text-[14px] leading-snug text-muted-foreground">
             {active.blurb}
           </p>
         </div>
 
-        {isOwner ? (
-          <TabsContent value="shop">
-            <ShopTab shop={shop} taxRates={taxRates} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="workflow">
-            <WorkflowTab
-              problemTypes={problemTypes}
-              ticketStatuses={ticketStatuses}
-              sla={sla}
-              checklists={checklists}
-            />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent value="canned">
-          <CannedTab responses={cannedResponses} canManage={canManageCanned} />
-        </TabsContent>
-
-        {isOwner ? (
-          <TabsContent value="locations">
-            <LocationsTab locations={locations} members={locationStaff} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="team">
-            <TeamTab members={members} currentUserId={currentUserId} />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent value="messaging">
-          <MessagingTab config={messaging} />
-        </TabsContent>
-
-        {isOwner ? (
-          <TabsContent value="payments">
-            <PaymentsTab
-              config={payments}
-              disconnectAction={disconnectStripeAction}
-              disconnectSquareAction={disconnectSquareAction}
-              createSquareDeviceCodeAction={createSquareDeviceCodeAction}
-              registerReaderAction={registerReaderAction}
-              pairPracticeReaderAction={pairPracticeReaderAction}
-              renameReaderAction={renameReaderAction}
-              forgetReaderAction={forgetReaderAction}
-              retrySetupAction={retryPaymentSetupAction}
-              testPaymentsAction={testPaymentsAction}
-              setCardMachineAction={setCardMachineAction}
-            />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="checkin">
-            <CheckinTab config={checkin} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="connect">
-            <ConnectTab config={connect} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="integrations">
-            <IntegrationsTab config={integrations} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="automation">
-            <AutomationTab config={automation} />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent value="profile">
-          <ProfileTab profile={profile} />
-        </TabsContent>
-
-        {isOwner ? (
-          <TabsContent value="audit">
-            <AuditTab initial={auditPage} members={members} />
-          </TabsContent>
-        ) : null}
-
-        {isOwner ? (
-          <TabsContent value="api-keys">
-            <ApiKeysTab
-              keys={apiKeys}
-              appUrl={messaging.appUrl}
-              webhooks={webhooks}
-              deliveries={webhookDeliveries}
-            />
-          </TabsContent>
-        ) : null}
+        {panelContent}
       </div>
     </Tabs>
   );

@@ -71,7 +71,7 @@ export function LocationSwitcher({
           className={cn(
             compact
               ? "flex h-5 max-w-[11rem] items-center gap-1 rounded-sm text-xs text-muted-foreground transition-colors"
-              : "flex h-10 max-w-[13rem] shrink-0 items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13.5px] font-semibold text-foreground transition-colors",
+              : "flex min-h-12 max-w-[7.5rem] sm:max-w-[13rem] items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13.5px] font-semibold text-foreground transition-colors",
             "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             "disabled:opacity-60",
           )}

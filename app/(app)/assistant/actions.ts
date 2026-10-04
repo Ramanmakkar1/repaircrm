@@ -27,6 +27,7 @@ import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { quickCommand } from "@/lib/ai/quick-commands";
+import { possibleProductMatch, productCandidateTokens } from "@/lib/ai/product-matching";
 import { rateLimit } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
 import { emitCustomerEvent } from "@/lib/events";
@@ -367,7 +368,7 @@ export async function confirmAssistantAction(input: unknown): Promise<AssistantO
 export async function confirmRemoveProductAction(
   productId: string,
 ): Promise<AssistantOutcome> {
-  const { shopId } = await requireUser();
+  const { shopId, userId } = await requireUser();
 
   const product = await db.product.findFirst({
     where: { id: productId, shopId },
@@ -376,6 +377,16 @@ export async function confirmRemoveProductAction(
   if (!product) return { kind: "error", message: "That product no longer exists." };
 
   await db.product.update({ where: { id: product.id }, data: { active: false } });
+  // Same trail as a price change: who hid what, and that it came from the assistant.
+  await audit({
+    shopId,
+    userId,
+    action: "product.removed",
+    entity: "product",
+    entityId: product.id,
+    summary: `${product.name}: removed from sale (assistant)`,
+    meta: { via: "assistant" },
+  });
 
   revalidatePath("/inventory");
   return {
@@ -457,6 +468,23 @@ async function searchProducts(
   });
 
   if (products.length === 0) {
+    const tokens = productCandidateTokens(query);
+    const candidates = tokens.length ? await db.product.findMany({
+      where: { shopId, active: true, OR: tokens.flatMap(token => [
+        { name: { contains: token, mode: "insensitive" as const } },
+        { category: { contains: token, mode: "insensitive" as const } },
+        { sku: { equals: token, mode: "insensitive" as const } },
+      ]) },
+      take: 60,
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, sku: true, category: true, stockQty: true, priceCents: true },
+    }) : [];
+    const possible = candidates.filter(product => possibleProductMatch(query, product)).slice(0, 6);
+    if (possible.length) return {
+      kind: "info",
+      message: `No exact match for “${query}”. Did you mean one of these?\n${possible.map(product => `• ${product.name} — ${product.stockQty} in stock, ${formatCents(product.priceCents)}`).join("\n")}`,
+      links: possible.map(product => ({ label: product.name, href: `/inventory/${product.id}`, detail: `${product.stockQty} in stock` })),
+    };
     return { kind: "info", message: `No products match “${query}”.` };
   }
 

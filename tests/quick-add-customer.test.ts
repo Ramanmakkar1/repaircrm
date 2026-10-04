@@ -23,11 +23,33 @@ describe("readQuickCustomer", () => {
     expect(readQuickCustomer(form({ customerId: "c1" }))).toBeNull();
   });
 
-  it("needs a name, and refuses a malformed email instead of saving it", () => {
-    expect(readQuickCustomer(form({ customerId: "new" }))).toMatchObject({ ok: false });
+  it("needs a name or a phone number, and refuses a malformed email instead of saving it", () => {
+    expect(readQuickCustomer(form({ customerId: "new" }))).toEqual({
+      ok: false,
+      error: "Add the new customer's name or phone number.",
+    });
+    expect(
+      readQuickCustomer(form({ customerId: "new", newCustomerName: "  ", newCustomerPhone: "  " })),
+    ).toMatchObject({ ok: false });
     expect(
       readQuickCustomer(form({ customerId: "new", newCustomerName: "Sam", newCustomerEmail: "sam@" })),
     ).toMatchObject({ ok: false });
+  });
+
+  it('saves a phone-only customer as "Customer" + the number', () => {
+    expect(
+      readQuickCustomer(form({ customerId: "new", newCustomerPhone: "  780 555 0142 ", newCustomerSmsOk: "on" })),
+    ).toEqual({
+      ok: true,
+      customer: { firstName: "Customer", lastName: "780 555 0142", phone: "780 555 0142", email: null, smsOk: true },
+    });
+  });
+
+  it("splits a typed name on the first space and drops the extra spaces", () => {
+    expect(readQuickCustomer(form({ customerId: "new", newCustomerName: " Anna  Maria Lopez " }))).toMatchObject({
+      ok: true,
+      customer: { firstName: "Anna", lastName: "Maria Lopez", phone: null },
+    });
   });
 
   it("only records text consent when there is a number to text", () => {
@@ -52,6 +74,16 @@ describe("findOrCreateQuickCustomer", () => {
     // "(780) 555-0142" is the same person.
     expect(callsTo("$queryRaw")[0].args.values).toEqual(["s1", "%5550142%", "%5550142%", 50]);
     expect(callsTo("customer.findFirst")[0].args.where).toEqual({ shopId: "s1", OR: [{ id: { in: ["c9"] } }] });
+  });
+
+  it("creates a phone-only customer under the number's placeholder name", async () => {
+    handlers["$queryRaw"] = () => [];
+    handlers["customer.findFirst"] = () => null;
+    handlers["customer.create"] = () => ({ id: "c11" });
+    expect(
+      await findOrCreateQuickCustomer("s1", { firstName: "Customer", lastName: "780-555-0142", phone: "780-555-0142", email: null, smsOk: false }),
+    ).toBe("c11");
+    expect(dataOf("customer.create")).toMatchObject({ firstName: "Customer", lastName: "780-555-0142", mobile: "780-555-0142", smsOptIn: false });
   });
 
   it("creates a new customer, reachable by email and (with consent) text", async () => {

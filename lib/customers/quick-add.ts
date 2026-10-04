@@ -23,13 +23,14 @@ export type QuickCustomer =
 export function readQuickCustomer(formData: FormData): QuickCustomer | null {
   if (String(formData.get("customerId") ?? "") !== NEW_CUSTOMER) return null;
   const name = String(formData.get("newCustomerName") ?? "").trim().slice(0, 120);
-  if (!name) return { ok: false, error: "Add the new customer's name." };
   const phone = String(formData.get("newCustomerPhone") ?? "").trim().slice(0, 40) || null;
+  // A name OR a phone number is enough — customers often only give their number.
+  if (!name && !phone) return { ok: false, error: "Add the new customer's name or phone number." };
   const email = String(formData.get("newCustomerEmail") ?? "").trim().toLowerCase().slice(0, 200) || null;
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "That email doesn't look right — fix it or leave it blank." };
   }
-  const parts = name.split(/\s+/);
+  const parts = name ? name.split(/\s+/) : ["Customer", phone ?? ""];
   const tick = formData.get("newCustomerSmsOk");
   return {
     ok: true,

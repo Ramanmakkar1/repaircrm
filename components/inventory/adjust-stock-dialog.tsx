@@ -63,6 +63,7 @@ export function AdjustStockDialog({
   serialized = false,
   serials = [],
   trigger,
+  initialDelta,
 }: {
   productId: string;
   stockQty: number;
@@ -71,18 +72,21 @@ export function AdjustStockDialog({
   /** The IN_STOCK units, for the remove picker. */
   serials?: SerialOption[];
   trigger: React.ReactNode;
+  initialDelta?: number;
 }) {
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<Mode>("delta");
   const [direction, setDirection] = React.useState<Direction>("add");
-  const [amount, setAmount] = React.useState("");
+  const [amount, setAmount] = React.useState(initialDelta == null ? "" : String(initialDelta));
   const [reason, setReason] = React.useState<string>("Received");
   const [note, setNote] = React.useState("");
   const [pasted, setPasted] = React.useState("");
   const [picked, setPicked] = React.useState<string[]>([]);
 
   const reset = () => {
-    setAmount("");
+    setAmount(initialDelta == null ? "" : String(initialDelta));
+    setMode("delta");
+    setReason(initialDelta != null && initialDelta < 0 ? "Other" : "Received");
     setNote("");
     setPasted("");
     setPicked([]);

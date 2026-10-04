@@ -47,24 +47,70 @@ import {
 export function DrawerCloseDialog({
   drawerId,
   onClosed,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   drawerId: string;
   onClosed: () => void;
+  /**
+   * Pass `open` (with a STABLE `onOpenChange`) to drive the dialog from
+   * outside, for example from a menu item. It then renders no trigger button
+   * and fetches the expected total whenever it is opened.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [innerOpen, setInnerOpen] = React.useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : innerOpen;
   const [summary, setSummary] = React.useState<DrawerSummary | null>(null);
   const [counts, setCounts] = React.useState<Record<number, string>>({});
   const [manual, setManual] = React.useState("");
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
-  // The expected total is fetched in the OPEN handler rather than an effect:
-  // it is a response to a press, not a subscription to anything.
-  function openDialog() {
+  function reset() {
     setSummary(null);
     setCounts({});
     setManual("");
     setNote("");
+  }
+
+  // Closing always wipes the count, so the next opening starts clean whether
+  // the dialog is driven by its own button or by the parent.
+  function setOpen(next: boolean) {
+    if (controlled) {
+      if (!next) reset();
+    } else {
+      setInnerOpen(next);
+    }
+    onOpenChange?.(next);
+  }
+
+  // Driven from outside: the parent has no press handler of ours to call, so
+  // the expected total is fetched when `open` turns true.
+  React.useEffect(() => {
+    if (!controlled || !open) return;
+    let live = true;
+    void getDrawerSummaryAction(drawerId).then((result) => {
+      if (!live) return;
+      if (!result.ok) {
+        toast.error(result.error);
+        reset();
+        onOpenChange?.(false);
+        return;
+      }
+      setSummary(result.summary);
+    });
+    return () => {
+      live = false;
+    };
+  }, [controlled, open, drawerId, onOpenChange]);
+
+  // Opened by its own button: the expected total is fetched in the press
+  // handler rather than an effect, because it answers a press.
+  function openDialog() {
+    reset();
     setOpen(true);
 
     void getDrawerSummaryAction(drawerId).then((result) => {
@@ -104,12 +150,14 @@ export function DrawerCloseDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" onClick={openDialog}>
-          <ACTIONS.close className="size-4" />
-          Close drawer
-        </Button>
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button size="sm" variant="outline" onClick={openDialog}>
+            <ACTIONS.close className="size-4" />
+            Close drawer
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
         <DialogHeader>

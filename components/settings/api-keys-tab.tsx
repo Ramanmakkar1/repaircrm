@@ -10,7 +10,7 @@ import {
   setApiKeyActiveAction,
 } from "@/app/(app)/settings/api-key-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { WebhooksCard } from "./webhooks-card";
@@ -71,9 +71,10 @@ export function ApiKeysTab({
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>API keys</CardTitle>
-        </CardHeader>
+        <CardHeader
+          title="API keys"
+          description="Each key lets another system use this shop's data. Keep them private."
+        />
         <CardContent className="px-0 py-0">
           {keys.length === 0 ? (
             <EmptyState
@@ -190,7 +191,7 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
         <span className="font-semibold text-foreground">{item.name}</span>
       </Td>
       <Td>
-        <code className="rounded-xs bg-surface-hover px-2 py-1 font-mono text-[12.5px] text-muted-foreground">
+        <code className="rounded-xs bg-surface-hover px-2 py-1 font-mono text-[14px] text-muted-foreground">
           rfk_{item.prefix}…
         </code>
       </Td>
@@ -325,7 +326,7 @@ function RevealDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-start gap-2.5 rounded-md bg-status-in-progress-bg px-4 py-3 text-[13.5px] text-status-in-progress-fg">
+        <div className="flex items-start gap-2.5 rounded-md bg-status-in-progress-bg px-4 py-3 text-[14px] text-status-in-progress-fg">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <p>
             Treat it like a password. Anyone holding it can read every customer,
@@ -361,7 +362,7 @@ function CopyableKey({ value }: { value: string }) {
 
   return (
     <div className="flex items-center gap-2 rounded-md border border-border-strong bg-surface-hover p-2">
-      <code className="min-w-0 flex-1 select-all break-all px-2 text-[13px] leading-relaxed text-foreground">
+      <code className="min-w-0 flex-1 select-all break-all px-2 text-[14px] leading-relaxed text-foreground">
         {value}
       </code>
       <Button
@@ -383,9 +384,10 @@ function UsageCard({ appUrl }: { appUrl: string }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Using the API</CardTitle>
-      </CardHeader>
+      <CardHeader
+        title="Using the API"
+        description="For whoever builds the connection: how to send a key and what you can ask for."
+      />
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
           Send the key as a bearer token. Every response contains only this
@@ -393,12 +395,12 @@ function UsageCard({ appUrl }: { appUrl: string }) {
           access — it can read, create, update and delete.
         </p>
 
-        <pre className="overflow-x-auto rounded-md border border-border bg-surface-hover p-4 text-[12.5px] leading-relaxed text-foreground">
+        <pre className="overflow-x-auto rounded-md border border-border bg-surface-hover p-4 text-[14px] leading-relaxed text-foreground">
           <code>{`curl ${base}/api/v1/customers \\
   -H "Authorization: Bearer rfk_your_key_here"`}</code>
         </pre>
 
-        <dl className="flex flex-col gap-2 text-[13.5px]">
+        <dl className="flex flex-col gap-2 text-[14px]">
           <Endpoint method="GET" path="/api/v1/customers?q=nguyen" />
           <Endpoint method="POST · PATCH · DELETE" path="/api/v1/customers" />
           <Endpoint method="GET" path="/api/v1/tickets?status=New" />
@@ -412,7 +414,7 @@ function UsageCard({ appUrl }: { appUrl: string }) {
           <Endpoint method="GET · POST · PATCH" path="/api/v1/appointments" />
         </dl>
 
-        <dl className="flex flex-col gap-2 border-t border-border pt-4 text-[13.5px]">
+        <dl className="flex flex-col gap-2 border-t border-border pt-4 text-[14px]">
           <Detail term="Paging">
             <code className="font-mono">?page=2</code>, or follow{" "}
             <code className="font-mono">next_cursor</code> with{" "}
@@ -429,7 +431,7 @@ function UsageCard({ appUrl }: { appUrl: string }) {
           </Detail>
         </dl>
 
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           The full endpoint list is served as JSON from{" "}
           <a
             href={`${base}/api/v1`}
@@ -450,7 +452,7 @@ function Endpoint({ method, path }: { method: string; path: string }) {
       <dt className="w-[132px] shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
         {method}
       </dt>
-      <dd className="min-w-0 truncate font-mono text-[13px] text-foreground">
+      <dd className="min-w-0 truncate font-mono text-[14px] text-foreground">
         {path}
       </dd>
     </div>
@@ -463,7 +465,7 @@ function Detail({ term, children }: { term: string; children: React.ReactNode })
       <dt className="w-[132px] shrink-0 text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground">
         {term}
       </dt>
-      <dd className="min-w-0 text-[13px] leading-relaxed text-muted-foreground">
+      <dd className="min-w-0 text-[14px] leading-relaxed text-muted-foreground">
         {children}
       </dd>
     </div>

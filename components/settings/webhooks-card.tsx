@@ -28,7 +28,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/components/ui/cn";
@@ -206,7 +206,7 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
       <Td>
         <span
           className={cn(
-            "block max-w-[280px] truncate font-mono text-[13px] text-foreground",
+            "block max-w-[280px] truncate font-mono text-[14px] text-foreground",
             !active && "text-muted-foreground line-through",
           )}
           title={hook.url}
@@ -215,7 +215,7 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
         </span>
       </Td>
       <Td>
-        <span className="text-[13px] text-muted-foreground">
+        <span className="text-[14px] text-muted-foreground">
           {everything
             ? "All events"
             : hook.events.length <= 2
@@ -363,7 +363,7 @@ function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
   return (
     <Tr>
       <Td>
-        <code className="font-mono text-[12.5px] text-foreground">
+        <code className="font-mono text-[14px] text-foreground">
           {delivery.event}
         </code>
       </Td>
@@ -420,15 +420,15 @@ function VerifyingSignatures() {
       <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Verifying signatures
       </h3>
-      <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+      <p className="text-[14px] leading-relaxed text-muted-foreground">
         Every request carries{" "}
-        <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[12.5px] text-foreground">
+        <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] text-foreground">
           X-Repairs helper-Signature: t=&lt;unix&gt;,v1=&lt;hex&gt;
         </code>
         . Recompute it over the <strong>raw</strong> request body — parsing and
         re-stringifying the JSON changes the bytes and the digest will not match.
       </p>
-      <pre className="overflow-x-auto rounded-md border border-border bg-surface-hover p-4 text-[12.5px] leading-relaxed text-foreground">
+      <pre className="overflow-x-auto rounded-md border border-border bg-surface-hover p-4 text-[14px] leading-relaxed text-foreground">
         <code>{`import crypto from "node:crypto";
 
 function verify(rawBody, header, secret) {
@@ -448,10 +448,10 @@ function verify(rawBody, header, secret) {
   );
 }`}</code>
       </pre>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
+      <p className="text-[14px] leading-relaxed text-muted-foreground">
         Answer <strong>2xx</strong> to acknowledge. Anything else is retried
         after 1m, 5m, 30m, 2h and 12h, then marked failed.{" "}
-        <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[12.5px] text-foreground">
+        <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] text-foreground">
           X-Repairs helper-Delivery
         </code>{" "}
         is stable across retries — use it to dedupe.
@@ -545,7 +545,7 @@ function AddDialog({
               />
               <span className="flex flex-col gap-0.5">
                 <span className="font-semibold text-foreground">All events</span>
-                <span className="text-[13px] text-muted-foreground">
+                <span className="text-[14px] text-muted-foreground">
                   Including any added to Repairs helper later.
                 </span>
               </span>
@@ -556,7 +556,7 @@ function AddDialog({
                 {WEBHOOK_EVENTS.map((name) => (
                   <label
                     key={name}
-                    className="flex items-center gap-2.5 text-[13.5px]"
+                    className="flex items-center gap-2.5 text-[14px]"
                   >
                     <Checkbox
                       checked={events.includes(name)}
@@ -624,7 +624,7 @@ function SecretDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-start gap-2.5 rounded-md bg-status-in-progress-bg px-4 py-3 text-[13.5px] text-status-in-progress-fg">
+        <div className="flex items-start gap-2.5 rounded-md bg-status-in-progress-bg px-4 py-3 text-[14px] text-status-in-progress-fg">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <p>
             Your endpoint needs it to verify that a delivery really came from
@@ -659,7 +659,7 @@ function CopyableSecret({ value }: { value: string }) {
 
   return (
     <div className="flex items-center gap-2 rounded-md border border-border-strong bg-surface-hover p-2">
-      <code className="min-w-0 flex-1 select-all break-all px-2 text-[13px] leading-relaxed text-foreground">
+      <code className="min-w-0 flex-1 select-all break-all px-2 text-[14px] leading-relaxed text-foreground">
         {value}
       </code>
       <Button

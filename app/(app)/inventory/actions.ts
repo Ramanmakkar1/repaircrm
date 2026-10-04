@@ -11,6 +11,7 @@ import {
 } from "@/components/inventory/format";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readCatalogImageField } from "@/lib/inventory/catalog-image";
 import { nextSku } from "@/lib/inventory/sku";
 import { validateProductPhoto } from "@/lib/inventory/product-images";
 import { removeUpload, storeUpload, type StoredUpload } from "@/lib/storage";
@@ -88,18 +89,27 @@ function cents(formData: FormData, key: string): number | null {
   return raw === undefined ? null : parseCents(raw);
 }
 
-/** Whole-number field, or null when the field was left blank. */
+/**
+ * Whole-number field: null when the field was left blank, NaN when something
+ * other than a whole number was typed ("abc", "2.5"). NaN is deliberate — it is
+ * not nullish, so a typo can never pass as "blank" and quietly become zero
+ * stock or no reorder point. But it must never reach Prisma either: the product
+ * form lets `wholeNumber()` in the schema reject it, and every other caller
+ * checks `Number.isNaN` itself.
+ */
 function whole(formData: FormData, key: string): number | null {
   const raw = text(formData, key);
   if (raw === undefined) return null;
-  const n = Number.parseInt(raw.replace(/[^0-9-]/g, ""), 10);
-  return Number.isFinite(n) ? n : null;
+  const n = Number(raw);
+  // Past the database's Int range it is not a quantity (a scanned barcode pasted into the box).
+  return Number.isSafeInteger(n) && Math.abs(n) <= 2_147_483_647 ? n : Number.NaN;
 }
 
 function fieldErrorsOf(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
   for (const issue of error.issues) {
-    const key = issue.path[0];
+    const rawKey = issue.path[0];
+    const key = rawKey === "priceCents" ? "price" : rawKey === "costCents" ? "cost" : rawKey;
     if (typeof key === "string" && !out[key]) out[key] = issue.message;
   }
   return out;
@@ -121,6 +131,16 @@ const MAX_SKU_ATTEMPTS = 5;
 // Product create / update
 // ---------------------------------------------------------------------------
 
+/**
+ * A whole-number field in `productSchema`. `whole()` hands NaN to the schema for
+ * anything that isn't one, and without this the field would show zod's own
+ * "expected number, received NaN".
+ */
+function wholeNumber(what: string) {
+  const message = `${what} must be a whole number, like 5.`;
+  return z.number({ error: message }).int(message);
+}
+
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required").max(160),
   category: z.string().max(80).nullable(),
@@ -130,34 +150,32 @@ const productSchema = z.object({
   priceCents: z.number().int().min(0, "Price can't be negative"),
   costCents: z.number().int().min(0, "Cost can't be negative").nullable(),
   taxable: z.boolean(),
-  stockQty: z.number().int("Stock must be a whole number"),
-  lowStockAt: z
-    .number()
-    .int()
+  stockQty: wholeNumber("Stock"),
+  lowStockAt: wholeNumber("The reorder point")
     .min(0, "The reorder point can't be negative")
     .nullable(),
   // The POLICY. Each sale snapshots it onto its own invoice line, so changing
   // it here never restates cover somebody already bought (see lib/warranty.ts).
-  warrantyDays: z
-    .number()
-    .int()
+  warrantyDays: wholeNumber("Warranty")
     .min(0, "Warranty can't be negative")
     .max(MAX_WARRANTY_DAYS, "That warranty is longer than ten years")
     .nullable(),
-  reorderQty: z
-    .number()
-    .int()
+  reorderQty: wholeNumber("Reorder quantity")
     .min(1, "Order at least one when reordering")
     .nullable(),
   vendorId: z.string().min(1).nullable(),
   vendorSku: z.string().max(80).nullable(),
   serialized: z.boolean(),
   active: z.boolean(),
+  // Key of a catalog picture chosen on purpose; null = pick it automatically from the name. Already
+  // checked against the catalog by readCatalogImageField, so an unknown key can only ever arrive as null.
+  catalogImage: z.string().max(80).nullable(),
 });
 
 type ProductInput = z.infer<typeof productSchema>;
 
 function readProduct(formData: FormData): ProductInput {
+  const warrantyDays = whole(formData, "warrantyDays");
   return {
     name: text(formData, "name") ?? "",
     category: text(formData, "category") ?? null,
@@ -169,13 +187,15 @@ function readProduct(formData: FormData): ProductInput {
     taxable: flag(formData, "taxable"),
     stockQty: whole(formData, "stockQty") ?? 0,
     lowStockAt: whole(formData, "lowStockAt"),
-    // 0 and blank both mean "no warranty"; null is what the column stores.
-    warrantyDays: whole(formData, "warrantyDays") || null,
+    // 0 and blank both mean "no warranty"; null is what the column stores. (Not
+    // `|| null`: that would also turn a typo's NaN into "no warranty".)
+    warrantyDays: warrantyDays === 0 ? null : warrantyDays,
     reorderQty: whole(formData, "reorderQty"),
     vendorId: text(formData, "vendorId") ?? null,
     vendorSku: text(formData, "vendorSku") ?? null,
     serialized: flag(formData, "serialized"),
     active: flag(formData, "active"),
+    catalogImage: readCatalogImageField(formData).value,
   };
 }
 
@@ -273,6 +293,7 @@ async function createProductCore(
             // only exist once their serial numbers do.
             serialized: input.serialized,
             active: input.active,
+            catalogImage: input.catalogImage,
           },
           select: { id: true, sku: true, stockQty: true },
         });
@@ -388,6 +409,7 @@ export async function quickAddProductAction(
     vendorSku: null,
     serialized: false,
     active: true,
+    catalogImage: readCatalogImageField(formData).value,
   };
 
   const parsed = productSchema.safeParse(input);
@@ -438,6 +460,9 @@ export async function updateProductAction(
 
   const vendorId = await resolveVendorId(shopId, input.vendorId);
   const turningOn = input.serialized && !owned.serialized;
+  // Only a form that carries the field may change the picture: any other caller that leaves it out
+  // keeps whatever was chosen, and an empty value on purpose means "automatic" again.
+  const catalogImage = readCatalogImageField(formData);
 
   // Switching an already-stocked product to serial tracking is destructive to
   // the count: there are no serial numbers for the units on the shelf, and a
@@ -473,6 +498,7 @@ export async function updateProductAction(
           vendorSku: input.vendorSku,
           serialized: input.serialized,
           active: input.active,
+          ...(catalogImage.present ? { catalogImage: catalogImage.value } : {}),
           // stockQty is deliberately NOT here. Stock only moves through
           // adjustStockAction, so every change lands in the audit trail.
         },
@@ -559,8 +585,9 @@ export async function adjustStockAction(
     });
   }
 
-  if (amount === null) {
-    return { error: mode === "count" ? "Enter the counted quantity." : "Enter a quantity." };
+  if (amount === null || Number.isNaN(amount)) {
+    const what = mode === "count" ? "the counted quantity" : "a quantity";
+    return { error: amount === null ? `Enter ${what}.` : `Enter ${what} as a whole number, like 5.` };
   }
   if (mode === "count" && amount < 0) {
     return { error: "A counted quantity can't be negative." };
@@ -819,6 +846,9 @@ export async function setLowStockAction(
   const { shopId } = await requireUser();
 
   const value = whole(formData, "lowStockAt");
+  if (value !== null && Number.isNaN(value)) {
+    return { error: "The reorder point must be a whole number, like 5." };
+  }
   if (value !== null && value < 0) {
     return { error: "The reorder point can't be negative." };
   }

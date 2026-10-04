@@ -1,15 +1,18 @@
-import Link from "next/link";
-
-import { cn } from "@/components/ui/cn";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { REPORT_PERIODS, type ReportPeriodKey } from "./period";
 
 /**
- * The four range pills above the report.
+ * The four period choices above the report, as the same big pill tabs every
+ * list screen uses (This month, Last month, Last 90 days, This year).
  *
  * Plain links, not a client component: the whole page is server-rendered from
  * `?period=`, so making these buttons would mean shipping JavaScript purely to
- * do what an anchor already does — and would cost the operator the ability to
+ * do what an anchor already does - and would cost the operator the ability to
  * open "Last month" in a new tab.
+ *
+ * One of these is always chosen (or none, when a hand-picked date range is on
+ * screen - the date control below says so), and the chosen one is filled and
+ * carries `aria-current`, so it never relies on colour alone.
  */
 export function PeriodPills({
   active,
@@ -19,41 +22,20 @@ export function PeriodPills({
   /** Carried through so switching period does not reset the location filter. */
   location?: string | null;
 }) {
-  const suffix = location ? `&location=${encodeURIComponent(location)}` : "";
-
   return (
-    /*
-     * A segmented control, not four separate buttons — one of these is always
-     * chosen, so they are a single switch with four positions and should look
-     * like one. The old filled-indigo lozenge made "This month" read as the
-     * page's primary action rather than as the state it is. Segmented (rather
-     * than the underline `FilterTabs` used on list pages) because this sits
-     * mid-row beside the custom date range, where an underline would float
-     * with nothing to sit on.
-     */
-    <nav
+    <FilterTabs
       aria-label="Reporting period"
-      className="inline-flex h-9 max-w-full shrink-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border bg-surface-hover p-1"
-    >
-      {REPORT_PERIODS.map((period) => {
-        const current = period.key === active;
-        return (
-          <Link
-            key={period.key}
-            href={`/reports?period=${period.key}${suffix}`}
-            aria-current={current ? "page" : undefined}
-            className={cn(
-              "inline-flex h-7 items-center whitespace-nowrap rounded-sm px-3 text-[13px] font-semibold transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-              current
-                ? "bg-surface text-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {period.label}
-          </Link>
-        );
-      })}
-    </nav>
+      tabs={periodTabs(active, location)}
+    />
   );
+}
+
+/** The tabs, as data: one per period, each a URL that keeps the location. */
+export function periodTabs(active: ReportPeriodKey, location?: string | null) {
+  const suffix = location ? `&location=${encodeURIComponent(location)}` : "";
+  return REPORT_PERIODS.map((period) => ({
+    label: period.label,
+    href: `/reports?period=${period.key}${suffix}`,
+    active: period.key === active,
+  }));
 }

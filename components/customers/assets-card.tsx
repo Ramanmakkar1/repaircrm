@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { Laptop, Monitor, Smartphone, Tablet, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -27,6 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toastWithUndo } from "@/components/ui/undo-toast";
+import { cn } from "@/components/ui/cn";
+import { deviceImageSource } from "@/lib/inventory/product-images";
 import { assetLabel } from "./format";
 
 export type AssetRow = {
@@ -39,13 +43,75 @@ export type AssetRow = {
   notes: string | null;
 };
 
-/** Devices on file for this customer — what actually comes through the door. */
+/** The stand-in picture when no device photo matches: an icon for the family, never a made-up model. */
+function DeviceIcon({ text, className }: { text: string; className?: string }) {
+  const kind = text.toLowerCase();
+  const props = { className, strokeWidth: 1.3, "aria-hidden": true } as const;
+  if (/ipad|tablet/.test(kind)) return <Tablet {...props} />;
+  if (/iphone|galaxy|pixel|phone|smartphone|mobile/.test(kind)) return <Smartphone {...props} />;
+  if (/macbook|laptop|notebook/.test(kind)) return <Laptop {...props} />;
+  if (/desktop|imac|monitor|computer|pc\b/.test(kind)) return <Monitor {...props} />;
+  return <Wrench {...props} />;
+}
+
+/**
+ * One saved device as a picture tile, like the boxes on Home: the picture on its
+ * white canvas, the name, then the type and serial. The whole tile edits it.
+ */
+function DeviceTile({ asset, onOpen }: { asset: AssetRow; onOpen: () => void }) {
+  const label = assetLabel(asset);
+  const photo = deviceImageSource(`${asset.type} ${label}`);
+  const detail = [asset.type !== label ? asset.type : null, asset.serial].filter(Boolean).join(" · ");
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Edit ${label}`}
+      className={cn(
+        "group relative flex h-full min-h-44 w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface text-left",
+        "transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.98]",
+        "motion-reduce:transition-none motion-reduce:active:scale-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      )}
+    >
+      <span className={cn("relative block aspect-[4/3] w-full", photo ? "bg-white" : "bg-surface-hover")}>
+        {photo ? (
+          <Image src={photo.src} alt="" fill sizes="(max-width: 640px) 45vw, (max-width: 1280px) 22vw, 220px" className="object-contain p-3" />
+        ) : (
+          <span aria-hidden className="flex size-full items-center justify-center text-foreground">
+            <DeviceIcon text={`${asset.type} ${label}`} className="size-14" />
+          </span>
+        )}
+        <span aria-hidden className="absolute bottom-2 right-2 flex size-9 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
+          <ACTIONS.edit className="size-4" />
+        </span>
+      </span>
+      <span className="flex min-w-0 flex-col gap-0.5 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+        <span className="text-base font-semibold leading-tight sm:text-lg">{label}</span>
+        {detail ? <span className="truncate text-[13px] leading-snug text-muted-foreground sm:text-sm">{detail}</span> : null}
+        {asset.notes ? <span className="line-clamp-1 text-[13px] leading-snug text-muted-foreground sm:text-sm">{asset.notes}</span> : null}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Devices on file for this customer — what actually comes through the door.
+ *
+ * `easy` is the Devices section of the POS-style customer screen: the same
+ * saved devices as picture tiles (tap one to edit it or remove it), with an
+ * "Add a device" tile last. The add / edit / remove behaviour is the same
+ * code as the Full card below, only the surface differs.
+ */
 export function AssetsCard({
   customerId,
   assets,
+  easy = false,
 }: {
   customerId: string;
   assets: AssetRow[];
+  easy?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<AssetRow | null>(null);
@@ -116,6 +182,197 @@ export function AssetsCard({
       },
       onUndoError: "Could not put that device back.",
     });
+  }
+
+  // Add / edit: one dialog, shared by the Full card and the Easy tiles.
+  const dialog = (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next || busy) return;
+        setAdding(false);
+        setEditing(null);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit device" : "Add device"}</DialogTitle>
+          <DialogDescription>
+            {easy
+              ? "Saved here, the device is one tap away when you start the next repair."
+              : "Captured at intake so the next ticket starts with the device already on file."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          key={editing?.id ?? "new-asset"}
+          onSubmit={submit}
+          className="flex flex-col gap-4"
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="asset-type">
+                Type<span className="ml-0.5 text-destructive">*</span>
+              </Label>
+              <Input
+                id="asset-type"
+                name="type"
+                defaultValue={editing?.type ?? ""}
+                placeholder="Laptop"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="asset-make">Make</Label>
+              <Input
+                id="asset-make"
+                name="make"
+                defaultValue={editing?.make ?? ""}
+                placeholder="Apple"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="asset-model">Model</Label>
+              <Input
+                id="asset-model"
+                name="model"
+                defaultValue={editing?.model ?? ""}
+                placeholder="MacBook Pro 14"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="asset-serial">Serial</Label>
+                {/*
+                  Reserved for the camera scanner (components/scan/, landing
+                  separately): a `<Button variant="soft" size="sm">` with
+                  `ACTIONS.scan` goes here and writes the decoded code into
+                  #asset-serial. It sits ON the label row, at full tap size,
+                  because these shops have no laser gun — the phone camera is
+                  the only scanner, and typing a 17-character serial off the
+                  back of a laptop is where this form actually loses people.
+                */}
+              </div>
+              <Input
+                id="asset-serial"
+                name="serial"
+                defaultValue={editing?.serial ?? ""}
+                className="font-mono"
+                inputMode="text"
+                autoCapitalize="characters"
+                spellCheck={false}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="asset-password">Passcode</Label>
+              <Input
+                id="asset-password"
+                name="password"
+                defaultValue={editing?.password ?? ""}
+                placeholder="Unlock code"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="asset-notes">Notes</Label>
+            <Textarea
+              id="asset-notes"
+              name="notes"
+              rows={3}
+              defaultValue={editing?.notes ?? ""}
+              placeholder="Condition at intake, accessories left with the device…"
+            />
+          </div>
+
+          <DialogFooter>
+            {easy && editing ? (
+              // Removing keeps its undo toast and the "attached to N repairs" refusal;
+              // the dialog just closes first so that message is not hidden behind it.
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                className="mr-auto text-destructive"
+                onClick={() => {
+                  const target = editing;
+                  setEditing(null);
+                  void remove(target);
+                }}
+              >
+                <ACTIONS.delete />
+                Remove
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                setAdding(false);
+                setEditing(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {editing ? <ACTIONS.save /> : <ACTIONS.add />}
+              {busy ? "Saving…" : editing ? "Save device" : "Add device"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (easy) {
+    return (
+      <section aria-label="Devices" className="flex flex-col gap-3">
+        {assets.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border-strong px-6 py-12 text-center">
+            <ICONS.device className="size-10 text-faint-foreground" strokeWidth={1.4} aria-hidden />
+            <div className="flex max-w-sm flex-col gap-1">
+              <p className="text-lg font-semibold">No devices on file</p>
+              <p className="text-base text-muted-foreground">Devices saved here become one-tap choices when you start the next repair.</p>
+            </div>
+            <Button size="lg" className="h-14 px-8 text-base" onClick={() => setAdding(true)}>
+              <ACTIONS.add className="size-5" />
+              Add a device
+            </Button>
+          </div>
+        ) : (
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {assets.map((asset) => (
+              <li key={asset.id}>
+                <DeviceTile asset={asset} onOpen={() => setEditing(asset)} />
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => setAdding(true)}
+                className={cn(
+                  "flex h-full min-h-44 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface px-3 text-center",
+                  "transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.98]",
+                  "motion-reduce:transition-none motion-reduce:active:scale-100",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+              >
+                <span aria-hidden className="flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                  <ACTIONS.add className="size-6" />
+                </span>
+                <span className="text-base font-semibold sm:text-lg">Add a device</span>
+              </button>
+            </li>
+          </ul>
+        )}
+        {dialog}
+      </section>
+    );
   }
 
   return (
@@ -201,129 +458,7 @@ export function AssetsCard({
         )}
       </CardContent>
 
-      {/* Add / edit ------------------------------------------------------- */}
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          if (next || busy) return;
-          setAdding(false);
-          setEditing(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit device" : "Add device"}</DialogTitle>
-            <DialogDescription>
-              Captured at intake so the next ticket starts with the device already
-              on file.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form
-            key={editing?.id ?? "new-asset"}
-            onSubmit={submit}
-            className="flex flex-col gap-4"
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="asset-type">
-                  Type<span className="ml-0.5 text-destructive">*</span>
-                </Label>
-                <Input
-                  id="asset-type"
-                  name="type"
-                  defaultValue={editing?.type ?? ""}
-                  placeholder="Laptop"
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="asset-make">Make</Label>
-                <Input
-                  id="asset-make"
-                  name="make"
-                  defaultValue={editing?.make ?? ""}
-                  placeholder="Apple"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="asset-model">Model</Label>
-                <Input
-                  id="asset-model"
-                  name="model"
-                  defaultValue={editing?.model ?? ""}
-                  placeholder="MacBook Pro 14"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="asset-serial">Serial</Label>
-                  {/*
-                    Reserved for the camera scanner (components/scan/, landing
-                    separately): a `<Button variant="soft" size="sm">` with
-                    `ACTIONS.scan` goes here and writes the decoded code into
-                    #asset-serial. It sits ON the label row, at full tap size,
-                    because these shops have no laser gun — the phone camera is
-                    the only scanner, and typing a 17-character serial off the
-                    back of a laptop is where this form actually loses people.
-                  */}
-                </div>
-                <Input
-                  id="asset-serial"
-                  name="serial"
-                  defaultValue={editing?.serial ?? ""}
-                  className="font-mono"
-                  inputMode="text"
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="asset-password">Passcode</Label>
-                <Input
-                  id="asset-password"
-                  name="password"
-                  defaultValue={editing?.password ?? ""}
-                  placeholder="Unlock code"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="asset-notes">Notes</Label>
-              <Textarea
-                id="asset-notes"
-                name="notes"
-                rows={3}
-                defaultValue={editing?.notes ?? ""}
-                placeholder="Condition at intake, accessories left with the device…"
-              />
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => {
-                  setAdding(false);
-                  setEditing(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={busy}>
-                {editing ? <ACTIONS.save /> : <ACTIONS.add />}
-                {busy ? "Saving…" : editing ? "Save device" : "Add device"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {dialog}
 
     </Card>
   );

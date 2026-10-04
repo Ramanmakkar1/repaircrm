@@ -50,7 +50,8 @@ export type AuditAction =
   | "customer.deleted"
   | "invoice.voided"
   | "invoice.refunded"
-  | "product.price_changed";
+  | "product.price_changed"
+  | "product.removed";
 
 /** The `entity` column: the noun half of the action, used by the tab filter. */
 export type AuditEntity =

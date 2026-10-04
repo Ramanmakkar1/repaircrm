@@ -3,7 +3,9 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
 import { formatDistanceToNow } from "date-fns";
+import { ChevronDown } from "lucide-react";
 
+import { LeadCards } from "@/components/customers/lead-cards";
 import { EmbedSnippet } from "@/components/leads/embed-snippet";
 import { SplitformsCard } from "@/components/leads/splitforms-card";
 import { readSplitforms } from "@/lib/splitforms";
@@ -38,6 +40,7 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Leads · Repairs helper" };
 
@@ -57,7 +60,9 @@ export default async function LeadsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, role } = await requireUser();
-  const params = await searchParams;
+  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  // Easy mode (the default) is a wall of big enquiry cards; Full mode keeps the table and bulk actions.
+  const easy = prefs.simple;
 
   /*
     This user's saved filters for this screen. `currentQuery` is normalised the
@@ -133,18 +138,61 @@ export default async function LeadsPage({
     { key: "all", label: "All" },
   ];
 
+  const setup = (
+    <>
+      {/* Splitforms first: it is the recommended way in, and it is the one
+          that needs no code on the shop's website. The raw snippet stays for
+          anyone who would rather paste HTML. */}
+      <SplitformsCard
+        isOwner={role === "OWNER"}
+        webhookUrl={splitforms ? `${appUrl()}/api/integrations/splitforms/${splitforms.token}` : null}
+        hasSecret={Boolean(splitforms?.secret)}
+        lastLeadLabel={
+          splitforms?.lastLeadAt
+            ? formatDistanceToNow(new Date(splitforms.lastLeadAt), { addSuffix: true })
+            : null
+        }
+      />
+
+      <details className="group">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+          Or paste our basic form code instead
+        </summary>
+        <div className="pt-3">
+          <EmbedSnippet
+            shopSlug={shop?.slug ?? "your-shop"}
+            endpoint={`${appUrl()}/api/leads`}
+          />
+        </div>
+      </details>
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
-        title="Leads"
-        description="Every enquiry that hasn't become a customer yet — web forms, phone calls and walk-ins."
+        title={easy ? "Enquiries" : "Leads"}
+        description={
+          easy
+            ? "People asking about a repair who aren't customers yet."
+            : "Every enquiry that hasn't become a customer yet — web forms, phone calls and walk-ins."
+        }
         actions={
-          <Button asChild>
-            <Link href="/leads/new">
-              <ACTIONS.add />
-              New Lead
-            </Link>
-          </Button>
+          easy ? (
+            <Button size="lg" className="h-12 px-6 text-base" asChild>
+              <Link href="/leads/new">
+                <ACTIONS.add />
+                New enquiry
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link href="/leads/new">
+                <ACTIONS.add />
+                New Lead
+              </Link>
+            </Button>
+          )
         }
       />
 
@@ -179,168 +227,189 @@ export default async function LeadsPage({
         }
       />
 
-      {/*
-        Selection wraps the table AND the bar: both read the same ids, and the
-        provider itself renders no element, so the card stays a direct child of
-        the page's flex column.
-      */}
-      <SelectionScope ids={leads.map((lead) => lead.id)}>
-        <Card className="overflow-hidden">
-          <CardContent className="px-0 py-0">
-            {leads.length === 0 ? (
-              <EmptyState
-                icon={ICONS.inbound}
-                title={nothingAtAll ? "No leads yet" : "Nothing in this view"}
-                hint={
-                  nothingAtAll
-                    ? "Log a phone enquiry, or drop the form below onto your website so the inbox fills itself."
-                    : "Try another view — the enquiries are all still here."
-                }
-                action={
-                  nothingAtAll ? (
-                    <Button asChild>
-                      <Link href="/leads/new">
-                        <ACTIONS.add />
-                        New Lead
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" asChild>
-                      <Link href="/leads">Show open leads</Link>
-                    </Button>
-                  )
-                }
-              />
-            ) : (
-              <Table>
-                <THead>
-                  <Tr>
-                    <SelectAll />
-                    <Th>Name</Th>
-                    <Th>Phone</Th>
-                    <Th>Email</Th>
-                    <Th>Source</Th>
-                    <Th>Enquiry</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Received</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {leads.map((lead) => {
-                    const meta = LEAD_STATUS_META[asLeadStatus(lead.status)];
-                    const fresh = isFreshLead(lead, now);
+      {easy ? (
+        leads.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-surface">
+            <EmptyState
+              icon={ICONS.inbound}
+              title={nothingAtAll ? "No enquiries yet" : "Nothing in this view"}
+              hint={
+                nothingAtAll
+                  ? "Log a phone call or a walk-in with New enquiry, or connect your website form below so they arrive by themselves."
+                  : "Try another tab above. The enquiries are all still here."
+              }
+              action={
+                nothingAtAll ? (
+                  <Button size="lg" className="h-12 px-6 text-base" asChild>
+                    <Link href="/leads/new">
+                      <ACTIONS.add />
+                      New enquiry
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="lg" className="h-12 px-6 text-base" asChild>
+                    <Link href="/leads">Show open enquiries</Link>
+                  </Button>
+                )
+              }
+            />
+          </div>
+        ) : (
+          <LeadCards rows={leads} now={now} />
+        )
+      ) : (
+        <>
+          {/*
+            Selection wraps the table AND the bar: both read the same ids, and the
+            provider itself renders no element, so the card stays a direct child of
+            the page's flex column.
+          */}
+          <SelectionScope ids={leads.map((lead) => lead.id)}>
+            <Card className="overflow-hidden">
+              <CardContent className="px-0 py-0">
+                {leads.length === 0 ? (
+                  <EmptyState
+                    icon={ICONS.inbound}
+                    title={nothingAtAll ? "No leads yet" : "Nothing in this view"}
+                    hint={
+                      nothingAtAll
+                        ? "Log a phone enquiry, or drop the form below onto your website so the inbox fills itself."
+                        : "Try another view — the enquiries are all still here."
+                    }
+                    action={
+                      nothingAtAll ? (
+                        <Button asChild>
+                          <Link href="/leads/new">
+                            <ACTIONS.add />
+                            New Lead
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button variant="outline" asChild>
+                          <Link href="/leads">Show open leads</Link>
+                        </Button>
+                      )
+                    }
+                  />
+                ) : (
+                  <Table>
+                    <THead>
+                      <Tr>
+                        <SelectAll />
+                        <Th>Name</Th>
+                        <Th>Phone</Th>
+                        <Th>Email</Th>
+                        <Th>Source</Th>
+                        <Th>Enquiry</Th>
+                        <Th>Status</Th>
+                        <Th className="text-right">Received</Th>
+                      </Tr>
+                    </THead>
+                    <TBody>
+                      {leads.map((lead) => {
+                        const meta = LEAD_STATUS_META[asLeadStatus(lead.status)];
+                        const fresh = isFreshLead(lead, now);
 
-                    return (
-                      <RowLink key={lead.id} href={`/leads/${lead.id}`}>
-                        <SelectRow id={lead.id} label={lead.name} />
-                        <Td>
-                          <span className="flex items-center gap-1.5">
-                            {/* A NEW lead under a day old. The cheapest possible
-                                "this one is still warm, call them" mark, and it
-                                disappears on its own once the lead is answered
-                                or goes cold. */}
-                            {fresh ? (
+                        return (
+                          <RowLink key={lead.id} href={`/leads/${lead.id}`}>
+                            <SelectRow id={lead.id} label={lead.name} />
+                            <Td>
+                              <span className="flex items-center gap-1.5">
+                                {/* A NEW lead under a day old. The cheapest possible
+                                    "this one is still warm, call them" mark, and it
+                                    disappears on its own once the lead is answered
+                                    or goes cold. */}
+                                {fresh ? (
+                                  <span
+                                    title="New today — nobody has called them yet"
+                                    className="size-[7px] shrink-0 rounded-full bg-accent"
+                                  >
+                                    <span className="sr-only">New today</span>
+                                  </span>
+                                ) : null}
+                                <Link
+                                  href={`/leads/${lead.id}`}
+                                  className="block max-w-[180px] truncate font-semibold text-foreground hover:underline"
+                                  title={lead.name}
+                                >
+                                  {lead.name}
+                                </Link>
+                                {lead.customerId ? (
+                                  <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
+                                    Customer
+                                  </span>
+                                ) : null}
+                                {lead.ticketId ? (
+                                  <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
+                                    Ticket
+                                  </span>
+                                ) : null}
+                              </span>
+                            </Td>
+
+                            <Td className={lead.phone ? "rf-num" : "text-faint-foreground"}>
+                              {lead.phone ?? "—"}
+                            </Td>
+
+                            <Td className={lead.email ? "text-muted-foreground" : "text-faint-foreground"}>
+                              <span className="block max-w-[200px] truncate">
+                                {lead.email ?? "—"}
+                              </span>
+                            </Td>
+
+                            <Td className="text-muted-foreground">
+                              {lead.source ?? "—"}
+                            </Td>
+
+                            <Td className="text-muted-foreground">
                               <span
-                                title="New today — nobody has called them yet"
-                                className="size-[7px] shrink-0 rounded-full bg-accent"
+                                className="block max-w-[280px] truncate"
+                                title={lead.message ?? undefined}
                               >
-                                <span className="sr-only">New today</span>
+                                {lead.message ? messagePreview(lead.message, 90) : "—"}
                               </span>
-                            ) : null}
-                            <Link
-                              href={`/leads/${lead.id}`}
-                              className="block max-w-[180px] truncate font-semibold text-foreground hover:underline"
-                              title={lead.name}
-                            >
-                              {lead.name}
-                            </Link>
-                            {lead.customerId ? (
-                              <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
-                                Customer
-                              </span>
-                            ) : null}
-                            {lead.ticketId ? (
-                              <span className="shrink-0 rounded-sm bg-chip-accent-bg px-1.5 py-0.5 text-[11.5px] font-semibold leading-none text-chip-accent-fg">
-                                Ticket
-                              </span>
-                            ) : null}
-                          </span>
-                        </Td>
+                            </Td>
 
-                        <Td className={lead.phone ? "rf-num" : "text-faint-foreground"}>
-                          {lead.phone ?? "—"}
-                        </Td>
+                            <Td>
+                              <StatusPill tone={meta.tone} label={meta.label} />
+                            </Td>
 
-                        <Td className={lead.email ? "text-muted-foreground" : "text-faint-foreground"}>
-                          <span className="block max-w-[200px] truncate">
-                            {lead.email ?? "—"}
-                          </span>
-                        </Td>
+                            <Td className="rf-num text-right text-[12.5px] text-muted-foreground">
+                              {leadAge(lead.createdAt, now)}
+                            </Td>
+                          </RowLink>
+                        );
+                      })}
+                    </TBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
 
-                        <Td className="text-muted-foreground">
-                          {lead.source ?? "—"}
-                        </Td>
-
-                        <Td className="text-muted-foreground">
-                          <span
-                            className="block max-w-[280px] truncate"
-                            title={lead.message ?? undefined}
-                          >
-                            {lead.message ? messagePreview(lead.message, 90) : "—"}
-                          </span>
-                        </Td>
-
-                        <Td>
-                          <StatusPill tone={meta.tone} label={meta.label} />
-                        </Td>
-
-                        <Td className="rf-num text-right text-[12.5px] text-muted-foreground">
-                          {leadAge(lead.createdAt, now)}
-                        </Td>
-                      </RowLink>
-                    );
-                  })}
-                </TBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        <BulkBar noun="lead">
-          <LeadBulkActions />
-        </BulkBar>
-      </SelectionScope>
+            <BulkBar noun="lead">
+              <LeadBulkActions />
+            </BulkBar>
+          </SelectionScope>
+        </>
+      )}
 
       {/*
         The embed snippet is the whole point of the public endpoint, so it is
         loud while the inbox is empty and quiet — but still findable — once
-        leads are arriving.
+        leads are arriving. In Easy mode the whole website-form setup is one
+        labelled box that is open while there is nothing in the inbox yet.
       */}
-      {/* Splitforms first: it is the recommended way in, and it is the one
-          that needs no code on the shop's website. The raw snippet stays for
-          anyone who would rather paste HTML. */}
-      <SplitformsCard
-        isOwner={role === "OWNER"}
-        webhookUrl={splitforms ? `${appUrl()}/api/integrations/splitforms/${splitforms.token}` : null}
-        hasSecret={Boolean(splitforms?.secret)}
-        lastLeadLabel={
-          splitforms?.lastLeadAt
-            ? formatDistanceToNow(new Date(splitforms.lastLeadAt), { addSuffix: true })
-            : null
-        }
-      />
-
-      <details className="group">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
-          Or paste our basic form code instead
-        </summary>
-        <div className="pt-3">
-          <EmbedSnippet
-            shopSlug={shop?.slug ?? "your-shop"}
-            endpoint={`${appUrl()}/api/leads`}
-          />
-        </div>
-      </details>
+      {easy ? (
+        <details open={nothingAtAll} className="group">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 text-base font-semibold transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Connect your website form
+            <ChevronDown aria-hidden className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex flex-col gap-5 pt-3">{setup}</div>
+        </details>
+      ) : (
+        setup
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { addTimeToInvoiceAction } from "@/app/(app)/invoices/time-actions";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 
 /**
@@ -24,11 +24,14 @@ export function UnbilledTimeBanner({
   durationLabel,
   /** What those hours come to, formatted. */
   amountLabel,
+  large = false,
 }: {
   invoiceId: string;
   entryCount: number;
   durationLabel: string;
   amountLabel: string;
+  /** Easy mode: bigger words, a 48px button and the rounder corner of the bill's other boxes. */
+  large?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -46,13 +49,17 @@ export function UnbilledTimeBanner({
   }
 
   return (
-    // Amber, because it is money the shop has earned and not yet asked for.
-    <Card
-      tone="active"
-      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+    // A soft amber panel, because it is money the shop has earned and not yet
+    // asked for. A whole tinted box, not the card's left stripe: the words say
+    // what it is, and the tint only adds emphasis.
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center justify-between gap-3 border border-status-in-progress/30 bg-status-in-progress-bg",
+        large ? "rounded-2xl p-4" : "rounded-lg px-4 py-3",
+      )}
     >
-      <span className="flex items-center gap-2 text-[14px] text-foreground">
-        <ICONS.timeClock className="size-4 shrink-0 text-muted-foreground" />
+      <span className={cn("flex items-center gap-2 text-foreground", large ? "text-base" : "text-[14px]")}>
+        <ICONS.timeClock className={cn("shrink-0 text-muted-foreground", large ? "size-5" : "size-4")} />
         <span>
           <strong className="font-semibold">
             {entryCount} unbilled time {entryCount === 1 ? "entry" : "entries"}
@@ -62,10 +69,15 @@ export function UnbilledTimeBanner({
           </span>
         </span>
       </span>
-      <Button variant="outline" size="sm" disabled={busy} onClick={add}>
+      <Button
+        variant="outline"
+        disabled={busy}
+        onClick={add}
+        className={cn("bg-surface", large && "h-12 px-5 text-base")}
+      >
         {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.add />}
         {busy ? "Adding…" : "Add to invoice"}
       </Button>
-    </Card>
+    </div>
   );
 }

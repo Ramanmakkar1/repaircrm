@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { getSession } from "@/lib/auth";
+import { homePath } from "@/lib/prefs";
 import { RepairsHome } from "@/components/landing/repairs-home";
 
 const TITLE = "Repairs helper — repair shop software";
@@ -29,14 +30,14 @@ export const metadata: Metadata = {
 /**
  * "/" is two pages in one.
  *
- * Signed-in staff never see marketing — they land on the dashboard, which is
- * what "/" did before this page existed. Everyone else gets the landing page.
+ * Signed-in staff never see marketing — they land on their home (the box home
+ * in Easy mode, the dashboard in Full mode). Everyone else gets the landing page.
  * Reading the session cookie makes this route dynamic, which is what we want:
  * the copyright year and the redirect decision are both evaluated per request.
  */
 export default async function RootPage() {
   const session = await getSession();
-  if (session) redirect("/dashboard");
+  if (session) redirect(await homePath());
 
   return <RepairsHome />;
 }

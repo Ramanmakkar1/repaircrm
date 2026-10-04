@@ -23,7 +23,7 @@ export default function AppNotFound() {
           hint="The link may be out of date, or the record may have been deleted. Everything else is still where you left it."
           action={
             <Button asChild>
-              <Link href="/dashboard">Back to the dashboard</Link>
+              <Link href="/">Back to home</Link>
             </Button>
           }
         />

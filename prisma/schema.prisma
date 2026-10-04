@@ -695,6 +695,8 @@ model Product {
   lowStockAt    Int?
   category      String?
   active        Boolean             @default(true)
+  /// Key of a picture from the on-server image catalog (lib/catalog); null = pick automatically from the name.
+  catalogImage  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -52,7 +52,7 @@ export function DrawerStrip({
     return (
       <Card
         tone="neutral"
-        className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+        className="flex flex-wrap items-center justify-between gap-3 px-4 py-2"
       >
         <span className="flex min-w-0 items-center gap-2.5">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-hover">
@@ -78,7 +78,7 @@ export function DrawerStrip({
   return (
     <Card
       tone="success"
-      className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+      className="flex flex-wrap items-center justify-between gap-3 px-4 py-2"
     >
       <span className="flex min-w-0 items-center gap-2.5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-status-resolved-bg">

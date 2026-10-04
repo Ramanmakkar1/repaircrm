@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
+import { attentionBorder } from "./card-attention";
 import { InboundCard } from "./inbound-card";
 import type { MessagingConfig } from "./types";
 
@@ -60,10 +61,10 @@ export function MessagingTab({ config }: { config: MessagingConfig }) {
           description="The origin every portal link in an outbound message is built from."
         />
         <CardContent className="flex flex-col gap-2">
-          <code className="w-fit rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
+          <code className="w-fit rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
             {config.appUrl}
           </code>
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             Set <Env>NEXT_PUBLIC_APP_URL</Env> to your real domain before going
             live, or customers will receive links pointing at localhost.
           </p>
@@ -95,9 +96,9 @@ function DriverCard({
   const missing = vars.filter((v) => !v.set);
 
   return (
-    // Log mode earns the amber stripe: nothing this shop "sends" is leaving the
+    // Log mode earns the amber border: nothing this shop "sends" is leaving the
     // building, and that is the single most surprising thing on the screen.
-    <Card tone={live ? undefined : "active"}>
+    <Card className={live ? undefined : attentionBorder("active")}>
       <CardHeader
         icon={icon}
         title={
@@ -124,7 +125,7 @@ function DriverCard({
           </span>
           <code
             className={cn(
-              "rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
+              "rounded-full px-3 py-1 font-mono text-[14px] font-semibold",
               live
                 ? "bg-status-resolved-bg text-status-resolved-fg"
                 : "bg-surface-hover text-muted-foreground",
@@ -163,7 +164,7 @@ function DriverCard({
         </div>
 
         {live && missing.length > 0 ? (
-          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
             {title} is set to live but {missing.map((v) => v.name).join(" and ")}{" "}
             {missing.length === 1 ? "is" : "are"} missing — every send will be
             recorded in the outbox as failed.
@@ -176,7 +177,7 @@ function DriverCard({
 
 function Env({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[13px] font-semibold text-foreground">
+    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] font-semibold text-foreground">
       {children}
     </code>
   );

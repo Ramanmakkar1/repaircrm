@@ -39,7 +39,9 @@ export async function transcribe(
     form.set("model", target.model);
     form.set("response_format", "json");
     // Vocabulary only; no customer records or instructions from the database.
-    if (target.model === "whisper-1") form.set("prompt", "Repair shop. Repairs helper, iPhone, iPad, Samsung, MacBook, screen, battery, charging port, repair ticket, stock, invoice, pickup.");
+    const vocabulary = ["screen guards", "screen protectors", "tempered glass", "iPhone", "iPad", "Samsung", "MacBook", "screen", "battery", "charging port", "repair ticket", "stock", "invoice", "pickup"];
+    if (target.model === "whisper-1" || target.model === "gpt-transcribe" || /^gpt-4o.*transcribe/.test(target.model)) form.set("prompt", `Repair shop vocabulary: ${vocabulary.join(", ")}.`);
+    if (target.model === "gpt-transcribe") for (const term of vocabulary) form.append("keywords[]", term);
 
     const response = await fetch(`${target.baseUrl}/audio/transcriptions`, {
       method: "POST",

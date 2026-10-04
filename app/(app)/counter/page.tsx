@@ -1,58 +1,114 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { endOfDay, startOfDay } from "date-fns";
-import { ArrowUpRight, CalendarDays, LayoutGrid, Package, ReceiptText, ShoppingBag, Users, Wrench } from "lucide-react";
+import { Boxes, LayoutGrid, Plus, Search, Store } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { HomeTabs, type HomeTab } from "@/components/counter/home-tabs";
+import { asHomeTab, HOME_TAB_COOKIE } from "@/components/counter/home-tab-cookie";
+import { PictureTile, type PictureTileProps } from "@/components/counter/picture-tile";
+import { AttentionList, SettingsLink, StartButtons, type AttentionItem } from "@/components/counter/start-panel";
 
 export const metadata: Metadata = { title: "Home · Repairs helper" };
 export const dynamic = "force-dynamic";
 
-/** The counter opens with tasks people recognise, rather than a CRM navigation menu. */
-export default async function CounterPage() {
-  const [{ shopId, role, name }, branch] = await Promise.all([requireUser(), locationWhere()]);
+type Tile = PictureTileProps & { money?: boolean; ownerOnly?: boolean };
+
+const PRODUCTS = "/images/products";
+const HOME = "/images/home";
+
+/**
+ * Home works like a register: the two jobs that happen all day are pinned,
+ * what needs a person sits under them, and everything else is one tab away,
+ * grouped the way the shop thinks (the counter, the stock room, the office).
+ * Every tile has a picture, a plain name and one line of live detail.
+ * Nothing is removed - the long tail lives under "More tools".
+ */
+export default async function CounterPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const [{ shopId, role, name }, branch, params, jar] = await Promise.all([requireUser(), locationWhere(), searchParams, cookies()]);
   const now = new Date();
-  const [open, ready, today, unpaid] = await Promise.all([
+  const [open, ready, overdue, today, unpaid, low] = await Promise.all([
     db.ticket.count({ where: { shopId, ...branch, NOT: { status: RESOLVED_STATUS } } }),
     db.ticket.count({ where: { shopId, ...branch, status: "Ready for Pickup" } }),
-    db.appointment.count({ where: { shopId, startsAt: { gte: startOfDay(now), lte: endOfDay(now) }, status: { not: "CANCELED" } } }),
+    db.ticket.count({ where: { shopId, ...branch, NOT: { status: RESOLVED_STATUS }, dueDate: { lt: now } } }),
+    db.appointment.count({ where: { shopId, ...branch, startsAt: { gte: startOfDay(now), lte: endOfDay(now) }, status: { not: "CANCELED" } } }),
     role !== "TECH" ? db.invoice.count({ where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } } }) : Promise.resolve(0),
+    db.product.count({ where: { shopId, active: true, lowStockAt: { gte: db.product.fields.stockQty } } }),
   ]);
-  const cards = [
-    { key: "repairs", title: "Repairs", description: "Check in, fix, and hand back", detail: `${open} open · ${ready} ready for pickup`, Icon: Wrench },
-    { key: "invoices", title: "Invoices", description: "Create a bill or find an invoice", detail: role !== "TECH" ? `${unpaid} waiting for payment` : "Quotes, bills, and receipts", Icon: ReceiptText },
-    { key: "sales", title: "Sales", description: "Sell products and take payment", detail: "Photo catalog & checkout", Icon: ShoppingBag },
-    { key: "customers", title: "Customers", description: "Find details and repair history", detail: "Find or add a customer", Icon: Users },
-    { key: "products", title: "Products & parts", description: "Photos, prices, and stock", detail: "Accessories, parts & services", Icon: Package },
-    { key: "appointments", title: "Appointments", description: "Book a visit or see today’s calendar", detail: `${today} booked today`, Icon: CalendarDays },
+
+  const allowed = (tile: Tile) => (!tile.money || role !== "TECH") && (!tile.ownerOnly || role === "OWNER");
+  const render = (tiles: Tile[]) => (
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+      {tiles.filter(allowed).map((tile) => (
+        <li key={tile.title}>
+          <PictureTile href={tile.href} title={tile.title} detail={tile.detail} photo={tile.photo} alert={tile.alert} mark={tile.mark} />
+        </li>
+      ))}
+    </ul>
+  );
+
+  const counter: Tile[] = [
+    { href: "/tickets", title: "Repairs", detail: `${open} open · ${ready} ready`, photo: `${PRODUCTS}/phone.webp` },
+    { href: "/tickets?status=Ready%20for%20Pickup", title: "Pickup & pay", detail: "Hand a device back", photo: `${HOME}/pickup-bag.webp`, alert: ready ? `${ready} ready` : undefined },
+    { href: "/invoices?status=unpaid", title: "Take payment", detail: unpaid ? `${unpaid} unpaid` : "Collect what's owed", photo: `${HOME}/card-terminal.webp`, money: true },
+    { href: "/customers/new", title: "Add customer", detail: "Name or phone", photo: `${HOME}/customers-cards.webp`, mark: Plus },
+    { href: "/customers", title: "Find customer", detail: "Search name or phone", photo: `${HOME}/customers-cards.webp`, mark: Search },
+    { href: "/appointments", title: "Book a visit", detail: today ? `${today} booked today` : "Appointments", photo: `${HOME}/diary.webp` },
   ];
+
+  const stock: Tile[] = [
+    { href: "/inventory", title: "View & add stock", detail: "Find an item, tap +", photo: `${HOME}/parts-bin.webp` },
+    { href: "/inventory?filter=low", title: "Low stock", detail: low ? `${low} running low` : "Nothing running low", photo: `${PRODUCTS}/screen-protector.webp`, alert: low ? `${low} low` : undefined },
+    { href: "/inventory/new", title: "Add product", detail: "Name, price, quantity", photo: `${HOME}/price-tag.webp` },
+    { href: "/inventory/purchase-orders", title: "Purchase orders", detail: "Order parts, receive deliveries", photo: `${HOME}/delivery-boxes.webp`, ownerOnly: true },
+    { href: "/inventory/vendors", title: "Suppliers", detail: "Where you buy parts", photo: `${HOME}/delivery-van.webp`, ownerOnly: true },
+    { href: "/inventory/import", title: "Import stock", detail: "From Excel or CSV", photo: `${HOME}/import-folder.webp`, ownerOnly: true },
+  ];
+
+  const shop: Tile[] = [
+    { href: "/counter/invoices", title: "Money", detail: unpaid ? `${unpaid} unpaid invoices` : "Invoices & quotes", photo: `${HOME}/invoice-pad.webp`, money: true },
+    { href: "/reports", title: "Reports", detail: "How the shop is doing", photo: `${HOME}/report-chart.webp` },
+    { href: "/time-clock", title: "Time clock", detail: "Clock in or out", photo: `${HOME}/time-clock.webp` },
+    { href: "/display", title: "Shop display", detail: "The customer screen", photo: `${HOME}/display-screen.webp` },
+    { href: "/marketing", title: "Marketing", detail: "Messages to customers", photo: `${HOME}/megaphone.webp` },
+    { href: "/counter/tools", title: "More tools", detail: "Everything else", photo: `${HOME}/toolbox.webp` },
+  ];
+
+  const tabs: HomeTab[] = [
+    { key: "counter", label: "Counter", short: "Counter", icon: <Store className="size-5" />, content: render(counter) },
+    { key: "stock", label: "Stock & purchasing", short: "Stock", icon: <Boxes className="size-5" />, content: render(stock) },
+    { key: "shop", label: "Shop management", short: "Shop", icon: <LayoutGrid className="size-5" />, content: render(shop) },
+  ];
+
+  const attention: AttentionItem[] = [
+    { href: "/tickets?status=Ready%20for%20Pickup", label: "Ready for pickup", count: ready },
+    { href: "/tickets?due=overdue", label: "Overdue repairs", count: overdue },
+    ...(role !== "TECH" ? [{ href: "/invoices?status=unpaid", label: "Unpaid invoices", count: unpaid }] : []),
+    { href: "/inventory?filter=low", label: "Low stock", count: low },
+  ];
+
   const firstName = name.trim().split(/\s+/)[0];
+  const initial = asHomeTab(params.tab) ?? asHomeTab(jar.get(HOME_TAB_COOKIE)?.value) ?? "counter";
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-7">
-      <div>
-        <p className="mb-2 text-sm text-muted-foreground">{firstName ? `Hello, ${firstName}` : "Your shop"}</p>
-        <h1 className="max-w-2xl text-[28px] font-semibold leading-tight tracking-tight sm:text-[36px]">What would you like to do?</h1>
-        <p className="mt-3 text-base text-muted-foreground">Tap a box to get started.</p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="grid gap-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-6">
+        <aside className="flex min-w-0 flex-col gap-4">
+          <div>
+            <h1 className="text-[26px] font-semibold leading-9 tracking-tight">{firstName ? `Hello, ${firstName}` : "Your shop"}</h1>
+            <p className="text-base text-muted-foreground">Tap a box to get started.</p>
+          </div>
+          <StartButtons />
+          <AttentionList items={attention} />
+          <SettingsLink className="mt-auto hidden lg:flex" />
+        </aside>
+        <HomeTabs tabs={tabs} initial={initial} />
       </div>
-      <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-        {cards.map(({ key, title, description, detail, Icon }) => (
-          <li key={key}>
-            <Link href={`/counter/${key}`} className="group relative flex h-full min-h-[200px] flex-col rounded-xl border border-border bg-white p-4 transition-colors hover:border-[#006aff] active:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-[216px] sm:p-6">
-              <div className="mb-5 flex items-center justify-between gap-2"><Icon className="size-8 text-[#006aff]" strokeWidth={1.6} aria-hidden /><ArrowUpRight className="size-5 text-muted-foreground" aria-hidden /></div>
-              <h2 className="text-lg font-semibold leading-tight sm:text-xl">{title}</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
-              <p className="mt-auto pt-5 text-xs font-medium text-muted-foreground">{detail}</p>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <Link href="/counter/tools" className="flex min-h-20 items-center gap-4 rounded-xl border border-border bg-white px-5 py-4 hover:border-[#006aff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <LayoutGrid className="size-7 shrink-0 text-[#006aff]" aria-hidden />
-        <span className="min-w-0 flex-1"><span className="block text-lg font-semibold">More tools & settings</span><span className="mt-1 block text-sm text-muted-foreground">Reports, estimates, marketing, time clock, and shop settings</span></span>
-        <ArrowUpRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-      </Link>
+      <SettingsLink className="lg:hidden" />
+      <SetupChecklist />
     </div>
   );
 }

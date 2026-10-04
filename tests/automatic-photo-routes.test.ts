@@ -14,8 +14,8 @@ import { GET } from "@/app/(app)/inventory/[id]/photo/automatic/image/route";
 import { automaticPhotoLookupKey } from "@/lib/inventory/automatic-product-photos";
 
 const ctx = { params: Promise.resolve({ id: "product_a" }) };
-const result = { ok: true, status: "ready", imageUrl: "/inventory/product_a/photo/automatic/image", attribution: { title: "ThinkPad T420.png", author: "Creator", sourceUrl: "https://commons.wikimedia.org/wiki/File:ThinkPad.png", license: "CC BY 4.0", licenseUrl: "https://creativecommons.org/licenses/by/4.0/" } };
-const imageProduct = () => ({ name: "ThinkPad T420", category: "Computers", attachments: [], automaticPhoto: { shopId: "shop_a", status: "ready", lookupKey: automaticPhotoLookupKey("ThinkPad T420"), path: "shop_a/photo.png", storage: "s3", mimeType: "image/png" } });
+const result = { ok: true, status: "ready", imageUrl: "/inventory/product_a/photo/automatic/image", attribution: { title: "Zebra ZD220 barcode scanner.png", author: "Creator", sourceUrl: "https://commons.wikimedia.org/wiki/File:ThinkPad.png", license: "CC BY 4.0", licenseUrl: "https://creativecommons.org/licenses/by/4.0/" } };
+const imageProduct = () => ({ name: "Zebra ZD220 barcode scanner", category: "Computers", attachments: [], automaticPhoto: { shopId: "shop_a", status: "ready", lookupKey: automaticPhotoLookupKey("Zebra ZD220 barcode scanner"), path: "shop_a/photo.png", storage: "s3", mimeType: "image/png" } });
 function request(method = "POST", headers: HeadersInit = {}) { return new Request("http://localhost:3020/inventory/product_a/photo/automatic", { method, headers }); }
 
 beforeEach(() => {
@@ -79,7 +79,7 @@ describe("private cached image delivery", () => {
     handlers["product.findFirst"] = () => {
       if (caseName === "other_shop") return null;
       const product = imageProduct();
-      if (caseName === "renamed") product.name = "ThinkPad T430";
+      if (caseName === "renamed") product.name = "Zebra ZD230 barcode scanner";
       if (caseName === "uploaded") (product.attachments as Array<{ id: string }>).push({ id: "manual_photo" });
       if (caseName === "unsafe_type") product.automaticPhoto.mimeType = "text/html";
       return product;

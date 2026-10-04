@@ -1,5 +1,10 @@
 # RepairPilot test and launch status
 
+> Historical snapshot from September 12–13, 2026; hosting has since moved to the
+> VPS - see [README.md "Production hosting"](../README.md#production-hosting) and
+> [ops/README.md](../ops/README.md). The Cloudflare Workers, PlanetScale and
+> Hyperdrive details below describe the retired test deployment.
+
 Reviewed on September 12–13, 2026 (America/Edmonton).
 
 ## Temporary Cloudflare test deployment

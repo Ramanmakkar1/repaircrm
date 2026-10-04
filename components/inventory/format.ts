@@ -58,6 +58,21 @@ export const STOCK_META: Record<
   },
 };
 
+/**
+ * The compact flag a dense list (Easy mode) shows beside a quantity: a word,
+ * only for what needs ordering. It reads `stockStatus`, so it can never
+ * disagree with the badge, the filters or the banner — and a labour line that
+ * sits at 0 by design ("untracked") gets no flag.
+ */
+export function stockFlag(
+  level: StockLevel,
+): { label: "Low" | "Out"; tone: StatusTone } | null {
+  const status = stockStatus(level);
+  if (status === "low") return { label: "Low", tone: STOCK_META.low.tone };
+  if (status === "out") return { label: "Out", tone: STOCK_META.out.tone };
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // List filters
 // ---------------------------------------------------------------------------

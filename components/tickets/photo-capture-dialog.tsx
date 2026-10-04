@@ -35,9 +35,18 @@ const NO_SUBSCRIBE = () => () => {};
 export function PhotoCaptureDialog({
   onCapture,
   disabled,
+  large = false,
+  trigger,
+  fallback = null,
 }: {
   onCapture: (file: File) => void;
   disabled?: boolean;
+  /** Easy mode: a big button that fills its row on a phone, like the button beside it. */
+  large?: boolean;
+  /** A whole opening button of the caller's own (the repair screen's Add photo tile). */
+  trigger?: React.ReactNode;
+  /** Shown instead when this browser has no camera to open, so the caller can offer the file picker. */
+  fallback?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -135,21 +144,29 @@ export function PhotoCaptureDialog({
     }
   }
 
-  if (!supported) return null;
+  if (!supported) return fallback;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={disabled}>
-          <Camera className="size-4" />
-          Take photo
-        </Button>
+        {trigger ?? (
+          <Button
+            type="button"
+            variant={large ? "default" : "outline"}
+            size={large ? "lg" : "sm"}
+            className={large ? "h-14 flex-1 px-5 text-base [&_svg]:size-5" : undefined}
+            disabled={disabled}
+          >
+            <Camera className="size-4" />
+            Take photo
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Take a photo</DialogTitle>
           <DialogDescription>
-            The photo attaches to this ticket as soon as you capture it.
+            The photo attaches to this repair as soon as you capture it.
           </DialogDescription>
         </DialogHeader>
 

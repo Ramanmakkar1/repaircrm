@@ -29,6 +29,7 @@ export function ActionForm({
   disabled,
   pendingLabel,
   className,
+  buttonClassName,
 }: {
   action: (formData: FormData) => Promise<void>;
   fields: Record<string, string>;
@@ -38,6 +39,8 @@ export function ActionForm({
   disabled?: boolean;
   pendingLabel?: string;
   className?: string;
+  /** Classes for the button itself (the form is `className`). */
+  buttonClassName?: string;
 }) {
   return (
     <form action={action} className={className}>
@@ -49,6 +52,7 @@ export function ActionForm({
         size={size}
         disabled={disabled}
         pendingLabel={pendingLabel}
+        className={buttonClassName}
       >
         {children}
       </SubmitButton>

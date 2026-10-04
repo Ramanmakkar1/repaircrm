@@ -1,32 +1,64 @@
 "use client";
 
-import Link from "next/link";
 import { Mic, Sparkles } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { OPEN_SHOP_ASSISTANT, type OpenShopAssistantDetail } from "@/components/assistant/assistant-events";
+import { cn } from "@/components/ui/cn";
 
 function openAssistant(detail: OpenShopAssistantDetail = {}) {
   window.dispatchEvent(new CustomEvent(OPEN_SHOP_ASSISTANT, { detail }));
 }
 
-export function AssistantPanel({ overdueCount }: { overdueCount: number }) {
+const PROMPTS = ["Which repairs are late?", "Find iPhone screens", "What is low in stock?"];
+
+/**
+ * The assistant, kept small: a place to start talking or typing and three
+ * questions people ask every day. It opens the same assistant as the button
+ * at the bottom of every screen; it is not the point of this page.
+ */
+export function AssistantPanel({ className }: { className?: string }) {
   return (
-    <Card className="flex flex-col gap-3 p-5 shadow-none">
-      <h2 className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-accent-soft-foreground" aria-hidden />Ask Repairs helper</h2>
-      <p className="text-xs text-muted-foreground">Ask about repairs, stock or customers.</p>
-      <div className="flex items-center gap-3 rounded-lg border border-border p-1.5">
-        <button type="button" aria-label="Speak to Repairs helper" onClick={() => openAssistant({ voice: true })} className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#006aff] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"><Mic className="size-5" aria-hidden /></button>
-        <button type="button" onClick={() => openAssistant()} className="h-10 min-w-0 flex-1 rounded-md text-left text-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Type or speak…</button>
+    <section aria-labelledby="assistant-title" className={cn("flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4", className)}>
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-soft-foreground">
+          <Sparkles className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <h2 id="assistant-title" className="text-base font-semibold leading-tight">
+            Ask Repairs helper
+          </h2>
+          <p className="text-sm text-muted-foreground">Repairs, stock or customers. Speak or type.</p>
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => openAssistant({ prompt: "Which repairs are late?" })} className="min-h-8 rounded-md border border-border px-2 py-1.5 text-left text-xs hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Overdue repairs</button>
-        <button type="button" onClick={() => openAssistant({ prompt: "Find iPhone screens" })} className="min-h-8 rounded-md border border-border px-2 py-1.5 text-left text-xs hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Find iPhone screens</button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Speak to Repairs helper"
+          onClick={() => openAssistant({ voice: true })}
+          className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        >
+          <Mic className="size-5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          onClick={() => openAssistant()}
+          className="h-12 min-w-0 flex-1 rounded-xl border border-border px-3 text-left text-[15px] text-muted-foreground hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Type or speak…
+        </button>
       </div>
-      <Link href="/tickets?due=overdue" className="rounded-md border border-border p-2 text-sm text-accent-soft-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="mb-1 block text-xs text-muted-foreground">From your repair queue</span>
-        {overdueCount === 0 ? "All promised dates are on track" : `${overdueCount} repair${overdueCount === 1 ? "" : "s"} need an overdue review →`}
-      </Link>
-      <p className="text-xs text-muted-foreground">Review your words before sending.</p>
-    </Card>
+      <ul className="flex flex-wrap gap-2">
+        {PROMPTS.map((prompt) => (
+          <li key={prompt}>
+            <button
+              type="button"
+              onClick={() => openAssistant({ prompt })}
+              className="min-h-11 rounded-xl border border-border px-3 text-left text-sm font-medium hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {prompt}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

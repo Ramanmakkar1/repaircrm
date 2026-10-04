@@ -94,7 +94,7 @@ export function SlaCard({ sla }: { sla: SlaHours }) {
                     }))
                   }
                 />
-                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-faint-foreground">
+                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-faint-foreground">
                   hours
                 </span>
               </div>
@@ -102,7 +102,7 @@ export function SlaCard({ sla }: { sla: SlaHours }) {
           ))}
         </div>
 
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           Calendar hours, not opening hours — a customer waiting overnight is
           still waiting.
         </p>

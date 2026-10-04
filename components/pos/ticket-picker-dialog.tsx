@@ -34,12 +34,17 @@ export function TicketPickerDialog({
   attachedTicketId,
   onPick,
   disabled,
+  compact = false,
 }: {
   tickets: PosTicket[];
   attachedTicketId: string | null;
   onPick: (ticket: PosTicket) => void;
   disabled: boolean;
+  /** Easy-mode wording ("repair", not "ticket") and a half-width button. */
+  compact?: boolean;
 }) {
+  // The same thing, said the way the shop says it in Easy mode.
+  const noun = compact ? "repair" : "ticket";
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
 
@@ -66,26 +71,26 @@ export function TicketPickerDialog({
       <DialogTrigger asChild>
         <Button
           variant="outline"
-          className="h-12 w-full justify-start"
+          className={compact ? "h-12 w-full min-w-0 px-3" : "h-12 w-full justify-start"}
           disabled={disabled || blocked || empty}
           title={
             blocked
-              ? "One sale bills one ticket — ring this one up first."
+              ? `One sale bills one ${noun} — ring this one up first.`
               : empty
-                ? "No open tickets have un-invoiced work right now."
+                ? `No open ${noun}s have un-invoiced work right now.`
                 : undefined
           }
         >
           <ICONS.ticket />
-          Add from ticket
+          {compact ? "From repair" : "Add from ticket"}
         </Button>
       </DialogTrigger>
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bill a repair ticket</DialogTitle>
+          <DialogTitle>{compact ? "Bill a repair" : "Bill a repair ticket"}</DialogTitle>
           <DialogDescription>
-            Open tickets with work that has not been invoiced yet. Picking one
+            Open {noun}s with work that has not been invoiced yet. Picking one
             pulls its charges onto this sale and attaches its customer.
           </DialogDescription>
         </DialogHeader>
@@ -96,7 +101,7 @@ export function TicketPickerDialog({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ticket #, customer or subject…"
+              placeholder={compact ? "Repair #, customer or what it is…" : "Ticket #, customer or subject…"}
               className="h-12 pl-9"
               autoFocus
             />
@@ -107,7 +112,7 @@ export function TicketPickerDialog({
               <p className="px-5 py-10 text-center text-sm text-muted-foreground">
                 {tickets.length === 0
                   ? "Nothing is waiting to be billed."
-                  : "No open ticket matches that."}
+                  : `No open ${noun} matches that.`}
               </p>
             ) : (
               <ul className="divide-y divide-border">
@@ -149,8 +154,8 @@ export function TicketPickerDialog({
           </div>
 
           <p className="text-[12.5px] leading-snug text-muted-foreground">
-            Ticket charges are billed at the price quoted on the bench and are
-            not editable here. Change them on the ticket if they are wrong.
+            {compact ? "Repair" : "Ticket"} charges are billed at the price quoted on the bench and are
+            not editable here. Change them on the {noun} if they are wrong.
           </p>
         </div>
       </DialogContent>

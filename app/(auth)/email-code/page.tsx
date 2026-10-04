@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { homePath } from "@/lib/prefs";
 import { EmailCodeForm } from "./code-form";
 export const metadata = { title: "Email code · Repairs helper" };
 export default async function EmailCodePage({ searchParams }: { searchParams: Promise<{ purpose?: string }> }) {
-  if (await getSession()) redirect("/dashboard");
+  if (await getSession()) redirect(await homePath());
   const purpose = (await searchParams).purpose === "reset" ? "reset" : "login";
   return <>
     <h1 className="text-2xl font-semibold tracking-tight">{purpose === "reset" ? "Reset with an email code" : "Sign in with an email code"}</h1>

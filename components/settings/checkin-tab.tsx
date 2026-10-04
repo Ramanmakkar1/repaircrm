@@ -17,7 +17,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CHECKIN_FIELD_LABEL,
@@ -115,7 +115,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
             <span className="text-[14.5px] font-semibold text-foreground">
               Let customers book their own device in
             </span>
-            <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <span className="text-[14px] leading-relaxed text-muted-foreground">
               While this is off the link below returns a 404 — the same answer a
               shop that has never existed gives.
             </span>
@@ -132,7 +132,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <LinkRow label="Public link" value={config.checkinUrl} openable />
             <LinkRow label="Kiosk link" value={config.kioskUrl} openable />
-            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               Kiosk mode scales the form up for a tablet, hides the links off the
               page and clears itself for the next person in the queue.
             </p>
@@ -156,7 +156,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
 
         {/* ---------------------------------------------------- the fields */}
         <div className="flex flex-col gap-2.5">
-          <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
+          <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
             Optional fields
           </span>
           <div className="flex flex-wrap gap-2">
@@ -171,7 +171,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
               />
             ))}
           </div>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             Name, device type, problem and description are always asked for —
             without them there is no ticket worth having.
           </p>
@@ -187,7 +187,7 @@ function CheckinCard({ config }: { config: CheckinTabConfig }) {
             value={terms}
             onChange={(event) => setTerms(event.target.value)}
           />
-          <p className="text-[12.5px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             The customer ticks a box and signs on screen. The signature is saved
             on the ticket and reprinted on the work order.
           </p>
@@ -220,8 +220,8 @@ function FieldToggle({
       aria-pressed={active}
       className={
         active
-          ? "inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3.5 py-1.5 text-[13.5px] font-semibold text-accent-soft-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          : "inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface px-3.5 py-1.5 text-[13.5px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          ? "inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3.5 py-1.5 text-[14px] font-semibold text-accent-soft-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          : "inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface px-3.5 py-1.5 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       }
     >
       {active ? <Check className="size-3.5" /> : null}
@@ -262,7 +262,7 @@ function LinkRow({
         <Input
           readOnly
           value={value}
-          className="h-9 basis-full font-mono text-[12.5px] sm:min-w-0 sm:flex-1 sm:basis-auto"
+          className="h-9 basis-full font-mono text-[14px] sm:min-w-0 sm:flex-1 sm:basis-auto"
         />
         <Button type="button" variant="outline" size="sm" onClick={copy}>
           {copied ? (
@@ -346,7 +346,7 @@ function ReviewsCard({
             <span className="text-[14.5px] font-semibold text-foreground">
               Ask for a review after pickup
             </span>
-            <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <span className="text-[14px] leading-relaxed text-muted-foreground">
               {sentThisMonth === 0
                 ? "None sent this month yet."
                 : `${sentThisMonth} sent this month.`}
@@ -369,7 +369,7 @@ function ReviewsCard({
               placeholder="https://g.page/r/…/review"
               onChange={(event) => setUrl(event.target.value)}
             />
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               Your Google review link, or anywhere else you collect them.
             </p>
           </div>
@@ -384,7 +384,7 @@ function ReviewsCard({
                 setDelay(event.target.value.replace(/[^0-9]/g, ""))
               }
             />
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               After pickup. 24 is a good default.
             </p>
           </div>
@@ -399,7 +399,7 @@ function ReviewsCard({
             value={template}
             onChange={(event) => setTemplate(event.target.value)}
           />
-          <p className="text-[12.5px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             {REVIEW_TOKENS.join(" · ")} are filled in. Texted to customers who
             opted in to SMS, emailed to everyone else.
           </p>

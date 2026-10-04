@@ -29,7 +29,7 @@ function HeaderSkeleton({ actions = 1 }: { actions?: number }) {
       {actions > 0 ? (
         <div className="flex shrink-0 items-center gap-2.5">
           {Array.from({ length: actions }, (_, index) => (
-            <Skeleton key={index} className="h-10 w-32 rounded-md" />
+            <Skeleton key={index} className="h-12 w-32 rounded-md" />
           ))}
         </div>
       ) : null}
@@ -58,21 +58,22 @@ export function BillingListSkeleton({
 
       {filters > 0 ? (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2 overflow-hidden">
             {Array.from({ length: filters }, (_, index) => (
-              <Skeleton key={index} className="h-10 w-24 rounded-full" />
+              <Skeleton key={index} className="h-11 w-24 shrink-0 rounded-xl" />
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Skeleton className="h-10 w-full max-w-sm rounded-md" />
-            <Skeleton className="h-10 w-24 rounded-md" />
+            <Skeleton className="h-12 min-w-0 flex-1 rounded-xl sm:max-w-xl" />
+            <Skeleton className="h-12 w-28 rounded-xl" />
           </div>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* The Easy-mode record cards: one column on a phone, two on a tablet. */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {Array.from({ length: cards }, (_, index) => (
-          <Skeleton key={index} className="h-[230px] rounded-lg" />
+          <Skeleton key={index} className="h-28 rounded-2xl" />
         ))}
       </div>
     </div>
@@ -119,6 +120,37 @@ export function DocumentDetailSkeleton({
             <Skeleton className="h-64 rounded-lg" />
           </div>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The POS-style bill screen in Easy mode: the way back, then the bill on the
+ * left (four tabs and a few line rows) and the tall summary card on the right.
+ * On a phone the summary comes first, exactly as the real page orders them, so
+ * the content lands where the grey was.
+ */
+export function BillDetailSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <Skeleton className="h-12 w-32 rounded-lg" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div className="order-2 flex min-w-0 flex-col gap-5 lg:order-1">
+          <div className="flex gap-2 overflow-hidden">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Skeleton key={index} className="h-12 w-24 shrink-0 rounded-xl" />
+            ))}
+          </div>
+          <Skeleton className="h-7 w-24" />
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 3 }, (_, index) => (
+              <Skeleton key={index} className="h-[5.5rem] rounded-2xl" />
+            ))}
+          </div>
+          <Skeleton className="ml-auto h-52 w-full max-w-md rounded-2xl" />
+        </div>
+        <Skeleton className="order-1 h-[34rem] rounded-2xl lg:order-2" />
       </div>
     </div>
   );

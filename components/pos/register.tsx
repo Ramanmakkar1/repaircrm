@@ -8,8 +8,8 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PhoneScanDialog } from "@/components/scan/phone-scan-dialog";
 import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { PageHeader } from "@/components/ui/page-header";
-import { ViewSwitch } from "@/components/counter/view-switch";
 import { calcTotals } from "@/lib/money";
 import { resolveCardFlow, type CardMachineSetting } from "@/lib/payments/card-machine";
 import { normalizeScan, scanCodeVariants } from "@/lib/scan/codes";
@@ -25,6 +25,9 @@ import { PayBar } from "./pay-bar";
 import { ProductGrid } from "./product-grid";
 import { SaleComplete, type CompletedSale } from "./sale-complete";
 import { SerialPickerDialog } from "./serial-picker-dialog";
+import { TerminalCart } from "./terminal-cart";
+import { PosToolbar } from "./terminal-toolbar";
+import { useTerminalHeight } from "./use-terminal-height";
 import {
   TenderDialog,
   type TenderSquareTerminal,
@@ -59,15 +62,14 @@ import {
  * catalogue line, so a stale tile or a tampered client cannot set a price.
  */
 export function Register({
-  simple = false,
   products,
   customers,
   tickets,
   taxRateBps,
   cardReader,
   drawer,
+  simple = true,
 }: {
-  simple?: boolean;
   products: PosProduct[];
   customers: PosCustomer[];
   /** Open tickets with un-invoiced work — the "Add from ticket" list. */
@@ -90,6 +92,12 @@ export function Register({
    * ignorant of the till: the register rings sales, the drawer holds money.
    */
   drawer?: React.ReactNode;
+  /**
+   * Easy mode (the default) is the one-screen register: a slim toolbar, the
+   * products on the left and the cart, with Pay always in view, on the right.
+   * Full mode keeps the page the way it was.
+   */
+  simple?: boolean;
 }) {
   const [lines, setLines] = React.useState<CartLine[]>([]);
   const [customerId, setCustomerId] = React.useState<string | null>(null);
@@ -104,6 +112,8 @@ export function Register({
   const [pending, startTransition] = React.useTransition();
 
   const scanRef = React.useRef<HTMLInputElement | null>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  useTerminalHeight(rootRef, simple && !sale);
   const keySeq = React.useRef(0);
   const nextKey = () => `line-${keySeq.current++}`;
 
@@ -526,10 +536,15 @@ export function Register({
   // ----------------------------------------------------------------- render ---
 
   if (sale) {
-    return (
+    return simple ? (
+      <div className="flex flex-col gap-4">
+        <PosToolbar drawer={drawer} />
+        <SaleComplete sale={sale} onNewSale={startNewSale} />
+      </div>
+    ) : (
       <div className="flex flex-col gap-5">
         <PageHeader
-          title="Point of sale"
+          title="Sell"
           description="Ring up walk-in sales at the counter."
         />
         {drawer}
@@ -538,100 +553,129 @@ export function Register({
     );
   }
 
+  const errorAlert =
+    error && tender === null ? (
+      <div
+        role="alert"
+        className="flex shrink-0 items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
+      >
+        <AlertCircle className="mt-0.5 size-4 shrink-0" />
+        <span>{error}</span>
+      </div>
+    ) : null;
+
+  /*
+    The slot ProductGrid keeps to the right of the search box. These shops have
+    no laser guns, so this is THE way to add something — full height beside the
+    field, and icon-only at 390px where the word would eat the search box.
+    `continuous` because a counter sale is a pile of items, not one.
+  */
+  const scanButton = (
+    <ScanButton
+      continuous
+      showLabel
+      variant="outline"
+      size="lg"
+      className={cn(
+        "shrink-0 gap-2 px-4 sm:px-5",
+        simple ? "h-14 rounded-xl" : "h-11",
+      )}
+      labelClassName="hidden sm:inline"
+      label="Scan barcode"
+      title="Scan into the cart"
+      description="Every code adds a line. Keep scanning until the pile is done."
+      onScan={async (hit) => (await handleScan(hit.value)).message}
+    />
+  );
+
+  const cartProps = {
+    lines,
+    products,
+    totals,
+    taxRateBps: effectiveTaxRateBps,
+    depositCents,
+    dueCents,
+    customers,
+    customerId,
+    onCustomerChange: setCustomerId,
+    onQuantityChange: setQuantity,
+    onRemove: removeLine,
+    onClear: clearCart,
+    onAddCustom: addCustom,
+    tickets,
+    attachedTicketId: ticketId,
+    onPickTicket: addTicket,
+    onRemoveTicket: removeTicket,
+    onTender: startTender,
+    disabled: pending,
+    tendersRef,
+  };
+
   return (
-    <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Point of sale"
-        description="Browse products and parts. Add items to the current sale."
-        className="[&_h1]:text-[28px] sm:[&_h1]:text-[32px]"
-        actions={
-          <>
-          <ViewSwitch simple={simple} />
-          <Button variant="outline" onClick={() => setPhonePairing(true)}>
-            <ACTIONS.scan />
-            Use my phone as a scanner
-          </Button>
-          </>
-        }
-      />
+    <div
+      ref={rootRef}
+      className={cn(
+        "flex flex-col",
+        simple
+          ? // One fixed screen from `lg`: the height and the cancelling bottom
+            // margin are measured (see useTerminalHeight); these are the
+            // first-paint fallbacks.
+            "gap-3 lg:mb-[var(--pos-mb,-7rem)] lg:h-[var(--pos-h,calc(100dvh_-_6.5rem))] lg:min-h-[30rem]"
+          : "gap-5",
+      )}
+    >
+      {simple ? (
+        <PosToolbar drawer={drawer} onPhoneScanner={() => setPhonePairing(true)} />
+      ) : (
+        <>
+          <PageHeader
+            title="Sell"
+            className="[&_h1]:text-[28px] sm:[&_h1]:text-[32px]"
+            actions={
+              <Button variant="outline" onClick={() => setPhonePairing(true)}>
+                <ACTIONS.scan />
+                Use my phone as a scanner
+              </Button>
+            }
+          />
 
-      {drawer}
+          {drawer}
+        </>
+      )}
 
-      {error && tender === null ? (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
-        >
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
+      {errorAlert}
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0">
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]",
+          simple ? "gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-1" : "items-start",
+        )}
+      >
+        <div className={cn("min-w-0", simple && "flex flex-col lg:min-h-0")}>
           <ProductGrid
             products={products}
             onAdd={addProduct}
             inputRef={scanRef}
-            scanSlot={
-              /*
-                The slot ProductGrid keeps to the right of the search box. These
-                shops have no laser guns, so this is THE way to add something —
-                accent-filled rather than an outline, full height beside the
-                field, and icon-only at 390px where the word would eat the
-                search box. `continuous` because a counter sale is a pile of
-                items, not one.
-              */
-              <ScanButton
-                continuous
-                showLabel
-                variant="outline"
-                size="lg"
-                className="h-11 shrink-0 gap-2 px-4 sm:px-5"
-                labelClassName="hidden sm:inline"
-                label="Scan barcode"
-                title="Scan into the cart"
-                description="Every code adds a line. Keep scanning until the pile is done."
-                onScan={async (hit) => (await handleScan(hit.value)).message}
-              />
-            }
+            layout={simple ? "terminal" : "classic"}
+            scanSlot={scanButton}
           />
         </div>
 
-        <CartPanel
-          lines={lines}
-          products={products}
-          totals={totals}
-          taxRateBps={effectiveTaxRateBps}
-          depositCents={depositCents}
-          dueCents={dueCents}
-          customers={customers}
-          customerId={customerId}
-          onCustomerChange={setCustomerId}
-          onQuantityChange={setQuantity}
-          onRemove={removeLine}
-          onClear={clearCart}
-          onAddCustom={addCustom}
-          tickets={tickets}
-          attachedTicketId={ticketId}
-          onPickTicket={addTicket}
-          onRemoveTicket={removeTicket}
-          onTender={startTender}
-          disabled={pending}
-          tendersRef={tendersRef}
-        />
+        {simple ? <TerminalCart {...cartProps} /> : <CartPanel {...cartProps} />}
       </div>
 
-      <nav aria-label="Everyday tools" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          { href: "/tickets/new", label: "New repair", icon: ACTIONS.add },
-          { href: "/tickets", label: "Repairs", icon: ICONS.ticket },
-          { href: "/customers", label: "Customers", icon: ICONS.customer },
-          { href: "/appointments", label: "Appointments", icon: ICONS.appointment },
-          { href: "/inventory", label: "Inventory", icon: ICONS.inventory },
-          { href: "/counter", label: "All tools", icon: ICONS.settings },
-        ].map(({ href, label, icon: Icon }) => <Button key={href} asChild variant="outline" className="h-12 justify-start"><Link href={href}><Icon />{label}</Link></Button>)}
-      </nav>
+      {simple ? null : (
+        <nav aria-label="Everyday tools" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            { href: "/tickets/new", label: "New repair", icon: ACTIONS.add },
+            { href: "/tickets", label: "Repairs", icon: ICONS.ticket },
+            { href: "/customers", label: "Customers", icon: ICONS.customer },
+            { href: "/appointments", label: "Appointments", icon: ICONS.appointment },
+            { href: "/inventory", label: "Inventory", icon: ICONS.inventory },
+            { href: "/counter", label: "All tools", icon: ICONS.settings },
+          ].map(({ href, label, icon: Icon }) => <Button key={href} asChild variant="outline" className="h-12 justify-start"><Link href={href}><Icon />{label}</Link></Button>)}
+        </nav>
+      )}
 
       <PayBar
         itemCount={lines.reduce((sum, line) => sum + line.quantity, 0)}
@@ -639,6 +683,9 @@ export function Register({
         tendersRef={tendersRef}
         onTender={startTender}
         disabled={pending}
+        // The one-screen register pins its own Pay row from lg, so this bar is
+        // only for phones and portrait tablets.
+        className={simple ? "lg:hidden" : undefined}
       />
 
       <PhoneScanDialog

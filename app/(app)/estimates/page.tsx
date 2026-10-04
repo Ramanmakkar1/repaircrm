@@ -6,6 +6,7 @@ import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-sear
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
+import { readUiPrefs } from "@/lib/prefs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,9 +17,11 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { customerLabel } from "@/components/customers/format";
 import { RowLink } from "@/components/list/row-link";
+import { DocumentGrid, EstimateCard } from "@/components/billing/document-cards";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
 import { formatDate } from "@/components/billing/format";
 import { PAGE_SIZE, Pagination } from "@/components/billing/pagination";
+import { estimateTabCounts } from "@/components/billing/record-format";
 import {
   ESTIMATE_STATUS_OPTIONS,
   ESTIMATE_STATUSES,
@@ -35,7 +38,9 @@ export default async function EstimatesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shopId } = await requireUser();
-  const params = await searchParams;
+  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  // Easy mode (the default) shows cards and big buttons; Full mode keeps the table.
+  const easy = prefs.simple;
 
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const statusParam = typeof params.status === "string" ? params.status : "";
@@ -55,7 +60,7 @@ export default async function EstimatesPage({
     ];
   }
 
-  const [total, estimates, filteredCustomer] = await Promise.all([
+  const [total, estimates, filteredCustomer, statusCounts] = await Promise.all([
     db.estimate.count({ where }),
     db.estimate.findMany({
       where,
@@ -77,18 +82,57 @@ export default async function EstimatesPage({
           select: { firstName: true, lastName: true, businessName: true },
         })
       : null,
+    // The number inside each Easy-mode tab: follows the customer filter, not the
+    // view or the search, so typing in the box never changes what a tab says.
+    easy
+      ? db.estimate.groupBy({
+          by: ["status"],
+          where: { shopId, ...(customerId ? { customerId } : {}) },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const filtered = Boolean(q || status || customerId);
   const now = requestNow();
+  const tabCounts = easy ? estimateTabCounts(statusCounts) : null;
+
+  const emptyState = (
+    <EmptyState
+      icon={ICONS.estimate}
+      title={filtered ? "No estimates match those filters" : "No estimates yet"}
+      hint={
+        filtered
+          ? "Try a different search term, or pick another view."
+          : "Quote a job before the work starts — approved estimates convert to an invoice in one click."
+      }
+      action={
+        filtered ? (
+          <Button variant="outline" asChild className={cn(easy && "px-6 text-base")}>
+            <Link href="/estimates">Clear filters</Link>
+          </Button>
+        ) : (
+          <Button asChild className={cn(easy && "px-6 text-base")}>
+            <Link href="/estimates/new">
+              <ACTIONS.add /> New estimate
+            </Link>
+          </Button>
+        )
+      }
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Estimates"
-        description="Draft and send repair estimates for approval."
+        description={
+          easy
+            ? "Quote a job, then send it for a yes."
+            : "Draft and send repair estimates for approval."
+        }
         actions={
-          <Button asChild>
+          <Button asChild className={cn(easy && "px-5 text-base")}>
             <Link href="/estimates/new">
               <ACTIONS.add /> New estimate
             </Link>
@@ -104,6 +148,7 @@ export default async function EstimatesPage({
               label: view.label,
               href: hrefFor(view.value, q, customerId),
               active: status === view.value,
+              ...(tabCounts ? { count: tabCounts[view.value] ?? 0 } : {}),
             }),
           )}
         />
@@ -113,7 +158,12 @@ export default async function EstimatesPage({
           q={q}
           status={status}
           customerId={customerId}
-          placeholder="Search by estimate #, customer or phone…"
+          placeholder={
+            easy
+              ? "Name, phone or number"
+              : "Search by estimate #, customer or phone…"
+          }
+          large={easy}
         />
 
         {filteredCustomer ? (
@@ -131,116 +181,134 @@ export default async function EstimatesPage({
         ) : null}
       </div>
 
-      <Card>
-        <CardContent className="px-0 py-0">
-          {estimates.length === 0 ? (
-            <EmptyState
-              icon={ICONS.estimate}
-              title={filtered ? "No estimates match those filters" : "No estimates yet"}
-              hint={
-                filtered
-                  ? "Try a different search term, or pick another view."
-                  : "Quote a job before the work starts — approved estimates convert to an invoice in one click."
-              }
-              action={
-                filtered ? (
-                  <Button variant="outline" asChild>
-                    <Link href="/estimates">Clear filters</Link>
-                  </Button>
-                ) : (
-                  <Button asChild>
-                    <Link href="/estimates/new">
-                      <ACTIONS.add /> New estimate
-                    </Link>
-                  </Button>
-                )
-              }
+      {easy ? (
+        estimates.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-surface">{emptyState}</div>
+        ) : (
+          <>
+            <DocumentGrid>
+              {estimates.map((estimate) => (
+                <li key={estimate.id}>
+                  <EstimateCard
+                    now={now}
+                    estimate={{
+                      id: estimate.id,
+                      number: estimate.number,
+                      customerName: customerLabel(estimate.customer),
+                      status: estimate.status,
+                      createdAt: estimate.createdAt,
+                      expiresAt: estimate.expiresAt,
+                      approvedAt: estimate.approvedAt,
+                      totalCents: calcTotals(estimate.lines, estimate.taxRateBps).totalCents,
+                    }}
+                  />
+                </li>
+              ))}
+            </DocumentGrid>
+            <Pagination
+              big
+              basePath="/estimates"
+              page={page}
+              total={total}
+              params={{
+                q: q || undefined,
+                status: status || undefined,
+                customerId: customerId || undefined,
+              }}
             />
-          ) : (
-            <>
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th>Estimate</Th>
-                    <Th>Customer</Th>
-                    <Th>Status</Th>
-                    <Th>Written</Th>
-                    <Th>Expires</Th>
-                    <Th className="text-right">Quoted</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {estimates.map((estimate) => {
-                    const totals = calcTotals(estimate.lines, estimate.taxRateBps);
-                    // An open quote past its expiry needs chasing; once it is
-                    // approved, declined or converted the date is just history.
-                    const expired =
-                      estimate.expiresAt !== null &&
-                      estimate.expiresAt.getTime() < now &&
-                      (estimate.status === "DRAFT" || estimate.status === "SENT");
+          </>
+        )
+      ) : (
+        <Card>
+          <CardContent className="px-0 py-0">
+            {estimates.length === 0 ? (
+              emptyState
+            ) : (
+              <>
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Estimate</Th>
+                      <Th>Customer</Th>
+                      <Th>Status</Th>
+                      <Th>Written</Th>
+                      <Th>Expires</Th>
+                      <Th className="text-right">Quoted</Th>
+                    </Tr>
+                  </THead>
+                  <TBody>
+                    {estimates.map((estimate) => {
+                      const totals = calcTotals(estimate.lines, estimate.taxRateBps);
+                      // An open quote past its expiry needs chasing; once it is
+                      // approved, declined or converted the date is just history.
+                      const expired =
+                        estimate.expiresAt !== null &&
+                        estimate.expiresAt.getTime() < now &&
+                        (estimate.status === "DRAFT" || estimate.status === "SENT");
 
-                    return (
-                      <RowLink key={estimate.id} href={`/estimates/${estimate.id}`}>
-                        <Td>
-                          <Link
-                            href={`/estimates/${estimate.id}`}
-                            className="rf-id font-semibold text-accent-soft-foreground hover:underline"
+                      return (
+                        <RowLink key={estimate.id} href={`/estimates/${estimate.id}`}>
+                          <Td>
+                            <Link
+                              href={`/estimates/${estimate.id}`}
+                              className="rf-id font-semibold text-accent-soft-foreground hover:underline"
+                            >
+                              #{estimate.number}
+                            </Link>
+                          </Td>
+                          {/*
+                            Plain text, not a link to the customer. The whole row
+                            already navigates to the document; a second link
+                            inside it sends some clicks somewhere else entirely,
+                            which is a misclick trap and a nested-interactive
+                            a11y problem besides. The customer is one click away
+                            on the document itself.
+                          */}
+                          <Td>
+                            <span className="block max-w-[180px] truncate font-medium text-foreground">
+                              {customerLabel(estimate.customer)}
+                            </span>
+                          </Td>
+                          <Td>
+                            <EstimateStatusBadge status={estimate.status} size="md" />
+                          </Td>
+                          <Td className="text-muted-foreground">
+                            {formatDate(estimate.createdAt)}
+                          </Td>
+                          {/* Red on the date is what the card's left stripe used to
+                              say, spent on the cell that actually explains it. */}
+                          <Td
+                            className={cn(
+                              "text-muted-foreground",
+                              expired && "font-semibold text-status-overdue-fg",
+                            )}
                           >
-                            #{estimate.number}
-                          </Link>
-                        </Td>
-                        {/*
-                          Plain text, not a link to the customer. The whole row
-                          already navigates to the document; a second link
-                          inside it sends some clicks somewhere else entirely,
-                          which is a misclick trap and a nested-interactive
-                          a11y problem besides. The customer is one click away
-                          on the document itself.
-                        */}
-                        <Td>
-                          <span className="block max-w-[180px] truncate font-medium text-foreground">
-                            {customerLabel(estimate.customer)}
-                          </span>
-                        </Td>
-                        <Td>
-                          <EstimateStatusBadge status={estimate.status} size="md" />
-                        </Td>
-                        <Td className="text-muted-foreground">
-                          {formatDate(estimate.createdAt)}
-                        </Td>
-                        {/* Red on the date is what the card's left stripe used to
-                            say, spent on the cell that actually explains it. */}
-                        <Td
-                          className={cn(
-                            "text-muted-foreground",
-                            expired && "font-semibold text-status-overdue-fg",
-                          )}
-                        >
-                          {estimate.expiresAt ? formatDate(estimate.expiresAt) : "—"}
-                        </Td>
-                        <Td className="text-right font-semibold text-foreground">
-                          {formatCents(totals.totalCents)}
-                        </Td>
-                      </RowLink>
-                    );
-                  })}
-                </TBody>
-              </Table>
+                            {estimate.expiresAt ? formatDate(estimate.expiresAt) : "—"}
+                          </Td>
+                          <Td className="text-right font-semibold text-foreground">
+                            {formatCents(totals.totalCents)}
+                          </Td>
+                        </RowLink>
+                      );
+                    })}
+                  </TBody>
+                </Table>
 
-              <Pagination
-                basePath="/estimates"
-                page={page}
-                total={total}
-                params={{
-                  q: q || undefined,
-                  status: status || undefined,
-                  customerId: customerId || undefined,
-                }}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+                <Pagination
+                  basePath="/estimates"
+                  page={page}
+                  total={total}
+                  params={{
+                    q: q || undefined,
+                    status: status || undefined,
+                    customerId: customerId || undefined,
+                  }}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { ICONS } from "@/components/ui/icons";
 import { formatCents } from "@/lib/money";
 import { METHOD_LABELS, type TenderMethod } from "./types";
@@ -27,6 +28,7 @@ export function PayBar({
   tendersRef,
   onTender,
   disabled,
+  className,
 }: {
   itemCount: number;
   dueCents: number;
@@ -34,6 +36,8 @@ export function PayBar({
   tendersRef: React.RefObject<HTMLDivElement | null>;
   onTender: (method: TenderMethod) => void;
   disabled: boolean;
+  /** For example `lg:hidden`, where the cart's own Pay row is pinned on screen. */
+  className?: string;
 }) {
   const [tendersVisible, setTendersVisible] = React.useState(false);
 
@@ -57,7 +61,10 @@ export function PayBar({
       aria-label="Take payment"
       // The shell's <main> carries 7rem of bottom padding and `sticky` measures
       // from inside it; the negative offset puts the bar 12px off the real edge.
-      className="sticky bottom-[-6.25rem] z-20 -mx-1 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 shadow-lg print:hidden"
+      className={cn(
+        "sticky bottom-[-6.25rem] z-20 -mx-1 flex items-center gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3 shadow-lg print:hidden",
+        className,
+      )}
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="text-[12.5px] font-semibold text-muted-foreground">

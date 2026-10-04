@@ -17,6 +17,7 @@ const { generate } = await import("@/lib/ai");
 const AI_ENV = [
   "AI_DRIVER",
   "AI_MODEL",
+  "ASSISTANT_MODEL",
   "AI_BASE_URL",
   "AI_API_KEY",
   "ANTHROPIC_API_KEY",
@@ -140,6 +141,19 @@ describe("openAiTarget", () => {
 });
 
 describe("generate routing", () => {
+  it("uses the stronger command model with strict structured output and a separate override", async () => {
+    vi.stubEnv("AI_DRIVER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    const fetchMock = stubFetch({ choices: [{ message: { content: '{"intent":{"action":"low_stock"}}' } }] });
+    const jsonSchema = { name: "command", schema: { type: "object", properties: {}, required: [], additionalProperties: false } };
+    await generate({ system: "S", prompt: "P", maxTokens: 1200, purpose: "command", jsonSchema });
+    expect(callArgs(fetchMock).body).toMatchObject({ model: "gpt-6.1-sol", reasoning_effort: "low", max_completion_tokens: 6000, response_format: { type: "json_schema", json_schema: { ...jsonSchema, strict: true } } });
+    expect(callArgs(fetchMock).body).not.toHaveProperty("max_tokens");
+    vi.stubEnv("ASSISTANT_MODEL", "gpt-4o-mini");
+    fetchMock.mockClear();
+    await generate({ system: "S", prompt: "P", maxTokens: 1200, purpose: "command", jsonSchema });
+    expect(callArgs(fetchMock).body).toMatchObject({ model: "gpt-4o-mini", max_tokens: 1200 });
+  });
   it("is off by default", async () => {
     const result = await generate({ system: "S", prompt: "P", maxTokens: 10 });
     expect(result).toMatchObject({ ok: false });

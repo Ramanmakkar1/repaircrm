@@ -5,7 +5,7 @@ import { useActionState } from "react";
 
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,6 +52,9 @@ export type TicketEditValues = {
   warrantyInvoiceLineId?: string | null;
 };
 
+/** How a dialog's opening button looks, so the header can set it in the menu or as the big one. */
+export type TriggerLook = Pick<ButtonProps, "variant" | "size" | "className">;
+
 export function EditTicketDialog({
   ticketId,
   values,
@@ -59,6 +62,7 @@ export function EditTicketDialog({
   techs,
   assets,
   warranties = [],
+  trigger,
 }: {
   ticketId: string;
   values: TicketEditValues;
@@ -67,6 +71,7 @@ export function EditTicketDialog({
   assets: Option[];
   /** This customer's still-live warranted purchases. Empty hides the field. */
   warranties?: WarrantyOption[];
+  trigger?: TriggerLook;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -76,7 +81,7 @@ export function EditTicketDialog({
       const result = await updateTicketAction(ticketId, previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success("Ticket updated.");
+        toast.success("Repair updated.");
       }
       return result;
     },
@@ -92,14 +97,14 @@ export function EditTicketDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" {...trigger}>
           <ACTIONS.edit className="size-4" />
           Edit
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit ticket</DialogTitle>
+          <DialogTitle>Edit repair</DialogTitle>
           <DialogDescription>
             Status changes belong in the update composer, so they always carry a note.
           </DialogDescription>
@@ -273,29 +278,39 @@ export function EditTicketDialog({
 export function DeleteTicketDialog({
   ticketId,
   ticketNumber,
+  labelled = false,
 }: {
   ticketId: string;
   ticketNumber: number;
+  /** A full-width "Delete repair" row for a menu, instead of the bare bin icon. */
+  labelled?: boolean;
 }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        {/* size-8, not the 36px `icon` default: it sits in a header row of
-            `sm` buttons and a 4px height difference reads as a mistake. */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          aria-label="Delete ticket"
-        >
-          <ACTIONS.delete className="size-4 text-faint-foreground" />
-        </Button>
+        {labelled ? (
+          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+            <ACTIONS.delete className="size-4" />
+            Delete repair
+          </Button>
+        ) : (
+          /* size-8, not the 36px `icon` default: it sits in a header row of
+             `sm` buttons and a 4px height difference reads as a mistake. */
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label="Delete repair"
+          >
+            <ACTIONS.delete className="size-4 text-faint-foreground" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete ticket #{ticketNumber}?</DialogTitle>
+          <DialogTitle>Delete repair #{ticketNumber}?</DialogTitle>
           <DialogDescription>
-            This permanently removes the ticket along with its notes, charges and
+            This permanently removes the repair along with its notes, charges and
             logged time. Invoices already created from it are kept.
           </DialogDescription>
         </DialogHeader>
@@ -303,7 +318,7 @@ export function DeleteTicketDialog({
           <form action={deleteTicketAction.bind(null, ticketId)}>
             <SubmitButton variant="destructive" size="sm" pendingLabel="Deleting…">
               <ACTIONS.delete />
-              Delete ticket
+              Delete repair
             </SubmitButton>
           </form>
         </DialogFooter>
@@ -331,6 +346,9 @@ export function MakeInvoiceButton({
   unbilledTimeCount,
   unbilledTimeLabel,
   unbilledTimeValue,
+  trigger,
+  label,
+  triggerNode,
 }: {
   ticketId: string;
   chargeCount: number;
@@ -340,6 +358,14 @@ export function MakeInvoiceButton({
   unbilledTimeLabel: string;
   /** …and what they are worth, formatted. */
   unbilledTimeValue: string;
+  trigger?: TriggerLook;
+  /** The words on the opening button, when "Make Invoice (3)" is not the right ones for where it sits. */
+  label?: string;
+  /**
+   * A whole opening button of the caller's own (the repair screen's picture tile).
+   * It replaces the default button; the dialog it opens is the same.
+   */
+  triggerNode?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [includeTime, setIncludeTime] = React.useState(true);
@@ -359,10 +385,13 @@ export function MakeInvoiceButton({
   return (
     <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm" disabled={nothingToBill}>
-          <ICONS.invoice className="size-4" />
-          {nothingToBill ? "Make Invoice" : `Make Invoice (${chargeCount + unbilledTimeCount})`}
-        </Button>
+        {triggerNode ?? (
+          <Button type="button" size="sm" disabled={nothingToBill} {...trigger}>
+            <ICONS.invoice className="size-4" />
+            {label ??
+              (nothingToBill ? "Make Invoice" : `Make Invoice (${chargeCount + unbilledTimeCount})`)}
+          </Button>
+        )}
       </DialogTrigger>
 
       <DialogContent className="max-w-sm">
@@ -370,7 +399,7 @@ export function MakeInvoiceButton({
           <DialogTitle>Create an invoice</DialogTitle>
           <DialogDescription>
             Everything picked here is stamped onto the new invoice and becomes
-            read-only on the ticket.
+            read-only on the repair.
           </DialogDescription>
         </DialogHeader>
 
@@ -403,7 +432,7 @@ export function MakeInvoiceButton({
           </label>
         ) : (
           <p className="text-[13px] text-muted-foreground">
-            No unbilled time on this ticket.
+            No unbilled time on this repair.
           </p>
         )}
 

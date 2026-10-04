@@ -17,6 +17,9 @@ export type GenerateInput = {
   system: string;
   prompt: string;
   maxTokens: number;
+  /** Commands and import mapping may use a stronger model than routine drafts. */
+  purpose?: "command";
+  jsonSchema?: { name: string; schema: Record<string, unknown> };
 };
 
 /** One line, no newlines, bounded — this lands in a toast. */
@@ -133,7 +136,12 @@ export async function generateOpenAiCompatible(
       },
       body: JSON.stringify({
         model: target.model,
-        max_tokens: input.maxTokens,
+        ...(target.name === "openai" && /^(?:gpt-[56]|o[134])/.test(target.model)
+          ? { max_completion_tokens: Math.max(input.maxTokens + 4096, 6000), reasoning_effort: "low" }
+          : { max_tokens: input.maxTokens }),
+        ...(target.name === "openai" && input.jsonSchema ? {
+          response_format: { type: "json_schema", json_schema: { ...input.jsonSchema, strict: true } },
+        } : {}),
         messages: [
           { role: "system", content: input.system },
           { role: "user", content: input.prompt },

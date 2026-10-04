@@ -8,10 +8,10 @@ import { readUiPrefs, writeUiPrefs } from "@/lib/prefs";
 describe("touch workspace navigation", () => {
   it("returns deep links to their workspace instead of leaving users at a dead end", () => {
     expect(workspaceBack("/tickets/job123")).toBe("/tickets");
-    expect(workspaceBack("/tickets")).toBe("/counter/repairs");
+    expect(workspaceBack("/tickets")).toBe("/counter");
     expect(workspaceBack("/counter/repairs")).toBe("/counter");
     expect(workspaceBack("/inventory/part123/edit")).toBe("/inventory");
-    expect(workspaceBack("/settings/assistant")).toBe("/counter/tools");
+    expect(workspaceBack("/settings/assistant")).toBe("/settings");
   });
   it("keeps restricted supplier, import and drawer actions out of staff workspaces", () => {
     expect(workspaceActions(TOUCH_WORKSPACES.products, "TECH").map(action => action.href)).not.toContain("/inventory/import");

@@ -67,7 +67,11 @@ export function ShopTab({
       ) : null}
 
       <Card>
-        <CardHeader icon={ICONS.vendor} title="Shop identity" />
+        <CardHeader
+          icon={ICONS.vendor}
+          title="Shop identity"
+          description="Your shop's name, and the timezone its dates and times use."
+        />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field label="Shop name" name="name" defaultValue={shop.name} required />
           <Field
@@ -80,7 +84,11 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader icon={ICONS.location} title="Address & contact" />
+        <CardHeader
+          icon={ICONS.location}
+          title="Address & contact"
+          description="Where customers find you and how they reach you."
+        />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <Field
             label="Address line 1"
@@ -104,7 +112,11 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader icon={ICONS.tax} title="Billing defaults" />
+        <CardHeader
+          icon={ICONS.tax}
+          title="Billing defaults"
+          description="The sales tax new estimates and invoices start with."
+        />
         <CardContent className="flex flex-col gap-2">
           <Label htmlFor="taxRate">Sales tax rate</Label>
           <div className="flex items-center gap-2.5">
@@ -117,7 +129,7 @@ export function ShopTab({
             />
             <span className="text-sm font-semibold text-muted-foreground">%</span>
           </div>
-          <p className="max-w-prose text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="max-w-prose text-[14px] leading-relaxed text-muted-foreground">
             Applied to taxable lines on documents created from now on. Estimates,
             invoices and recurring schedules each snapshot the rate when they are
             created, so changing it here never restates a document a customer has
@@ -127,7 +139,11 @@ export function ShopTab({
       </Card>
 
       <Card>
-        <CardHeader icon={ICONS.timeClock} title="Labour" />
+        <CardHeader
+          icon={ICONS.timeClock}
+          title="Labour"
+          description="What your time is worth when it is billed onto an invoice."
+        />
         <CardContent className="grid gap-5 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="labourRate">Hourly labour rate</Label>
@@ -141,7 +157,7 @@ export function ShopTab({
                 className="w-32 text-right tabular-nums"
               />
             </div>
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               What a stopped timer is worth per hour when it is billed onto an
               invoice.
             </p>
@@ -164,7 +180,7 @@ export function ShopTab({
                 minutes
               </span>
             </div>
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               Always up, never down — a 16-minute job bills as 30 at a
               15-minute increment.
             </p>
@@ -215,7 +231,7 @@ function Field({
         required={required}
       />
       {hint ? (
-        <p className="text-[13.5px] text-muted-foreground">{hint}</p>
+        <p className="text-[14px] text-muted-foreground">{hint}</p>
       ) : null}
     </div>
   );

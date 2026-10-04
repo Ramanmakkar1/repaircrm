@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
+import { readUiPrefs } from "@/lib/prefs";
 
 export async function generateMetadata({
   params,
@@ -32,7 +33,7 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId, role } = await requireUser();
+  const [{ shopId, role }, { simple }] = await Promise.all([requireUser(), readUiPrefs()]);
   const { id } = await params;
 
   // Scoped by shopId, so a guessed id from another tenant 404s rather than
@@ -57,6 +58,7 @@ export default async function EditProductPage({
       vendorSku: true,
       serialized: true,
       active: true,
+      catalogImage: true,
       attachments: PRODUCT_IMAGE_SELECT,
     },
   });
@@ -77,21 +79,35 @@ export default async function EditProductPage({
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
-      <Link
-        href={`/inventory/${product.id}`}
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ACTIONS.back className="size-4" />
-        {product.name}
-      </Link>
+    <div className={simple ? "mx-auto flex w-full max-w-5xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-1"}>
+      {simple ? (
+        <PageHeader
+          breadcrumbs={[
+            { label: "Inventory", href: "/inventory" },
+            { label: product.name, href: `/inventory/${product.id}` },
+            { label: "Edit" },
+          ]}
+          title="Edit product"
+          description="Stock on hand is adjusted from the product page, not here."
+        />
+      ) : (
+        <>
+          <Link
+            href={`/inventory/${product.id}`}
+            className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ACTIONS.back className="size-4" />
+            {product.name}
+          </Link>
 
-      <PageHeader
-        title="Edit product"
-        description="Stock on hand is adjusted from the product page, not here."
-      />
+          <PageHeader
+            title="Edit product"
+            description="Stock on hand is adjusted from the product page, not here."
+          />
+        </>
+      )}
 
-      <ProductForm product={{ ...product, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null }} vendors={vendors} canSeeCost={role === "OWNER"} />
+      <ProductForm simple={simple} product={{ ...product, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null }} vendors={vendors} canSeeCost={role === "OWNER"} />
     </div>
   );
 }

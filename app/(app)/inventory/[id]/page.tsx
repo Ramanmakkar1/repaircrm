@@ -90,6 +90,7 @@ export default async function ProductPage({
       vendorSku: true,
       vendor: { select: { id: true, name: true } },
       active: true,
+      catalogImage: true,
       createdAt: true,
       updatedAt: true,
       attachments: PRODUCT_IMAGE_SELECT,
@@ -231,7 +232,7 @@ export default async function ProductPage({
 
       <Card>
         <CardHeader><CardTitle>Product photo</CardTitle></CardHeader>
-        <CardContent><ProductPhotoEditor productId={product.id} name={product.name} category={product.category} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} /></CardContent>
+        <CardContent><ProductPhotoEditor productId={product.id} name={product.name} category={product.category} catalogImage={product.catalogImage} imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null} pictureHref={`/inventory/${product.id}/edit`} /></CardContent>
       </Card>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

@@ -83,6 +83,25 @@ function stubScopedUpdate(path: "ticket.updateMany" | "customer.updateMany"): vo
   };
 }
 
+/**
+ * The customer row the phone/mobile fields read first (to see whether the name
+ * is still the "Customer <number>" placeholder). Real-named by default, so the
+ * tests that are not about renaming never trigger one.
+ */
+function stubCustomerRow(
+  row: { firstName: string; lastName: string; phone: string | null; mobile: string | null } = {
+    firstName: "Dana",
+    lastName: "Lee",
+    phone: null,
+    mobile: null,
+  },
+): void {
+  handlers["customer.findFirst"] = (args) => {
+    const where = (args.where ?? {}) as { shopId?: string };
+    return where.shopId === SHOP ? row : null;
+  };
+}
+
 describe("setTicketFieldAction — the allow-list", () => {
   const OFF_LIST = [
     // The tenant column. Writing it would hand the ticket to another shop.
@@ -298,18 +317,21 @@ describe("setCustomerFieldAction — the allow-list", () => {
     });
   }
 
-  it("accepts exactly three names and no others", async () => {
+  it("accepts exactly four names and no others", async () => {
+    // Pins the list itself: "mobile" joined it when the counter form began
+    // saving the main number there. A fifth field has to come here first.
     const accepted: string[] = [];
-    for (const field of ["phone", "email", "referredBy"]) {
+    for (const field of ["phone", "mobile", "email", "referredBy"]) {
       resetDb();
       stubScopedUpdate("customer.updateMany");
+      stubCustomerRow();
 
       const value = field === "email" ? "a@b.com" : "anything";
       const result = await setCustomerFieldAction("cus_1", field, value);
       if (result.ok) accepted.push(field);
     }
 
-    expect(accepted).toEqual(["phone", "email", "referredBy"]);
+    expect(accepted).toEqual(["phone", "mobile", "email", "referredBy"]);
   });
 });
 
@@ -326,10 +348,92 @@ describe("setCustomerFieldAction — tenancy", () => {
 
   it("writes nothing for a customer id belonging to another shop", async () => {
     handlers["customer.updateMany"] = () => ({ count: 0 });
+    stubCustomerRow();
 
     const result = await setCustomerFieldAction("cus_from_shop_2", "phone", "555-0100");
 
     expect(result).toEqual({ ok: false, error: "Customer not found." });
+    // The one write that was tried carried the session's shop.
+    expect(callsTo("customer.updateMany")).toHaveLength(1);
+  });
+
+  it("reads the customer for a phone change under the session's shop too", async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow();
+
+    await setCustomerFieldAction("cus_1", "mobile", "780-555-0100");
+
+    expect(whereOf("customer.findFirst")).toEqual({ id: "cus_1", shopId: SHOP });
+  });
+
+  it("does not read the customer first for a field that cannot rename it", async () => {
+    stubScopedUpdate("customer.updateMany");
+
+    await setCustomerFieldAction("cus_1", "email", "dana@example.com");
+
+    expect(callsTo("customer.findFirst")).toEqual([]);
+  });
+});
+
+describe("setCustomerFieldAction — a phone-only customer's placeholder name", () => {
+  const placeholder = {
+    firstName: "Customer",
+    lastName: "780-555-0142",
+    phone: "780-555-0142",
+    mobile: "780-555-0142",
+  };
+
+  it("follows the new mobile number", async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow(placeholder);
+
+    const result = await setCustomerFieldAction("cus_1", "mobile", " 780-555-0199 ");
+
+    expect(result).toEqual({ ok: true });
+    const writes = callsTo("customer.updateMany");
+    expect(writes).toHaveLength(2);
+    expect(writes[0].args).toEqual({ where: { id: "cus_1", shopId: SHOP }, data: { mobile: "780-555-0199" } });
+    // Only while the name is still exactly what was read: a rename in the meantime wins.
+    expect(writes[1].args).toEqual({
+      where: { id: "cus_1", shopId: SHOP, firstName: "Customer", lastName: "780-555-0142" },
+      data: { firstName: "Customer", lastName: "780-555-0199" },
+    });
+  });
+
+  it("follows a number held only in the office phone column", async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow({ ...placeholder, mobile: null });
+
+    await setCustomerFieldAction("cus_1", "phone", "780-555-0188");
+
+    expect(callsTo("customer.updateMany")[1].args.data).toEqual({ firstName: "Customer", lastName: "780-555-0188" });
+  });
+
+  it("never overwrites a name somebody typed", async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow({ ...placeholder, firstName: "Sarah", lastName: "Patel" });
+
+    await setCustomerFieldAction("cus_1", "mobile", "780-555-0199");
+
+    expect(callsTo("customer.updateMany")).toHaveLength(1);
+  });
+
+  it("leaves the name alone when the office phone changes but the mobile still names them", async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow(placeholder);
+
+    await setCustomerFieldAction("cus_1", "phone", "780-555-0100");
+
+    expect(callsTo("customer.updateMany")).toHaveLength(1);
+  });
+
+  it('drops the old number from the name when the last number is cleared', async () => {
+    stubScopedUpdate("customer.updateMany");
+    stubCustomerRow({ ...placeholder, phone: null });
+
+    await setCustomerFieldAction("cus_1", "mobile", "");
+
+    expect(callsTo("customer.updateMany")[1].args.data).toEqual({ firstName: "Customer", lastName: "" });
   });
 });
 
@@ -352,9 +456,10 @@ describe("setCustomerFieldAction — validation", () => {
   it("clears a column on an empty value rather than leaving it unchanged", async () => {
     // `undefined` means "leave unchanged" to Prisma, which would make deleting
     // a wrong address impossible from the field that shows it.
-    for (const field of ["phone", "email", "referredBy"]) {
+    for (const field of ["phone", "mobile", "email", "referredBy"]) {
       resetDb();
       stubScopedUpdate("customer.updateMany");
+      stubCustomerRow();
 
       await setCustomerFieldAction("cus_1", field, "");
 

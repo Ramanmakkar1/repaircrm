@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { formatDate } from "@/components/billing/format";
 import { PurchaseOrderActions } from "@/components/inventory/purchase-order-actions";
+import { PurchaseOrderHeader } from "@/components/inventory/purchase-order-header";
 import {
   PO_STATUS_META,
   asPoStatus,
@@ -27,6 +28,7 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { readUiPrefs } from "@/lib/prefs";
 
 export async function generateMetadata({
   params,
@@ -50,7 +52,7 @@ export default async function PurchaseOrderPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId } = await requireRole("OWNER");
-  const { id } = await params;
+  const [{ id }, prefs] = await Promise.all([params, readUiPrefs()]);
 
   // Scoped by shopId, so a guessed id from another tenant 404s.
   const order = await db.purchaseOrder.findFirst({
@@ -99,73 +101,107 @@ export default async function PurchaseOrderPage({
   const status = asPoStatus(order.status);
   const meta = PO_STATUS_META[status];
 
+  // The same six facts in both headers, so Easy mode loses nothing the dense one shows.
+  const facts = [
+    {
+      label: prefs.simple ? "Supplier" : "Vendor",
+      value: (
+        <Link
+          href={`/inventory/vendors/${order.vendor.id}`}
+          // A finger target in Easy mode (the dense header keeps its inline link).
+          className={cn("font-medium text-accent-soft-foreground hover:underline", prefs.simple && "inline-flex min-h-12 items-center")}
+        >
+          {order.vendor.name}
+        </Link>
+      ),
+    },
+    {
+      label: "Received",
+      value: (
+        <span className="rf-num">
+          {totals.receivedQty} of {totals.orderedQty}
+        </span>
+      ),
+    },
+    { label: "Raised", value: formatDate(order.createdAt) },
+    {
+      label: "Placed",
+      value: order.orderedAt ? formatDate(order.orderedAt) : "Not yet",
+    },
+    {
+      label: "Expected",
+      value: order.expectedAt ? formatDate(order.expectedAt) : "—",
+    },
+    { label: "Account", value: order.vendor.accountNumber ?? "—" },
+  ];
+  const poLines = order.lines.map((line) => ({
+    id: line.id,
+    description: line.description,
+    quantity: line.quantity,
+    receivedQty: line.receivedQty,
+    serialized: line.product?.serialized ?? false,
+  }));
+  const statusPill = <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />;
+  const numberChip = <CopyableId value={`PO #${order.number}`} label="purchase order number" />;
+
   return (
     <div className="flex flex-col gap-6">
-      <ObjectHeader
-        back={{ label: "Purchase orders", href: "/inventory/purchase-orders" }}
-        value={formatCents(totals.totalCents)}
-        title={`Purchase order #${order.number}`}
-        subtitle={meta.hint}
-        status={
-          <StatusPill tone={meta.tone} label={meta.label} struck={meta.struck} />
-        }
-        id={<CopyableId value={`PO #${order.number}`} label="purchase order number" />}
-        meta={[
-          {
-            label: "Vendor",
-            value: (
-              <Link
-                href={`/inventory/vendors/${order.vendor.id}`}
-                className="font-medium text-accent-soft-foreground hover:underline"
-              >
-                {order.vendor.name}
-              </Link>
-            ),
-          },
-          {
-            label: "Received",
-            value: (
-              <span className="rf-num">
-                {totals.receivedQty} of {totals.orderedQty}
-              </span>
-            ),
-          },
-          { label: "Raised", value: formatDate(order.createdAt) },
-          {
-            label: "Placed",
-            value: order.orderedAt ? formatDate(order.orderedAt) : "Not yet",
-          },
-          {
-            label: "Expected",
-            value: order.expectedAt ? formatDate(order.expectedAt) : "—",
-          },
-          { label: "Account", value: order.vendor.accountNumber ?? "—" },
-        ]}
-        actions={
-          <>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/print/purchase-orders/${order.id}`}>
-                <ICONS.print />
-                Print
-              </Link>
-            </Button>
+      {prefs.simple ? (
+        <PurchaseOrderHeader
+          back={{ label: "Purchase orders", href: "/inventory/purchase-orders" }}
+          title={`Order #${order.number}`}
+          status={statusPill}
+          id={numberChip}
+          subtitle={meta.hint}
+          total={formatCents(totals.totalCents)}
+          facts={facts}
+          actions={
             <PurchaseOrderActions
-              size="sm"
+              easy
               purchaseOrderId={order.id}
               status={order.status}
               vendorEmail={order.vendor.email}
               expectedAt={dateInput(order.expectedAt)}
-              lines={order.lines.map((line) => ({
-                id: line.id,
-                description: line.description,
-                quantity: line.quantity,
-                receivedQty: line.receivedQty,
-                serialized: line.product?.serialized ?? false,
-              }))}
-            />
-          </>
-        }
-      />
+              lines={poLines}
+            >
+              <Button variant="outline" asChild className="h-12 px-5 text-base [&_svg]:size-5">
+                <Link href={`/print/purchase-orders/${order.id}`}>
+                  <ICONS.print />
+                  Print
+                </Link>
+              </Button>
+            </PurchaseOrderActions>
+          }
+        />
+      ) : (
+        <ObjectHeader
+          back={{ label: "Purchase orders", href: "/inventory/purchase-orders" }}
+          value={formatCents(totals.totalCents)}
+          title={`Purchase order #${order.number}`}
+          subtitle={meta.hint}
+          status={statusPill}
+          id={numberChip}
+          meta={facts}
+          actions={
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/print/purchase-orders/${order.id}`}>
+                  <ICONS.print />
+                  Print
+                </Link>
+              </Button>
+              <PurchaseOrderActions
+                size="sm"
+                purchaseOrderId={order.id}
+                status={order.status}
+                vendorEmail={order.vendor.email}
+                expectedAt={dateInput(order.expectedAt)}
+                lines={poLines}
+              />
+            </>
+          }
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <Card className="lg:order-2">

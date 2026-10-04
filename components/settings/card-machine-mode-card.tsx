@@ -87,7 +87,7 @@ export function CardMachineModeCard({
         </div>
 
         {current.mode === "auto" && !anyMachine ? (
-          <p className="rounded-md bg-surface-hover px-4 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="rounded-md bg-surface-hover px-4 py-3 text-[14px] leading-relaxed text-muted-foreground">
             No card machine is connected yet, so Card works the manual way for
             now. Connect a Stripe or Square machine below and it switches to
             automatic by itself.
@@ -96,7 +96,7 @@ export function CardMachineModeCard({
 
         {current.mode === "auto" && bothMachines ? (
           <div className="flex flex-col gap-2">
-            <span className="text-[13.5px] font-semibold text-foreground">
+            <span className="text-[14px] font-semibold text-foreground">
               Send the amount to
             </span>
             <div className="flex flex-wrap gap-2">
@@ -110,7 +110,7 @@ export function CardMachineModeCard({
                     aria-pressed={selected}
                     onClick={() => save({ ...current, provider })}
                     className={cn(
-                      "h-10 rounded-md border px-4 text-[13.5px] font-semibold transition-colors",
+                      "h-10 rounded-md border px-4 text-[14px] font-semibold transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                       selected
                         ? "border-accent bg-accent-soft text-accent"
@@ -165,12 +165,12 @@ function ModeOption({
       <span className="flex items-center justify-between gap-2">
         <span className="text-[15px] font-bold text-foreground">{title}</span>
         {selected ? (
-          <span className="flex items-center gap-1 text-[12.5px] font-semibold text-accent">
+          <span className="flex items-center gap-1 text-[14px] font-semibold text-accent">
             <CheckCircle2 className="size-4" /> In use
           </span>
         ) : null}
       </span>
-      <span className="text-[13.5px] leading-relaxed text-muted-foreground">{body}</span>
+      <span className="text-[14px] leading-relaxed text-muted-foreground">{body}</span>
     </button>
   );
 }

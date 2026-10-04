@@ -29,7 +29,7 @@ export function CustomerField({
    * The allow-list, mirrored as a type. The server re-checks it — this is the
    * convenience half, not the guard.
    */
-  field: "phone" | "email" | "referredBy";
+  field: "phone" | "mobile" | "email" | "referredBy";
   /** "" when the column is null. */
   value: string;
   label: string;

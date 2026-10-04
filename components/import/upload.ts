@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth";
-import { CSV_MAX_ROWS, parseCsv } from "@/lib/csv";
+import { rateLimit, retryAfterLabel } from "@/lib/rate-limit";
+import { readSpreadsheet } from "@/lib/spreadsheet-import";
 import { saveImportBatch } from "@/lib/import-store";
 import { autoMap, fieldsFor, SAMPLE_CSV, type ImportKind } from "./fields";
 import type { UploadResult } from "./import-wizard";
@@ -17,9 +18,19 @@ import type { UploadResult } from "./import-wizard";
  * The parsed table is stored server-side and only its id comes back, so the
  * rows the committer will trust are never handed to the browser and posted
  * again.
+ *
+ * Reading a workbook is the most expensive thing a signed-in user can ask of
+ * this server without a database, so it is rate limited per person and the
+ * parser itself is bounded (see readSpreadsheet).
  */
 
 const MAX_BYTES = 5 * 1024 * 1024;
+/**
+ * Uploads per person per minute. The wizard posts the file again to switch
+ * sheet or header row, so a real session makes a handful — this only stops a
+ * loop.
+ */
+const UPLOADS_PER_MINUTE = 12;
 
 export async function handleImportUpload(
   request: Request,
@@ -38,6 +49,15 @@ export async function handleImportUpload(
   }
   if (!allowed.includes(session.role)) {
     return json({ ok: false, error: "You don't have access to this import." }, 403);
+  }
+
+  // Before the body is read, so a refused upload costs almost nothing.
+  const throttle = rateLimit(`import-upload:${session.shopId}:${session.userId}`, UPLOADS_PER_MINUTE, 60_000);
+  if (!throttle.allowed) {
+    return json({
+      ok: false,
+      error: `That's a lot of uploads in a row — try again ${retryAfterLabel(throttle.retryAfterMs)}.`,
+    }, 429);
   }
 
   let form: FormData;
@@ -61,7 +81,15 @@ export async function handleImportUpload(
     }, 400);
   }
 
-  const table = parseCsv(await file.text(), CSV_MAX_ROWS);
+  let table;
+  try {
+    table = readSpreadsheet(new Uint8Array(await file.arrayBuffer()), file.name, kind, {
+      sheetName: String(form.get("sheetName") ?? "") || undefined,
+      headerRow: form.get("headerRow") ? Number(form.get("headerRow")) : undefined,
+    });
+  } catch (error) {
+    return json({ ok: false, error: error instanceof Error ? error.message : "Unable to read this spreadsheet. Try exporting it as Excel or CSV." }, 400);
+  }
   if (table.headers.length === 0) {
     return json({ ok: false, error: "That file has no header row." }, 400);
   }
@@ -75,6 +103,7 @@ export async function handleImportUpload(
     fileName: file.name,
     headers: table.headers,
     rows: table.rows,
+    headerRow: table.headerRow,
   });
 
   return json({
@@ -84,6 +113,10 @@ export async function handleImportUpload(
     headers: table.headers,
     rowCount: table.rows.length,
     mapping: autoMap(table.headers, fieldsFor(kind)),
+    sheets: table.sheets,
+    sheetName: table.sheetName,
+    headerRow: table.headerRow,
+    sample: table.rows.slice(0, 3),
   });
 }
 

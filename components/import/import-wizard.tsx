@@ -17,6 +17,8 @@ import {
 import { cn } from "@/components/ui/cn";
 import { ACTIONS } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -25,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
-import { fieldsFor, type ImportKind, type Mapping } from "./fields";
+import { fieldsFor, GENERATE_SKU, type ImportKind, type Mapping } from "./fields";
 import type { DuplicateMode, ImportPreview, ImportSummary } from "./commit";
 
 /** What the upload route answers with. */
@@ -37,6 +39,10 @@ export type UploadResult =
       headers: string[];
       rowCount: number;
       mapping: Mapping;
+      sheets: string[];
+      sheetName: string;
+      headerRow: number;
+      sample: string[][];
     }
   | { ok: false; error: string };
 
@@ -49,6 +55,7 @@ export type CommitResult =
   | { ok: false; error: string };
 
 const SKIP = "__skip__";
+const AUTO_SKU = "__generate__";
 
 const STEPS = ["Upload", "Map columns", "Review", "Done"] as const;
 
@@ -75,6 +82,7 @@ export function ImportWizard({
   doneLabel,
   onPreview,
   onCommit,
+  onSuggest,
 }: {
   kind: ImportKind;
   uploadUrl: string;
@@ -87,6 +95,7 @@ export function ImportWizard({
     mapping: Mapping,
     mode: DuplicateMode,
   ) => Promise<CommitResult>;
+  onSuggest?: (batchId: string) => Promise<{ ok: true; mapping: Mapping; notes: string[] } | { ok: false; error: string }>;
 }) {
   const router = useRouter();
   const fields = React.useMemo(() => fieldsFor(kind), [kind]);
@@ -104,14 +113,20 @@ export function ImportWizard({
   const [summary, setSummary] = React.useState<ImportSummary | null>(null);
 
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const sourceFile = React.useRef<File | null>(null);
+  const [pasted, setPasted] = React.useState("");
+  const [headerRow, setHeaderRow] = React.useState("1");
+  const [aiNotes, setAiNotes] = React.useState<string[]>([]);
 
   // ------------------------------------------------------------------ step 1
-  const send = async (file: File) => {
+  const send = async (file: File, sheetName?: string, selectedHeaderRow?: string) => {
     setBusy(true);
     setError(null);
     try {
       const body = new FormData();
       body.append("file", file);
+      if (sheetName) body.append("sheetName", sheetName);
+      if (selectedHeaderRow) body.append("headerRow", selectedHeaderRow);
       const response = await fetch(uploadUrl, { method: "POST", body });
       const result = (await response.json()) as UploadResult;
       if (!result.ok) {
@@ -119,6 +134,9 @@ export function ImportWizard({
         return;
       }
       setUpload(result);
+      sourceFile.current = file;
+      setHeaderRow(String(result.headerRow));
+      setAiNotes([]);
       setMapping(result.mapping);
       setStep(1);
     } catch {
@@ -127,6 +145,19 @@ export function ImportWizard({
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  };
+
+  const suggest = async () => {
+    if (!upload || !onSuggest) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await onSuggest(upload.batchId);
+      if (!result.ok) { setError(result.error); return; }
+      setMapping((current) => ({ ...current, ...result.mapping }));
+      setAiNotes(result.notes.length ? result.notes : ["AI matched the columns. Check the examples and preview before importing."]);
+    } catch { setError("AI matching is unavailable. You can still match the columns yourself."); }
+    finally { setBusy(false); }
   };
 
   // ------------------------------------------------------------------ step 2
@@ -161,8 +192,53 @@ export function ImportWizard({
   };
 
   const missingRequired = fields.filter(
-    (field) => field.required && (mapping[field.key] ?? -1) < 0,
+    (field) => field.required && (mapping[field.key] ?? -1) < 0 && !(kind === "products" && field.key === "sku" && mapping.sku === GENERATE_SKU),
   );
+
+  const coreKeys = kind === "products" ? ["name", "sku", "priceCents", "stockQty"] : ["firstName", "lastName", "email", "phone", "mobile"];
+  const extraFields = fields.filter(field => !coreKeys.includes(field.key));
+  const matchedExtras = extraFields.filter(field => (mapping[field.key] ?? -1) >= 0).length;
+  function columnField(field: (typeof fields)[number]) {
+    const value = mapping[field.key] ?? -1;
+    return (
+      <div key={field.key} className="flex flex-col gap-2">
+        <Label htmlFor={`map-${field.key}`}>
+          {field.label}
+          {field.required ? (
+            <span className="ml-0.5 text-destructive">*</span>
+          ) : null}
+        </Label>
+        <Select
+          value={field.key === "sku" && value === GENERATE_SKU ? AUTO_SKU : value < 0 ? SKIP : String(value)}
+          disabled={busy}
+          onValueChange={(next) =>
+            setMapping((current) => ({
+              ...current,
+              [field.key]: next === SKIP ? -1 : next === AUTO_SKU ? GENERATE_SKU : Number(next),
+            }))
+          }
+        >
+          <SelectTrigger id={`map-${field.key}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            <SelectItem value={SKIP}>Don&rsquo;t import</SelectItem>
+            {kind === "products" && field.key === "sku" ? <SelectItem value={AUTO_SKU}>Generate product codes</SelectItem> : null}
+            {upload!.headers.map((header, index) => (
+              <SelectItem key={header} value={String(index)}>
+                {header}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {field.key === "sku" && value === GENERATE_SKU ? <p className="text-xs text-muted-foreground">Codes use the item name and barcode so importing the same sheet again finds the same items. Use distinct names for different variants.</p> : null}
+        {value >= 0 ? <p className="break-words text-xs text-muted-foreground">Example: {upload!.sample.map((row) => row[value] || "(blank)").join(" · ")}</p> : null}
+        {field.hint ? (
+          <p className="text-[13px] text-muted-foreground">{field.hint}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -183,8 +259,8 @@ export function ImportWizard({
           <CardHeader>
             <CardTitle>Choose a file</CardTitle>
             <CardDescription>
-              A CSV with a header row — up to 5 MB and 5,000 rows. Exports from
-              RepairShopr, QuickBooks and plain spreadsheets all work.
+              Excel (.xlsx or .xls), OpenDocument (.ods), CSV, or TSV — up to 5 MB and 5,000 rows.
+              Keep your existing column names; we help match them next.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -207,7 +283,7 @@ export function ImportWizard({
               </span>
               <span className="flex flex-col gap-1">
                 <span className="text-[15px] font-bold text-foreground">
-                  {busy ? "Reading the file…" : "Click to pick a CSV"}
+                  {busy ? "Reading the file…" : "Choose your spreadsheet"}
                 </span>
                 <span className="text-[13.5px] text-muted-foreground">
                   Nothing is saved until you have seen the preview.
@@ -216,7 +292,7 @@ export function ImportWizard({
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".xlsx,.xls,.ods,.csv,.tsv"
                 className="sr-only"
                 disabled={busy}
                 onChange={(event) => {
@@ -225,6 +301,16 @@ export function ImportWizard({
                 }}
               />
             </label>
+
+            <details className="rounded-lg border border-border p-4">
+              <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold">Paste from Google Sheets or Excel</summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <Label htmlFor="pasted-sheet">Copy the header row and inventory rows, then paste here</Label>
+                <Textarea id="pasted-sheet" rows={6} value={pasted} onChange={(event) => setPasted(event.target.value)} placeholder={"Item\tSKU\tPrice\tQty\nScreen assembly\tSCR-01\t99.00\t5"} />
+                <p className="text-sm text-muted-foreground">Works with private Google Sheets. You do not need to change sharing or give us your Google password.</p>
+                <Button type="button" disabled={busy || !pasted.trim()} onClick={() => void send(new File([pasted], "pasted-sheet.tsv", { type: "text/tab-separated-values" }))}>Read pasted sheet</Button>
+              </div>
+            </details>
 
             <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
               <p className="text-[13.5px] text-muted-foreground">
@@ -252,51 +338,28 @@ export function ImportWizard({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {fields.map((field) => {
-                const value = mapping[field.key] ?? -1;
-                return (
-                  <div key={field.key} className="flex flex-col gap-2">
-                    <Label htmlFor={`map-${field.key}`}>
-                      {field.label}
-                      {field.required ? (
-                        <span className="ml-0.5 text-destructive">*</span>
-                      ) : null}
-                    </Label>
-                    <Select
-                      value={value < 0 ? SKIP : String(value)}
-                      onValueChange={(next) =>
-                        setMapping((current) => ({
-                          ...current,
-                          [field.key]: next === SKIP ? -1 : Number(next),
-                        }))
-                      }
-                    >
-                      <SelectTrigger id={`map-${field.key}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-64">
-                        <SelectItem value={SKIP}>Don&rsquo;t import</SelectItem>
-                        {upload.headers.map((header, index) => (
-                          <SelectItem key={header} value={String(index)}>
-                            {header}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {field.hint ? (
-                      <p className="text-[13px] text-muted-foreground">{field.hint}</p>
-                    ) : null}
-                  </div>
-                );
-              })}
+            <div className="flex flex-wrap items-end gap-3">
+              {upload.sheets.length > 1 ? <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="import-sheet">Worksheet</Label><Select value={upload.sheetName} disabled={busy} onValueChange={(name) => { if (sourceFile.current) void send(sourceFile.current, name); }}><SelectTrigger id="import-sheet"><SelectValue /></SelectTrigger><SelectContent>{upload.sheets.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select></div> : null}
+              <div className="w-28 space-y-2"><Label htmlFor="header-row">Header row</Label><Input id="header-row" type="number" min="1" max="25" value={headerRow} disabled={busy} onChange={(event) => setHeaderRow(event.target.value)} /></div>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => { if (sourceFile.current) void send(sourceFile.current, upload.sheetName, headerRow); }}>Read this row</Button>
             </div>
+            {onSuggest ? <div className="space-y-3 border-y border-border py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-lg text-sm text-muted-foreground">AI can match unfamiliar column names and flag unclear values. It uses the headers and first three rows with your configured AI provider.</p><Button type="button" variant="outline" disabled={busy} onClick={() => void suggest()}>{busy ? "Working…" : "AI match columns"}</Button></div>
+              {aiNotes.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{aiNotes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}
+            </div> : null}
+            <div className="grid gap-4 sm:grid-cols-2">{fields.filter(field => coreKeys.includes(field.key)).map(columnField)}</div>
+            <details className="rounded-lg border border-border px-4">
+              <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold">More columns · {matchedExtras} matched</summary>
+              <p className="pb-3 text-xs text-muted-foreground">Matched columns below are included. Open to review or change them.</p>
+              <div className="grid gap-4 pb-4 sm:grid-cols-2">{extraFields.map(columnField)}</div>
+            </details>
 
             {missingRequired.length > 0 ? (
               <p className="text-[13px] font-medium text-destructive">
                 Still needed: {missingRequired.map((f) => f.label).join(", ")}.
               </p>
             ) : null}
+            {kind === "products" ? <p className="text-sm text-muted-foreground">Unmapped prices, costs and stock use the app defaults. Review these before importing. Prices use a decimal point, and stock must be a whole number.</p> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -351,7 +414,7 @@ export function ImportWizard({
                   <Tr>
                     <Th className="w-16">Row</Th>
                     {fields
-                      .filter((field) => (mapping[field.key] ?? -1) >= 0)
+                      .filter((field) => (mapping[field.key] ?? -1) >= 0 || (field.key === "sku" && mapping.sku === GENERATE_SKU))
                       .slice(0, 5)
                       .map((field) => (
                         <Th key={field.key}>{field.label}</Th>
@@ -364,7 +427,7 @@ export function ImportWizard({
                     <Tr key={row.row}>
                       <Td className="tabular-nums text-muted-foreground">{row.row}</Td>
                       {fields
-                        .filter((field) => (mapping[field.key] ?? -1) >= 0)
+                        .filter((field) => (mapping[field.key] ?? -1) >= 0 || (field.key === "sku" && mapping.sku === GENERATE_SKU))
                         .slice(0, 5)
                         .map((field) => (
                           <Td

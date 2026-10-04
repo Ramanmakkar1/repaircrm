@@ -54,18 +54,21 @@ export function TicketsCard({
   customerId,
   tickets,
   total,
+  easy = false,
 }: {
   customerId: string;
   tickets: TicketRow[];
   total: number;
+  /** Easy mode speaks of "repairs", never "tickets". */
+  easy?: boolean;
 }) {
   return (
     <SectionCard
       icon={ICONS.ticket}
-      title="Tickets"
+      title={easy ? "Repairs" : "Tickets"}
       count={total}
       viewAllHref={`/tickets?customerId=${customerId}`}
-      empty="No tickets for this customer yet."
+      empty={easy ? "No repairs for this customer yet." : "No tickets for this customer yet."}
     >
       {tickets.length > 0 ? (
         <TableFrame>

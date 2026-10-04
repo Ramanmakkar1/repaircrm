@@ -29,10 +29,11 @@ import { generate } from "./index";
 import { jevConfigured } from "./jev";
 import { routeWithJev } from "./router";
 import { ASSISTANT_PAGES, SUMMARY_PERIODS } from "./assistant-vocab";
+import { strictJsonSchema } from "./structured-schema";
 
 export { ASSISTANT_PAGES, SUMMARY_PERIODS };
 
-const MAX_TOKENS = 400;
+const MAX_TOKENS = 1200;
 
 const DIDNT_UNDERSTAND =
   "I didn't catch that — try “what's ready for pickup”, “add 10 iPhone 6 screens” or “how did we do today”.";
@@ -187,6 +188,16 @@ export const assistantIntentSchema = z.discriminatedUnion("action", [
 ]);
 
 export type AssistantIntent = z.infer<typeof assistantIntentSchema>;
+
+const ASSISTANT_RESPONSE_SCHEMA = {
+  name: "repair_shop_command",
+  schema: {
+    type: "object",
+    properties: { intent: strictJsonSchema(z.toJSONSchema(assistantIntentSchema)) },
+    required: ["intent"],
+    additionalProperties: false,
+  },
+};
 
 /**
  * Intents the server must NOT run without a human's confirm: anything that
@@ -377,7 +388,8 @@ export function parseIntent(text: string): AssistantIntent {
   const match = text.match(/\{[\s\S]*\}/);
   if (match) {
     try {
-      const parsed = assistantIntentSchema.safeParse(JSON.parse(match[0]));
+      const raw = JSON.parse(match[0]);
+      const parsed = assistantIntentSchema.safeParse(raw?.intent ?? raw);
       if (parsed.success) return parsed.data;
     } catch {
       // fall through to clarify
@@ -430,7 +442,9 @@ export function buildPrompt(text: string, context: AssistantContext = {}): strin
 /**
  * Turns a command into a validated intent.
  *
- * With Jev configured (lib/ai/router.ts) it decides the action and every
+ * By default the generative model reads the whole request. Jev
+ * (lib/ai/router.ts) is asked first only when ASSISTANT_ROUTER=jev, or stands
+ * in when no text provider is configured: it decides the action and every
  * closed-set detail itself; the generative model is only called when words or
  * amounts must be pulled out of the sentence — and is then told which action
  * was chosen. Without Jev, or if Jev is down, the generative model does it all.
@@ -439,11 +453,13 @@ export async function interpretCommand(
   text: string,
   context?: AssistantContext,
 ): Promise<InterpretResult> {
-  const clean = text.trim().slice(0, 500);
+  const clean = text.trim().slice(0, 1500);
   if (!clean) return { ok: false, reason: "Say or type a command first." };
 
   let routedAction: string | null = null;
-  if (jevConfigured()) {
+  // A classifier must not force a full interpreter into the wrong action.
+  // Keep Jev available explicitly, or as the standalone closed-set fallback.
+  if (jevConfigured() && (!aiEnabled() || process.env.ASSISTANT_ROUTER?.trim().toLowerCase() === "jev")) {
     const routed = await routeWithJev(clean, context ?? {});
     if (routed.kind === "intent") return { ok: true, intent: routed.intent };
     if (routed.kind === "needs_words") routedAction = routed.action;
@@ -463,11 +479,13 @@ export async function interpretCommand(
 
   const prompt = context ? buildPrompt(clean, context) : clean;
   const result = await generate({
-    system: ASSISTANT_SYSTEM_PROMPT,
+    system: ASSISTANT_SYSTEM_PROMPT + '\nWrap your chosen action object in {"intent":<action object>}. The latest request takes priority over earlier requests. Earlier requests describe tasks already handled; never repeat a stock change just because it appears in history. For a clarification answer, complete the original request using the answer. Distinguish a stock increase (add ten) from an absolute stock count (we have ten total). Preserve model numbers such as iPhone 14 as part of the product name, never as quantities.',
     prompt: routedAction
-      ? `${prompt}\n\n[router] This request is a "${routedAction}" action. Fill in its fields.`
+      ? `${prompt}\n\n[router hint] A classifier suggested "${routedAction}". Check the entire request independently; correct this hint if it drops a price, quantity, self-correction or other detail.`
       : prompt,
     maxTokens: MAX_TOKENS,
+    purpose: "command",
+    jsonSchema: ASSISTANT_RESPONSE_SCHEMA,
   });
   if (!result.ok) return { ok: false, reason: result.reason };
 

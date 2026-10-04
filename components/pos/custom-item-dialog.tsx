@@ -28,8 +28,11 @@ import { parseCents } from "@/lib/money";
  */
 export function CustomItemDialog({
   onAdd,
+  compact = false,
 }: {
   onAdd: (item: { name: string; unitPriceCents: number; taxable: boolean }) => void;
+  /** Half-width button for the quick-add row of the one-screen register. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -68,7 +71,10 @@ export function CustomItemDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-12 w-full justify-start">
+        <Button
+          variant="outline"
+          className={compact ? "h-12 w-full min-w-0 px-3" : "h-12 w-full justify-start"}
+        >
           <ACTIONS.add />
           One-off item
         </Button>

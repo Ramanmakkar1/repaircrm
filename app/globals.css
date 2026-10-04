@@ -5,6 +5,7 @@
   min-height: 48px;
 }
 [data-touch-workspace="true"] :is(input, select, textarea) { font-size: 16px; }
+[data-touch-workspace="true"] :is(a[data-slot="button"], a[data-touch-control]) { min-height: 48px; }
 [data-touch-workspace="true"] :is(button[aria-label], button:has(> svg:only-child)):not([role="checkbox"]):not([role="switch"]) { min-width: 48px; }
 [data-touch-workspace="true"] button:is([role="checkbox"], [role="switch"]) { position: relative; }
 [data-touch-workspace="true"] button[role="checkbox"]::before { content: ""; position: absolute; inset: -14px; }
@@ -15,10 +16,25 @@
   :is(input, select, textarea) { font-size: 16px; }
 }
 
+/*
+ * Side gutters of the app shell (header and page content): 1rem on a phone,
+ * 1.5rem from `sm`, 3rem from `xl` — the same as px-4 / sm:px-6 / xl:px-12 —
+ * but never narrower than the device's own side inset. viewport-fit=cover lets
+ * the page run under a landscape notch or rounded corner; that inset is 0 in
+ * portrait, so portrait looks exactly as it did.
+ */
+.rf-gutter {
+  --gutter: 1rem;
+  padding-left: max(var(--gutter), env(safe-area-inset-left));
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+}
+@media (min-width: 40rem) { .rf-gutter { --gutter: 1.5rem; } }
+@media (min-width: 80rem) { .rf-gutter { --gutter: 3rem; } }
+
 /* The persistent voice dock follows the supplied soft-glow pill reference. */
 .rf-assistant-dock { border: 1px solid var(--border); background: var(--surface); box-shadow: 0 4px 20px rgb(0 0 0 / .08); }
 .rf-assistant-prompt { color: var(--muted-foreground); }
-.rf-assistant-talk { background: var(--accent); }
+.rf-assistant-talk { background: var(--accent); color: var(--accent-foreground); }
 .rf-assistant-hero { background: var(--surface); border-bottom: 1px solid var(--border); }
 
 /* "I'm listening" — a slow ring, so the mic visibly stays live across a pause. */
@@ -871,4 +887,22 @@ body:has(.rf-landing) {
 @media(max-width:1024px) { .rh-nav { padding-inline:24px; }.rh-nav nav { gap:18px; }.rh-payments,.rh-leads,.rh-faq { gap:40px; }.rh-faq { grid-template-columns:1fr 1.5fr; }.rh-payment-options > div { grid-template-columns:1fr; gap:8px; }.rh-bench-copy { width:480px; }.rh-section { padding-block:90px; }.rh-assistant { padding-bottom:0; } }
 @media(max-width:767px) {
  .rh-container { width:calc(100% - 40px); }.rh-nav { height:72px; padding-inline:20px; gap:10px; }.rh-nav nav { display:none; }.rh-nav-actions { gap:12px; }.rh-nav-actions > .rh-button { display:none; }.rh-hero { padding:56px 20px 0; }.rh-hero h1 { font-size:42px; }.rh-hero > p { font-size:16px; }.rh-hero-actions { flex-direction:column; gap:14px; }.rh-email-form { width:100%; max-width:360px; }.rh-email-form input { width:100%; }.rh-hero-actions > a { width:100%; max-width:360px; }.rh-dashboard-preview { margin-top:40px; }.rh-made-for { padding:40px 20px; }.rh-made-for div { gap:18px 30px; font-size:18px; }.rh-section { padding-block:64px; }.rh-counter-photo { margin-top:32px; aspect-ratio:1.4; }.rh-jobs { grid-template-columns:1fr; gap:28px; margin-top:32px; }.rh-jobs h3 { margin-block:8px; }.rh-assistant { padding-bottom:0; }.rh-prompts li { font-size:13px; padding:8px 10px; }.rh-assistant-preview { margin-top:32px; }.rh-payments,.rh-leads,.rh-faq { grid-template-columns:1fr; gap:32px; }.rh-payment-options > div { grid-template-columns:100px 1fr; gap:18px; }.rh-bench { min-height:0; }.rh-bench-content { width:calc(100% - 40px); padding-block:40px; min-height:0; flex-direction:column; gap:30px; }.rh-bench-copy { width:100%; padding:24px; }.rh-phone { width:232px; height:502px; }.rh-pricing { padding-block:56px; }.rh-pricing .rh-container { flex-direction:column; align-items:flex-start; gap:28px; }.rh-price strong { font-size:76px; }.rh-pricing li { font-size:15px; }.rh-faq h2 { font-size:36px; }.rh-faq summary { font-size:16px; }.rh-final { padding:32px 20px 72px; }.rh-footer { padding:40px 0 28px; }.rh-footer-main { display:grid; grid-template-columns:repeat(3,1fr); gap:32px 20px; }.rh-footer-main > .rh-brand { grid-column:1/-1; }.rh-footer nav { font-size:13px; }.rh-footer-bottom { flex-direction:column; font-size:12px; }
+}
+
+/* Phone lists keep quantities, status and money visible without sideways panning. */
+@media (max-width: 639px) {
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] { display: block; min-width: 0; width: 100%; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] tbody { display: block; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] tbody > tr { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] tbody > tr > td { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 0 !important; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td::before { content: attr(data-label); font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td[data-mobile-primary="true"] { grid-column: 1 / -1; padding-right: 44px !important; font-size: 15px; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td[data-mobile-primary="true"]::before,
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td[data-mobile-select="true"]::before { display: none; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td[data-mobile-select="true"] { position: absolute; top: 14px; right: 14px; width: 28px; align-items: center; }
+  [data-touch-workspace="true"] table[data-mobile-cards="true"] td[colspan] { grid-column: 1 / -1; }
+  .rf-dialog-content { --tw-translate-x: 0px !important; --tw-translate-y: 0px !important; top: auto !important; bottom: 0; left: 0 !important; width: 100%; max-width: none; max-height: 92dvh; transform: none !important; translate: none !important; border-radius: 20px 20px 0 0; overflow-y: auto; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .rf-dialog-content :is(button, input, select, [role="combobox"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([role="checkbox"]):not([role="switch"]) { min-height: 48px; }
+  .rf-dialog-content :is(input, select, textarea) { font-size: 16px; }
 }

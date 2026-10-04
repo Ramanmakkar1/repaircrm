@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ACTIONS } from "@/components/ui/icons";
+import { cn } from "@/components/ui/cn";
+import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,6 +31,7 @@ import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents, parseCents } from "@/lib/money";
 import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
+import { TILE_CLASS } from "./tile-style";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
 
@@ -87,6 +89,7 @@ export function PaymentDialog({
   squareTerminal,
   cardFlow = "manual",
   size,
+  appearance = "button",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
@@ -95,6 +98,11 @@ export function PaymentDialog({
   customerName: string;
   /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
   size?: ButtonProps["size"];
+  /**
+   * How the trigger looks: the usual filled button, or one of the quick tiles
+   * on a bill (icon over a word). Looks only; it opens the same dialog.
+   */
+  appearance?: "button" | "tile";
   /** Absent when this shop has no card machine connected. */
   terminal?: PaymentTerminal;
   /** Square Terminal devices connected to this shop through Square OAuth. */
@@ -165,12 +173,22 @@ export function PaymentDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size={size}>
-          <ACTIONS.pay /> Take payment
-        </Button>
+        {appearance === "tile" ? (
+          <button type="button" data-touch-control className={TILE_CLASS}>
+            <ACTIONS.pay aria-hidden />
+            Take payment
+          </button>
+        ) : (
+          <Button size={size}>
+            <ACTIONS.pay /> Take payment
+          </Button>
+        )}
       </DialogTrigger>
 
-      <DialogContent>
+      {/* Scrolls inside the screen. With the tablet keyboard up, the amount
+          field's footer buttons stay reachable instead of falling off the
+          bottom. (The phone sheet has its own 92dvh limit.) */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Take a payment</DialogTitle>
           <DialogDescription>
@@ -216,35 +234,22 @@ export function PaymentDialog({
             </div>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="amount">Amount</Label>
-              <Input
-                id="amount"
-                name="amount"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                inputMode="decimal"
-                className="h-12 text-right text-lg font-bold tabular-nums"
-                autoFocus
-              />
-            </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="amount">Amount</Label>
+            <Input
+              id="amount"
+              name="amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              className="h-14 text-right text-2xl font-bold tabular-nums"
+              autoFocus
+            />
+          </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="method">Method</Label>
-              <Select name="method" value={method} onValueChange={setMethod}>
-                <SelectTrigger id="method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {METHODS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex flex-col gap-2">
+            <Label id="method-label">Method</Label>
+            <MethodTiles value={method} onChange={setMethod} />
           </div>
 
           {method === "CARD" ? (
@@ -303,6 +308,67 @@ export function PaymentDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The method as big tiles instead of a drop-down: one tap, every choice in
+ * view, the chosen one filled. Same five methods, same `method` field in the
+ * form (the hidden input below carries it), same state in the dialog; only the
+ * control that sets it changed. Left and right arrows move the choice, like any
+ * radio group.
+ */
+const METHOD_ICONS = {
+  CARD: ICONS.payment,
+  CASH: ICONS.cash,
+  CHECK: ICONS.payout,
+  CREDIT: ICONS.credit,
+  OTHER: ACTIONS.more,
+} as const;
+
+export function MethodTiles({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const move = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = METHODS[(index + step + METHODS.length) % METHODS.length];
+    onChange(next.value);
+    const group = event.currentTarget.parentElement;
+    window.requestAnimationFrame(() => group?.querySelector<HTMLButtonElement>(`[data-method="${next.value}"]`)?.focus());
+  };
+
+  return (
+    <>
+      <input type="hidden" name="method" value={value} />
+      <div role="radiogroup" aria-labelledby="method-label" className="flex flex-wrap gap-2">
+        {METHODS.map((m, index) => {
+          const Icon = METHOD_ICONS[m.value];
+          const checked = m.value === value;
+          return (
+            <button
+              key={m.value}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              tabIndex={checked ? 0 : -1}
+              data-method={m.value}
+              onClick={() => onChange(m.value)}
+              onKeyDown={(event) => move(event, index)}
+              className={cn(
+                "flex min-h-14 flex-1 basis-[6rem] sm:basis-[7rem] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-center text-[14px] font-semibold leading-tight transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5 [&_svg]:shrink-0",
+                checked
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-border-strong bg-surface text-foreground hover:bg-surface-hover",
+              )}
+            >
+              <Icon aria-hidden />
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

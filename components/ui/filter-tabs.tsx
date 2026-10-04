@@ -1,30 +1,26 @@
 import * as React from "react";
 import Link from "next/link";
 import { cn } from "./cn";
+import { RevealActiveTab } from "./reveal-active-tab";
 
 /**
- * Saved views, as underline tabs.
+ * The one filter control: big pill tabs, like the group tabs on Home.
  *
- * Every list screen in the app had grown its own row of `rounded-full` pills —
- * tickets, purchase orders, invoices, leads, campaigns — each hand-rolled,
- * each slightly different, and the selected one rendered as a filled indigo
- * lozenge that outshouted the data underneath it. That is the loudest possible
- * way to say "you are looking at the open ones".
- *
- * This is the one filter control. It reads as a set of views over the same
- * table rather than as a set of buttons: quiet labels on a hairline, the
- * current one marked by weight and a 2px underline in the same accent the
- * sidebar uses for the current page. Counts sit beside their label in the
- * muted tone, so an empty view announces itself before you click it.
+ * Every list screen shares it, so Repairs, Invoices, Stock and the rest all
+ * read as one app. Each tab is a 44px+ touch target (48px in Easy mode), the
+ * current one is filled solid and carries its count inside the pill, so an
+ * empty view announces itself before you tap it and the current view is
+ * never signalled by colour alone (fill AND `aria-current`).
  *
  * Tabs are links, not state. These lists already drive off search params, so
- * a view is a URL — shareable, bookmarkable, and back-button correct.
+ * a view is a URL: shareable, bookmarkable, and back-button correct. On a
+ * phone the row scrolls sideways rather than wrapping into a second line.
  */
 export interface FilterTab {
   label: string;
   href: string;
   active?: boolean;
-  /** Rendered beside the label. Pass `0` and it still shows — that is the point. */
+  /** Rendered inside the pill. Pass `0` and it still shows - that is the point. */
   count?: number;
 }
 
@@ -36,11 +32,8 @@ export function FilterTabs({
 }: {
   tabs: FilterTab[];
   /**
-   * Rendered at the end of the strip, on the same hairline.
-   *
-   * This is where the saved-views control lives. It belongs ON the strip
-   * rather than beside it, because saving a view is an act about this row of
-   * tabs — anywhere else and it reads as a page-level action.
+   * Rendered at the end of the row. This is where the saved-views control
+   * lives: saving a view is an act about this row of tabs, so it belongs on it.
    */
   trailing?: React.ReactNode;
   className?: string;
@@ -49,13 +42,9 @@ export function FilterTabs({
   if (tabs.length === 0 && !trailing) return null;
 
   return (
+    <RevealActiveTab>
     <div
-      className={cn(
-        // the hairline runs the full width, so the tabs sit ON a line rather
-        // than floating above the content they filter
-        "flex items-center gap-1 overflow-x-auto border-b border-border",
-        className,
-      )}
+      className={cn("flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
       role="navigation"
       aria-label={ariaLabel}
     >
@@ -63,49 +52,42 @@ export function FilterTabs({
         <Link
           /*
             Keyed on href AND label, because href alone is not unique. A saved
-            view can point at exactly the same URL as a built-in tab — save
-            "Waiting for Parts" under your own name for it and the strip has
-            two entries with one href. React then warns about duplicate keys
-            and is free to drop or duplicate one of them, which it did.
-
-            The product prevents that duplicate being created in the first
-            place (see components/list/saved-views.tsx), but data that already
-            exists does not care what the product decided afterwards, and a
-            primitive should not fall over because two things agree.
+            view can point at exactly the same URL as a built-in tab - save
+            "Waiting for Parts" under your own name for it and the row has two
+            entries with one href. React then warns about duplicate keys and is
+            free to drop or duplicate one of them, which it did. The product
+            prevents that duplicate being created (components/list/saved-views.tsx),
+            but data that already exists does not care what the product decided
+            afterwards, and a primitive should not fall over because two things agree.
           */
           key={`${tab.href}|${tab.label}`}
           href={tab.href}
+          data-touch-control
           aria-current={tab.active ? "page" : undefined}
           className={cn(
-            "relative shrink-0 whitespace-nowrap px-3 pb-2.5 pt-1.5 text-[13.5px] transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+            "inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-[15px] font-semibold transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             tab.active
-              ? "font-semibold text-foreground"
-              : "font-medium text-muted-foreground hover:text-foreground",
+              ? "border-accent bg-accent text-accent-foreground"
+              : "border-border bg-surface text-muted-foreground hover:border-ring hover:text-foreground",
           )}
         >
           {tab.label}
           {typeof tab.count === "number" ? (
             <span
               className={cn(
-                "rf-num ml-1.5 text-[12.5px] font-medium",
-                tab.active ? "text-muted-foreground" : "text-faint-foreground",
+                "rf-num min-w-6 rounded-full px-1.5 py-0.5 text-center text-[13px] font-semibold tabular-nums",
+                tab.active ? "bg-accent-foreground/15 text-accent-foreground" : "bg-surface-hover text-muted-foreground",
               )}
             >
               {tab.count}
             </span>
           ) : null}
-          {tab.active ? (
-            <span
-              aria-hidden
-              // -1px so the underline covers the container's own hairline
-              className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-accent"
-            />
-          ) : null}
         </Link>
       ))}
-      {trailing ? <div className="ml-1 shrink-0 pb-1.5">{trailing}</div> : null}
+      {trailing ? <div className="ml-1 shrink-0">{trailing}</div> : null}
     </div>
+    </RevealActiveTab>
   );
 }
 
@@ -132,7 +114,7 @@ export function FilterChips({
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       {label ? (
-        <span className="mr-0.5 text-[12.5px] font-medium text-faint-foreground">
+        <span className="mr-0.5 text-sm font-medium text-muted-foreground">
           {label}
         </span>
       ) : null}
@@ -140,9 +122,10 @@ export function FilterChips({
         <Link
           key={option.href}
           href={option.href}
+          data-touch-control
           aria-current={option.active ? "true" : undefined}
           className={cn(
-            "inline-flex h-7 items-center rounded-md border px-2.5 text-[12.5px] font-medium transition-colors",
+            "inline-flex min-h-9 items-center rounded-lg border px-3 text-sm font-medium transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             option.active
               ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"

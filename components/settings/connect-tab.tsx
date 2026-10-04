@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Switch } from "./settings-switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   HUB_CARDS,
@@ -134,7 +134,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
             <span className="text-[14.5px] font-semibold text-foreground">
               Your shop link is {enabled ? "live" : "off"}
             </span>
-            <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <span className="text-[14px] leading-relaxed text-muted-foreground">
               While this is off the link returns a 404 — the same answer a shop
               that has never existed gives.
             </span>
@@ -150,7 +150,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface-hover px-4 py-4 sm:flex-row sm:items-start sm:gap-5">
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <CopyRow label="Your link" value={config.shopUrl} openable />
-            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               Everything a customer might want is on it: book a device in, check
               a repair, ask for a price, pay a bill.
             </p>
@@ -178,7 +178,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
 
         {/* --------------------------------------------------- what is on it */}
         <div className="flex flex-col gap-3">
-          <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
+          <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
             What&rsquo;s on the page
           </span>
 
@@ -187,7 +187,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
               <span className="text-[14px] font-semibold text-foreground">
                 Check in a device
               </span>
-              <span className="text-[13px] leading-relaxed text-muted-foreground">
+              <span className="text-[14px] leading-relaxed text-muted-foreground">
                 {config.checkinEnabled
                   ? "On. Switched on and off under Check-in & reviews."
                   : "Off. Switch it on under Check-in & reviews to add it here."}
@@ -207,7 +207,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
                 <span className="text-[14px] font-semibold text-foreground">
                   {HUB_CARD_LABEL[key]}
                 </span>
-                <span className="text-[13px] leading-relaxed text-muted-foreground">
+                <span className="text-[14px] leading-relaxed text-muted-foreground">
                   {HUB_CARD_HINT[key]}
                 </span>
               </span>
@@ -233,7 +233,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
             onChange={(event) => setHours(event.target.value)}
             placeholder={"Mon–Fri 9am–6pm\nSat 10am–4pm\nSunday closed"}
           />
-          <p className="text-[12.5px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             Shown under your address. Leave it blank and the line is left out.
           </p>
         </div>
@@ -243,7 +243,7 @@ function ShopLinkCard({ config }: { config: ConnectConfig }) {
             <span className="text-[14.5px] font-semibold text-foreground">
               Let search engines list this page
             </span>
-            <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <span className="text-[14px] leading-relaxed text-muted-foreground">
               Off while you get it right — a half-finished page in a search
               result is a phone call you did not want. Turn it on when the page
               says what you want it to say.
@@ -313,13 +313,13 @@ function WebsiteSnippet({
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
+      <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
         Put it on your website
       </span>
 
-      <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+      <p className="text-[14px] leading-relaxed text-muted-foreground">
         Paste this one line into your website&rsquo;s page, just before the
-        closing <code className="rounded-sm bg-surface-hover px-1 py-0.5 font-mono text-[12.5px] text-foreground">&lt;/body&gt;</code>{" "}
+        closing <code className="rounded-sm bg-surface-hover px-1 py-0.5 font-mono text-[14px] text-foreground">&lt;/body&gt;</code>{" "}
         tag — or send it to whoever built your site and ask them to add this one
         line. It puts a &ldquo;Book a repair&rdquo; button in the corner of every
         page.
@@ -335,7 +335,7 @@ function WebsiteSnippet({
             {copied ? "Copied" : "Copy"}
           </Button>
         </div>
-        <code className="block overflow-x-auto whitespace-pre rounded-md bg-surface px-3 py-2.5 font-mono text-[12.5px] text-foreground">
+        <code className="block overflow-x-auto whitespace-pre rounded-md bg-surface px-3 py-2.5 font-mono text-[14px] text-foreground">
           {snippet}
         </code>
       </div>
@@ -353,7 +353,7 @@ function WebsiteSnippet({
             />
           </div>
         ) : (
-          <p className="rounded-lg border border-dashed border-border-strong px-4 py-6 text-center text-[13.5px] text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border-strong px-4 py-6 text-center text-[14px] text-muted-foreground">
             Switch your shop link on and save to see the preview.
           </p>
         )}
@@ -363,7 +363,7 @@ function WebsiteSnippet({
         <button
           type="button"
           onClick={() => setShowForm((current) => !current)}
-          className="w-fit text-[13.5px] font-semibold text-accent hover:underline"
+          className="w-fit text-[14px] font-semibold text-accent hover:underline"
         >
           {showForm ? "Hide the plain form" : "Rather have a plain form on your page?"}
         </button>
@@ -403,7 +403,7 @@ function CopyRow({
         {label}
       </span>
       <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-3 py-2 font-mono text-[12.5px] text-foreground">
+        <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-3 py-2 font-mono text-[14px] text-foreground">
           {value}
         </code>
         <Button size="sm" variant="soft" onClick={copy}>
@@ -594,7 +594,7 @@ function ConnectRow({
             </span>
             <StatusPill tone={CONNECT_TONE[status]} label={statusText} size="sm" />
           </div>
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             {body}
           </p>
         </div>

@@ -30,8 +30,26 @@ const QUICK_FLOATS = [10000, 15000, 20000, 30000];
  * is measured against, so getting it wrong at 9am is a phantom shortfall at
  * closing. Hence the quick amounts and the live formatted echo underneath.
  */
-export function DrawerOpenDialog({ onOpened }: { onOpened: () => void }) {
-  const [open, setOpen] = React.useState(false);
+export function DrawerOpenDialog({
+  onOpened,
+  open: controlledOpen,
+  onOpenChange,
+}: {
+  onOpened: () => void;
+  /**
+   * Pass `open` (with `onOpenChange`) to drive the dialog from outside, for
+   * example from a menu item. It then renders no trigger button of its own.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [innerOpen, setInnerOpen] = React.useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : innerOpen;
+  const setOpen = (next: boolean) => {
+    if (!controlled) setInnerOpen(next);
+    onOpenChange?.(next);
+  };
   const [value, setValue] = React.useState("150.00");
   const [busy, setBusy] = React.useState(false);
 
@@ -52,12 +70,14 @@ export function DrawerOpenDialog({ onOpened }: { onOpened: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <ACTIONS.open className="size-4" />
-          Open drawer
-        </Button>
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <ACTIONS.open className="size-4" />
+            Open drawer
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-w-md">
         <DialogHeader>

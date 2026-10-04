@@ -1,0 +1,112 @@
+{
+  "createdAt": "2026-10-03",
+  "generator": "Codex built-in image_gen (delegated from Claude Code)",
+  "useCase": "product-mockup",
+  "note": "Generic illustrative category photographs for the Home tiles and for device types that previously showed an icon. Fictional, unbranded; not exact manufacturer or SKU images. Same style template as the 2026-09-30 catalog batches.",
+  "inspection": {
+    "method": "contact-sheet review plus the generator's own check",
+    "result": "Hardware subjects complete on white studio backgrounds; no legible text, numbers or logos."
+  },
+  "export": {
+    "format": "WebP",
+    "width": 768,
+    "height": 768,
+    "quality": 88,
+    "tool": "sharp, fit=cover"
+  },
+  "styleTemplate": "Use case: product-mockup. Asset type: an individual fictional product catalog image for a repair shop POS dashboard. Square composition. Pure solid white #ffffff studio background, premium photoreal commercial catalog photography, softly lit, tiny realistic grounding shadow, coherent 3/4 camera angle, entire product visible with clean margins, product fills about 75% of canvas. No logos, text, numbers, labels, watermarks or UI.",
+  "assets": [
+    {
+      "path": "public/images/products/laptop.webp",
+      "subject": "Generic silver aluminium laptop opened about 110 degrees; plain solid pale blue screen; blank keys; no logo."
+    },
+    {
+      "path": "public/images/products/desktop-computer.webp",
+      "subject": "Generic black mid-tower PC with tempered-glass side panel beside a slim monitor with a plain pale blue screen; no logos."
+    },
+    {
+      "path": "public/images/products/smartwatch.webp",
+      "subject": "Generic round smartwatch, graphite case, black silicone strap, plain pale blue screen, no text."
+    },
+    {
+      "path": "public/images/products/headphones.webp",
+      "subject": "Generic graphite over-ear wireless headphones; no logos."
+    },
+    {
+      "path": "public/images/products/earbuds.webp",
+      "subject": "A pair of generic white true-wireless earbuds beside a small open white charging case; no logos."
+    },
+    {
+      "path": "public/images/products/camera.webp",
+      "subject": "Generic black mirrorless camera with a short zoom lens; no brand text or logos."
+    },
+    {
+      "path": "public/images/home/pickup-bag.webp",
+      "subject": "Small kraft-paper bag with a blank tag, with a graphite smartphone (plain pale blue screen) standing beside it."
+    },
+    {
+      "path": "public/images/home/customers-cards.webp",
+      "subject": "Open wooden index-card file box holding rows of blank cream index cards with blank coloured divider tabs."
+    },
+    {
+      "path": "public/images/home/diary.webp",
+      "subject": "Closed navy hardcover appointment diary with a red ribbon bookmark and a slim metal pen on top; no text."
+    },
+    {
+      "path": "public/images/home/card-terminal.webp",
+      "subject": "Generic handheld card payment terminal, matte black, plain pale-blue display, blank keypad; no logos."
+    },
+    {
+      "path": "public/images/home/invoice-pad.webp",
+      "subject": "Stack of blank white invoice sheets with a black binder clip and a ballpoint pen; faint ruled lines only."
+    },
+    {
+      "path": "public/images/home/parts-bin.webp",
+      "subject": "Small plastic organizer cabinet, 3x4 pull-out transparent drawers holding tiny electronic parts; blank fronts."
+    },
+    {
+      "path": "public/images/home/price-tag.webp",
+      "subject": "Blank kraft-paper price tag on a string attached to a plain white product box."
+    },
+    {
+      "path": "public/images/home/delivery-boxes.webp",
+      "subject": "Stack of three brown cardboard shipping boxes with plain packing tape; no printing."
+    },
+    {
+      "path": "public/images/home/delivery-van.webp",
+      "subject": "Small generic white delivery van, plain, no markings or logos, three-quarter front view."
+    },
+    {
+      "path": "public/images/home/report-chart.webp",
+      "subject": "Wooden clipboard with a printed bar chart of five ascending blue bars, no numbers or labels, and a pen."
+    },
+    {
+      "path": "public/images/home/toolbox.webp",
+      "subject": "Red metal repair toolbox, lid open, tidy tray with screwdrivers and pliers; no logos."
+    },
+    {
+      "path": "public/images/home/gears.webp",
+      "subject": "Three interlocking brushed-metal gears (two silver, one brass); no markings."
+    },
+    {
+      "path": "public/images/home/import-folder.webp",
+      "subject": "Open manila folder with loose blank white sheets and a small plain silver USB flash drive."
+    },
+    {
+      "path": "public/images/home/display-screen.webp",
+      "subject": "Slim customer-facing display monitor on a small stand, plain pale blue screen; no logos."
+    },
+    {
+      "path": "public/images/home/megaphone.webp",
+      "subject": "Generic white-and-orange hand-held megaphone; no logos."
+    },
+    {
+      "path": "public/images/home/cash-register.webp",
+      "subject": "Generic modern point-of-sale cash register, black, plain pale-blue display, blank keys, empty drawer slightly open."
+    },
+    {
+      "path": "public/images/home/time-clock.webp",
+      "subject": "Round white analog desk clock with tick marks only, no numerals."
+    }
+  ]
+}

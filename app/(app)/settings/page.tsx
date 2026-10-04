@@ -27,6 +27,7 @@ import {
 import { readCardMachine } from "@/lib/payments/card-machine";
 import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
+import { readUiPrefs } from "@/lib/prefs";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
 import { googleConfigured } from "@/lib/google/config";
 import { googleNotice } from "@/lib/google/messages";
@@ -70,6 +71,9 @@ export default async function SettingsPage({
   const session = await requireUser();
   const params = await searchParams;
   const isOwner = session.role === "OWNER";
+  // Easy mode (the default) gets the big pill navigation; Full mode keeps the
+  // compact side rail. Either way every setting is on the same panels.
+  const { simple } = await readUiPrefs();
 
   const [
     shop,
@@ -519,10 +523,16 @@ export default async function SettingsPage({
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div
+      className={
+        simple
+          ? "mx-auto flex w-full max-w-5xl flex-col gap-5"
+          : "flex flex-col gap-6"
+      }
+    >
       <PageHeader
         title="Settings"
-        description="Your shop, your team, how you get paid, and everything Repairs helper connects to."
+        description="Your shop, team, payments and connections. Pick an area to change it."
       />
 
       <SettingsTabs
@@ -601,6 +611,7 @@ export default async function SettingsPage({
         }))}
         integrations={integrations}
         connect={connect}
+        simple={simple}
       />
     </div>
   );

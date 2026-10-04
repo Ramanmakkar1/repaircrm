@@ -122,7 +122,7 @@ export function OnboardingWizard({ data }: { data: WizardData }) {
       toast.error(result.error);
       return;
     }
-    router.push("/dashboard");
+    router.push("/");
   }
 
   const shared = {
@@ -168,7 +168,7 @@ export function OnboardingWizard({ data }: { data: WizardData }) {
           <span />
         )}
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/dashboard">Leave setup for now</Link>
+          <Link href="/">Leave setup for now</Link>
         </Button>
       </div>
     </div>
@@ -831,14 +831,14 @@ function ReadyStep({
         ) : null}
 
         <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          Anything you skipped is waiting on the dashboard, and all of it lives
-          in Settings.
+          Anything you skipped is waiting on your home screen, and all of it
+          lives in Settings.
         </p>
       </CardContent>
 
       <CardFooter className="justify-between">
         <Button onClick={onFinish}>
-          <Check /> Finish and open the dashboard
+          <Check /> Finish and open my shop
         </Button>
       </CardFooter>
     </>

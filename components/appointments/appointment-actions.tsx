@@ -40,17 +40,27 @@ import {
 export function NewAppointmentButton({
   pickers,
   defaults,
+  simple = false,
 }: {
   pickers: AppointmentPickers;
   defaults: AppointmentFormValues;
+  /**
+   * Easy mode: the big, touch-sized button that says "Book a visit" (the same
+   * words as the Home tile), opening the four-field form.
+   */
+  simple?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
+      <Button
+        size={simple ? "lg" : "default"}
+        className={simple ? "h-12 px-6 text-base [&_svg]:size-5" : undefined}
+        onClick={() => setOpen(true)}
+      >
         <CalendarPlus />
-        New Appointment
+        {simple ? "Book a visit" : "New Appointment"}
       </Button>
       {/* Remounting on open throws away whatever a cancelled draft left behind. */}
       {open ? (
@@ -59,6 +69,7 @@ export function NewAppointmentButton({
           onOpenChange={setOpen}
           values={defaults}
           pickers={pickers}
+          simple={simple}
         />
       ) : null}
     </>
@@ -78,10 +89,12 @@ export function AutoAppointmentDialog({
   pickers,
   values,
   closeHref,
+  simple = false,
 }: {
   pickers: AppointmentPickers;
   values: AppointmentFormValues;
   closeHref: string;
+  simple?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(true);
@@ -100,6 +113,7 @@ export function AutoAppointmentDialog({
       onOpenChange={close}
       values={values}
       pickers={pickers}
+      simple={simple}
       onSaved={() => router.replace(closeHref, { scroll: false })}
     />
   );
@@ -118,12 +132,19 @@ export function AppointmentRowActions({
   editHref,
   status,
   canDelete,
+  layout = "menu",
 }: {
   appointmentId: string;
   /** The calendar URL that opens this booking's edit dialog. */
   editHref: string;
   status: string;
   canDelete: boolean;
+  /**
+   * `menu` is the quiet `⋯` of a dense table row. `buttons` is the Easy-mode
+   * card footer: the one thing you do next ("Mark done" / "Reopen") as a big
+   * visible button, and `More` for the rest.
+   */
+  layout?: "menu" | "buttons";
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -167,19 +188,57 @@ export function AppointmentRowActions({
     });
   }
 
+  const touch = layout === "buttons";
+
   return (
     <>
+      <div className={touch ? "flex items-center gap-2" : "contents"}>
+      {touch ? (
+        status === "SCHEDULED" ? (
+          <Button
+            variant="outline"
+            disabled={busy}
+            className="h-12 flex-1 text-base"
+            onClick={() => move("DONE", "Marked done.")}
+          >
+            <ACTIONS.approve />
+            Mark done
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            disabled={busy}
+            className="h-12 flex-1 text-base"
+            onClick={() => move("SCHEDULED", "Back on the calendar.")}
+          >
+            <ACTIONS.reopen />
+            Reopen
+          </Button>
+        )
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Appointment actions"
-            disabled={busy}
-            className="size-7 [&_svg]:size-4 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-visible:opacity-100 md:data-[state=open]:opacity-100"
-          >
-            <ACTIONS.more />
-          </Button>
+          {touch ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              aria-label="More for this appointment"
+              className="h-12 flex-1 text-base"
+            >
+              <ACTIONS.more />
+              More
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Appointment actions"
+              disabled={busy}
+              className="size-7 [&_svg]:size-4 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-visible:opacity-100 md:data-[state=open]:opacity-100"
+            >
+              <ACTIONS.more />
+            </Button>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem asChild>
@@ -228,6 +287,7 @@ export function AppointmentRowActions({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent className="max-w-sm">

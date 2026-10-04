@@ -36,6 +36,9 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         firstName: true,
         lastName: true,
         businessName: true,
+        phone: true,
+        mobile: true,
+        email: true,
         taxExempt: true,
         taxRateId: true,
         // Only whether a card exists — never the payment method id, which is a
@@ -92,6 +95,9 @@ export async function loadDocumentFormData(shopId: string): Promise<{
       return {
         id: c.id,
         label: customerLabel(c),
+        phone: c.phone,
+        mobile: c.mobile,
+        email: c.email,
         taxRateId: tax.taxRateId,
         taxRateBps: tax.taxRateBps,
         taxExempt: c.taxExempt,

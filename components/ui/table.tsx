@@ -1,12 +1,32 @@
+"use client";
+
 import * as React from "react";
 import { cn } from "./cn";
 
 export function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
+  const table = React.useRef<HTMLTableElement>(null);
+  React.useEffect(() => {
+    const element = table.current;
+    if (!element) return;
+    const headers = Array.from(element.querySelectorAll("thead tr:last-child th"));
+    const labels = headers.map(header => header.textContent?.trim() ?? "");
+    const selection = headers.map(header => Boolean(header.querySelector('[role="checkbox"], input[type="checkbox"]')));
+    const primary = labels.findIndex((label, index) => Boolean(label) && !selection[index]);
+    element.querySelectorAll("tbody tr").forEach(row => {
+      let index = 0;
+      Array.from(row.querySelectorAll<HTMLTableCellElement>(":scope > td")).forEach(cell => {
+        cell.dataset.label = labels[index] ?? "";
+        cell.dataset.mobilePrimary = String(index === primary);
+        cell.dataset.mobileSelect = String(Boolean(selection[index]));
+        index += cell.colSpan || 1;
+      });
+    });
+  }, [props.children]);
   return (
     // `relative`: without a positioned ancestor, an absolutely positioned cell
     // label escaped this scroller and widened the whole page on phones.
     <div className="relative w-full overflow-x-auto">
-      <table className={cn("w-full caption-bottom text-[13.5px]", className)} {...props} />
+      <table ref={table} data-mobile-cards className={cn("w-full caption-bottom text-[13.5px]", className)} {...props} />
     </div>
   );
 }

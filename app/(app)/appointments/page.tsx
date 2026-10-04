@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
 
+import { AppointmentCards } from "@/components/appointments/appointment-cards";
 import { AppointmentList } from "@/components/appointments/appointment-list";
 import {
   AutoAppointmentDialog,
@@ -22,15 +22,15 @@ import {
   weekStart,
   type CalendarAppointment,
 } from "@/components/appointments/calendar-meta";
+import { CalendarNav } from "@/components/appointments/calendar-nav";
 import { TodayStrip } from "@/components/appointments/today-strip";
 import { WeekGrid } from "@/components/appointments/week-grid";
-import { Button } from "@/components/ui/button";
 import { FilterChips, FilterTabs } from "@/components/ui/filter-tabs";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Appointments · Repairs helper" };
 
@@ -57,7 +57,7 @@ export default async function AppointmentsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, role } = await requireUser();
-  const params = await searchParams;
+  const [params, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
 
   // One clock for the whole render — two components must never disagree about
   // where "now" is on the grid.
@@ -241,12 +241,32 @@ export default async function AppointmentsPage({
         ? defaults
         : null;
 
+  const calendarGrid = (
+    <WeekGrid
+      days={days}
+      appointments={appointments}
+      slotHref={slotHref}
+      editHref={editHref}
+      now={now}
+    />
+  );
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className={simple ? "flex flex-col gap-6" : "flex flex-col gap-5"}>
       <PageHeader
         title="Appointments"
-        description="Drop-offs, pickups, callbacks and on-site jobs — who's booked in and when."
-        actions={<NewAppointmentButton pickers={pickers} defaults={defaults} />}
+        description={
+          simple
+            ? "Who is coming in, and when."
+            : "Drop-offs, pickups, callbacks and on-site jobs — who's booked in and when."
+        }
+        actions={
+          <NewAppointmentButton
+            pickers={pickers}
+            defaults={defaults}
+            simple={simple}
+          />
+        }
       />
 
       <div className="flex flex-col gap-3">
@@ -254,42 +274,31 @@ export default async function AppointmentsPage({
           aria-label="Calendar views"
           tabs={[
             {
-              label: "Week",
-              href: calendarHref({ view: "week" }),
-              active: view === "week",
-            },
-            {
               label: "Day",
               href: calendarHref({ view: "day" }),
               active: view === "day",
             },
+            {
+              label: "Week",
+              href: calendarHref({ view: "week" }),
+              active: view === "week",
+            },
           ]}
         />
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button variant="outline" size="icon" asChild>
-            <Link href={prevHref} scroll={false} aria-label="Previous">
-              <ACTIONS.back />
-            </Link>
-          </Button>
-          <Button variant="outline" size="icon" asChild>
-            <Link href={nextHref} scroll={false} aria-label="Next">
-              <ACTIONS.next />
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={calendarHref({ date: null })} scroll={false}>
-              Today
-            </Link>
-          </Button>
-          <span className="ml-1.5 flex items-center gap-2 text-[14px] font-semibold text-foreground">
-            <ICONS.appointment className="size-4 text-muted-foreground" />
-            {title}
-          </span>
-        </div>
+        <CalendarNav
+          title={title}
+          prevHref={prevHref}
+          todayHref={calendarHref({ date: null })}
+          nextHref={nextHref}
+          simple={simple}
+        />
 
         {techs.length > 0 ? (
+          // One scrolling row, never a second line, so a phone keeps the cards in view.
+          <div className="overflow-x-auto pb-1">
           <FilterChips
+            className="w-max flex-nowrap"
             label="Tech"
             options={[
               {
@@ -309,6 +318,7 @@ export default async function AppointmentsPage({
               })),
             ]}
           />
+          </div>
         ) : null}
       </div>
 
@@ -317,27 +327,48 @@ export default async function AppointmentsPage({
         next={nextUp(todayRows, now)}
         now={now}
         editHref={editHref}
+        simple={simple}
       />
 
-      {/* The grid needs horizontal room; on a phone the list below IS the view. */}
-      <div className="hidden md:block">
-        <WeekGrid
-          days={days}
-          appointments={appointments}
-          slotHref={slotHref}
-          editHref={editHref}
-          now={now}
-        />
-      </div>
+      {simple ? (
+        <>
+          {/* Easy mode: the cards come first, they are what you act on. */}
+          <AppointmentCards
+            days={days}
+            appointments={appointments}
+            editHref={editHref}
+            newHref={calendarHref({ new: true })}
+            canDelete={role === "OWNER"}
+            now={now}
+            filtered={tech !== ALL_TECHS}
+          />
 
-      <AppointmentList
-        days={days}
-        appointments={appointments}
-        editHref={editHref}
-        canDelete={role === "OWNER"}
-        now={now}
-        filtered={tech !== ALL_TECHS}
-      />
+          {/* The grid needs horizontal room; on a phone the cards ARE the view. */}
+          <section aria-label="Calendar" className="hidden flex-col gap-3 md:flex">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Calendar</h2>
+              <p className="text-sm text-muted-foreground">
+                Tap an empty hour to book a visit into it.
+              </p>
+            </div>
+            {calendarGrid}
+          </section>
+        </>
+      ) : (
+        <>
+          {/* The grid needs horizontal room; on a phone the list below IS the view. */}
+          <div className="hidden md:block">{calendarGrid}</div>
+
+          <AppointmentList
+            days={days}
+            appointments={appointments}
+            editHref={editHref}
+            canDelete={role === "OWNER"}
+            now={now}
+            filtered={tech !== ALL_TECHS}
+          />
+        </>
+      )}
 
       {dialogValues ? (
         <AutoAppointmentDialog
@@ -347,6 +378,7 @@ export default async function AppointmentsPage({
           pickers={pickers}
           values={dialogValues}
           closeHref={closeHref}
+          simple={simple}
         />
       ) : null}
     </div>

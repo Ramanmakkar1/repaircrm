@@ -10,13 +10,13 @@ import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from 
 import { activeLocations } from "@/lib/location";
 import { calcTotals, formatCents } from "@/lib/money";
 import { customerWarranties } from "@/lib/warranty";
+import { readUiPrefs } from "@/lib/prefs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { CopyableId } from "@/components/ui/copyable-id";
 import { ICONS } from "@/components/ui/icons";
-import { ObjectHeader } from "@/components/ui/object-header";
 import { SummarizeTicketButton } from "@/components/ai/summarize-dialog";
 import {
   AttachmentsCard,
@@ -29,7 +29,35 @@ import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
 import { DepositCard, type DepositRow } from "@/components/tickets/deposit-card";
 import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
+import { MoreActions } from "@/components/tickets/more-actions";
 import { PickupActions } from "@/components/tickets/pickup-actions";
+import { RepairHeader } from "@/components/tickets/repair-header";
+import { deviceName, dueWords, repairNextStep } from "@/components/tickets/repair-card-facts";
+import { JobActionsProvider } from "@/components/tickets/job-actions";
+import { JobHeader } from "@/components/tickets/job-header";
+import { JobPrimaryAction } from "@/components/tickets/job-primary-action";
+import { JobQuickActions } from "@/components/tickets/job-quick-actions";
+import {
+  JobBillLink,
+  JobBlockTitle,
+  JobDetailList,
+  JobMoneyLinks,
+  JobScreen,
+  JobTabs,
+} from "@/components/tickets/job-screen";
+import {
+  inProgressTarget,
+  intakePhotoId,
+  jobActions,
+  jobTabHref,
+  openPartCount,
+  parseCompose,
+  parseJobTab,
+  phoneLinks,
+  pickJobInvoice,
+} from "@/components/tickets/job-screen-logic";
+import { JobSummary } from "@/components/tickets/job-summary";
+import { StatusSteps } from "@/components/tickets/status-steps";
 import {
   TicketAssignee,
   TicketDueDate,
@@ -78,9 +106,12 @@ export async function generateMetadata({
   });
 
   return {
-    title: ticket ? `Ticket #${ticket.number} · Repairs helper` : "Ticket · Repairs helper",
+    title: ticket ? `Repair #${ticket.number} · Repairs helper` : "Repair · Repairs helper",
   };
 }
+
+/** The one big black button at the top of a repair. */
+const BIG_BUTTON = "h-12 px-6 text-base [&_svg]:size-5";
 
 /** Deposit tenders wear the same names they do on an invoice. */
 const DEPOSIT_METHOD_LABELS: Record<string, string> = {
@@ -108,11 +139,13 @@ function readCustomFields(value: unknown): Record<string, string> {
 
 export default async function TicketDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, userId, role } = await requireUser();
-  const { id } = await params;
+  const [{ id }, query, prefs] = await Promise.all([params, searchParams, readUiPrefs()]);
 
   // findFirst (not findUnique) so an id belonging to another shop 404s instead
   // of leaking a row — see the tenancy contract in lib/db.ts.
@@ -158,6 +191,16 @@ export default async function TicketDetailPage({
         select: { id: true, type: true, make: true, model: true, serial: true },
       },
       assignedTo: { select: { id: true, name: true } },
+      // The documents made from this repair, newest first: the Money section
+      // links to them and the big button opens the unpaid one.
+      invoices: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, number: true, status: true },
+      },
+      estimates: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, number: true, status: true },
+      },
       comments: {
         orderBy: { createdAt: "desc" },
         select: {
@@ -315,6 +358,7 @@ export default async function TicketDetailPage({
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
   const uninvoicedCount = ticket.charges.filter((c) => c.invoiceId === null).length;
   const checklist = parseChecklist(ticket.checklist);
+  const device = deviceName(ticket.asset);
 
   // The headline figure. Exactly the number the charges card foots to — the
   // header never runs its own arithmetic on money, it just shows the total
@@ -369,6 +413,19 @@ export default async function TicketDetailPage({
     (sum, entry) => sum + entry.amountCents,
     0,
   );
+
+  // The device has gone home: there is nothing left to hand over, so the next
+  // step on this screen is billing.
+  const handedOver = ticket.pickedUpAt !== null;
+  const nothingToBill = uninvoicedCount === 0 && unbilledTime.length === 0;
+  const nextStep = repairNextStep({ pickedUp: handedOver, nothingToBill });
+  const invoiceProps = {
+    ticketId: ticket.id,
+    chargeCount: uninvoicedCount,
+    unbilledTimeCount: unbilledTime.length,
+    unbilledTimeLabel: formatHm(unbilledTimeSeconds),
+    unbilledTimeValue: formatCents(unbilledTimeCents),
+  };
 
   const deposits: DepositRow[] = ticket.deposits.map((deposit) => ({
     id: deposit.id,
@@ -432,6 +489,482 @@ export default async function TicketDetailPage({
     uploadedById: attachment.uploadedById,
   }));
 
+  // -------------------------------------------------------------------------
+  // The pieces both layouts are made of.
+  //
+  // Full mode lays them out the way the page always has (header, tracker, two
+  // columns). Easy mode puts the very same elements, with the very same props,
+  // on tabs. Building each once is what guarantees that a card moved onto a tab
+  // still does exactly what it did in a column.
+  // -------------------------------------------------------------------------
+  const easy = prefs.simple;
+  const problemTypeList = problemTypes(shop?.settings);
+  const techOptions = techs.map((tech) => ({ value: tech.id, label: tech.name }));
+  const customerName = customerLabel(ticket.customer);
+  const dash = <span className="text-faint-foreground">—</span>;
+
+  const warrantyPill = ticket.isWarranty ? (
+    warrantyClaim ? (
+      <Link
+        href={`/invoices/${warrantyClaim.invoice.id}`}
+        title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
+        className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <StatusPill
+          tone="ready"
+          dot={false}
+          label={`Warranty · #${warrantyClaim.invoice.number}`}
+          className="hover:underline"
+        />
+      </Link>
+    ) : (
+      <StatusPill tone="ready" dot={false} label="Warranty" />
+    )
+  ) : null;
+
+  const assigneeControl = (
+    <TicketAssignee
+      ticketId={ticket.id}
+      value={ticket.assignedToId ?? ""}
+      currentLabel={ticket.assignedTo?.name ?? null}
+      techs={techOptions}
+    />
+  );
+
+  // The overdue chip, then the plain date — and a day is one tap away instead
+  // of a round trip through the edit form. `now` is the page's single
+  // request-time clock, handed down so the chip means the same thing after
+  // hydration as it did on the server.
+  const dueControl = (
+    <TicketDueDate
+      ticketId={ticket.id}
+      value={ticket.dueDate ? format(ticket.dueDate, "yyyy-MM-dd") : ""}
+      resolved={isResolved(ticket.status)}
+      nowMs={now}
+      // Easy mode shows the due time in two places (the header chip and this field);
+      // both measure from the exact time, as the repair list does.
+      exactDue={easy ? (ticket.dueDate?.toISOString() ?? null) : undefined}
+    />
+  );
+
+  // Which branch the device is physically at is a fact people change from this
+  // screen, and duplicating it into the body just to host the control would put
+  // the same fact in two places.
+  const locationControl =
+    locations.length > 1 ? (
+      <TicketLocation
+        ticketId={ticket.id}
+        locationId={ticket.locationId}
+        locations={locations}
+      />
+    ) : (
+      (ticket.location?.name ?? dash)
+    );
+
+  const lastTouched = (
+    <span
+      title={STALENESS_LABEL[level]}
+      className={cn(
+        "rf-num text-sm",
+        level === "none" || level === "fresh"
+          ? "text-muted-foreground"
+          : cn(
+              "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
+              STALENESS_CLASS[level],
+            ),
+      )}
+    >
+      {relativeShort(ticket.updatedAt, now)}
+    </span>
+  );
+
+  const deviceValue = ticket.asset ? (
+    <span title={assetLabel(ticket.asset)}>{assetLabel(ticket.asset)}</span>
+  ) : (
+    dash
+  );
+
+  const timelineEntries = ticket.comments.map((comment) => ({
+    id: comment.id,
+    body: comment.body,
+    isPublic: comment.isPublic,
+    subject: comment.subject,
+    updateType: comment.updateType,
+    channel: comment.channel,
+    createdAt: comment.createdAt,
+    authorName: comment.author?.name ?? null,
+  }));
+
+  const chargesCard = (
+    <ChargesCard
+      ticketId={ticket.id}
+      charges={ticket.charges}
+      products={products}
+      taxRateBps={shop?.taxRateBps ?? 0}
+      warranty={ticket.isWarranty}
+      easy={easy}
+    />
+  );
+
+  const checklistCard = (
+    <ChecklistCard
+      ticketId={ticket.id}
+      items={checklist}
+      templateId={ticket.checklistTemplateId}
+      templates={checklistTemplates}
+    />
+  );
+
+  const partsCard = (
+    <PartsCard
+      ticketId={ticket.id}
+      ticketStatus={ticket.status}
+      parts={partOrders}
+      products={products.map((product) => ({
+        id: product.id,
+        name: product.name,
+        costCents: role === "OWNER" ? product.costCents : null,
+        vendorId: product.vendorId,
+      }))}
+      vendors={vendors}
+      canPurchase={role === "OWNER"}
+    />
+  );
+
+  const timelineCard = (
+    <Timeline now={now} statuses={statuses} entries={timelineEntries} easy={easy} />
+  );
+
+  const customFieldsCard = (
+    <CustomFieldsCard
+      ticketId={ticket.id}
+      fields={readCustomFields(ticket.customFields)}
+    />
+  );
+
+  const timerCard = (
+    <TimerCard
+      ticketId={ticket.id}
+      entries={timeEntries}
+      completedSeconds={completedSeconds}
+      myRunningEntry={
+        myRunningEntry
+          ? (timeEntries.find((e) => e.id === myRunningEntry.id) ?? null)
+          : null
+      }
+    />
+  );
+
+  const depositCard =
+    role === "OWNER" || role === "FRONT_DESK" ? (
+      <DepositCard
+        ticketId={ticket.id}
+        ticketNumber={ticket.number}
+        customerName={customerName}
+        deposits={deposits}
+        isOwner={role === "OWNER"}
+      />
+    ) : null;
+
+  const attachmentsCard = (
+    <AttachmentsCard
+      ticketId={ticket.id}
+      attachments={attachments}
+      currentUserId={userId}
+      isOwner={role === "OWNER"}
+      easy={easy}
+    />
+  );
+
+  /** Print, summarize, invoice, edit, delete: everything that is not the next step. */
+  const moreActions = (showInvoice: boolean) => (
+    <MoreActions>
+      <Button asChild variant="outline">
+        <Link href={`/print/tickets/${ticket.id}`}>
+          <ICONS.print />
+          Print work order
+        </Link>
+      </Button>
+      <SummarizeTicketButton ticketId={ticket.id} />
+      {showInvoice ? (
+        <MakeInvoiceButton {...invoiceProps} trigger={{ variant: "outline", size: "default" }} />
+      ) : null}
+      <EditTicketDialog
+        ticketId={ticket.id}
+        trigger={{ variant: "outline", size: "default" }}
+        values={{
+          subject: ticket.subject,
+          problemType: ticket.problemType,
+          priority: ticket.priority,
+          assignedToId: ticket.assignedToId,
+          assetId: ticket.assetId,
+          dueDate: ticket.dueDate
+            ? format(ticket.dueDate, "yyyy-MM-dd")
+            : "",
+          diagnosticNotes: ticket.diagnosticNotes ?? "",
+          warrantyInvoiceLineId: ticket.warrantyInvoiceLineId,
+        }}
+        warranties={warranties.map((row) => ({
+          value: row.id,
+          label: row.description,
+          hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
+        }))}
+        problemTypes={problemTypeList}
+        techs={techOptions}
+        assets={customerAssets.map((asset) => ({
+          value: asset.id,
+          label: assetLabel(asset),
+        }))}
+      />
+      {role === "OWNER" ? (
+        <DeleteTicketDialog
+          ticketId={ticket.id}
+          ticketNumber={ticket.number}
+          labelled
+        />
+      ) : null}
+    </MoreActions>
+  );
+
+  // ===========================================================================
+  // EASY MODE — a repair job screen, like a POS: who and what, where it stands,
+  // one big next step, quick actions, and one section at a time.
+  // ===========================================================================
+  if (easy) {
+    const tab = parseJobTab(query.tab);
+    const compose = parseCompose(query.compose);
+    const invoice = pickJobInvoice(ticket.invoices);
+    const inProgress = inProgressTarget(statuses, ticket.status);
+    // When the big button already is "Make invoice", the menu does not offer it a second time.
+    const showsInvoiceButton =
+      jobActions({ status: ticket.status, pickedUp: handedOver, unbilled: !nothingToBill, invoice }).primary ===
+      "invoice";
+    const firstName = ticket.customer.firstName.trim() || customerName;
+    const dialLinks = phoneLinks(ticket.customer.mobile ?? ticket.customer.phone);
+    const primaryProps = {
+      pickedUp: handedOver,
+      unbilled: !nothingToBill,
+      customerName: firstName,
+      invoice,
+      invoiceProps,
+      inProgress,
+    };
+
+    return (
+      <TicketStatusScope status={ticket.status}>
+        <JobActionsProvider
+          ticketId={ticket.id}
+          status={ticket.status}
+          statuses={statuses}
+          pickedUp={handedOver}
+          customerName={firstName}
+          customerEmail={ticket.customer.email}
+          cannedResponses={cannedResponses}
+        >
+          <JobScreen
+            header={
+              <JobHeader
+                back={{ label: "Repairs", href: "/tickets" }}
+                number={ticket.number}
+                title={device ?? ticket.subject}
+                subject={device ? ticket.subject : null}
+                deviceType={ticket.asset?.type}
+                photoId={intakePhotoId(ticket.attachments)}
+                status={
+                  <>
+                    <LiveStatusBadge status={ticket.status} className="py-1 text-[13px]" />
+                    {handedOver ? (
+                      <PickupActions ticketId={ticket.id} isReady={isReadyForPickup(ticket.status)} pickedUp />
+                    ) : null}
+                  </>
+                }
+                due={dueWords(ticket.dueDate, isResolved(ticket.status), now)}
+                priority={ticket.priority}
+                customer={{
+                  id: ticket.customer.id,
+                  name: customerName,
+                  phone: ticket.customer.mobile ?? ticket.customer.phone,
+                }}
+                extras={warrantyPill}
+                more={moreActions(!showsInvoiceButton)}
+              />
+            }
+            steps={<StatusSteps statuses={statuses} />}
+            side={
+              <>
+                <JobPrimaryAction {...primaryProps} placement="side" />
+                <JobSummary
+                  facts={[
+                    { label: "Device", value: deviceValue, wide: true },
+                    { label: "Assigned to", value: assigneeControl },
+                    { label: "Due", value: dueControl },
+                    { label: "Location", value: locationControl },
+                    { label: "Last touched", value: lastTouched },
+                  ]}
+                />
+                <JobQuickActions
+                  ticketId={ticket.id}
+                  products={products.map((product) => ({
+                    id: product.id,
+                    name: product.name,
+                    costCents: role === "OWNER" ? product.costCents : null,
+                    vendorId: product.vendorId,
+                  }))}
+                  vendors={vendors}
+                  invoice={invoice}
+                  invoiceProps={invoiceProps}
+                />
+              </>
+            }
+            main={
+              <>
+                <JobTabs
+                  ticketId={ticket.id}
+                  active={tab}
+                  counts={{
+                    openParts: openPartCount(ticket.partOrders),
+                    comments: ticket.comments.length,
+                    attachments: ticket.attachments.length,
+                    charges: ticket.charges.length,
+                  }}
+                />
+
+                {tab === "work" ? (
+                  <>
+                    <JobBillLink
+                      href={jobTabHref(ticket.id, "money")}
+                      lines={ticket.charges.length}
+                      total={ticket.charges.length > 0 ? formatCents(chargeTotals.totalCents) : null}
+                    />
+                    {partsCard}
+                    {checklistCard}
+                    {timerCard}
+                  </>
+                ) : null}
+
+                {tab === "updates" ? (
+                  <>
+                    <UpdateComposer
+                      key={compose ?? "none"}
+                      easy
+                      ticketId={ticket.id}
+                      currentStatus={ticket.status}
+                      statuses={statuses}
+                      cannedResponses={cannedResponses}
+                      customerEmail={ticket.customer.email}
+                      initialPublic={compose === "message"}
+                      autoFocus={compose !== null}
+                    />
+                    {timelineCard}
+                  </>
+                ) : null}
+
+                {tab === "photos" ? attachmentsCard : null}
+
+                {tab === "customer" ? (
+                  <>
+                    <JobDetailList
+                      rows={[
+                        {
+                          label: "Customer",
+                          value: (
+                            <Link
+                              href={`/customers/${ticket.customer.id}`}
+                              className="font-semibold text-accent-soft-foreground hover:underline"
+                            >
+                              {customerName}
+                            </Link>
+                          ),
+                        },
+                        {
+                          label: "Phone",
+                          value: dialLinks ? (
+                            <a href={dialLinks.tel} className="text-accent-soft-foreground hover:underline">
+                              {dialLinks.display}
+                            </a>
+                          ) : (
+                            <span className="text-faint-foreground">None on file</span>
+                          ),
+                        },
+                        {
+                          label: "Email",
+                          value: ticket.customer.email ? (
+                            <a
+                              href={`mailto:${ticket.customer.email}`}
+                              className="text-accent-soft-foreground hover:underline"
+                            >
+                              {ticket.customer.email}
+                            </a>
+                          ) : (
+                            <span className="text-faint-foreground">None on file</span>
+                          ),
+                        },
+                        { label: "Device", value: deviceValue },
+                        {
+                          label: "Problem type",
+                          value: (
+                            <TicketProblemType
+                              ticketId={ticket.id}
+                              value={ticket.problemType}
+                              problemTypes={problemTypeList}
+                            />
+                          ),
+                        },
+                        {
+                          label: "Priority",
+                          value: <TicketPriority ticketId={ticket.id} value={ticket.priority} />,
+                        },
+                        { label: "Assigned to", value: assigneeControl },
+                        { label: "Due", value: dueControl },
+                        { label: "Location", value: locationControl },
+                        { label: "Opened", value: format(ticket.createdAt, "MMM d, yyyy") },
+                        ...(ticket.resolvedAt
+                          ? [{ label: "Resolved", value: format(ticket.resolvedAt, "MMM d, yyyy h:mm a") }]
+                          : []),
+                        ...(ticket.pickedUpAt
+                          ? [{ label: "Picked up", value: format(ticket.pickedUpAt, "MMM d, yyyy h:mm a") }]
+                          : []),
+                        ...(warrantyPill ? [{ label: "Warranty", value: warrantyPill }] : []),
+                        {
+                          label: "Repair number",
+                          value: <CopyableId value={`#${ticket.number}`} label="repair number" />,
+                        },
+                      ]}
+                    />
+                    {ticket.diagnosticNotes ? (
+                      <section className="flex flex-col gap-2">
+                        <JobBlockTitle>Diagnostic notes</JobBlockTitle>
+                        <p className="whitespace-pre-wrap rounded-2xl border border-border bg-surface p-4 text-base leading-relaxed text-foreground">
+                          {ticket.diagnosticNotes}
+                        </p>
+                      </section>
+                    ) : null}
+                    {customFieldsCard}
+                  </>
+                ) : null}
+
+                {tab === "money" ? (
+                  <>
+                    <JobMoneyLinks
+                      invoices={ticket.invoices}
+                      estimates={ticket.estimates}
+                    />
+                    {chargesCard}
+                    {depositCard}
+                  </>
+                ) : null}
+              </>
+            }
+            pinned={<JobPrimaryAction {...primaryProps} placement="pinned" />}
+          />
+        </JobActionsProvider>
+      </TicketStatusScope>
+    );
+  }
+
+  // ===========================================================================
+  // FULL MODE — the dense back-office layout, exactly as it has always been.
+  // ===========================================================================
   return (
     /*
       The scope carries ONE fact — the ticket's status — from the controls that
@@ -447,232 +980,93 @@ export default async function TicketDetailPage({
           the same rhythm the customer and lead hubs use. */}
       <div className="flex flex-col gap-6">
         {/* ------------------------------------------------------------ header */}
-        <ObjectHeader
-          back={{ label: "Tickets", href: "/tickets" }}
-          /*
-            No charges yet, no headline. A ticket that has not been worked has
-            nothing to say in the money slot, and rendering "$0.00" at 26px made
-            the emptiest fact on the screen the loudest thing on it — on the
-            intake screen a tech opens most often. With the slot empty the
-            primitive promotes the subject, which is the answer to "what is this
-            ticket?" anyway. The number reappears the moment a charge is added.
-          */
-          value={
-            ticket.charges.length > 0
-              ? formatCents(chargeTotals.totalCents)
-              : undefined
-          }
-          title={ticket.subject}
-          /*
-            The problem type is editable where it already sat, rather than being
-            promoted into the metadata strip to host a control. Six columns is
-            the strip's ceiling and it is already at six — and moving the fact
-            would have left the subtitle reading "opened Sep 4" on its own, which
-            answers a question nobody asks.
-          */
-          subtitle={
-            <span className="inline-flex flex-wrap items-baseline gap-x-1">
-              <TicketProblemType
-                ticketId={ticket.id}
-                value={ticket.problemType}
-                problemTypes={problemTypes(shop?.settings)}
-              />
-              <span>· opened {format(ticket.createdAt, "MMM d, yyyy")}</span>
-            </span>
-          }
+        {/*
+          One big title, the status beside it, the customer one tap away, and
+          ONE black button: the next step for this repair. Everything else
+          (print, summarize, invoice, edit, delete) sits behind "More".
+
+          The next step follows the repair: while the device is still here it is
+          the notice / hand-over, which is the first thing this page has always
+          offered; once it has gone it is the invoice, if there is anything left
+          to bill.
+        */}
+        <RepairHeader
+          back={{ label: "Repairs", href: "/tickets" }}
+          number={ticket.number}
+          title={device ?? ticket.subject}
+          subject={device ? ticket.subject : null}
           status={
             <>
-              <LiveStatusBadge status={ticket.status} />
+              <LiveStatusBadge status={ticket.status} className="py-1 text-[13px]" />
+              {handedOver ? (
+                <PickupActions
+                  ticketId={ticket.id}
+                  isReady={isReadyForPickup(ticket.status)}
+                  pickedUp
+                />
+              ) : null}
+            </>
+          }
+          customer={{
+            id: ticket.customer.id,
+            name: customerName,
+            phone: ticket.customer.mobile ?? ticket.customer.phone,
+          }}
+          details={
+            <>
               {/* Status keeps the update composer — a status change is paired
                   with the note that explains it. Priority has no such pairing:
                   it is one value, and this is where it is read. */}
               <TicketPriority ticketId={ticket.id} value={ticket.priority} />
-              {ticket.isWarranty ? (
-                warrantyClaim ? (
-                  <Link
-                    href={`/invoices/${warrantyClaim.invoice.id}`}
-                    title={`${warrantyClaim.description} · invoice #${warrantyClaim.invoice.number}`}
-                    className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <StatusPill
-                      tone="ready"
-                      dot={false}
-                      label={`Warranty · #${warrantyClaim.invoice.number}`}
-                      className="hover:underline"
-                    />
-                  </Link>
-                ) : (
-                  <StatusPill tone="ready" dot={false} label="Warranty" />
-                )
-              ) : null}
+              {warrantyPill}
+              {/* The problem type is editable where it already sat. */}
+              <TicketProblemType
+                ticketId={ticket.id}
+                value={ticket.problemType}
+                problemTypes={problemTypeList}
+              />
+              <span>Opened {format(ticket.createdAt, "MMM d, yyyy")}</span>
+              {/* The number is already in the title; the copy button is for the desk,
+                  not the phone, where a second 48px row for it is not worth the room. */}
+              <span className="hidden sm:inline-flex">
+                <CopyableId value={`#${ticket.number}`} label="repair number" />
+              </span>
             </>
           }
-          id={<CopyableId value={`#${ticket.number}`} label="ticket number" />}
-          meta={[
-            {
-              label: "Customer",
-              value: (
-                <Link
-                  href={`/customers/${ticket.customer.id}`}
-                  title={customerLabel(ticket.customer)}
-                  className="font-medium text-accent-soft-foreground hover:underline"
-                >
-                  {customerLabel(ticket.customer)}
-                </Link>
-              ),
-            },
-            {
-              label: "Device",
-              value: ticket.asset ? (
-                <span title={assetLabel(ticket.asset)}>
-                  {assetLabel(ticket.asset)}
-                </span>
-              ) : (
-                <span className="text-faint-foreground">—</span>
-              ),
-            },
-            {
-              label: "Assigned",
-              value: (
-                <TicketAssignee
-                  ticketId={ticket.id}
-                  value={ticket.assignedToId ?? ""}
-                  currentLabel={ticket.assignedTo?.name ?? null}
-                  techs={techs.map((tech) => ({
-                    value: tech.id,
-                    label: tech.name,
-                  }))}
-                />
-              ),
-            },
-            {
-              label: "Due",
-              // Reads exactly as it did — the overdue chip, then the plain date
-              // — but a day is now one click away instead of a round trip
-              // through the edit form. `now` is the page's single request-time
-              // clock, handed down so the chip means the same thing after
-              // hydration as it did on the server.
-              value: (
-                <TicketDueDate
-                  ticketId={ticket.id}
-                  value={ticket.dueDate ? format(ticket.dueDate, "yyyy-MM-dd") : ""}
-                  resolved={isResolved(ticket.status)}
-                  nowMs={now}
-                />
-              ),
-            },
-            {
-              label: "Location",
-              value:
-                locations.length > 1 ? (
-                  // Which branch the device is physically at is a fact people
-                  // change from this screen, and duplicating it into the body
-                  // just to host the control would put the same fact in two
-                  // places.
-                  <TicketLocation
-                    ticketId={ticket.id}
-                    locationId={ticket.locationId}
-                    locations={locations}
-                  />
-                ) : (
-                  (ticket.location?.name ?? (
-                    <span className="text-faint-foreground">—</span>
-                  ))
-                ),
-            },
-            {
-              label: "Last touched",
-              value: (
-                <span
-                  title={STALENESS_LABEL[level]}
-                  className={cn(
-                    "rf-num text-[12.5px]",
-                    level === "none" || level === "fresh"
-                      ? "text-muted-foreground"
-                      : cn(
-                          "inline-block rounded-sm px-1.5 py-0.5 font-semibold",
-                          STALENESS_CLASS[level],
-                        ),
-                  )}
-                >
-                  {relativeShort(ticket.updatedAt, now)}
-                </span>
-              ),
-            },
-          ]}
-          actions={
-            /*
-              LOCAL WORKAROUND, and the only one on these three screens.
-
-              `ObjectHeader` pins its actions slot with `shrink-0`, so a row of
-              six buttons keeps its full max-content width, refuses to wrap, and
-              pushes the whole page into a horizontal scroll on a phone. The
-              width cap below is what forces the wrap: `max-width` clamps an
-              element's max-content contribution, so the header's slot stops
-              asking for more room than the screen has. The subtracted figures
-              are the app shell's own — 240px rail (md and up) plus the main and
-              card padding.
-
-              The real repair is one line in `components/ui/object-header.tsx`
-              (`shrink-0` → `min-w-0`), which is off limits here; delete this
-              wrapper the day that lands.
-            */
-            <div className="flex flex-wrap items-center gap-2">
-              {/* First in the row on purpose: this is the button the counter
-                  reaches for more than any other. */}
+          primary={
+            nextStep === "pickup" ? (
               <PickupActions
                 ticketId={ticket.id}
                 isReady={isReadyForPickup(ticket.status)}
-                pickedUp={ticket.pickedUpAt !== null}
+                pickedUp={false}
+                prominent
               />
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/print/tickets/${ticket.id}`}>
-                  <ICONS.print />
-                  Work Order
-                </Link>
-              </Button>
-              <SummarizeTicketButton ticketId={ticket.id} />
-              <MakeInvoiceButton
-                ticketId={ticket.id}
-                chargeCount={uninvoicedCount}
-                unbilledTimeCount={unbilledTime.length}
-                unbilledTimeLabel={formatHm(unbilledTimeSeconds)}
-                unbilledTimeValue={formatCents(unbilledTimeCents)}
-              />
-              <EditTicketDialog
-                ticketId={ticket.id}
-                values={{
-                  subject: ticket.subject,
-                  problemType: ticket.problemType,
-                  priority: ticket.priority,
-                  assignedToId: ticket.assignedToId,
-                  assetId: ticket.assetId,
-                  dueDate: ticket.dueDate
-                    ? format(ticket.dueDate, "yyyy-MM-dd")
-                    : "",
-                  diagnosticNotes: ticket.diagnosticNotes ?? "",
-                  warrantyInvoiceLineId: ticket.warrantyInvoiceLineId,
-                }}
-                warranties={warranties.map((row) => ({
-                  value: row.id,
-                  label: row.description,
-                  hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
-                }))}
-                problemTypes={problemTypes(shop?.settings)}
-                techs={techs.map((t) => ({ value: t.id, label: t.name }))}
-                assets={customerAssets.map((asset) => ({
-                  value: asset.id,
-                  label: assetLabel(asset),
-                }))}
-              />
-              {role === "OWNER" ? (
-                <DeleteTicketDialog
-                  ticketId={ticket.id}
-                  ticketNumber={ticket.number}
-                />
-              ) : null}
-            </div>
+            ) : nextStep === "invoice" ? (
+              <MakeInvoiceButton {...invoiceProps} trigger={{ size: "lg", className: BIG_BUTTON }} />
+            ) : null
           }
+          more={moreActions(nextStep !== "invoice")}
+          facts={[
+            { label: "Device", value: deviceValue },
+            { label: "Assigned to", value: assigneeControl },
+            { label: "Due", value: dueControl },
+            { label: "Location", value: locationControl },
+            { label: "Last touched", value: lastTouched },
+            // No charges yet, no total: "$0.00" would be the loudest fact on
+            // the screen about the emptiest thing on it.
+            ...(ticket.charges.length > 0
+              ? [
+                  {
+                    label: "Total",
+                    value: (
+                      <span className="rf-num font-semibold">
+                        {formatCents(chargeTotals.totalCents)}
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
         />
 
         {/* ---------------------------------------------------------- progress */}
@@ -693,49 +1087,13 @@ export default async function TicketDetailPage({
               customerEmail={ticket.customer.email}
             />
 
-            <ChargesCard
-              ticketId={ticket.id}
-              charges={ticket.charges}
-              products={products}
-              taxRateBps={shop?.taxRateBps ?? 0}
-              warranty={ticket.isWarranty}
-            />
+            {chargesCard}
 
-            <ChecklistCard
-              ticketId={ticket.id}
-              items={checklist}
-              templateId={ticket.checklistTemplateId}
-              templates={checklistTemplates}
-            />
+            {checklistCard}
 
-            <PartsCard
-              ticketId={ticket.id}
-              ticketStatus={ticket.status}
-              parts={partOrders}
-              products={products.map((product) => ({
-                id: product.id,
-                name: product.name,
-                costCents: role === "OWNER" ? product.costCents : null,
-                vendorId: product.vendorId,
-              }))}
-              vendors={vendors}
-              canPurchase={role === "OWNER"}
-            />
+            {partsCard}
 
-            <Timeline
-              now={now}
-              statuses={statuses}
-              entries={ticket.comments.map((comment) => ({
-                id: comment.id,
-                body: comment.body,
-                isPublic: comment.isPublic,
-                subject: comment.subject,
-                updateType: comment.updateType,
-                channel: comment.channel,
-                createdAt: comment.createdAt,
-                authorName: comment.author?.name ?? null,
-              }))}
-            />
+            {timelineCard}
           </div>
 
           <aside className="flex flex-col gap-5">
@@ -768,10 +1126,10 @@ export default async function TicketDetailPage({
                 ) : null}
                 {ticket.diagnosticNotes ? (
                   <div className="border-t border-border pt-3.5">
-                    <p className="mb-1.5 text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
+                    <p className="mb-1.5 text-sm text-muted-foreground">
                       Diagnostic notes
                     </p>
-                    <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground">
+                    <p className="whitespace-pre-wrap text-base leading-relaxed text-foreground">
                       {ticket.diagnosticNotes}
                     </p>
                   </div>
@@ -779,38 +1137,13 @@ export default async function TicketDetailPage({
               </CardContent>
             </Card>
 
-            <CustomFieldsCard
-              ticketId={ticket.id}
-              fields={readCustomFields(ticket.customFields)}
-            />
+            {customFieldsCard}
 
-            <TimerCard
-              ticketId={ticket.id}
-              entries={timeEntries}
-              completedSeconds={completedSeconds}
-              myRunningEntry={
-                myRunningEntry
-                  ? (timeEntries.find((e) => e.id === myRunningEntry.id) ?? null)
-                  : null
-              }
-            />
+            {timerCard}
 
-            {role === "OWNER" || role === "FRONT_DESK" ? (
-              <DepositCard
-                ticketId={ticket.id}
-                ticketNumber={ticket.number}
-                customerName={customerLabel(ticket.customer)}
-                deposits={deposits}
-                isOwner={role === "OWNER"}
-              />
-            ) : null}
+            {depositCard}
 
-            <AttachmentsCard
-              ticketId={ticket.id}
-              attachments={attachments}
-              currentUserId={userId}
-              isOwner={role === "OWNER"}
-            />
+            {attachmentsCard}
           </aside>
         </div>
       </div>
@@ -839,10 +1172,8 @@ function Fact({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
-        {label}
-      </dt>
-      <dd title={title} className="truncate text-[13.5px] text-foreground">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd title={title} className="truncate text-base text-foreground">
         {children}
       </dd>
     </div>

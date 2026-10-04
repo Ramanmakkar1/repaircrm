@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InstallAppItem } from "@/components/pwa/install-app-item";
+import { useAppInstall } from "@/components/pwa/install-provider";
 
 const SettingsIcon = ICONS.settings;
 const ProfileIcon = ICONS.profile;
@@ -42,6 +43,7 @@ export function UserMenu({
   theme: Theme;
   simple?: boolean;
 }) {
+  const install = useAppInstall();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger aria-label="Your account and display settings" className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring/40">
@@ -49,7 +51,7 @@ export function UserMenu({
           <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={install?.menuClosed}>
         <DropdownMenuLabel className="flex flex-col gap-0.5 px-2 py-1.5">
           <span className="truncate text-sm font-bold text-foreground">
             {user.name}
@@ -74,8 +76,7 @@ export function UserMenu({
             Profile
           </Link>
         </DropdownMenuItem>
-        {/* Renders only once the browser has told us an install is possible —
-            see components/pwa/install-app-item.tsx. */}
+        {/* Offers a native prompt when supported, otherwise installation steps. */}
         <InstallAppItem />
         <SimpleModeItem simple={simple} />
         <DropdownMenuSeparator />

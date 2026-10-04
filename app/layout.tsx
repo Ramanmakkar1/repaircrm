@@ -33,6 +33,9 @@ export const metadata: Metadata = {
  * installed copy has no seam between the OS bar and the page.
  */
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0b0c0e" },

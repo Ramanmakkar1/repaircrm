@@ -5,6 +5,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readSettings } from "@/lib/integrations/oauth";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
@@ -38,21 +39,20 @@ export default async function XeroTenantPage() {
   return (
     <div className="flex flex-col gap-6">
       {/*
-        A back link rather than a breadcrumb trail: breadcrumbs mean "this
+        A back button rather than a breadcrumb trail: breadcrumbs mean "this
         screen is a record and here is where it sits". This screen is a step
         you entered from the Integrations panel and leave the moment you pick.
       */}
-      <Link
-        href="/settings?tab=integrations"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ACTIONS.back className="size-4" />
-        All integrations
-      </Link>
-
       <PageHeader
         title="Choose a Xero organisation"
         description="Your Xero login reaches more than one set of books. Pick the one this shop belongs in."
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/settings?tab=integrations">
+              <ACTIONS.back aria-hidden /> All integrations
+            </Link>
+          </Button>
+        }
       />
 
       <Card className="max-w-2xl">

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { attentionBorder } from "@/components/settings/card-attention";
 import { CardMachineModeCard } from "@/components/settings/card-machine-mode-card";
 import { DeviceAccessCard } from "@/components/settings/device-access-card";
 import type { CardMachineSetting } from "@/lib/payments/card-machine";
@@ -301,15 +302,15 @@ function ProviderCatalogCard({
           ))}
         </div>
 
-        <details className="rounded-lg border border-border bg-surface-hover px-4 py-3">
-          <summary className="cursor-pointer text-[13.5px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
+        <details className="rounded-lg border border-border bg-surface-hover px-4">
+          <summary className="cursor-pointer py-3.5 text-[14px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
             Manual and API-key gateways
           </summary>
-          <div className="flex flex-col gap-2 pt-3">
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <div className="flex flex-col gap-2 pb-4 pt-1">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               Some processors use API credentials instead of an account approval. Repairs helper does not accept payment secrets in this browser. A key alone cannot turn on a provider; its secure server-side connector must be available first.
             </p>
-            <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
               {visibleProviders.some((provider) => provider.connectionMode === "api_credentials")
                 ? `For ${visibleProviders.filter((provider) => provider.connectionMode === "api_credentials").map((provider) => provider.name).join(", ")}, setup is not available in Repairs helper yet.`
                 : "No API-key payment gateway is enabled for this shop yet."}
@@ -459,7 +460,7 @@ function ProviderOption({
             {connectionModeLabel(provider.connectionMode)}
           </span>
         </div>
-        <p className="text-[13px] leading-relaxed text-muted-foreground">{detail}</p>
+        <p className="text-[14px] leading-relaxed text-muted-foreground">{detail}</p>
       </div>
 
       {provider.id === "stripe" && !linked && connectionConfigured ? (
@@ -507,14 +508,14 @@ function SquareTerminalCard({
       />
       <CardContent className="flex flex-col gap-3">
         {!canPair ? (
-          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-waiting-fg">
             {hasError
               ? "Square needs attention before another Terminal can be paired. Reconnect the Square account above."
               : "Square’s server credentials are missing, so Repairs helper cannot pair another Terminal right now."}
           </p>
         ) : null}
         {!webhookReady ? (
-          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+          <p role="status" className="rounded-md bg-status-waiting-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-waiting-fg">
             Terminal pairing does not need a webhook, but payment confirmations are not ready. Ask the server admin to set <Env>SQUARE_WEBHOOK_SIGNATURE_KEY</Env> before taking Square payments in Repairs helper.
           </p>
         ) : null}
@@ -557,7 +558,7 @@ function SquareTerminalRow({ device }: { device: SquareTerminalDevice }) {
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-hover px-4 py-3">
       <div className="flex min-w-0 flex-col gap-1">
         <span className="truncate text-[14.5px] font-bold text-foreground">{device.name}</span>
-        <span className="text-[13px] text-muted-foreground">Square Terminal</span>
+        <span className="text-[14px] text-muted-foreground">Square Terminal</span>
       </div>
       <StatusPill tone={tone} label={label} />
     </div>
@@ -629,11 +630,11 @@ function SquareTerminalPairingDialog({
               {pairing.code}
             </code>
             {pairing.pairBy ? (
-              <p className="text-[13px] leading-relaxed text-muted-foreground">
+              <p className="text-[14px] leading-relaxed text-muted-foreground">
                 Enter it by {formatDateTime(pairing.pairBy)} UTC.
               </p>
             ) : (
-              <p className="text-[13px] leading-relaxed text-muted-foreground">
+              <p className="text-[14px] leading-relaxed text-muted-foreground">
                 Square did not return an expiry time. Enter the code now.
               </p>
             )}
@@ -840,9 +841,9 @@ function ConnectionCard({
   const blocked = account !== null && !account.chargesEnabled;
 
   return (
-    // Red stripe only when Stripe is refusing to charge: "not connected" is a
+    // Red border only when Stripe is refusing to charge: "not connected" is a
     // starting point, "connected but blocked" is a shop losing money today.
-    <Card tone={blocked ? "danger" : undefined}>
+    <Card className={blocked ? attentionBorder("danger") : undefined}>
       <CardHeader
         icon={CardIcon}
         title="Stripe account"
@@ -898,7 +899,7 @@ function ConnectionCard({
 
         {config.connected ? (
           config.accountError ? (
-            <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+            <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
               Stripe could not be reached to check this account:{" "}
               {config.accountError}
             </p>
@@ -911,7 +912,7 @@ function ConnectionCard({
               </div>
 
               {blocked ? (
-                <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+                <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
                   Stripe is not letting this account take payments yet
                   {account.disabledReason ? ` (${account.disabledReason})` : ""}.
                   Sign in to Stripe and finish the questions they ask — every
@@ -921,7 +922,7 @@ function ConnectionCard({
 
               {account.defaultCurrency &&
               account.defaultCurrency !== config.currency ? (
-                <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+                <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-waiting-fg">
                   This shop charges in{" "}
                   <strong>{config.currency.toUpperCase()}</strong> but the
                   Stripe account&rsquo;s default is{" "}
@@ -933,7 +934,7 @@ function ConnectionCard({
             </>
           ) : null
         ) : (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             Without a connected account, payments run on this server&rsquo;s own
             Stripe account instead of the shop&rsquo;s. That works, but the
             money lands somewhere else.
@@ -983,7 +984,7 @@ function ConnectionCard({
 
 function Flag({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className="flex items-center gap-2 rounded-md bg-surface-hover px-3 py-2 text-[13.5px] font-semibold">
+    <span className="flex items-center gap-2 rounded-md bg-surface-hover px-3 py-2 text-[14px] font-semibold">
       {ok ? (
         <CheckCircle2 className="size-4 shrink-0 text-status-resolved" />
       ) : (
@@ -1078,11 +1079,11 @@ function GettingPaidCard({
         </p>
 
         {payout.bankText ? (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             Paid into {payout.bankText}.
           </p>
         ) : config.connected && !payout.error ? (
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             No bank account is attached to this Stripe account yet, so the money
             stays at Stripe until you add one.
           </p>
@@ -1096,7 +1097,7 @@ function GettingPaidCard({
         ) : null}
 
         {payout.error ? (
-          <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+          <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-waiting-fg">
             {payout.error}
           </p>
         ) : null}
@@ -1135,7 +1136,7 @@ function GettingPaidCard({
         )}
 
         {setup.addressChanged ? (
-          <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-waiting-fg">
+          <p className="rounded-md bg-status-waiting-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-waiting-fg">
             This app has moved since it was set up — Stripe is still confirming
             payments to <span className="font-mono">{setup.url}</span>. Press
             Retry setup to point it at the new address.
@@ -1206,7 +1207,7 @@ function SetupRow({
       />
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-[14.5px] font-bold text-foreground">{title}</span>
-        <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <span className="text-[14px] leading-relaxed text-muted-foreground">
           {body}
         </span>
       </div>
@@ -1224,19 +1225,19 @@ function SetupRow({
  */
 function ManualFallback({ config }: { config: PaymentsTabConfig }) {
   return (
-    <details className="rounded-lg border border-border bg-surface-hover px-4 py-3">
-      <summary className="cursor-pointer text-[13.5px] font-semibold text-foreground">
+    <details className="rounded-lg border border-border bg-surface-hover px-4">
+      <summary className="cursor-pointer py-3.5 text-[14px] font-semibold text-foreground">
         Set it up by hand (for whoever runs this server)
       </summary>
-      <div className="flex flex-col gap-2 pt-3">
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+      <div className="flex flex-col gap-2 pb-4 pt-1">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           In the Stripe dashboard, under Developers → Webhooks, add an endpoint
           pointing at:
         </p>
-        <code className="w-fit break-all rounded-md bg-surface px-3 py-2 font-mono text-[13px] text-foreground">
+        <code className="w-fit break-all rounded-md bg-surface px-3 py-2 font-mono text-[14px] text-foreground">
           {config.address.url}
         </code>
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           Subscribe it to exactly these events:
         </p>
         <ul className="flex flex-wrap gap-1.5">
@@ -1246,7 +1247,7 @@ function ManualFallback({ config }: { config: PaymentsTabConfig }) {
             </li>
           ))}
         </ul>
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           Then paste its signing secret into <Env>STRIPE_WEBHOOK_SECRET</Env> on
           the server and restart. Add the same endpoint under{" "}
           <em>Connect</em> so events from connected accounts arrive too.
@@ -1340,7 +1341,7 @@ function Method({
             <StatusPill size="sm" dot={false} tone="neutral" label="Off" />
           )}
         </span>
-        <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <span className="text-[14px] leading-relaxed text-muted-foreground">
           {on ? where : off}
         </span>
       </div>
@@ -1389,7 +1390,7 @@ function CardMachinesCard({
 
       <CardContent className="flex flex-col gap-3">
         {config.readersError ? (
-          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
             {config.readersError}
           </p>
         ) : config.readers.length === 0 ? (
@@ -1452,7 +1453,7 @@ function ReaderRow({
             <StatusPill tone="waiting" label="Practice machine" size="sm" dot={false} />
           ) : null}
         </span>
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted-foreground">
           <span>{online ? "Switched on and ready" : "Not answering"}</span>
           {reader.batteryPercent !== null ? (
             <span className="flex items-center gap-1">
@@ -1698,7 +1699,7 @@ function ConnectMachineDialog({
               placeholder="Front counter"
               maxLength={60}
             />
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-[14px] text-muted-foreground">
               Only staff ever see this.
             </p>
           </div>
@@ -1732,7 +1733,7 @@ function ConnectMachineDialog({
 
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <li className="flex items-start gap-3 text-[13.5px] leading-relaxed text-muted-foreground">
+    <li className="flex items-start gap-3 text-[14px] leading-relaxed text-muted-foreground">
       <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-hover text-[11.5px] font-bold text-foreground">
         {n}
       </span>
@@ -1791,7 +1792,7 @@ function HealthCard({
 
       {health ? (
         <CardContent className="flex flex-col gap-2.5">
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[14px] text-muted-foreground">
             Checked {formatDateTime(health.ranAt)}.
           </p>
           {health.lines.map((line) => (
@@ -1835,11 +1836,11 @@ function HealthRow({ line }: { line: CheckLine }) {
       />
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-[14px] font-bold text-foreground">{line.label}</span>
-        <span className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <span className="text-[14px] leading-relaxed text-muted-foreground">
           {line.detail}
         </span>
         {line.fix ? (
-          <span className="text-[13.5px] font-semibold leading-relaxed text-foreground">
+          <span className="text-[14px] font-semibold leading-relaxed text-foreground">
             {line.fix}
           </span>
         ) : null}
@@ -1873,7 +1874,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
           </span>
           <code
             className={cn(
-              "rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
+              "rounded-full px-3 py-1 font-mono text-[14px] font-semibold",
               env.live
                 ? "bg-status-resolved-bg text-status-resolved-fg"
                 : "bg-surface-hover text-muted-foreground",
@@ -1884,21 +1885,21 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Keys
           </span>
-          <code className="rounded-full bg-surface-hover px-3 py-1 font-mono text-[13px] font-semibold text-foreground">
+          <code className="rounded-full bg-surface-hover px-3 py-1 font-mono text-[14px] font-semibold text-foreground">
             {testMode ? "test" : "live"}
           </code>
         </div>
 
         <VarList vars={env.vars} />
 
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           <Env>STRIPE_WEBHOOK_SECRET</Env> is only needed for shops that have
           not connected their own Stripe account. A connected shop gets its own,
           created automatically — see <em>How you get paid</em> above.
         </p>
 
         {takingMoneyBlind ? (
-          <p className="flex items-start gap-2.5 rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+          <p className="flex items-start gap-2.5 rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <span>
               Customers can be charged, but nothing is set up to confirm it —
@@ -1910,7 +1911,7 @@ function ServerCard({ config }: { config: PaymentsTabConfig }) {
         ) : null}
 
         {env.live && !env.currencySupported ? (
-          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+          <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
             <Env>PAYMENTS_CURRENCY</Env> is set to{" "}
             <span className="font-mono">{env.currency}</span>, which is not a
             two-decimal currency. Repairs helper stores every amount in cents, so
@@ -1948,7 +1949,7 @@ function VarList({ vars }: { vars: { name: string; set: boolean }[] }) {
 
 function Env({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[13px] font-semibold text-foreground">
+    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] font-semibold text-foreground">
       {children}
     </code>
   );

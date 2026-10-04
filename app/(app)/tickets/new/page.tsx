@@ -10,7 +10,7 @@ import { activeWarrantiesByCustomer } from "@/lib/warranty";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   TicketForm,
-  type Option,
+  type AssetOption,
   type WarrantyOption,
 } from "@/components/tickets/ticket-form";
 import {
@@ -44,6 +44,9 @@ export default async function NewTicketPage({
         firstName: true,
         lastName: true,
         businessName: true,
+        phone: true,
+        mobile: true,
+        email: true,
         // Only display-safe asset fields — `password` (device unlock code) is
         // deliberately not selected, since this map is serialised to the client.
         assets: {
@@ -78,11 +81,15 @@ export default async function NewTicketPage({
     activeWarrantiesByCustomer(shopId),
   ]);
 
-  const assetsByCustomer: Record<string, Option[]> = {};
+  const assetsByCustomer: Record<string, AssetOption[]> = {};
   for (const customer of customers) {
     assetsByCustomer[customer.id] = customer.assets.map((asset) => ({
       value: asset.id,
       label: assetLabel(asset),
+      // Display-safe, for the Easy-mode device pictures and problem list.
+      type: asset.type,
+      make: asset.make ?? "",
+      model: asset.model ?? "",
     }));
   }
 
@@ -107,16 +114,20 @@ export default async function NewTicketPage({
     : undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    // Easy mode is a register: choices on the left, "This repair" on the right, so it needs the width.
+    <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-6xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-4"}>
       <PageHeader
         breadcrumbs={[{ label: "Repairs", href: "/tickets" }, { label: uiPrefs.simple ? "New repair" : "New ticket" }]}
         title={uiPrefs.simple ? "New repair" : "New ticket"}
-        description={uiPrefs.simple ? "Add the customer and device, then review the repair." : "Check a device in and start the repair clock."}
+        description={uiPrefs.simple ? undefined : "Check a device in and start the repair clock."}
       />
       <TicketForm
         simple={uiPrefs.simple}
         customers={customers.map((customer) => ({
-          value: customer.id,
+          id: customer.id,
+          phone: customer.phone,
+          mobile: customer.mobile,
+          email: customer.email,
           label: customerLabel(customer),
         }))}
         assetsByCustomer={assetsByCustomer}

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { defaultTaxRate, type TaxRateOption } from "@/lib/tax";
+import { EntryMode } from "@/components/ui/entry-mode";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { LineItemsEditor, type InitialLine } from "./line-items-editor";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -19,24 +20,10 @@ import { TaxRateSelect } from "./tax-rate-select";
 import { IDLE_FORM_STATE, parseLines, submittedLinesSchema, type CustomerOption, type FormState, type ProductOption } from "./types";
 import { calcTotals, formatCents } from "@/lib/money";
 import { GuidedErrors, GuidedNavigation, GuidedReview, GuidedSteps, useGuidedForm, type GuidedIssue } from "@/components/ui/guided-form";
+import { BillBuilder } from "./bill/builder";
+import type { RepairOption } from "./bill/flow";
 
-/**
- * The one form behind /invoices/new, /invoices/[id]/edit, /estimates/new and
- * /estimates/[id]/edit. The only thing that varies is the date field's meaning
- * (due vs. expires) and whether lines carry a serial number.
- */
-export function DocumentForm({
-  action,
-  kind,
-  customers,
-  products,
-  taxRateBps,
-  taxRates,
-  initial,
-  submitLabel,
-  cancelHref,
-  simple = false,
-}: {
+export type DocumentFormProps = {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   kind: "invoice" | "estimate";
   customers: CustomerOption[];
@@ -58,9 +45,72 @@ export function DocumentForm({
   submitLabel: string;
   cancelHref: string;
   simple?: boolean;
-}) {
+  /** Easy mode, new documents only: the shop's open repairs, for "From repair". */
+  repairs?: RepairOption[];
+  /** Easy mode, new documents only: who was billed most recently, to tap on step 1. */
+  recentCustomerIds?: string[];
+  /** Easy mode, new documents only: the page's title block, drawn at the top of the builder's choices. */
+  header?: React.ReactNode;
+};
+
+/**
+ * The one form behind /invoices/new, /invoices/[id]/edit, /estimates/new and
+ * /estimates/[id]/edit. The only thing that varies is the date field's meaning
+ * (due vs. expires) and whether lines carry a serial number.
+ *
+ * A NEW document in Easy mode is the bill builder (components/billing/bill): a
+ * sibling of the Sell screen and the new-repair check-in. It posts the same
+ * fields to the same actions as the form below, which Full mode (and editing a
+ * saved document) keeps exactly as it was.
+ */
+export function DocumentForm(props: DocumentFormProps) {
+  if (props.simple && !props.initial?.id) {
+    const { action, kind, customers, products, taxRateBps, taxRates, repairs, recentCustomerIds, initial, header } = props;
+    return (
+      <BillBuilder
+        action={action}
+        kind={kind}
+        customers={customers}
+        products={products}
+        taxRateBps={taxRateBps}
+        taxRates={taxRates}
+        repairs={repairs}
+        recentCustomerIds={recentCustomerIds}
+        header={header}
+        initial={{
+          customerId: initial?.customerId,
+          ticketId: initial?.ticketId,
+          date: initial?.date,
+          notes: initial?.notes,
+          lines: initial?.lines,
+        }}
+      />
+    );
+  }
+  return (
+    <>
+      {props.header}
+      <ClassicDocumentForm {...props} />
+    </>
+  );
+}
+
+function ClassicDocumentForm({
+  action,
+  kind,
+  customers,
+  products,
+  taxRateBps,
+  taxRates,
+  initial,
+  submitLabel,
+  cancelHref,
+  simple = false,
+}: DocumentFormProps) {
   const [state, formAction, pending] = useActionState(action, IDLE_FORM_STATE);
   const isInvoice = kind === "invoice";
+  const [guided, setGuided] = React.useState(false);
+  const staged = simple && guided;
 
   // Controlled so the customer stays picked across a failed submit (the server
   // action re-renders the form with its error).
@@ -102,7 +152,7 @@ export function DocumentForm({
     }
   }
 
-  const { bindForm, step: activeStep, issues: guidedIssues, review, goTo, onSubmit, onKeyDown, focusIssue, refreshReview } = useGuidedForm({ enabled: simple, steps: 3, validate(data, step) {
+  const { bindForm, step: activeStep, issues: guidedIssues, review, goTo, onSubmit, onKeyDown, focusIssue, refreshReview } = useGuidedForm({ enabled: simple, staged, steps: 3, validate(data, step) {
     const issues: GuidedIssue[] = [];
     if (step === 0 && !String(data.get("customerId") ?? "").trim()) {
       issues.push({ step, field: "Customer", label: "Customer", message: "Choose a customer or add a new one." });
@@ -135,8 +185,9 @@ export function DocumentForm({
   const totals = calcTotals(reviewLines.ok ? reviewLines.lines : [], tax.taxRateBps);
 
   return (
-    <form ref={bindForm} action={formAction} noValidate={simple} onSubmit={onSubmit} onKeyDown={onKeyDown} onInput={simple && activeStep === 2 ? () => requestAnimationFrame(refreshReview) : undefined} onReset={simple ? (event) => event.preventDefault() : undefined} className="flex flex-col gap-5">
-      {simple ? <GuidedSteps labels={["Customer", "Items", "Review & save"]} step={activeStep} onStep={goTo} disabled={pending} /> : null}
+    <form ref={bindForm} action={formAction} noValidate={simple} onSubmit={onSubmit} onKeyDown={onKeyDown} onInput={staged && activeStep === 2 ? () => requestAnimationFrame(refreshReview) : undefined} onReset={simple ? (event) => event.preventDefault() : undefined} className="flex flex-col gap-5">
+      {staged ? <GuidedSteps labels={["Customer", "Items", "Review & save"]} step={activeStep} onStep={goTo} disabled={pending} /> : null}
+      {simple ? <EntryMode guided={guided} onChange={setGuided} disabled={pending} /> : null}
       {initial?.id ? <input type="hidden" name="id" value={initial.id} /> : null}
       {initial?.ticketId ? (
         <input type="hidden" name="ticketId" value={initial.ticketId} />
@@ -152,15 +203,15 @@ export function DocumentForm({
         </div>
       ) : null}
 
-      {simple ? <div><h2 data-guided-heading tabIndex={-1} className="text-2xl font-semibold outline-none">{["Who are you billing?", "Add products or services", "Review this " + kind][activeStep]}</h2><p className="mt-1 text-sm text-muted-foreground">{["Search for a customer or add someone new.", "Add each item, quantity, price, and serial number where needed.", "Check the total, then save your draft."][activeStep]}</p></div> : null}
-      <Card hidden={simple && activeStep === 1} className={simple && activeStep === 1 ? "hidden" : undefined}>
+      {staged ? <div><h2 data-guided-heading tabIndex={-1} className="text-2xl font-semibold outline-none">{["Who are you billing?", "Add products or services", "Review this " + kind][activeStep]}</h2><p className="mt-1 text-sm text-muted-foreground">{["Search for a customer or add someone new.", "Add each item, quantity, price, and serial number where needed.", "Check the total, then save your draft."][activeStep]}</p></div> : null}
+      <Card hidden={staged && activeStep === 1} className={staged && activeStep === 1 ? "hidden" : undefined}>
         <CardHeader
           icon={isInvoice ? ICONS.invoice : ICONS.estimate}
-          title={simple ? activeStep === 0 ? "Customer" : "Additional details" : isInvoice ? "Invoice details" : "Estimate details"}
+          title={simple ? !staged || activeStep === 0 ? "Customer" : "Additional details" : isInvoice ? "Invoice details" : "Estimate details"}
         />
         <CardContent className="grid gap-5 sm:grid-cols-3">
           {/* Its own row: search results and the new-customer fields need the width. */}
-          <div data-guided-step="0" hidden={simple && activeStep !== 0} className={simple && activeStep !== 0 ? "hidden" : "flex flex-col gap-2 sm:col-span-3"}>
+          <div data-guided-step="0" hidden={staged && activeStep !== 0} className={staged && activeStep !== 0 ? "hidden" : "flex flex-col gap-2 sm:col-span-3"}>
             <Label>Customer</Label>
             <CustomerCombobox
               customers={customers}
@@ -172,7 +223,7 @@ export function DocumentForm({
               invalid={simple && guidedIssues.some((issue) => issue.step === 0)}
             />
           </div>
-          <details data-guided-step="2" hidden={simple && activeStep !== 2} open={!simple} className={simple && activeStep !== 2 ? "hidden" : simple ? "sm:col-span-3" : "contents"}>
+          <details data-guided-step="2" hidden={staged && activeStep !== 2} open={!simple} className={staged && activeStep !== 2 ? "hidden" : simple ? "sm:col-span-3" : "contents"}>
             <summary className={simple ? "flex min-h-12 cursor-pointer items-center text-sm font-semibold" : "hidden"}>Due date, tax, and printed notes</summary>
             <div className={simple ? "grid gap-5 pt-3 sm:grid-cols-3" : "contents"}>
           <div className="flex flex-col gap-2">
@@ -214,7 +265,7 @@ export function DocumentForm({
         </CardContent>
       </Card>
 
-      <Card data-guided-step="1" hidden={simple && activeStep !== 1} className={simple && activeStep !== 1 ? "hidden" : undefined}>
+      <Card data-guided-step="1" hidden={staged && activeStep !== 1} className={staged && activeStep !== 1 ? "hidden" : undefined}>
         <CardHeader icon={ICONS.checklist} title="Line items" />
         <CardContent className="px-3 py-3">
           <LineItemsEditor
@@ -227,26 +278,26 @@ export function DocumentForm({
         </CardContent>
       </Card>
 
-      {simple && activeStep === 2 ? <div className="flex flex-col gap-4">
+      {staged && activeStep === 2 ? <div className="flex flex-col gap-4">
         <GuidedReview rows={[
-          { label: "Customer", value: customerId === "new" ? reviewValue("newCustomerName") : customers.find((customer) => customer.id === customerId)?.label },
+          { label: "Customer", value: customerId === "new" ? (reviewValue("newCustomerName") || reviewValue("newCustomerPhone")) : customers.find((customer) => customer.id === customerId)?.label },
           { label: isInvoice ? "Due date" : "Expires", value: reviewValue("date") || (isInvoice ? "Due on receipt" : "No expiry date") },
           { label: "Notes", value: reviewValue("notes") || "No printed notes" },
         ]} />
-        <div className="rounded-lg border border-border bg-white p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <h3 className="text-base font-semibold">Items</h3>
           <ul className="mt-2 divide-y divide-border">{reviewLines.ok ? reviewLines.lines.map((line, index) => <li key={index} className="flex items-start justify-between gap-4 py-3 text-sm"><div><p className="font-medium">{line.description}</p><p className="mt-1 text-muted-foreground">{line.quantity} × {formatCents(line.unitPriceCents)}{line.serial ? " · " + line.serial : ""}</p></div><span className="font-semibold">{formatCents(line.quantity * line.unitPriceCents)}</span></li>) : null}</ul>
           <dl className="mt-3 space-y-2 border-t border-border pt-4 text-sm"><div className="flex justify-between"><dt>Subtotal</dt><dd>{formatCents(totals.subtotalCents)}</dd></div><div className="flex justify-between"><dt>Tax</dt><dd>{formatCents(totals.taxCents)}</dd></div><div className="flex justify-between text-xl font-semibold"><dt>Total</dt><dd>{formatCents(totals.totalCents)}</dd></div></dl>
         </div>
         <p className="text-sm text-muted-foreground">This saves a draft. You can review it before sending it to the customer.</p>
       </div> : null}
-      {simple ? <GuidedErrors issues={guidedIssues} step={activeStep} onFocus={focusIssue} /> : null}
-      {simple ? <GuidedNavigation step={activeStep} lastStep={2} onStep={goTo} disabled={pending}>
+      {<GuidedErrors issues={guidedIssues} step={staged ? activeStep : undefined} onFocus={focusIssue} />}
+      {staged ? <GuidedNavigation step={activeStep} lastStep={2} onStep={goTo} disabled={pending}>
         <Button variant="ghost" className="min-h-12" asChild><Link href="/counter">Cancel</Link></Button>
-        {activeStep === 2 ? <SubmitButton className="min-h-12 bg-black px-6 text-white hover:bg-zinc-800" pendingLabel="Saving…"><ACTIONS.save /> {submitLabel}</SubmitButton> : null}
+        {activeStep === 2 ? <SubmitButton className="min-h-12 px-6" pendingLabel="Saving…"><ACTIONS.save /> {submitLabel}</SubmitButton> : null}
       </GuidedNavigation> : <div className="flex items-center justify-end gap-3">
         <Button variant="outline" size="lg" asChild>
-          <Link href={cancelHref}>
+          <Link href={simple ? "/counter" : cancelHref}>
             <ACTIONS.cancel /> Cancel
           </Link>
         </Button>

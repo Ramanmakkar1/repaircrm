@@ -184,7 +184,7 @@ export function ChecklistCard({
         {rows.length === 0 ? (
           <>
             <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-              No checklist on this ticket. Add one so nothing gets skipped
+              No checklist on this repair. Add one so nothing gets skipped
               before the device goes back.
             </p>
             <div className="flex flex-wrap items-center gap-2">

@@ -18,7 +18,7 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
     actions: [
       { label: "New invoice", description: "Choose a customer, then add items.", href: "/invoices/new" },
       { label: "Find an invoice", description: "View, print, or send an existing bill.", href: "/invoices" },
-      { label: "Unpaid invoices", description: "See invoices waiting for payment.", href: "/invoices?status=SENT" },
+      { label: "Unpaid invoices", description: "Sent and part-paid invoices waiting for payment.", href: "/invoices?status=unpaid" },
       { label: "Part-paid invoices", description: "Find invoices with a remaining balance.", href: "/invoices?status=PARTIAL" },
       { label: "Recurring invoices", description: "Manage bills that repeat.", href: "/invoices/recurring" },
       { label: "Estimates", description: "Prepare a quote before billing.", href: "/estimates" },
@@ -74,6 +74,14 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
       { label: "Shop display", description: "Open the customer-facing display.", href: "/display" },
       { label: "AI assistant settings", description: "Configure your shop assistant.", href: "/settings/assistant", ownerOnly: true },
       { label: "New estimate", description: "Prepare a quote for a customer.", href: "/estimates/new" },
+      { label: "Shop overview", description: "Priorities, queues and money at a glance.", href: "/dashboard" },
+      { label: "Enquiries", description: "Questions and booking requests.", href: "/leads" },
+      { label: "Purchase orders", description: "Order parts and receive deliveries.", href: "/inventory/purchase-orders", ownerOnly: true },
+      { label: "Suppliers", description: "Where you buy parts.", href: "/inventory/vendors", ownerOnly: true },
+      { label: "Import stock", description: "Excel, CSV or Google Sheets.", href: "/inventory/import", ownerOnly: true },
+      { label: "Import customers", description: "Bring in your contact list.", href: "/customers/import", hideForTech: true },
+      { label: "Cash drawers", description: "Open, count and close the till.", href: "/pos/drawers", ownerOnly: true },
+      { label: "Recurring bills", description: "Invoices that repeat.", href: "/invoices/recurring", hideForTech: true },
     ],
   },
 };
@@ -86,7 +94,68 @@ export function workspaceActions(workspace: Workspace, role: string) {
 export function workspaceBack(path: string) {
   if (path.startsWith("/counter/") || path === "/dashboard") return "/counter";
   const entry = Object.entries(TOUCH_WORKSPACES).find(([key, value]) => key !== "tools" && (path === value.route || path.startsWith(`${value.route}/`)));
-  if (!entry) return "/counter/tools";
-  const [key, value] = entry;
-  return path === value.route ? `/counter/${key}` : value.route;
+  if (!entry) {
+    if (path.startsWith("/settings/")) return "/settings";
+    // A detail page of a list Home does not group (estimates, enquiries, reports…) returns to its own list.
+    const [list, ...rest] = path.split("/").filter(Boolean);
+    return list && rest.length ? `/${list}` : "/counter";
+  }
+  const [, value] = entry;
+  return path === value.route ? "/counter" : value.route;
+}
+
+const PRODUCTS = "/images/products";
+const HOME = "/images/home";
+
+/** The picture for each area's header: the same photos the Home tiles use. */
+const WORKSPACE_PHOTO: Record<string, string> = {
+  repairs: `${PRODUCTS}/phone.webp`,
+  invoices: `${HOME}/invoice-pad.webp`,
+  sales: `${HOME}/cash-register.webp`,
+  customers: `${HOME}/customers-cards.webp`,
+  products: `${HOME}/parts-bin.webp`,
+  appointments: `${HOME}/diary.webp`,
+  tools: `${HOME}/toolbox.webp`,
+};
+
+/** Exact links (with their filter) first, then the page, so "Unpaid invoices" and "All invoices" can differ. */
+const ACTION_PHOTO: Record<string, string> = {
+  "/tickets?status=Ready%20for%20Pickup": `${HOME}/pickup-bag.webp`,
+  "/invoices?status=unpaid": `${HOME}/card-terminal.webp`,
+  "/invoices?status=PARTIAL": `${HOME}/card-terminal.webp`,
+  "/tickets": `${PRODUCTS}/phone.webp`,
+  "/tickets/new": `${PRODUCTS}/phone.webp`,
+  "/invoices": `${HOME}/invoice-pad.webp`,
+  "/invoices/new": `${HOME}/invoice-pad.webp`,
+  "/invoices/recurring": `${HOME}/diary.webp`,
+  "/estimates": `${HOME}/invoice-pad.webp`,
+  "/estimates/new": `${HOME}/invoice-pad.webp`,
+  "/pos": `${HOME}/cash-register.webp`,
+  "/pos/drawers": `${HOME}/cash-register.webp`,
+  "/customers": `${HOME}/customers-cards.webp`,
+  "/customers/new": `${HOME}/customers-cards.webp`,
+  "/customers/import": `${HOME}/import-folder.webp`,
+  "/leads": `${HOME}/customers-cards.webp`,
+  "/inventory": `${HOME}/parts-bin.webp`,
+  "/inventory/new": `${HOME}/price-tag.webp`,
+  "/inventory/purchase-orders": `${HOME}/delivery-boxes.webp`,
+  "/inventory/vendors": `${HOME}/delivery-van.webp`,
+  "/inventory/import": `${HOME}/import-folder.webp`,
+  "/appointments": `${HOME}/diary.webp`,
+  "/settings": `${HOME}/gears.webp`,
+  "/settings/assistant": `${HOME}/gears.webp`,
+  "/reports": `${HOME}/report-chart.webp`,
+  "/dashboard": `${HOME}/report-chart.webp`,
+  "/marketing": `${HOME}/megaphone.webp`,
+  "/time-clock": `${HOME}/time-clock.webp`,
+  "/display": `${HOME}/display-screen.webp`,
+};
+
+export function workspacePhoto(key: string): string {
+  return WORKSPACE_PHOTO[key] ?? `${HOME}/toolbox.webp`;
+}
+
+/** Every action on a hub screen gets a picture; anything unmapped falls back to the area's own. */
+export function actionPhoto(href: string, fallback: string): string {
+  return ACTION_PHOTO[href] ?? ACTION_PHOTO[href.split("?")[0]] ?? fallback;
 }

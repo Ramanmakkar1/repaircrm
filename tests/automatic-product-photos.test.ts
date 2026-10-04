@@ -12,17 +12,17 @@ vi.mock("@/lib/storage", () => storage);
 import { automaticPhotoCachedResult, automaticPhotoLookupKey, dismissAutomaticProductPhoto, getAutomaticProductPhoto } from "@/lib/inventory/automatic-product-photos";
 
 const session = { shopId: "shop_auto", userId: "user_a", pv: 0 };
-const credit = { title: "ThinkPad T420.png", author: "Creator", sourceUrl: "https://commons.wikimedia.org/wiki/File:ThinkPad_T420.png", license: "CC BY 4.0", licenseUrl: "https://creativecommons.org/licenses/by/4.0/" };
+const credit = { title: "Zebra ZD220 barcode scanner.png", author: "Creator", sourceUrl: "https://commons.wikimedia.org/wiki/File:ThinkPad_T420.png", license: "CC BY 4.0", licenseUrl: "https://creativecommons.org/licenses/by/4.0/" };
 const upload = { path: "shop_auto/new.png", storage: "s3", fileName: "licensed-product-photo.png", mimeType: "image/png", sizeBytes: 16 };
 let row: AutomaticProductPhoto | null;
 let name: string;
 let attachmentIds: string[];
 function cached(overrides: Partial<AutomaticProductPhoto> = {}): AutomaticProductPhoto {
-  return { id: "auto_photo", productId: "product_a", shopId: session.shopId, lookupKey: automaticPhotoLookupKey("ThinkPad T420"), status: "ready", searchedAt: new Date(), nextAttemptAt: new Date("2100-01-01"), leaseToken: null, storage: "s3", path: "shop_auto/old.png", mimeType: "image/png", sizeBytes: 16, ...credit, createdAt: new Date(), updatedAt: new Date(), ...overrides };
+  return { id: "auto_photo", productId: "product_a", shopId: session.shopId, lookupKey: automaticPhotoLookupKey("Zebra ZD220 barcode scanner"), status: "ready", searchedAt: new Date(), nextAttemptAt: new Date("2100-01-01"), leaseToken: null, storage: "s3", path: "shop_auto/old.png", mimeType: "image/png", sizeBytes: 16, ...credit, createdAt: new Date(), updatedAt: new Date(), ...overrides };
 }
 beforeEach(() => {
   resetDb(); vi.clearAllMocks(); clearRateLimit(`automatic-photo:${session.shopId}`);
-  row = null; name = "ThinkPad T420"; attachmentIds = [];
+  row = null; name = "Zebra ZD220 barcode scanner"; attachmentIds = [];
   handlers["$queryRaw"] = () => [];
   handlers["product.findFirst"] = () => ({ id: "product_a", name, category: "Computers", attachments: attachmentIds.map((id) => ({ id })), automaticPhoto: row });
   handlers["user.findFirst"] = () => ({ active: true, mustChangePassword: false, passwordChangedAt: null });
@@ -104,7 +104,7 @@ describe("automatic catalogue photos and persistent cache", () => {
     external.searchCommonsPhoto.mockImplementationOnce(async () => {
       if (change === "upload") attachmentIds = ["manual_photo"];
       if (change === "disabled") handlers["user.findFirst"] = () => ({ active: false, mustChangePassword: false, passwordChangedAt: null });
-      if (change === "renamed") name = "ThinkPad T430";
+      if (change === "renamed") name = "Zebra ZD230 barcode scanner";
       return { file: new File(["photo"], "photo.png", { type: "image/png" }), attribution: credit };
     });
     expect(await getAutomaticProductPhoto("product_a", session)).toMatchObject({ status: "skipped", imageUrl: null });
@@ -113,7 +113,7 @@ describe("automatic catalogue photos and persistent cache", () => {
   });
 
   it("invalidates a renamed product's cached image and removes its retired bytes after replacement", async () => {
-    row = cached(); name = "ThinkPad T430";
+    row = cached(); name = "Zebra ZD230 barcode scanner";
     expect(automaticPhotoCachedResult(row, "product_a", automaticPhotoLookupKey(name))).toBeNull();
     expect((await getAutomaticProductPhoto("product_a", session)).status).toBe("ready");
     expect(storage.removeUpload).toHaveBeenCalledExactlyOnceWith("s3", "shop_auto/old.png");

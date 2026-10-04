@@ -1,5 +1,11 @@
 # RepairPilot feature implementation
 
+> Historical snapshot from September 21, 2026; hosting has since moved to the VPS -
+> see [README.md "Production hosting"](../README.md#production-hosting) and
+> [ops/README.md](../ops/README.md). The Worker secret and Cloudflare build notes
+> below describe the retired test deployment. The checklist was not re-checked
+> against the code except where an item is annotated.
+
 Scope authorised September 21, 2026: implement gaps identified in the CoreHub comparison, including the speak-or-type assistant. Preserve existing working-tree changes. Configuration, migrations, and deployment must be reported separately from source implementation.
 
 - [x] Visible assistant with typing, microphone, provider status, and transcript review
@@ -17,7 +23,7 @@ Scope authorised September 21, 2026: implement gaps identified in the CoreHub co
 - [ ] Product images and grouped variants
 - [ ] Mailbox receiving connector
 - [ ] Print configuration with previews
-- [ ] Passcode retention on pickup
+- [x] Passcode retention on pickup (checked in code on October 3, 2026: `markPickedUpAction` in `app/(app)/tickets/actions.ts` clears the asset's stored device passcode when no other open repair uses that device)
 - [ ] Tax-inclusive pricing without changing historical documents
 - [ ] Questions over scoped report data
 - [ ] Type checks, relevant tests, build, and browser verification

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { ACTIONS } from "@/components/ui/icons";
 
@@ -33,6 +34,8 @@ export function BillingFilterBar({
   status,
   customerId = "",
   placeholder,
+  large = false,
+  statusParam = "status",
 }: {
   basePath: string;
   q: string;
@@ -41,6 +44,10 @@ export function BillingFilterBar({
   /** Same, for the customer filter the customer page links in with. */
   customerId?: string;
   placeholder: string;
+  /** Easy mode: a 48px field and big buttons, the same search the register uses. */
+  large?: boolean;
+  /** The URL param the view travels in. Recurring billing calls it "view". */
+  statusParam?: string;
 }) {
   const router = useRouter();
 
@@ -51,13 +58,13 @@ export function BillingFilterBar({
     (nextQuery: string) => {
       const params = new URLSearchParams();
       if (nextQuery.trim()) params.set("q", nextQuery.trim());
-      if (status) params.set("status", status);
+      if (status) params.set(statusParam, status);
       if (customerId) params.set("customerId", customerId);
       const search = params.toString();
       // A new search resets to page 1 by simply not carrying `page` over.
       router.push(search ? `${basePath}?${search}` : basePath);
     },
-    [basePath, customerId, router, status],
+    [basePath, customerId, router, status, statusParam],
   );
 
   return (
@@ -69,24 +76,34 @@ export function BillingFilterBar({
       role="search"
       className="flex flex-wrap items-center gap-2"
     >
-      <div className="relative min-w-[240px] flex-1 sm:max-w-sm">
-        <ACTIONS.search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+      <div className={cn("relative flex-1", large ? "min-w-0 basis-56 sm:max-w-xl" : "min-w-[240px] sm:max-w-sm")}>
+        <ACTIONS.search
+          className={cn(
+            "pointer-events-none absolute top-1/2 -translate-y-1/2 text-faint-foreground",
+            large ? "left-4 size-5" : "left-3 size-4",
+          )}
+        />
         <Input
           key={q}
           ref={queryRef}
           defaultValue={q}
           placeholder={placeholder}
-          className="pl-9"
+          className={large ? "h-12 rounded-xl pl-12 text-base" : "pl-9"}
           aria-label="Search"
         />
       </div>
 
-      <Button type="submit" variant="outline">
+      <Button type="submit" variant="outline" className={large ? "h-12 rounded-xl px-5 text-base" : undefined}>
         <ACTIONS.search /> Search
       </Button>
 
       {q ? (
-        <Button type="button" variant="ghost" onClick={() => navigate("")}>
+        <Button
+          type="button"
+          variant="ghost"
+          className={large ? "h-12 rounded-xl px-4 text-base" : undefined}
+          onClick={() => navigate("")}
+        >
           <ACTIONS.cancel /> Clear
         </Button>
       ) : null}

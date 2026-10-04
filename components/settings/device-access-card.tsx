@@ -186,7 +186,7 @@ export function DeviceAccessCard() {
           />
         </div>
 
-        <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-hover px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+        <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-hover px-4 py-3 text-[14px] leading-relaxed text-muted-foreground">
           <Network className="mt-0.5 size-4 shrink-0" />
           <p>
             These permissions let Repairs helper identify hardware you approve. Keyboard-mode barcode scanners work in the POS scanner box. Printers and scales may need model-specific setup. Card terminals pair through Stripe or Square, keeping card data with the payment provider.

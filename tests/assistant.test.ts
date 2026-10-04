@@ -188,6 +188,20 @@ describe("runAssistantAction", () => {
     expect(result.kind === "info" && result.message).toContain("iPhone 6 Screen");
   });
 
+  it("suggests screen guards after a misheard screen-card lookup and never writes stock", async () => {
+    says({ action: "search_products", query: "screen card" });
+    let lookups = 0;
+    handlers["product.findMany"] = () => ++lookups === 1 ? [] : [
+      { id: "p-guard", name: "Screen guards", sku: "GUARD", category: "Accessories", stockQty: 20, priceCents: 1500 },
+      { id: "p-battery", name: "Battery", sku: "BATT", category: "Parts", stockQty: 5, priceCents: 2500 },
+    ];
+    const result = await runAssistantAction("can you check stock for like screen cards");
+    expect(result).toMatchObject({ kind: "info", links: [{ label: "Screen guards", href: "/inventory/p-guard" }] });
+    expect(result.kind === "info" && result.message).toContain("Did you mean");
+    expect(adjustStockMock).not.toHaveBeenCalled();
+    for (const call of callsTo("product.findMany")) expect(call.args.where).toMatchObject({ shopId: "shop_1" });
+  });
+
   it("restocks by a signed amount through the audited stock action", async () => {
     says({ action: "adjust_stock", product: "iphone 6 screen", amount: 20 });
     handlers["product.findMany"] = () => [

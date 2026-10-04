@@ -20,8 +20,10 @@ const WARNINGS: Record<string, string> = {
 /**
  * Fires the one-shot toast a redirecting server action asked for
  * (`?flash=created`) and strips the param so a refresh doesn't repeat it.
+ * `tab` is the section the Easy screen is showing: it is kept in the URL, so
+ * returning from Stripe's card page leaves you on Details, not back on Repairs.
  */
-export function FlashToast({ flash }: { flash?: string }) {
+export function FlashToast({ flash, tab }: { flash?: string; tab?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const fired = React.useRef(false);
@@ -34,8 +36,8 @@ export function FlashToast({ flash }: { flash?: string }) {
     fired.current = true;
     if (message) toast.success(message);
     else toast.message(warning);
-    router.replace(pathname, { scroll: false });
-  }, [flash, pathname, router]);
+    router.replace(tab ? `${pathname}?tab=${tab}` : pathname, { scroll: false });
+  }, [flash, pathname, router, tab]);
 
   return null;
 }

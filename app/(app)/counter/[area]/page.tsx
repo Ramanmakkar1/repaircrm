@@ -1,32 +1,49 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, ChevronRight } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { TOUCH_WORKSPACES, workspaceActions } from "@/lib/touch-workspace";
+import { actionPhoto, TOUCH_WORKSPACES, workspaceActions, workspacePhoto } from "@/lib/touch-workspace";
+import { PictureTile } from "@/components/counter/picture-tile";
+import { PhotoVisual } from "@/components/ui/record-card";
 
 export async function generateMetadata({ params }: { params: Promise<{ area: string }> }) {
   const { area } = await params;
   return { title: `${TOUCH_WORKSPACES[area]?.title ?? "Workspace"} · Repairs helper` };
 }
 
+/**
+ * A second-level hub (Money, More tools, ...): the same picture tiles as Home,
+ * so going one level in never feels like a different app.
+ */
 export default async function TaskWorkspace({ params }: { params: Promise<{ area: string }> }) {
   const [{ area }, user] = await Promise.all([params, requireUser()]);
   const workspace = TOUCH_WORKSPACES[area];
   if (!workspace) notFound();
   const actions = workspaceActions(workspace, user.role);
+  const hero = workspacePhoto(area);
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-7">
-      <div><h1 className="text-[30px] font-semibold tracking-tight sm:text-[36px]">{workspace.title}</h1><p className="mt-3 max-w-xl text-base leading-relaxed text-muted-foreground">{workspace.description}</p></div>
-      {workspace.steps.length ? <ol aria-label={`${workspace.title} workflow`} className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm text-muted-foreground">
-        {workspace.steps.map((step, index) => <li key={step} className="flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-full border border-border text-xs font-semibold">{index + 1}</span>{step}</li>)}
-      </ol> : null}
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {actions.map((action, index) => <li key={action.href}>
-          <Link href={action.href} className="flex h-full min-h-[148px] items-start gap-4 rounded-xl border border-border bg-white p-5 transition-colors hover:border-[#006aff] active:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-6">
-            <span className="mt-1 flex size-10 shrink-0 items-center justify-center rounded-lg border border-border text-[#006aff]">{index === 0 ? <ArrowRight className="size-5" aria-hidden /> : <ChevronRight className="size-5" aria-hidden />}</span>
-            <span><span className="block text-xl font-semibold">{action.label}</span><span className="mt-3 block text-base leading-relaxed text-muted-foreground">{action.description}</span></span>
-          </Link>
-        </li>)}
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <header className="flex items-center gap-4 sm:gap-5">
+        <PhotoVisual src={hero} className="size-24 sm:size-28" />
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-semibold leading-9 tracking-tight sm:text-[32px]">{workspace.title}</h1>
+          <p className="mt-1 max-w-xl text-base leading-snug text-muted-foreground">{workspace.description}</p>
+        </div>
+      </header>
+      {workspace.steps.length ? (
+        <ol aria-label={`${workspace.title} steps`} className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+          {workspace.steps.map((step, index) => (
+            <li key={step} className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-full border border-border text-xs font-semibold">{index + 1}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {actions.map((action) => (
+          <li key={`${action.href}|${action.label}`}>
+            <PictureTile href={action.href} title={action.label} detail={action.description} photo={actionPhoto(action.href, hero)} />
+          </li>
+        ))}
       </ul>
     </div>
   );

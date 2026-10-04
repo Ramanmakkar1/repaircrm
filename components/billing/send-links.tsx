@@ -33,7 +33,7 @@ import { ACTIONS } from "@/components/ui/icons";
  * silently does nothing there is the worst possible outcome. The deprecated
  * `execCommand("copy")` path still works in exactly those browsers.
  */
-async function copyText(value: string): Promise<boolean> {
+export async function copyText(value: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(value);
@@ -68,6 +68,7 @@ export function ShareRow({
   viewUrl,
   viewLabel = "Copy view link",
   payment,
+  large = false,
 }: {
   /** Absolute, frictionless portal URL for this document. */
   viewUrl: string;
@@ -78,6 +79,8 @@ export function ShareRow({
    * not rendered at all rather than rendered dead.
    */
   payment?: { invoiceId: string; action: PaymentLinkAction } | null;
+  /** Easy mode: 48px buttons, no "Share" caption. Same two links, same behaviour. */
+  large?: boolean;
 }) {
   const [copied, setCopied] = React.useState<"view" | "pay" | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -125,17 +128,30 @@ export function ShareRow({
         `text-xs font-semibold tracking-wide` left on those screens, a size and
         a weight heavier than every label beside it.
       */}
-      <span className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
-        Share
-      </span>
+      {large ? null : (
+        <span className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-faint-foreground">
+          Share
+        </span>
+      )}
 
-      <Button variant="outline" size="sm" onClick={copyView}>
+      <Button
+        variant="outline"
+        size={large ? "lg" : "sm"}
+        className={large ? "h-12 px-5 text-base" : undefined}
+        onClick={copyView}
+      >
         {copied === "view" ? <Check className="text-status-resolved-fg" /> : <ACTIONS.copyLink />}
         {copied === "view" ? "Copied" : viewLabel}
       </Button>
 
       {payment ? (
-        <Button variant="outline" size="sm" onClick={copyPayment} disabled={busy}>
+        <Button
+          variant="outline"
+          size={large ? "lg" : "sm"}
+          className={large ? "h-12 px-5 text-base" : undefined}
+          onClick={copyPayment}
+          disabled={busy}
+        >
           {busy ? (
             <Loader2 className="animate-spin" />
           ) : copied === "pay" ? (

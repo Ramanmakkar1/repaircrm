@@ -5,6 +5,7 @@ import { CalendarCheck, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
+import { IconVisual } from "@/components/ui/record-card";
 import {
   customerNameOf,
   shortTime,
@@ -25,14 +26,66 @@ export function TodayStrip({
   next,
   now,
   editHref,
+  simple = false,
 }: {
   count: number;
   next: CalendarAppointment | null;
   now: Date;
   editHref: (id: string) => string;
+  /** Easy mode: bigger type, bigger tap target, "visits" not "appointments". */
+  simple?: boolean;
 }) {
   const customerName = next ? customerNameOf(next.customer) : null;
   const started = next ? next.startsAt <= now : false;
+
+  if (simple) {
+    return (
+      <section
+        aria-label="Today"
+        className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex items-center gap-4">
+          <IconVisual icon={CalendarCheck} className="size-14 sm:size-14" />
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xl font-semibold leading-tight text-foreground">
+              {count === 0
+                ? "Nothing booked today"
+                : `${count} ${count === 1 ? "visit" : "visits"} today`}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {format(now, "EEEE, MMMM d")}
+            </span>
+          </div>
+        </div>
+
+        {next ? (
+          <Link
+            href={editHref(next.id)}
+            scroll={false}
+            className={cn(
+              "flex min-h-16 min-w-0 items-center gap-3 rounded-xl border border-border bg-surface-hover px-4 py-2 transition-colors",
+              "hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-md",
+            )}
+          >
+            <Clock className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-sm font-semibold text-muted-foreground">
+                {started ? "In progress" : `Next · ${shortTime(next.startsAt)}`}
+              </span>
+              <span className="truncate text-base font-semibold text-foreground">
+                {customerName ?? next.title}
+              </span>
+              <span className="truncate text-sm text-muted-foreground">
+                {customerName ? `${next.title} · ` : ""}
+                {timeRange(next.startsAt, next.endsAt)}
+                {next.assignedTo ? ` · ${next.assignedTo.name}` : ""}
+              </span>
+            </span>
+          </Link>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">

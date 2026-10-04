@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
@@ -10,9 +11,12 @@ import {
 } from "@/lib/comms/documents";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
+import { readUiPrefs } from "@/lib/prefs";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { taxLabel } from "@/lib/tax";
 import {
+  cardExpired,
   cardOnFile,
   isStripeReference,
   paymentsLive,
@@ -21,8 +25,33 @@ import {
 } from "@/lib/payments";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 import { refundAwareTotals } from "@/components/billing/refund-math";
+import {
+  balanceBlock,
+  docTabs,
+  invoiceActivity,
+  invoicePrimaryLabel,
+  invoiceTiles,
+  parseDocTab,
+} from "@/components/billing/bill-display";
+import { BackLink, BalanceHero, BillSummary, PinnedAction } from "@/components/billing/bill-hero";
+import {
+  ActivityList,
+  EmptyLines,
+  FactList,
+  LineList,
+  MoneyRows,
+  Section,
+  TotalsBlock,
+  type MoneyRowData,
+  type TotalRow,
+} from "@/components/billing/bill-lines";
 import { InvoiceActionMenu } from "@/components/billing/invoice-action-menu";
-import type { RefundablePayment } from "@/components/billing/refund-dialog";
+import { invoicePrimaryAction } from "@/components/billing/primary-action";
+import { CopyLinkTile, EmailReceiptTile } from "@/components/billing/quick-tiles";
+import { RefundDialog, type RefundablePayment } from "@/components/billing/refund-dialog";
+import { SignatureDialog } from "@/components/billing/signature-dialog";
+import { BIG_BUTTON_SLOT, TILE_CLASS } from "@/components/billing/tile-style";
+import { primaryPhone } from "@/components/customers/customer-facts";
 import { SendDocumentDialog } from "@/components/billing/send-dialog";
 import { UnbilledTimeBanner } from "@/components/billing/unbilled-time-banner";
 import { ShareRow } from "@/components/billing/send-links";
@@ -41,6 +70,7 @@ import {
 import { Chip } from "@/components/ui/chip";
 import { CopyableId } from "@/components/ui/copyable-id";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { ObjectHeader } from "@/components/ui/object-header";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
@@ -114,11 +144,15 @@ export async function generateMetadata({
 
 export default async function InvoiceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { id } = await params;
+  const [{ id }, prefs, query] = await Promise.all([params, readUiPrefs(), searchParams]);
+  // Easy mode (the default): one big action chosen by status, the rest under "More".
+  const easy = prefs.simple;
 
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
@@ -323,189 +357,787 @@ export default async function InvoiceDetailPage({
         ? "Balance due — overdue"
         : "Balance due";
 
-  return (
-    <div className="flex flex-col gap-5">
-      <ObjectHeader
-        back={{ label: "Invoices", href: "/invoices" }}
-        value={<span className={headlineTone}>{headlineBalance}</span>}
-        /*
-          The title said "Invoice #1014" and the copyable id said "Invoice
-          #1014" directly under it. Two lines, one fact. The document number is
-          the id — that is what it is for — so the title slot goes to the thing
-          the number does not tell you: who owes this. It links, so the
-          Customer column the strip used to carry is redundant and gone.
-        */
-        title={
-          <Link
-            href={`/customers/${invoice.customer.id}`}
-            className="hover:underline"
-          >
-            {customerName}
-          </Link>
+  // The same three controls feed both layouts; only their size and look differ.
+  const actionMenu = (large: boolean, tile = false) => (
+    <InvoiceActionMenu
+      invoiceId={invoice.id}
+      invoiceNumber={invoice.number}
+      customerName={customerName}
+      printHref={`/print/invoices/${invoice.id}`}
+      editHref={canEdit ? `/invoices/${invoice.id}/edit` : null}
+      receipt={
+        receiptable
+          ? {
+              action: emailInvoiceReceiptAction,
+              blockedReason: emailBlockedReason,
+            }
+          : null
+      }
+      signature={
+        !isVoid
+          ? {
+              action: saveInvoiceSignatureAction,
+              signed: Boolean(invoice.signatureDataUrl),
+            }
+          : null
+      }
+      chargeCard={
+        canChargeCard && savedCard
+          ? {
+              action: chargeCardOnFileAction,
+              balanceCents: totals.balanceCents,
+              cardLabel: `${savedCard.brand} ····${savedCard.last4}`,
+            }
+          : null
+      }
+      refund={
+        canRefund
+          ? {
+              action: refundInvoiceAction,
+              refundableCents: totals.refundableCents,
+              payments: refundablePayments,
+              defaultMethod: paidWithCredit ? "CREDIT" : "CARD",
+            }
+          : null
+      }
+      voidInvoice={
+        role === "OWNER" && !isVoid
+          ? {
+              action: voidInvoiceAction,
+              blockedReason: hasPayments
+                ? "This invoice has payments recorded against it — refund and remove them first."
+                : null,
+            }
+          : null
+      }
+      large={large}
+      tile={tile}
+    />
+  );
+
+  const paymentDialog = (size: "sm" | "lg", appearance: "button" | "tile" = "button") =>
+    canTakePayment ? (
+      <PaymentDialog
+        appearance={appearance}
+        action={takePaymentAction}
+        invoiceId={invoice.id}
+        balanceCents={totals.balanceCents}
+        customerCreditCents={invoice.customer.creditBalanceCents}
+        customerName={customerName}
+        receiptAction={emailInvoiceReceiptAction}
+        size={size}
+        cardFlow={resolveCardFlow(readCardMachine(invoice.shop.settings), {
+          stripe: readerPaired,
+          square: squareDevices.length > 0,
+        })}
+        terminal={
+          readerPaired
+            ? {
+                testMode: stripeTestMode(),
+                record: recordTerminalPaymentAction,
+                // The way out when the machine is unplugged: the
+                // same hosted link the Share row hands out.
+                paymentLink: invoicePaymentLinkAction,
+              }
+            : undefined
         }
-        subtitle={headlineHint}
-        status={<InvoiceStatusBadge status={invoice.status} size="md" />}
-        id={
-          <CopyableId
-            value={`Invoice #${invoice.number}`}
-            label="invoice number"
-          />
-        }
-        meta={[
-          {
-            label: "Invoice total",
-            value: (
-              <span className={cn(isVoid && "text-faint-foreground line-through")}>
-                {formatCents(totals.totalCents)}
-              </span>
-            ),
-          },
-          { label: "Collected", value: formatCents(totals.paidCents) },
-          { label: "Issued", value: formatDate(invoice.createdAt) },
-          {
-            label: "Due",
-            value: (
-              <span className={cn(overdue && "text-status-overdue-fg")}>
-                {invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt"}
-              </span>
-            ),
-          },
-          {
-            label: "Ticket",
-            value: invoice.ticket ? (
-              <Link
-                href={`/tickets/${invoice.ticket.id}`}
-                className="font-medium text-accent-soft-foreground hover:underline"
-              >
-                #{invoice.ticket.number}
-              </Link>
-            ) : (
-              "—"
-            ),
-          },
-        ]}
-        /*
-          TWO BUTTONS AND A `⋯`, NOT EIGHT BUTTONS.
-
-          This header could offer nine controls at once — print, edit, email a
-          receipt, collect a signature, charge the card on file, refund, void,
-          take a payment, send — and which of them exist depends on the
-          invoice's state, so the row was a different length and a different
-          shape on every invoice and wrapped onto a second line at 1280px.
-
-          What is left inline is what someone opened the invoice to do: take
-          the money, and send the bill. Everything else is in the menu, in an
-          order that does not move. Nothing was removed and no action behaves
-          differently — see components/billing/invoice-action-menu.tsx for how
-          the dialogs are driven from menu items.
-        */
-        actions={
-          <>
-            <InvoiceActionMenu
-              invoiceId={invoice.id}
-              invoiceNumber={invoice.number}
-              customerName={customerName}
-              printHref={`/print/invoices/${invoice.id}`}
-              editHref={canEdit ? `/invoices/${invoice.id}/edit` : null}
-              receipt={
-                receiptable
-                  ? {
-                      action: emailInvoiceReceiptAction,
-                      blockedReason: emailBlockedReason,
-                    }
-                  : null
+        squareTerminal={
+          squareDevices.length > 0
+            ? {
+                devices: squareDevices.map((device) => ({
+                  id: device.deviceId ?? device.id,
+                  name: device.name,
+                  status: device.status,
+                })),
               }
-              signature={
-                !isVoid
-                  ? {
-                      action: saveInvoiceSignatureAction,
-                      signed: Boolean(invoice.signatureDataUrl),
-                    }
-                  : null
-              }
-              chargeCard={
-                canChargeCard && savedCard
-                  ? {
-                      action: chargeCardOnFileAction,
-                      balanceCents: totals.balanceCents,
-                      cardLabel: `${savedCard.brand} ····${savedCard.last4}`,
-                    }
-                  : null
-              }
-              refund={
-                canRefund
-                  ? {
-                      action: refundInvoiceAction,
-                      refundableCents: totals.refundableCents,
-                      payments: refundablePayments,
-                      defaultMethod: paidWithCredit ? "CREDIT" : "CARD",
-                    }
-                  : null
-              }
-              voidInvoice={
-                role === "OWNER" && !isVoid
-                  ? {
-                      action: voidInvoiceAction,
-                      blockedReason: hasPayments
-                        ? "This invoice has payments recorded against it — refund and remove them first."
-                        : null,
-                    }
-                  : null
-              }
-            />
-
-            {canTakePayment ? (
-              <PaymentDialog
-                action={takePaymentAction}
-                invoiceId={invoice.id}
-                balanceCents={totals.balanceCents}
-                customerCreditCents={invoice.customer.creditBalanceCents}
-                customerName={customerName}
-                receiptAction={emailInvoiceReceiptAction}
-                size="sm"
-                cardFlow={resolveCardFlow(readCardMachine(invoice.shop.settings), {
-                  stripe: readerPaired,
-                  square: squareDevices.length > 0,
-                })}
-                terminal={
-                  readerPaired
-                    ? {
-                        testMode: stripeTestMode(),
-                        record: recordTerminalPaymentAction,
-                        // The way out when the machine is unplugged: the
-                        // same hosted link the Share row hands out.
-                        paymentLink: invoicePaymentLinkAction,
-                      }
-                    : undefined
-                }
-                squareTerminal={
-                  squareDevices.length > 0
-                    ? {
-                        devices: squareDevices.map((device) => ({
-                          id: device.deviceId ?? device.id,
-                          name: device.name,
-                          status: device.status,
-                        })),
-                      }
-                    : undefined
-                }
-              />
-            ) : null}
-
-            {/* The primary action, last so it sits at the end of the row —
-                and the only one that both delivers the document and moves it
-                out of DRAFT. */}
-            {!isVoid ? (
-              <SendDocumentDialog
-                doc={sendDoc}
-                previewAction={previewInvoiceSendAction}
-                sendAction={sendInvoiceAction}
-                size="sm"
-              />
-            ) : null}
-          </>
+            : undefined
         }
       />
+    ) : null;
+
+  const sendDialog = (appearance: "default" | "primary" | "secondary") =>
+    !isVoid ? (
+      <SendDocumentDialog
+        doc={sendDoc}
+        previewAction={previewInvoiceSendAction}
+        sendAction={sendInvoiceAction}
+        size="sm"
+        appearance={appearance}
+      />
+    ) : null;
+
+  const fullHeader = (
+    <ObjectHeader
+      back={{ label: "Invoices", href: "/invoices" }}
+      value={<span className={headlineTone}>{headlineBalance}</span>}
+      /*
+        The title said "Invoice #1014" and the copyable id said "Invoice
+        #1014" directly under it. Two lines, one fact. The document number is
+        the id — that is what it is for — so the title slot goes to the thing
+        the number does not tell you: who owes this. It links, so the
+        Customer column the strip used to carry is redundant and gone.
+      */
+      title={
+        <Link
+          href={`/customers/${invoice.customer.id}`}
+          className="hover:underline"
+        >
+          {customerName}
+        </Link>
+      }
+      subtitle={headlineHint}
+      status={<InvoiceStatusBadge status={invoice.status} size="md" />}
+      id={
+        <CopyableId
+          value={`Invoice #${invoice.number}`}
+          label="invoice number"
+        />
+      }
+      meta={[
+        {
+          label: "Invoice total",
+          value: (
+            <span className={cn(isVoid && "text-faint-foreground line-through")}>
+              {formatCents(totals.totalCents)}
+            </span>
+          ),
+        },
+        { label: "Collected", value: formatCents(totals.paidCents) },
+        { label: "Issued", value: formatDate(invoice.createdAt) },
+        {
+          label: "Due",
+          value: (
+            <span className={cn(overdue && "text-status-overdue-fg")}>
+              {invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt"}
+            </span>
+          ),
+        },
+        {
+          label: "Ticket",
+          value: invoice.ticket ? (
+            <Link
+              href={`/tickets/${invoice.ticket.id}`}
+              className="font-medium text-accent-soft-foreground hover:underline"
+            >
+              #{invoice.ticket.number}
+            </Link>
+          ) : (
+            "—"
+          ),
+        },
+      ]}
+      /*
+        TWO BUTTONS AND A `⋯`, NOT EIGHT BUTTONS.
+
+        This header could offer nine controls at once — print, edit, email a
+        receipt, collect a signature, charge the card on file, refund, void,
+        take a payment, send — and which of them exist depends on the
+        invoice's state, so the row was a different length and a different
+        shape on every invoice and wrapped onto a second line at 1280px.
+
+        What is left inline is what someone opened the invoice to do: take
+        the money, and send the bill. Everything else is in the menu, in an
+        order that does not move. Nothing was removed and no action behaves
+        differently — see components/billing/invoice-action-menu.tsx for how
+        the dialogs are driven from menu items.
+      */
+      actions={
+        <>
+          {actionMenu(false)}
+          {paymentDialog("sm")}
+
+          {/* The primary action, last so it sits at the end of the row —
+              and the only one that both delivers the document and moves it
+              out of DRAFT. */}
+          {sendDialog("default")}
+        </>
+      }
+    />
+  );
+
+  // ============================================================== Easy: the bill
+  // A POS-style receipt. The left column is the bill itself behind four big
+  // tabs (Bill, Customer, Activity, Share, in the URL as ?tab=); the right
+  // column is the till: who, the amount due in very large type, the one big
+  // button for this state and a few quick tiles. Every figure and every action
+  // below is the one the Full layout uses; only the arrangement is new.
+  if (easy) {
+    const now = requestNow();
+    const tab = parseDocTab(query.tab);
+    const basePath = `/invoices/${invoice.id}`;
+    const printHref = `/print/invoices/${invoice.id}`;
+
+    const primary = invoicePrimaryAction({
+      status: invoice.status,
+      voided: isVoid,
+      canTakePayment,
+    });
+    const alreadySent = invoice.status !== "DRAFT";
+    const primaryLabel = invoicePrimaryLabel(primary, { alreadySent, receiptable });
+    // The hint sits under the tiles, once, instead of inside each send button.
+    const quietDoc: SendDocument = { ...sendDoc, lastSentHint: null };
+    const phone = primaryPhone(invoice.customer).value || null;
+
+    const block = balanceBlock(
+      {
+        status: invoice.status,
+        totalCents: totals.totalCents,
+        paidCents: totals.paidCents,
+        refundedCents: totals.refundedCents,
+        balanceCents: totals.balanceCents,
+        dueDate: invoice.dueDate,
+        paidAt: invoice.paidAt,
+      },
+      now,
+    );
+
+    /** The one big button. Built per call so the phone's pinned copy is its own. */
+    const bigAction = (): React.ReactNode => {
+      if (primary === "pay") return <div className={BIG_BUTTON_SLOT}>{paymentDialog("lg")}</div>;
+      if (primary === "send") {
+        return (
+          <SendDocumentDialog
+            doc={quietDoc}
+            previewAction={previewInvoiceSendAction}
+            sendAction={sendInvoiceAction}
+            size="lg"
+            appearance="big"
+          />
+        );
+      }
+      if (primary === "print") {
+        return (
+          <Button asChild className="h-14 w-full px-6 text-lg [&_svg]:size-5">
+            <Link href={printHref} target="_blank">
+              <ACTIONS.print /> {primaryLabel}
+            </Link>
+          </Button>
+        );
+      }
+      return null;
+    };
+
+    const tileKeys = invoiceTiles({ primary, voided: isVoid, receiptable, canTakePayment });
+    const tiles = tileKeys.map((tile) => {
+      switch (tile) {
+        case "pay":
+          // A draft's big button is Send; a deposit or cash sale is this tile.
+          return <Fragment key="pay">{paymentDialog("lg", "tile")}</Fragment>;
+        case "send":
+          // Two tiles of the one send dialog: "Send again" and "Message".
+          return (
+            <SendDocumentDialog
+              key="send"
+              doc={quietDoc}
+              previewAction={previewInvoiceSendAction}
+              sendAction={sendInvoiceAction}
+              size="lg"
+              appearance="tiles"
+            />
+          );
+        case "receipt":
+          return (
+            <EmailReceiptTile
+              key="receipt"
+              invoiceId={invoice.id}
+              action={emailInvoiceReceiptAction}
+              blockedReason={emailBlockedReason}
+            />
+          );
+        case "print":
+          return (
+            <Link key="print" href={printHref} target="_blank" data-touch-control className={TILE_CLASS}>
+              <ACTIONS.print aria-hidden />
+              Print
+            </Link>
+          );
+        case "copy":
+          return <CopyLinkTile key="copy" url={viewUrl} />;
+        case "edit":
+          return canEdit ? (
+            <Link key="edit" href={`${basePath}/edit`} data-touch-control className={TILE_CLASS}>
+              <ACTIONS.edit aria-hidden />
+              Edit
+            </Link>
+          ) : null;
+        case "more":
+          return <Fragment key="more">{actionMenu(false, true)}</Fragment>;
+        default:
+          return null;
+      }
+    });
+
+    // --------------------------------------------------------------- Bill tab
+    const paymentRows: MoneyRowData[] = invoice.payments.map((payment) => ({
+      id: payment.id,
+      kind: "payment",
+      title: paymentLabel(
+        payment.method,
+        payment.reference,
+        payment.stripeSource ?? payment.gatewaySource,
+        payment.gateway,
+      ),
+      detail: `${formatDateTime(payment.createdAt)}${payment.takenBy ? ` · taken by ${payment.takenBy.name}` : ""}`,
+      reference:
+        payment.reference || payment.stripePaymentIntentId ? (
+          <PaymentReference
+            reference={payment.reference}
+            paymentIntentId={payment.stripePaymentIntentId}
+          />
+        ) : null,
+      amountCents: payment.amountCents,
+    }));
+
+    const refundRows: MoneyRowData[] = invoice.refunds.map((refund) => ({
+      id: refund.id,
+      kind: "refund",
+      title: `${METHOD_LABELS[refund.method] ?? refund.method}${
+        refund.payment
+          ? ` · against ${paymentLabel(
+              refund.payment.method,
+              refund.payment.reference,
+              refund.payment.stripeSource,
+            )}`
+          : ""
+      }`,
+      detail: `${formatDateTime(refund.createdAt)}${refund.refundedBy ? ` · by ${refund.refundedBy.name}` : ""}`,
+      note: refund.reason,
+      badge: <RefundStatusBadge status={refund.status} />,
+      reference: refund.stripeRefundId ? (
+        <CopyableId value={refund.stripeRefundId} label="Stripe refund id" />
+      ) : null,
+      amountCents: refund.amountCents,
+      failed: refund.status === "failed",
+    }));
+
+    // The receipt block. What the Balance card used to hold (paid to date,
+    // refunded, net paid, balance due) is under the total, so the whole ledger
+    // reads top to bottom in one place.
+    const totalRows: TotalRow[] = [
+      { label: "Subtotal", value: formatCents(totals.subtotalCents) },
+      {
+        label: taxLabel(invoice.taxRate?.name, invoice.taxRateBps),
+        value: formatCents(totals.taxCents),
+      },
+      {
+        label: "Total",
+        value: formatCents(totals.totalCents),
+        size: "large",
+        divider: true,
+        struck: isVoid,
+      },
+    ];
+    if (isVoid) {
+      totalRows.push({
+        label: "Balance due",
+        value: formatCents(Math.max(totals.balanceCents, 0)),
+        struck: true,
+        tone: "muted",
+      });
+    } else {
+      totalRows.push({
+        label: "Paid to date",
+        value: `${totals.paidCents > 0 ? "−" : ""}${formatCents(totals.paidCents)}`,
+        divider: true,
+      });
+      if (hasRefunds) {
+        totalRows.push(
+          { label: "Refunded", value: `+${formatCents(totals.refundedCents)}`, tone: "alert" },
+          { label: "Net paid", value: formatCents(totals.netPaidCents) },
+        );
+      }
+      totalRows.push(
+        settled
+          ? { label: "Balance", value: "Paid in full", size: "large", tone: "good", divider: true }
+          : {
+              label: "Balance due",
+              value: formatCents(totals.balanceCents),
+              size: "large",
+              tone: overdue ? "alert" : undefined,
+              divider: true,
+            },
+      );
+    }
+
+    const billPanel = (
+      <>
+        {unbilledEntries.length > 0 ? (
+          <UnbilledTimeBanner
+            large
+            invoiceId={invoice.id}
+            entryCount={unbilledEntries.length}
+            durationLabel={formatHm(unbilledSeconds)}
+            amountLabel={formatCents(unbilledCents)}
+          />
+        ) : null}
+
+        <Section title="Items">
+          {invoice.lines.length === 0 ? (
+            // A bill with nothing on it cannot be sent or paid, so the way out
+            // is the edit screen.
+            <EmptyLines
+              title="Nothing billed yet"
+              hint="Add the parts, labour and products this invoice covers before you send it."
+              action={
+                canEdit ? (
+                  <Button asChild className="h-12 px-6 text-base">
+                    <Link href={`${basePath}/edit`}>
+                      <ACTIONS.add /> Add line items
+                    </Link>
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <LineList lines={invoice.lines} struck={isVoid} />
+          )}
+        </Section>
+
+        {invoice.lines.length > 0 ? <TotalsBlock rows={totalRows} /> : null}
+
+        <Section
+          title="Payments"
+          action={
+            hasPayments ? (
+              <span className="rf-num rounded-lg bg-surface-hover px-2.5 py-1 text-sm font-semibold text-status-resolved-fg">
+                {formatCents(totals.paidCents)} collected
+              </span>
+            ) : null
+          }
+        >
+          <MoneyRows
+            rows={paymentRows}
+            empty={
+              isVoid
+                ? "This invoice was voided before any money came in."
+                : "Nothing collected yet. Every payment taken against this invoice is listed here, with who took it and when."
+            }
+            footer={
+              canRefund ? (
+                <div className="w-fit [&_[data-slot=button]]:h-12 [&_[data-slot=button]]:px-5 [&_[data-slot=button]]:text-base">
+                  <RefundDialog
+                    action={refundInvoiceAction}
+                    invoiceId={invoice.id}
+                    refundableCents={totals.refundableCents}
+                    payments={refundablePayments}
+                    customerName={customerName}
+                    defaultMethod={paidWithCredit ? "CREDIT" : "CARD"}
+                    size="lg"
+                  />
+                </div>
+              ) : null
+            }
+          />
+        </Section>
+
+        {/* Only once something has been refunded: a permanently empty
+            "Refunds" block on every invoice would be noise. */}
+        {hasRefunds ? (
+          <Section
+            title="Refunds"
+            action={
+              <span className="rf-num rounded-lg bg-destructive-soft px-2.5 py-1 text-sm font-semibold text-destructive">
+                {formatCents(totals.refundedCents)} returned
+              </span>
+            }
+          >
+            <MoneyRows rows={refundRows} />
+          </Section>
+        ) : null}
+
+        {invoice.notes ? (
+          <Section title="Notes">
+            <p className="whitespace-pre-wrap rounded-2xl border border-border bg-surface p-4 text-base leading-relaxed text-muted-foreground">
+              {invoice.notes}
+            </p>
+          </Section>
+        ) : null}
+      </>
+    );
+
+    // ----------------------------------------------------------- Customer tab
+    const credit = invoice.customer.creditBalanceCents;
+    const cardText = savedCard
+      ? `${savedCard.brand} ····${savedCard.last4}${
+          savedCard.expMonth && savedCard.expYear
+            ? ` · expires ${String(savedCard.expMonth).padStart(2, "0")}/${String(savedCard.expYear).slice(-2)}`
+            : ""
+        }${cardExpired(savedCard, new Date(now)) ? " (expired)" : ""}`
+      : null;
+    const telLink = (value: string) => (
+      <a href={`tel:${value}`} className="rf-num text-accent-soft-foreground hover:underline">
+        {value}
+      </a>
+    );
+
+    const customerPanel = (
+      <>
+        <Section title="Customer">
+          <FactList
+            facts={[
+              {
+                label: "Name",
+                value: (
+                  <Link
+                    href={`/customers/${invoice.customer.id}`}
+                    className="text-accent-soft-foreground hover:underline"
+                  >
+                    {customerName}
+                  </Link>
+                ),
+              },
+              ...(invoice.customer.mobile ? [{ label: "Mobile", value: telLink(invoice.customer.mobile) }] : []),
+              ...(invoice.customer.phone ? [{ label: "Phone", value: telLink(invoice.customer.phone) }] : []),
+              {
+                label: "Email",
+                value: invoice.customer.email ? (
+                  <a
+                    href={`mailto:${invoice.customer.email}`}
+                    className="text-accent-soft-foreground hover:underline"
+                  >
+                    {invoice.customer.email}
+                  </a>
+                ) : (
+                  <span className="text-faint-foreground">None on file</span>
+                ),
+              },
+              {
+                label: "Card on file",
+                value: cardText ? (
+                  <span className="capitalize">{cardText}</span>
+                ) : (
+                  <span className="text-faint-foreground">None saved</span>
+                ),
+              },
+            ]}
+          />
+          {credit > 0 ? (
+            <p className="rf-num rounded-2xl bg-accent-soft p-4 text-base font-medium text-accent-soft-foreground">
+              {customerName} holds {formatCents(credit)} in store credit.
+            </p>
+          ) : null}
+        </Section>
+
+        <Section title="This invoice">
+          <FactList
+            facts={[
+              { label: "Issued", value: formatDate(invoice.createdAt) },
+              {
+                label: "Due",
+                value: (
+                  <span className={cn(overdue && "font-semibold text-status-overdue-fg")}>
+                    {invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt"}
+                    {overdue ? " (overdue)" : ""}
+                  </span>
+                ),
+              },
+              ...(invoice.paidAt ? [{ label: "Paid on", value: formatDate(invoice.paidAt) }] : []),
+              {
+                label: "Repair",
+                value: invoice.ticket ? (
+                  <Link
+                    href={`/tickets/${invoice.ticket.id}`}
+                    className="text-accent-soft-foreground hover:underline"
+                  >
+                    #{invoice.ticket.number}
+                    {invoice.ticket.subject ? ` · ${invoice.ticket.subject}` : ""}
+                  </Link>
+                ) : (
+                  "—"
+                ),
+              },
+              ...(invoice.estimate
+                ? [
+                    {
+                      label: "From estimate",
+                      value: (
+                        <Link
+                          href={`/estimates/${invoice.estimate.id}`}
+                          className="text-accent-soft-foreground hover:underline"
+                        >
+                          #{invoice.estimate.number}
+                        </Link>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </Section>
+      </>
+    );
+
+    // ----------------------------------------------------------- Activity tab
+    // Loaded only when the tab is open: the other three never read it.
+    const messages =
+      tab === "activity"
+        ? await db.communicationLog.findMany({
+            where: { shopId, invoiceId: invoice.id },
+            orderBy: { createdAt: "desc" },
+            take: 50,
+            select: {
+              id: true,
+              createdAt: true,
+              type: true,
+              direction: true,
+              to: true,
+              subject: true,
+              status: true,
+            },
+          })
+        : [];
+    const activityPanel = (
+      <Section title="Activity">
+        <ActivityList
+          items={invoiceActivity({
+            createdAt: invoice.createdAt,
+            paidAt: invoice.paidAt,
+            settled,
+            payments: invoice.payments.map((payment) => ({
+              id: payment.id,
+              createdAt: payment.createdAt,
+              amountCents: payment.amountCents,
+              label: paymentLabel(
+                payment.method,
+                payment.reference,
+                payment.stripeSource ?? payment.gatewaySource,
+                payment.gateway,
+              ),
+              takenBy: payment.takenBy?.name ?? null,
+            })),
+            refunds: invoice.refunds.map((refund) => ({
+              id: refund.id,
+              createdAt: refund.createdAt,
+              amountCents: refund.amountCents,
+              reason: refund.reason,
+              failed: refund.status === "failed",
+              takenBy: refund.refundedBy?.name ?? null,
+            })),
+            messages,
+          })}
+        />
+      </Section>
+    );
+
+    // -------------------------------------------------------------- Share tab
+    const sharePanel = (
+      <>
+        <Section
+          title="Customer links"
+          action={
+            onlinePayments ? (
+              <span className="rounded-lg bg-chip-accent-bg px-2.5 py-1 text-sm font-semibold text-chip-accent-fg">
+                Online payments live
+              </span>
+            ) : null
+          }
+        >
+          {isVoid ? (
+            <p className="text-base text-muted-foreground">A voided invoice has nothing to share.</p>
+          ) : (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <p className="text-base leading-snug text-muted-foreground">
+                The view link never expires and opens their page with no sign-in.
+                {canCopyPaymentLink
+                  ? " The payment link is made fresh for the balance as it stands now."
+                  : ""}
+              </p>
+              <ShareRow
+                large
+                viewUrl={viewUrl}
+                payment={
+                  canCopyPaymentLink
+                    ? { invoiceId: invoice.id, action: invoicePaymentLinkAction }
+                    : null
+                }
+              />
+            </div>
+          )}
+        </Section>
+
+        <Section title="Customer signature">
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+            {invoice.signatureDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={invoice.signatureDataUrl}
+                alt={`Signature of ${customerName}`}
+                className="h-28 w-full rounded-xl border border-border bg-white object-contain p-2"
+              />
+            ) : (
+              <p className="text-base text-muted-foreground">Not signed yet.</p>
+            )}
+            {!isVoid ? (
+              <div className="w-fit [&_[data-slot=button]]:h-12 [&_[data-slot=button]]:px-5 [&_[data-slot=button]]:text-base">
+                <SignatureDialog
+                  action={saveInvoiceSignatureAction}
+                  documentId={invoice.id}
+                  title="Collect signature"
+                  description={`Have ${customerName} sign to acknowledge invoice #${invoice.number}.`}
+                  triggerLabel={invoice.signatureDataUrl ? "Re-sign" : "Collect signature"}
+                  triggerSize="lg"
+                />
+              </div>
+            ) : null}
+          </div>
+        </Section>
+      </>
+    );
+
+    const panel =
+      tab === "customer"
+        ? customerPanel
+        : tab === "activity"
+          ? activityPanel
+          : tab === "share"
+            ? sharePanel
+            : billPanel;
+    const pinned = bigAction();
+
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+        <BackLink label="Invoices" href="/invoices" />
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+          {/* The summary is first in the page (and on a phone) and sits in the right
+              column from lg up, so the order a finger or a screen reader meets
+              things in is the order they are read. */}
+          <BillSummary
+            className="lg:col-start-2 lg:row-start-1"
+            title={`Invoice #${invoice.number}`}
+            status={<InvoiceStatusBadge status={invoice.status} size="md" />}
+            customer={{
+              name: customerName,
+              href: `/customers/${invoice.customer.id}`,
+              phone,
+            }}
+            hero={<BalanceHero block={block} />}
+            primary={bigAction()}
+            tiles={tiles}
+            tileCount={tileKeys.length}
+            hint={lastSentHint}
+          />
+
+          <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">
+            <FilterTabs aria-label="Invoice sections" tabs={docTabs(basePath, tab, "Bill")} />
+            {panel}
+          </div>
+        </div>
+
+        {pinned ? (
+          <PinnedAction
+            caption={primary === "pay" && block.figure ? { label: "Balance due", value: block.figure } : null}
+          >
+            {pinned}
+          </PinnedAction>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {fullHeader}
 
       {/* -------------------------------------------------------------- body */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

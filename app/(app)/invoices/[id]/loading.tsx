@@ -1,5 +1,12 @@
-import { DocumentDetailSkeleton } from "@/components/billing/skeletons";
+import { readUiPrefs } from "@/lib/prefs";
+import { BillDetailSkeleton, DocumentDetailSkeleton } from "@/components/billing/skeletons";
 
-export default function InvoiceDetailLoading() {
-  return <DocumentDetailSkeleton header="object" />;
+/**
+ * Easy mode (the default) opens on the POS-style bill, so its grey is the bill's
+ * shape; Full mode keeps the old header-and-aside silhouette. The shell already
+ * reads this same cookie on every request, so reading it here is free.
+ */
+export default async function InvoiceDetailLoading() {
+  const { simple } = await readUiPrefs();
+  return simple ? <BillDetailSkeleton /> : <DocumentDetailSkeleton header="object" />;
 }

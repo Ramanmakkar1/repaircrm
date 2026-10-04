@@ -21,43 +21,26 @@ import { Switch } from "@/components/ui/switch";
 import { createTicketAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE } from "./action-state";
 import { PRIORITIES, PRIORITY_META } from "./ticket-meta";
-import { NewCustomerFields, NewDeviceFields, PromisedTimeField } from "./intake-fields";
+import { NewDeviceFields, PromisedTimeField } from "./intake-fields";
 import { GuidedErrors, GuidedNavigation, GuidedReview, GuidedSteps, useGuidedForm, type GuidedIssue } from "@/components/ui/guided-form";
-import { newCustomerSchema, newDeviceSchema } from "@/lib/intake";
-
-export type Option = { value: string; label: string };
-
-/** A past purchase still under warranty, offered when a claim is flagged. */
-export type WarrantyOption = {
-  value: string;
-  label: string;
-  /** "Invoice #1042 · expires Nov 3" — the line under the description. */
-  hint: string;
-};
+import { CustomerCombobox, type ComboCustomer } from "@/components/customers/customer-combobox";
+import { EntryMode } from "@/components/ui/entry-mode";
+import { newCustomerSchema, newDeviceSchema, repairSubject } from "@/lib/intake";
+import { deviceIntakeProfile } from "@/lib/device-intake";
+import { EasyCheckIn } from "./intake/checkin";
+import type { AssetOption, Option, WarrantyOption } from "./intake/flow";
 
 /**
- * New-ticket intake form.
- *
- * The asset list is narrowed to the chosen customer from a map handed down by
- * the server — one query at page load instead of a fetch on every customer
- * change. Only display-safe asset fields are in that map; `Asset.password`
- * (the device unlock code) never leaves the server.
+ * `Option` is a value and its label. `WarrantyOption` is a past purchase still
+ * under warranty, offered when a claim is flagged ("hint" is the line under it:
+ * "Invoice #1042 · expires Nov 3"). `AssetOption` is a saved device with its
+ * display-safe type, make and model. They live with the Easy-mode check-in.
  */
-export function TicketForm({
-  customers,
-  assetsByCustomer,
-  techs,
-  problemTypes,
-  defaultCustomerId,
-  locations = [],
-  defaultLocationId,
-  checklists = [],
-  warrantiesByCustomer = {},
-  slaHint,
-  simple = false,
-}: {
-  customers: Option[];
-  assetsByCustomer: Record<string, Option[]>;
+export type { AssetOption, Option, WarrantyOption };
+
+export type TicketFormProps = {
+  customers: ComboCustomer[];
+  assetsByCustomer: Record<string, AssetOption[]>;
   techs: Option[];
   problemTypes: string[];
   defaultCustomerId?: string;
@@ -70,22 +53,61 @@ export function TicketForm({
   warrantiesByCustomer?: Record<string, WarrantyOption[]>;
   /** "Due 3 days out at Normal priority" — what an empty date will become. */
   slaHint?: string;
+  /** Easy mode: the POS-style check-in. Off: the full form below. */
   simple?: boolean;
-}) {
+};
+
+/**
+ * New-ticket intake. Easy mode is the step-by-step check-in (components/tickets/intake/);
+ * Full mode is the single form below, unchanged.
+ */
+export function TicketForm({ simple = false, ...props }: TicketFormProps) {
+  return simple ? <EasyCheckIn {...props} /> : <FullTicketForm {...props} />;
+}
+
+/**
+ * The Full-mode intake form.
+ *
+ * The asset list is narrowed to the chosen customer from a map handed down by
+ * the server — one query at page load instead of a fetch on every customer
+ * change. Only display-safe asset fields are in that map; `Asset.password`
+ * (the device unlock code) never leaves the server.
+ */
+function FullTicketForm({
+  customers,
+  assetsByCustomer,
+  techs,
+  problemTypes,
+  defaultCustomerId,
+  locations = [],
+  defaultLocationId,
+  checklists = [],
+  warrantiesByCustomer = {},
+  slaHint,
+}: Omit<TicketFormProps, "simple">) {
+  // Only reached in Full mode (Easy mode has its own check-in above). The
+  // `simple` branches below are the ones Full mode never takes; they are left
+  // in place so this stays the form Full mode has always had.
+  const simple = false;
   const [state, formAction, pending] = useActionState(
     createTicketAction,
     EMPTY_STATE,
   );
 
-  const [customerId, setCustomerId] = React.useState(defaultCustomerId ?? (customers.length ? "" : "__new__"));
-  const [assetId, setAssetId] = React.useState("none");
+  const [guided, setGuided] = React.useState(false);
+  const staged = simple && guided;
+  const [customerId, setCustomerId] = React.useState(defaultCustomerId ?? "");
+  const [assetId, setAssetId] = React.useState(defaultCustomerId && !assetsByCustomer[defaultCustomerId]?.length ? "__new__" : "none");
+  const [problemType, setProblemType] = React.useState("");
+  const [customSubject, setCustomSubject] = React.useState<string | null>(null);
+  const [deviceIdentity, setDeviceIdentity] = React.useState({ type: "Phone", make: "", model: "" });
   const [isWarranty, setIsWarranty] = React.useState(false);
   const [warrantyLineId, setWarrantyLineId] = React.useState("none");
 
   const assets = customerId ? (assetsByCustomer[customerId] ?? []) : [];
   const warranties = customerId ? (warrantiesByCustomer[customerId] ?? []) : [];
 
-  const { bindForm, step: activeStep, issues: guidedIssues, review, goTo, onSubmit, onKeyDown, focusIssue } = useGuidedForm({ enabled: simple, steps: 3, validate(data, step) {
+  const { bindForm, step: activeStep, issues: guidedIssues, review, goTo, onSubmit, onKeyDown, focusIssue } = useGuidedForm({ enabled: simple, staged, steps: 3, validate(data, step) {
     const issues: GuidedIssue[] = [];
     const value = (name: string) => String(data.get(name) ?? "").trim();
     if (step === 0 && !String(data.get("customerId") ?? "").trim()) {
@@ -117,6 +139,20 @@ export function TicketForm({
   } });
   const reviewValue = (name: string) => String(review?.get(name) ?? "");
 
+  const deviceName = assetId === "__new__"
+    ? [deviceIdentity.make, deviceIdentity.model].filter(Boolean).join(" ") || deviceIdentity.type
+    : (assets.find((asset) => asset.value === assetId)?.label.split(" · ")[0] ?? "");
+  const subject = customSubject ?? repairSubject(deviceName, problemType);
+  const commonProblems = assetId === "__new__" ? deviceIntakeProfile(deviceIdentity.type).problems : problemTypes.slice(0, 6);
+  const availableProblems = Array.from(new Set([...commonProblems, ...problemTypes, "Other Repair", ...(problemType ? [problemType] : [])]));
+  function selectCustomer(value: string) {
+    setCustomerId(value);
+    setDeviceIdentity({ type: "Phone", make: "", model: "" });
+    setAssetId(value && !assetsByCustomer[value]?.length ? "__new__" : "none");
+    setWarrantyLineId("none");
+    setIsWarranty(false);
+  }
+
   const deviceField = <Field label="Device" htmlFor="assetId" hint={customerId && assets.length === 0 ? "No devices on file for this customer." : undefined}>
     <Select name="assetId" value={assetId} onValueChange={setAssetId} disabled={!customerId}>
       <SelectTrigger id="assetId"><SelectValue placeholder="No device" /></SelectTrigger>
@@ -129,7 +165,8 @@ export function TicketForm({
 
   return (
     <form ref={bindForm} action={formAction} noValidate={simple} onSubmit={onSubmit} onKeyDown={onKeyDown} onReset={simple ? (event) => event.preventDefault() : undefined} className={simple ? "flex flex-col gap-4" : undefined}>
-      {simple ? <GuidedSteps labels={["Customer", "Device & repair", "Review & save"]} step={activeStep} onStep={goTo} disabled={pending} /> : null}
+      {staged ? <GuidedSteps labels={["Customer", "Device & repair", "Review & save"]} step={activeStep} onStep={goTo} disabled={pending} /> : null}
+      {simple ? <EntryMode guided={guided} onChange={setGuided} disabled={pending} /> : null}
       <Card>
         <CardContent className="flex flex-col gap-4 py-4">
           {state?.error ? (
@@ -141,44 +178,20 @@ export function TicketForm({
             </p>
           ) : null}
 
-          {simple ? <div><h2 data-guided-heading tabIndex={-1} className="text-2xl font-semibold outline-none">{["Who is this repair for?", "What needs repairing?", "Review this repair"][activeStep]}</h2><p className="mt-1 text-sm text-muted-foreground">{["Choose someone on file or add their details here.", "Add the device, problem, and any repair instructions.", "Check the details, then create the repair."][activeStep]}</p></div> : null}
-          <div data-guided-step="0" hidden={simple && activeStep !== 0} className={simple && activeStep !== 0 ? "hidden" : "contents"}>
+          {staged ? <div><h2 data-guided-heading tabIndex={-1} className="text-2xl font-semibold outline-none">{["Who is this repair for?", "What needs repairing?", "Review this repair"][activeStep]}</h2><p className="mt-1 text-sm text-muted-foreground">{["Choose someone on file or add their details here.", "Add the device, problem, and any repair instructions.", "Check the details, then create the repair."][activeStep]}</p></div> : null}
+          <div data-guided-step="0" hidden={staged && activeStep !== 0} className={staged && activeStep !== 0 ? "hidden" : "contents"}>
           <div className={simple ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>
             <Field label="Customer" htmlFor="customerId" required>
-              <Select
-                name="customerId"
-                value={customerId}
-                onValueChange={(value) => {
-                  setCustomerId(value);
-                  // The previous device — and the previous warranty — belong
-                  // to the previous customer.
-                  setAssetId("none");
-                  setWarrantyLineId("none");
-                  setIsWarranty(false);
-                }}
-              >
-                <SelectTrigger id="customerId">
-                  <SelectValue placeholder="Choose a customer…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  <SelectItem value="__new__">+ New customer</SelectItem>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.value} value={customer.value}>
-                      {customer.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerCombobox id="customerId" customers={customers} value={customerId} onChange={selectCustomer} newValue="__new__" invalid={guidedIssues.some((issue) => issue.field === "customerId")} />
             </Field>
 
             {!simple ? deviceField : null}
           </div>
 
-          {customerId === "__new__" ? <NewCustomerFields /> : null}
           </div>
-          <div data-guided-step="1" hidden={simple && activeStep !== 1} className={simple && activeStep !== 1 ? "hidden" : "contents"}>
+          <div data-guided-step="1" hidden={staged && activeStep !== 1} className={staged && activeStep !== 1 ? "hidden" : "contents"}>
           {simple ? deviceField : null}
-          {assetId === "__new__" ? <NewDeviceFields /> : null}
+          {assetId === "__new__" ? <NewDeviceFields key={customerId} onIdentityChange={next => { if (next.type !== deviceIdentity.type) setProblemType(""); setDeviceIdentity(next); }} /> : null}
 
           <div className={simple ? "hidden" : "grid gap-3 sm:grid-cols-2"}>
           {!simple ? <>
@@ -188,25 +201,16 @@ export function TicketForm({
           </> : null}
           </div>
 
-          <Field label={simple ? "Repair summary" : "Subject"} htmlFor="subject" required>
-            <Input
-              id="subject"
-              name="subject"
-              required
-              maxLength={200}
-              placeholder="iPhone 14 Pro — cracked screen, touch dead on left edge"
-            />
-          </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
           <div className={simple ? "sm:col-span-2" : "contents"}>
             <Field label="Problem type" htmlFor="problemType" required>
-              <Select name="problemType" defaultValue={problemTypes[0]}>
+              <Select name="problemType" value={problemType} onValueChange={setProblemType}>
                 <SelectTrigger id="problemType">
                   <SelectValue placeholder="Choose…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {problemTypes.map((type) => (
+                  {availableProblems.map((type) => (
                     <SelectItem key={type} value={type}>
                       {type}
                     </SelectItem>
@@ -214,6 +218,24 @@ export function TicketForm({
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-base font-semibold">What&apos;s wrong?</p>
+            <div role="group" aria-label="Common problems" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {commonProblems.map((type) => <Button key={type} type="button" variant={problemType === type ? "default" : "outline"} className="min-h-16 rounded-xl text-base" aria-pressed={problemType === type} onClick={() => setProblemType(type)}>{type}</Button>)}
+            </div>
+          <Field label="Repair summary" htmlFor="subject" required hint="Filled from the device and problem you choose. Edit it to add specifics.">
+            <Input
+              id="subject"
+              name="subject"
+              value={subject}
+              onChange={(event) => setCustomSubject(event.target.value)}
+              required
+              maxLength={200}
+              placeholder="iPhone 14 Pro — cracked screen, touch dead on left edge"
+            />
+          </Field>
+
           </div>
           <details open={!simple} className={simple ? "rounded-lg border border-border p-4 sm:col-span-2" : "contents"}>
             <summary className={simple ? "flex min-h-12 cursor-pointer items-center text-sm font-semibold" : "hidden"}>More repair details · price, pickup, technician</summary>
@@ -353,9 +375,9 @@ export function TicketForm({
             />
           </Field>
           </div>
-          {simple ? <div data-guided-step="2" hidden={activeStep !== 2} className={activeStep !== 2 ? "hidden" : undefined}>
+          {staged ? <div data-guided-step="2" hidden={activeStep !== 2} className={activeStep !== 2 ? "hidden" : undefined}>
             <GuidedReview className="border-0 px-0" rows={[
-              { label: "Customer", value: customerId === "__new__" ? reviewValue("newCustomerName") : customers.find((customer) => customer.value === customerId)?.label },
+              { label: "Customer", value: customerId === "__new__" ? (reviewValue("newCustomerName") || reviewValue("newCustomerPhone")) : customers.find((customer) => customer.id === customerId)?.label },
               { label: "Device", value: assetId === "__new__" ? [reviewValue("newDeviceType"), reviewValue("newDeviceMake"), reviewValue("newDeviceModel")].filter(Boolean).join(" · ") : assets.find((asset) => asset.value === assetId)?.label ?? "No device attached" },
               { label: "Repair", value: reviewValue("subject") }, { label: "Problem type", value: reviewValue("problemType") },
               { label: "Priority", value: PRIORITY_META[reviewValue("priority") as keyof typeof PRIORITY_META]?.label ?? "Normal" },
@@ -367,20 +389,20 @@ export function TicketForm({
             ]} />
             <p className="mt-3 text-sm text-muted-foreground">You can go back to change anything. Creating this repair saves all the details you entered.</p>
           </div> : null}
-          {simple ? <GuidedErrors issues={guidedIssues} step={activeStep} onFocus={focusIssue} /> : null}
+          {<GuidedErrors issues={guidedIssues} step={staged ? activeStep : undefined} onFocus={focusIssue} />}
         </CardContent>
 
         <CardFooter className={simple ? "block" : "justify-end"}>
-          {simple ? <GuidedNavigation step={activeStep} lastStep={2} onStep={goTo} disabled={pending}>
+          {staged ? <GuidedNavigation step={activeStep} lastStep={2} onStep={goTo} disabled={pending}>
             <Button asChild variant="ghost" className="min-h-12"><Link href="/counter">Cancel</Link></Button>
-            {activeStep === 2 ? <Button type="submit" disabled={pending} className="min-h-12 bg-black px-6 text-white hover:bg-zinc-800"><ACTIONS.add />{pending ? "Creating…" : "Create repair"}</Button> : null}
+            {activeStep === 2 ? <Button type="submit" disabled={pending} className="min-h-12 px-6"><ACTIONS.add />{pending ? "Creating…" : "Create repair"}</Button> : null}
           </GuidedNavigation> : <>
           <Button asChild variant="ghost" size="sm" type="button">
-            <Link href="/tickets">Cancel</Link>
+            <Link href={simple ? "/counter" : "/tickets"}>Cancel</Link>
           </Button>
-          <Button type="submit" size="sm" disabled={pending}>
+          <Button type="submit" size={simple ? "lg" : "sm"} disabled={pending}>
             <ACTIONS.add />
-            {pending ? "Creating…" : "Create ticket"}
+            {pending ? "Creating…" : "Create repair"}
           </Button>
           </>}
         </CardFooter>

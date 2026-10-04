@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { ScanButton } from "@/components/scan/scan-button";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { ACTIONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { resolveScanAction } from "@/app/(app)/scan/actions";
@@ -35,10 +36,15 @@ export function InventoryFilters({
   filter,
   query,
   category,
+  group = "",
+  easy = false,
 }: {
   filter: InventoryFilter;
   query: string;
   category: string;
+  group?: string;
+  /** Easy mode: the search is one large 48px field, like the other list screens. */
+  easy?: boolean;
 }) {
   const router = useRouter();
   const [value, setValue] = React.useState(query);
@@ -61,6 +67,7 @@ export function InventoryFilters({
       if (!next.reset) {
         if (filter !== "all") params.set("filter", filter);
         if (category) params.set("category", category);
+        if (group) params.set("group", group);
       }
       const nextQuery = (next.reset ? "" : (next.q ?? value)).trim();
       if (nextQuery) params.set("q", nextQuery);
@@ -72,7 +79,7 @@ export function InventoryFilters({
         }),
       );
     },
-    [category, filter, router, value],
+    [category, group, filter, router, value],
   );
 
   // Debounced search — typing narrows the table without a round-trip per key.
@@ -82,7 +89,7 @@ export function InventoryFilters({
     return () => clearTimeout(timer);
   }, [value, query, go]);
 
-  const dirty = filter !== "all" || query !== "" || category !== "";
+  const dirty = filter !== "all" || query !== "" || category !== "" || group !== "";
 
   // The search box, then the slot the camera-scan button occupies. A scanned
   // SKU lands in this box, so the scan control belongs immediately to its right
@@ -95,19 +102,19 @@ export function InventoryFilters({
           event.preventDefault();
           go({ q: value });
         }}
-        className="relative min-w-[240px] flex-1 sm:max-w-sm"
+        className={cn("relative min-w-[240px] flex-1", easy ? "sm:max-w-xl" : "sm:max-w-sm")}
         role="search"
       >
-        <ACTIONS.search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+        <ACTIONS.search className={cn("pointer-events-none absolute top-1/2 -translate-y-1/2 text-faint-foreground", easy ? "left-4 size-5" : "left-3 size-4")} />
         <Input
           name="q"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Search name, SKU or UPC…"
           aria-label="Search products"
-          className="pl-9 pr-10"
+          className={easy ? "h-12 rounded-xl pl-12 pr-12 text-base" : "pl-9 pr-10"}
         />
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        <div className={cn("absolute top-1/2 -translate-y-1/2", easy ? "right-2" : "right-3")}>
           {pending ? (
             <Loader2 className="size-4 animate-spin text-faint-foreground" />
           ) : value ? (
@@ -115,9 +122,12 @@ export function InventoryFilters({
               type="button"
               onClick={() => setValue("")}
               aria-label="Clear search"
-              className="flex size-5 items-center justify-center rounded-sm text-faint-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className={cn(
+                "flex items-center justify-center rounded-sm text-faint-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                easy ? "size-10 rounded-xl" : "size-5",
+              )}
             >
-              <ACTIONS.cancel className="size-4" />
+              <ACTIONS.cancel className={easy ? "size-5" : "size-4"} />
             </button>
           ) : null}
         </div>
@@ -149,6 +159,7 @@ export function InventoryFilters({
         <Button
           type="button"
           variant="ghost"
+          className={easy ? "h-12 px-4 text-base" : undefined}
           onClick={() => {
             setValue("");
             go({ reset: true });

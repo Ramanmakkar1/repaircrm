@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { MessageSquareText } from "lucide-react";
 
+import { DetailHero } from "@/components/customers/detail-hero";
+import { sourceLabel } from "@/components/customers/lead-facts";
 import { TicketStatus } from "@/components/customers/status-pill";
 import { LeadActions } from "@/components/leads/lead-actions";
 import {
@@ -21,9 +23,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CopyableId } from "@/components/ui/copyable-id";
 import { ICONS } from "@/components/ui/icons";
 import { ObjectHeader } from "@/components/ui/object-header";
+import { InitialsVisual } from "@/components/ui/record-card";
 import { TBody, THead, Table, Td, Th, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readUiPrefs } from "@/lib/prefs";
 
 export async function generateMetadata({
   params,
@@ -49,7 +53,7 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { id } = await params;
+  const [{ id }, prefs] = await Promise.all([params, readUiPrefs()]);
 
   const lead = await db.lead.findFirst({
     where: { id, shopId },
@@ -76,6 +80,8 @@ export default async function LeadDetailPage({
   const status = asLeadStatus(lead.status);
   const meta = LEAD_STATUS_META[status];
   const isConverted = status === "CONVERTED";
+  // Easy mode (the default) opens with the big header; Full keeps the object header.
+  const easy = prefs.simple;
 
   // Matching and the problem-type list are only needed by the convert dialog —
   // skip both once the lead is already converted.
@@ -86,89 +92,136 @@ export default async function LeadDetailPage({
       : db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
   ]);
 
+  const actions = (
+    <LeadActions
+      lead={{
+        id: lead.id,
+        status: lead.status,
+        values: {
+          name: lead.name,
+          email: lead.email ?? "",
+          phone: lead.phone ?? "",
+          source: lead.source ?? "Other",
+          message: lead.message ?? "",
+        },
+      }}
+      matches={matches}
+      problemTypes={problemTypes(shop?.settings)}
+      defaultSubject={ticketSubjectFromLead(lead)}
+      canDelete={role === "OWNER"}
+    />
+  );
+
+  const convertedTo = lead.customer
+    ? lead.customer.businessName || `${lead.customer.firstName} ${lead.customer.lastName}`.trim()
+    : null;
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      {/*
-        No headline figure: a lead is a name and a phone number, and inventing
-        a number for it would put a zero where the object's identity belongs.
-        `ObjectHeader` promotes the title into the top slot instead, so the
-        page still opens exactly like a ticket or a customer does.
-      */}
-      <ObjectHeader
-        back={{ label: "Leads", href: "/leads" }}
-        title={lead.name}
-        status={<StatusPill tone={meta.tone} label={meta.label} />}
-        id={<CopyableId value={lead.id} label="lead id" />}
-        meta={[
-          {
-            label: "Phone",
-            value: lead.phone ? (
-              <a href={`tel:${lead.phone}`} className="text-foreground hover:underline">
-                {lead.phone}
-              </a>
-            ) : (
-              <span className="text-faint-foreground">Not given</span>
-            ),
-          },
-          {
-            label: "Email",
-            value: lead.email ? (
+      {easy ? (
+        // Easy mode: the same header the customer page has. A big name, the
+        // phone as a large tap-to-call link, the status in words, and the
+        // actions (Convert first, then the rest) beside it; the facts that
+        // used to be a strip of columns are plain label/value pairs.
+        <DetailHero
+          visual={<InitialsVisual name={lead.name} />}
+          title={lead.name}
+          status={<StatusPill tone={meta.tone} label={meta.label} />}
+          phone={lead.phone}
+          contact={
+            lead.email ? (
               <a
                 href={`mailto:${lead.email}`}
-                title={lead.email}
-                className="text-accent-soft-foreground hover:underline"
+                data-touch-control
+                className="inline-flex min-h-12 max-w-full items-center gap-2 text-base font-medium text-accent-soft-foreground hover:underline"
               >
-                {lead.email}
+                <ICONS.email className="size-5 shrink-0" aria-hidden />
+                <span className="truncate">{lead.email}</span>
               </a>
-            ) : (
-              <span className="text-faint-foreground">Not given</span>
-            ),
-          },
-          { label: "Source", value: lead.source ?? "Unknown" },
-          { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
-          { label: "Last touched", value: leadAge(lead.updatedAt) },
-          // The one question a lead exists to answer: did anything come of
-          // it? At a glance here; the table below carries what it became and
-          // what state that record is in now.
-          {
-            label: "Converted",
-            value: lead.customer ? (
-              <Link
-                href={`/customers/${lead.customer.id}`}
-                className="font-medium text-accent-soft-foreground hover:underline"
-              >
-                {lead.customer.businessName ||
-                  `${lead.customer.firstName} ${lead.customer.lastName}`.trim()}
-              </Link>
-            ) : (
-              <span className="text-faint-foreground">Not yet</span>
-            ),
-          },
-        ]}
-        actions={
-          // Same width cap as the ticket and customer headers — see the note
-          // there. `ObjectHeader`'s actions slot cannot wrap on its own.
-          <div className="flex flex-wrap items-center gap-2">
-            <LeadActions
-              lead={{
-                id: lead.id,
-                status: lead.status,
-                values: {
-                  name: lead.name,
-                  email: lead.email ?? "",
-                  phone: lead.phone ?? "",
-                  source: lead.source ?? "Other",
-                  message: lead.message ?? "",
-                },
-              }}
-              matches={matches}
-              problemTypes={problemTypes(shop?.settings)}
-              defaultSubject={ticketSubjectFromLead(lead)}
-              canDelete={role === "OWNER"}
-            />
-          </div>
-        }
-      />
+            ) : !lead.phone ? (
+              <p className="text-base text-muted-foreground">No phone or email given.</p>
+            ) : null
+          }
+          primary={actions}
+          facts={[
+            { label: "Source", value: sourceLabel(lead.source) ?? "Unknown" },
+            { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
+            { label: "Last touched", value: leadAge(lead.updatedAt) },
+            {
+              label: "Became a customer",
+              value: lead.customer && convertedTo ? (
+                <Link href={`/customers/${lead.customer.id}`} className="text-accent-soft-foreground hover:underline">
+                  {convertedTo}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">Not yet</span>
+              ),
+            },
+          ]}
+        />
+      ) : (
+        // No headline figure: a lead is a name and a phone number, and inventing
+        // a number for it would put a zero where the object's identity belongs.
+        // `ObjectHeader` promotes the title into the top slot instead, so the
+        // page still opens exactly like a ticket or a customer does.
+        <ObjectHeader
+          back={{ label: "Leads", href: "/leads" }}
+          title={lead.name}
+          status={<StatusPill tone={meta.tone} label={meta.label} />}
+          id={<CopyableId value={lead.id} label="lead id" />}
+          meta={[
+            {
+              label: "Phone",
+              value: lead.phone ? (
+                <a href={`tel:${lead.phone}`} className="text-foreground hover:underline">
+                  {lead.phone}
+                </a>
+              ) : (
+                <span className="text-faint-foreground">Not given</span>
+              ),
+            },
+            {
+              label: "Email",
+              value: lead.email ? (
+                <a
+                  href={`mailto:${lead.email}`}
+                  title={lead.email}
+                  className="text-accent-soft-foreground hover:underline"
+                >
+                  {lead.email}
+                </a>
+              ) : (
+                <span className="text-faint-foreground">Not given</span>
+              ),
+            },
+            { label: "Source", value: lead.source ?? "Unknown" },
+            { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
+            { label: "Last touched", value: leadAge(lead.updatedAt) },
+            // The one question a lead exists to answer: did anything come of
+            // it? At a glance here; the table below carries what it became and
+            // what state that record is in now.
+            {
+              label: "Converted",
+              value: lead.customer ? (
+                <Link
+                  href={`/customers/${lead.customer.id}`}
+                  className="font-medium text-accent-soft-foreground hover:underline"
+                >
+                  {lead.customer.businessName ||
+                    `${lead.customer.firstName} ${lead.customer.lastName}`.trim()}
+                </Link>
+              ) : (
+                <span className="text-faint-foreground">Not yet</span>
+              ),
+            },
+          ]}
+          actions={
+            // Same width cap as the ticket and customer headers — see the note
+            // there. `ObjectHeader`'s actions slot cannot wrap on its own.
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
+          }
+        />
+      )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/*

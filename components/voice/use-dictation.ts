@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { transcribeAudioAction } from "@/app/(app)/voice/actions";
 import { createVoiceGate } from "@/lib/voice/silence";
+import { speechTranscript } from "@/lib/voice/transcript";
 
 /**
  * Browser dictation with two engines behind one interface.
@@ -69,6 +70,8 @@ export type Dictation = {
   browserSupported: boolean;
   level: number;
   seconds: number;
+  transcript: string;
+  engine: "browser" | "cloud";
   state: DictationState;
   start: () => void;
   stop: () => void;
@@ -78,9 +81,10 @@ export type Dictation = {
 export function useDictation(
   onText: (transcript: string) => void,
   onError?: (message: string) => void,
-  options?: { cloud?: boolean; language?: string },
+  options?: { cloud?: boolean; preferLive?: boolean; language?: string },
 ): Dictation {
-  const cloud = options?.cloud ?? false;
+  const browserSupported = React.useSyncExternalStore(subscribe, () => getRecognitionCtor() !== null, () => false);
+  const cloud = Boolean(options?.cloud && !(options.preferLive && browserSupported));
   const language = options?.language;
 
   // Client-only capability with an SSR snapshot of false — no hydration mismatch.
@@ -93,8 +97,8 @@ export function useDictation(
   const [state, setState] = React.useState<DictationState>("idle");
   const [level, setLevel] = React.useState(0);
   const [seconds, setSeconds] = React.useState(0);
+  const [transcript, setTranscript] = React.useState("");
   const activeRef = React.useRef(false);
-  const browserSupported = React.useSyncExternalStore(subscribe, () => getRecognitionCtor() !== null, () => false);
   React.useEffect(() => {
     activeRef.current = state !== "idle";
     if (state !== "listening") return;
@@ -149,6 +153,7 @@ export function useDictation(
     recorderRef.current = null;
     discardCaptureRef.current = false;
     recognitionRef.current = null;
+    setTranscript("");
     setState("idle");
   }, [stopSilenceMonitor]);
 
@@ -168,33 +173,50 @@ export function useDictation(
     if (!Recognition) return;
 
     const recognition = new Recognition();
+    const capture = ++generation.current;
+    const started = Date.now();
+    let words = "";
+    let failed = false;
     recognition.lang = language || navigator.language || "en-IN";
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim() ?? "";
-      if (transcript) onTextRef.current(transcript);
+      if (capture !== generation.current) return;
+      words = speechTranscript(event.results);
+      setTranscript(words);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => recognition.stop(), Math.max(0, Math.min(2500, 60_000 - (Date.now() - started))));
     };
     recognition.onerror = (event) => {
-      if (event?.error === "no-speech") {
-        setState("idle");
-        return;
-      }
+      if (capture !== generation.current) return;
+      failed = true;
+      if (timer.current) clearTimeout(timer.current);
       fail(
         event?.error === "not-allowed" || event?.error === "service-not-allowed"
           ? MIC_BLOCKED
-          : "Voice input didn't work — you can type it instead.",
+          : event?.error === "no-speech" ? MIC_SILENT : "Live voice didn't work. Try cloud voice or type your request.",
       );
     };
-    recognition.onend = () => setState((current) => (current === "listening" ? "idle" : current));
+    recognition.onend = () => {
+      if (capture !== generation.current) return;
+      if (timer.current) clearTimeout(timer.current);
+      recognitionRef.current = null;
+      activeRef.current = false;
+      setState("idle");
+      // Interim text is visible immediately; the complete utterance is sent once.
+      if (!failed && words) onTextRef.current(words);
+      else if (!failed) onErrorRef.current?.(MIC_SILENT);
+    };
 
     recognitionRef.current = recognition;
     setState("listening");
     try {
       recognition.start();
+      timer.current = setTimeout(() => recognition.stop(), 60_000);
     } catch {
-      setState("idle");
+      recognitionRef.current = null;
+      fail("Live voice didn't start. Try cloud voice or type your request.");
     }
   }, [fail, language]);
 
@@ -314,6 +336,7 @@ export function useDictation(
     activeRef.current = true;
     setLevel(0);
     setSeconds(0);
+    setTranscript("");
     if (cloud) void startCloud();
     else startBrowser();
   }, [cloud, startBrowser, startCloud, state]);
@@ -323,5 +346,5 @@ export function useDictation(
     else recognitionRef.current?.stop();
   }, [cloud]);
 
-  return { supported, browserSupported, state, level, seconds, start, stop, cancel };
+  return { supported, browserSupported, state, level, seconds, transcript, engine: cloud ? "cloud" : "browser", start, stop, cancel };
 }

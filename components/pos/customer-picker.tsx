@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/components/ui/cn";
+import { customerChipInfo } from "./terminal-logic";
 import type { PosCustomer } from "./types";
 
 export function CustomerPicker({
@@ -24,12 +25,15 @@ export function CustomerPicker({
   onCustomerChange,
   disabled,
   ticketNumber,
+  compact = false,
 }: {
   customers: PosCustomer[];
   customerId: string | null;
   onCustomerChange: (id: string | null) => void;
   disabled?: boolean;
   ticketNumber?: number | null;
+  /** One 48px chip ("Walk-in" / the name, tap to change) for the one-screen register. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -65,6 +69,14 @@ export function CustomerPicker({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* --------------------------------- Trigger / Current selection box */}
+      {compact ? (
+        <CustomerChip
+          selected={selected}
+          disabled={disabled}
+          ticketNumber={ticketNumber}
+          onDetach={() => onCustomerChange(null)}
+        />
+      ) : (
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <DialogTrigger asChild>
@@ -73,27 +85,28 @@ export function CustomerPicker({
               variant="outline"
               disabled={disabled}
               className={cn(
-                "h-12 flex-1 justify-between px-3 text-left font-normal transition-colors",
+                "h-16 flex-1 justify-between rounded-xl px-4 text-left font-normal transition-colors",
                 selected
                   ? "border-accent/40 bg-surface-hover/50 hover:bg-surface-hover"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "border-2 border-dashed border-border-strong text-foreground hover:bg-surface-hover",
               )}
-              aria-label="Attach a customer"
+              aria-label={selected ? "Change customer" : "Add customer"}
             >
               <div className="flex min-w-0 items-center gap-2.5">
                 {disabled ? (
                   <Lock className="size-4 shrink-0 text-muted-foreground" />
                 ) : (
-                  <ICONS.customer className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-hover"><ICONS.customer className="size-5 text-foreground" /></span>
                 )}
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-[13.5px] font-medium text-foreground">
-                    {selected ? selected.label : "Walk-in (No customer)"}
+                  <span className="truncate text-base font-semibold text-foreground">
+                    {selected ? selected.label : "Add customer"}
                   </span>
+                  {!selected ? <span className="text-[13px] text-muted-foreground">Optional · walk-in if left empty</span> : null}
                   {selected && (selected.creditBalanceCents > 0 || selected.taxExempt) ? (
                     <span className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
                       {selected.creditBalanceCents > 0 ? (
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="font-semibold text-status-resolved-fg">
                           {formatCents(selected.creditBalanceCents)} credit
                         </span>
                       ) : null}
@@ -101,7 +114,7 @@ export function CustomerPicker({
                         <span>·</span>
                       ) : null}
                       {selected.taxExempt ? (
-                        <span className="font-medium text-amber-600 dark:text-amber-400">
+                        <span className="font-medium text-status-in-progress-fg">
                           Tax exempt
                         </span>
                       ) : null}
@@ -111,8 +124,8 @@ export function CustomerPicker({
               </div>
 
               {!disabled && (
-                <span className="shrink-0 text-[12px] font-medium text-muted-foreground underline-offset-2 group-hover:underline">
-                  {selected ? "Change" : "Attach"}
+                <span className="shrink-0 text-sm font-semibold text-foreground underline-offset-2 group-hover:underline">
+                  {selected ? "Change" : "+ Add"}
                 </span>
               )}
             </Button>
@@ -141,6 +154,7 @@ export function CustomerPicker({
           </p>
         ) : null}
       </div>
+      )}
 
       {/* --------------------------------- Customer search modal */}
       <DialogContent className="max-w-lg">
@@ -235,12 +249,12 @@ export function CustomerPicker({
                               {c.label}
                             </span>
                             {c.creditBalanceCents > 0 ? (
-                              <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11.5px] font-semibold text-status-resolved-fg">
                                 {formatCents(c.creditBalanceCents)} credit
                               </span>
                             ) : null}
                             {c.taxExempt ? (
-                              <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11.5px] font-medium text-amber-600 dark:text-amber-400">
+                              <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11.5px] font-medium text-status-in-progress-fg">
                                 Tax exempt
                               </span>
                             ) : null}
@@ -284,5 +298,92 @@ export function CustomerPicker({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The cart header's customer chip: the name (or "Walk-in"), what tapping does,
+ * and a detach button. A long name is cut with an ellipsis and stays readable
+ * in full through the tooltip and the dialog it opens.
+ */
+function CustomerChip({
+  selected,
+  disabled,
+  ticketNumber,
+  onDetach,
+}: {
+  selected: PosCustomer | null;
+  disabled?: boolean;
+  ticketNumber?: number | null;
+  onDetach: () => void;
+}) {
+  const info = customerChipInfo(selected);
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <DialogTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            aria-label={selected ? "Change customer" : "Add customer"}
+            title={selected ? selected.label : undefined}
+            className={cn(
+              "h-12 min-w-0 flex-1 justify-between gap-3 rounded-xl px-3 text-left font-normal",
+              info.walkIn ? "border-dashed" : "bg-surface-hover/50",
+            )}
+          >
+            <span className="flex min-w-0 items-center gap-2.5">
+              {disabled ? (
+                <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              ) : (
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-surface-hover">
+                  <ICONS.customer className="size-4 text-foreground" aria-hidden />
+                </span>
+              )}
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate text-[15px] font-semibold leading-tight text-foreground">
+                  {info.name}
+                </span>
+                {info.facts.length > 0 ? (
+                  <span className="truncate text-[12px] leading-tight text-muted-foreground">
+                    {info.facts.join(" · ")}
+                  </span>
+                ) : null}
+              </span>
+            </span>
+            {disabled ? null : (
+              <span className="shrink-0 text-[13px] font-semibold text-accent-soft-foreground">
+                {selected ? "Change" : "Add customer"}
+              </span>
+            )}
+          </Button>
+        </DialogTrigger>
+
+        {selected && !disabled ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-12 shrink-0 text-muted-foreground hover:text-foreground"
+            title="Detach customer (switch to Walk-in)"
+            onClick={onDetach}
+          >
+            <X className="size-4" aria-hidden />
+            <span className="sr-only">Switch to walk-in</span>
+          </Button>
+        ) : null}
+      </div>
+
+      {disabled && ticketNumber ? (
+        // One line on the tablet register, where every pixel of height goes to the
+        // lines: the "Remove" button sits in the repair's header right below, so the
+        // rest of the sentence is kept for screen readers there.
+        <p className="text-[12px] leading-snug text-muted-foreground">
+          The customer is set by repair #{ticketNumber}.
+          <span className="lg:sr-only"> Remove the repair to change it.</span>
+        </p>
+      ) : null}
+    </div>
   );
 }

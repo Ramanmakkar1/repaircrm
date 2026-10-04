@@ -2,17 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Globe, Loader2, Phone } from "lucide-react";
-import { toast } from "sonner";
+import { Globe, Phone } from "lucide-react";
 
-import { setVendorActiveAction } from "@/app/(app)/inventory/vendors/actions";
 import { StatusPill } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip, IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
-import { VendorDialog, type VendorFormValues } from "./vendor-dialog";
+import { ICONS } from "@/components/ui/icons";
+import { VendorActions } from "./vendor-actions";
+import type { VendorFormValues } from "./vendor-dialog";
 
 export type VendorCardData = VendorFormValues & {
   productCount: number;
@@ -28,21 +26,6 @@ export type VendorCardData = VendorFormValues & {
  * because their purchase orders are the shop's buying history.
  */
 export function VendorCard({ vendor }: { vendor: VendorCardData }) {
-  const [pending, startTransition] = React.useTransition();
-
-  const toggleActive = () => {
-    startTransition(async () => {
-      const result = await setVendorActiveAction(vendor.id, !vendor.active);
-      if (result.error) toast.error(result.error);
-      else
-        toast.success(
-          vendor.active
-            ? `${vendor.name} deactivated.`
-            : `${vendor.name} reactivated.`,
-        );
-    });
-  };
-
   return (
     <Card
       interactive
@@ -105,36 +88,7 @@ export function VendorCard({ vendor }: { vendor: VendorCardData }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <VendorDialog
-          vendor={vendor}
-          trigger={
-            <Button variant="outline" size="sm" className="flex-1">
-              <ACTIONS.edit className="size-4" />
-              Edit
-            </Button>
-          }
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={pending}
-          onClick={toggleActive}
-          className={cn(
-            "flex-1",
-            vendor.active
-              ? "text-faint-foreground hover:text-destructive"
-              : "text-accent-soft-foreground",
-          )}
-        >
-          {pending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : vendor.active ? (
-            <ACTIONS.archive className="size-4" />
-          ) : (
-            <ACTIONS.retry className="size-4" />
-          )}
-          {vendor.active ? "Deactivate" : "Reactivate"}
-        </Button>
+        <VendorActions vendor={vendor} />
       </div>
     </Card>
   );

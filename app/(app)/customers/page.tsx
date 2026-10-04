@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
+import { BigPager } from "@/components/customers/big-pager";
+import { CustomerCards } from "@/components/customers/customer-cards";
 import { CustomerSearch } from "@/components/customers/customer-search";
-import { formatDate, plural } from "@/components/customers/format";
+import { formatDate, fullName, plural } from "@/components/customers/format";
 import { RowLink } from "@/components/list/row-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,10 +18,14 @@ import { requireUser } from "@/lib/auth";
 import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { formatCents, invoiceTotals } from "@/lib/money";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Customers · Repairs helper" };
 
 const PAGE_SIZE = 25;
+
+/** Easy mode buttons: 48px tall, 16px text. */
+const BIG_BUTTON = "h-12 px-6 text-base";
 
 /** Ticket statuses that mean "no longer on the bench". */
 const CLOSED_TICKET_STATUSES = [
@@ -42,7 +48,9 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const params = await searchParams;
+  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  // Easy mode (the default) is a wall of big customer cards; Full mode keeps the ledger.
+  const easy = prefs.simple;
 
   // Front desk keeps the customer book, so they get the importer too; a tech
   // has no reason to bulk-load customers.
@@ -80,7 +88,7 @@ export default async function CustomersPage({
 
   // Two lean roll-ups over just the 25 rows on screen, rather than a per-row
   // include that would fan out into 25+ queries.
-  const [openTicketRows, owingInvoices] = await Promise.all([
+  const [openTicketRows, owingInvoices, lastVisitRows] = await Promise.all([
     ids.length
       ? db.ticket.groupBy({
           by: ["customerId"],
@@ -107,7 +115,19 @@ export default async function CustomersPage({
           },
         })
       : Promise.resolve([]),
+    // "Last visit Sep 30" on the Easy cards: the newest repair each person
+    // brought in. Only the Easy list shows it, so the ledger never pays for it.
+    easy && ids.length
+      ? db.ticket.groupBy({
+          by: ["customerId"],
+          where: { shopId, customerId: { in: ids } },
+          _max: { createdAt: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const lastVisits = new Map<string, Date | null>();
+  for (const row of lastVisitRows) lastVisits.set(row.customerId, row._max.createdAt);
 
   const openTickets = new Map<string, number>();
   for (const row of openTicketRows) openTickets.set(row.customerId, row._count._all);
@@ -129,6 +149,90 @@ export default async function CustomersPage({
 
   const firstRow = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastRow = Math.min(page * PAGE_SIZE, total);
+
+  if (easy) {
+    return (
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+        <PageHeader
+          title="Customers"
+          description="Find someone by name or phone, or add a new customer."
+          actions={
+            <Button size="lg" className={BIG_BUTTON} asChild>
+              <Link href="/customers/new">
+                <ACTIONS.add />
+                Add customer
+              </Link>
+            </Button>
+          }
+        />
+
+        <CustomerSearch query={query} large />
+
+        {customers.length === 0 ? (
+          <div className="rounded-2xl border border-border bg-surface">
+            <EmptyState
+              icon={ICONS.customer}
+              title={query ? "No customer found" : "No customers yet"}
+              hint={
+                query
+                  ? `Nothing matches “${query}”. Check the spelling, or try just the last digits of their phone.`
+                  : "Add your first customer to start writing repairs."
+              }
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {query ? (
+                    <Button variant="outline" size="lg" className={BIG_BUTTON} asChild>
+                      <Link href="/customers">Clear search</Link>
+                    </Button>
+                  ) : null}
+                  <Button size="lg" className={BIG_BUTTON} asChild>
+                    <Link href="/customers/new">
+                      <ACTIONS.add />
+                      Add customer
+                    </Link>
+                  </Button>
+                </div>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <CustomerCards
+              rows={customers.map((customer) => ({
+                id: customer.id,
+                name: fullName(customer),
+                businessName: customer.businessName,
+                email: customer.email,
+                phone: customer.phone,
+                mobile: customer.mobile,
+                openRepairs: openTickets.get(customer.id) ?? 0,
+                owedCents: balances.get(customer.id) ?? 0,
+                lastVisit: lastVisits.get(customer.id) ?? null,
+              }))}
+            />
+            <BigPager
+              page={page}
+              pageCount={pageCount}
+              previousHref={pageHref(query, page - 1)}
+              nextHref={pageHref(query, page + 1)}
+              summary={`${firstRow}–${lastRow} of ${plural(total, "customer")}`}
+            />
+          </>
+        )}
+
+        {canImport ? (
+          <div className="flex justify-center">
+            <Button variant="ghost" asChild>
+              <Link href="/customers/import">
+                <ICONS.importData />
+                Import customers from a spreadsheet
+              </Link>
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">

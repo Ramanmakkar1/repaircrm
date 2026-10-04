@@ -2,10 +2,13 @@
  * TypeSafe's Jev — a "System One" model that answers typed questions (pick one
  * option, yes/no, a level) with probabilities, instead of generating text.
  *
- *   TYPESAFE_API_KEY    turns it on (server-side only, never sent to a browser)
+ *   TYPESAFE_API_KEY    makes Jev available (server-side only, never sent to a browser)
  *   TYPESAFE_MODEL      default "jev-latest"
  *   TYPESAFE_API_BASE   default "https://api.typesafe.ai" (tests point it at a fake)
- *   ASSISTANT_ROUTER    "off" keeps the key but stops the assistant using Jev
+ *   ASSISTANT_ROUTER    "jev" asks Jev first even when a text AI provider (AI_DRIVER)
+ *                       is configured; "off" never uses Jev, even as the fallback,
+ *                       and keeps the key; unset uses Jev only when no text
+ *                       provider is configured (see interpretCommand)
  *
  * Plain `fetch`, no SDK, like every other provider in this app: the SDK needs
  * Node 20 APIs, and this code also runs on Cloudflare Workers.
@@ -34,6 +37,7 @@ export type JevResult =
 
 const TIMEOUT_MS = 8_000;
 
+/** Key set and not switched off. Whether a command is sent to Jev also depends on ASSISTANT_ROUTER=jev or the lack of a text provider. */
 export function jevConfigured(): boolean {
   return (
     Boolean(process.env.TYPESAFE_API_KEY?.trim()) &&

@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ACTIONS } from "@/components/ui/icons";
 import { quickAddProductAction } from "@/app/(app)/inventory/actions";
+import { ProductPicturePicker } from "./image-picker";
 import { VoiceCapture } from "./voice-capture";
 import { PhotoIdentify } from "./photo-identify";
 import type { VoiceProductFields } from "@/app/(app)/inventory/voice-actions";
@@ -31,6 +32,10 @@ import type { VoiceProductFields } from "@/app/(app)/inventory/voice-actions";
  * spoken sentence. It stays open after a save and clears itself, so a stock
  * delivery can be rattled in one item after another; the full form is one click
  * away for the times a product really needs vendors, warranty or serials.
+ *
+ * A thumbnail under the name follows what is typed (the picture is found from
+ * the name) and opens the picture window on a tap. It posts "catalogImage": the
+ * chosen picture's key, or "" for "pick it from the name".
  *
  * Fields are controlled so voice can populate them and a server-side field error
  * can render without wiping what's there. Submit goes through a transition (not
@@ -58,6 +63,8 @@ export function QuickAddProduct({
   const [price, setPrice] = React.useState("");
   const [quantity, setQuantity] = React.useState("");
   const [category, setCategory] = React.useState("");
+  /** The picture chosen on purpose ("" = pick it from the name). */
+  const [catalogImage, setCatalogImage] = React.useState("");
 
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -68,6 +75,7 @@ export function QuickAddProduct({
     setPrice("");
     setQuantity("");
     setCategory("");
+    setCatalogImage("");
     setFieldErrors({});
     setFormError(null);
   }, []);
@@ -79,6 +87,8 @@ export function QuickAddProduct({
 
   function fillFromVoice(fields: VoiceProductFields) {
     setName(fields.name);
+    // A new item: a picture chosen for the last one no longer applies.
+    setCatalogImage("");
     if (fields.category != null) setCategory(fields.category);
     if (fields.price != null) setPrice(fields.price);
     if (fields.quantity != null) setQuantity(fields.quantity);
@@ -94,8 +104,10 @@ export function QuickAddProduct({
     formData.set("price", price.trim());
     formData.set("stockQty", quantity.trim());
     formData.set("category", category.trim());
+    formData.set("catalogImage", catalogImage);
 
     startTransition(async () => {
+      try {
       const result = await quickAddProductAction(undefined, formData);
       if (result?.ok) {
         toast.success(`Added ${result.name} · ${result.sku}`);
@@ -107,6 +119,7 @@ export function QuickAddProduct({
         setFieldErrors(result.fieldErrors ?? {});
         setFormError(result.error ?? "Couldn't add the product.");
       }
+      } catch { setFormError("Couldn't save this item. Your details are still here; try again."); }
     });
   }
 
@@ -173,10 +186,12 @@ export function QuickAddProduct({
             ) : null}
           </div>
 
+          <ProductPicturePicker compact name={name} category={category.trim() || null} value={catalogImage} onChange={setCatalogImage} />
+
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="qa-price">
-                Price<span className="ml-0.5 text-destructive">*</span>
+                Selling price<span className="ml-0.5 text-destructive">*</span>
               </Label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-faint-foreground">
@@ -211,10 +226,13 @@ export function QuickAddProduct({
                 min={0}
                 placeholder="0"
                 className="tabular-nums"
+                aria-invalid={Boolean(fieldErrors.stockQty)}
               />
+              {fieldErrors.stockQty ? <p className="text-sm text-destructive">{fieldErrors.stockQty}</p> : null}
             </div>
           </div>
 
+          <details><summary className="flex min-h-12 cursor-pointer items-center text-sm font-medium">Category · optional</summary>
           <div className="flex flex-col gap-2">
             <Label htmlFor="qa-category">Category</Label>
             <Input
@@ -225,6 +243,7 @@ export function QuickAddProduct({
             />
           </div>
 
+          </details>
           <DialogFooter className="flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             <Link
               href="/inventory/new"
@@ -233,7 +252,7 @@ export function QuickAddProduct({
               Need more fields? Full form →
             </Link>
             <Button type="submit" disabled={!canSubmit} aria-busy={pending}>
-              {pending ? "Adding…" : "Add product"}
+              {pending ? "Adding…" : "Add & next item"}
             </Button>
           </DialogFooter>
         </form>

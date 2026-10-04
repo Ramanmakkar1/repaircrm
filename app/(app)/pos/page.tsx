@@ -2,19 +2,20 @@ import { format } from "date-fns";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { readUiPrefs } from "@/lib/prefs";
 import { newRecordLocationId } from "@/lib/location";
 import { paymentsLive, readTerminalLocationId, stripeTestMode } from "@/lib/payments";
 import { readCardMachine } from "@/lib/payments/card-machine";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
+import { DrawerChip } from "@/components/pos/drawer-chip";
 import { DrawerStrip } from "@/components/pos/drawer-strip";
 import { Register } from "@/components/pos/register";
 import { customerLabel } from "@/components/billing/queries";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import type { PosProduct, PosTicket } from "@/components/pos/types";
 import { resolveTaxRate } from "@/lib/tax";
-import { readUiPrefs } from "@/lib/prefs";
 
-export const metadata = { title: "POS · Repairs helper" };
+export const metadata = { title: "Sell · Repairs helper" };
 
 // The register reads live stock and prices; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -27,8 +28,10 @@ export const dynamic = "force-dynamic";
  * product tile. The only server round-trip in a sale is the checkout itself.
  */
 export default async function PosPage() {
-  const { shopId, userId, role } = await requireUser();
-  const prefs = await readUiPrefs();
+  const [{ shopId, userId, role }, prefs] = await Promise.all([requireUser(), readUiPrefs()]);
+  // Easy mode is the one-screen register with a drawer chip in its toolbar;
+  // Full mode keeps the page and the drawer strip as they were.
+  const simple = prefs.simple;
   // The branch this till is standing in. Resolved before the queries because
   // the drawer session is scoped to it.
   const drawerLocationId = await newRecordLocationId(shopId, userId);
@@ -47,6 +50,7 @@ export default async function PosPage() {
           sku: true,
           upc: true,
           category: true,
+          catalogImage: true,
           lowStockAt: true,
           serialized: true,
           attachments: {
@@ -183,9 +187,20 @@ export default async function PosPage() {
     imageUrl: attachments[0] ? `/files/${attachments[0].id}` : null,
   }));
 
+  const openDrawer = drawer
+    ? {
+        id: drawer.id,
+        // Formatted here rather than in the strip: see OpenDrawer.
+        openedAtLabel: format(drawer.openedAt, "h:mm a"),
+        openedByName: drawer.openedBy.name,
+        openingCents: drawer.openingCents,
+      }
+    : null;
+  const DrawerView = simple ? DrawerChip : DrawerStrip;
+
   return (
     <Register
-      simple={prefs.simple}
+      simple={simple}
       products={posProducts}
       customers={customerRows.map((c) => {
         // The rate each customer resolves to, so attaching them at the counter
@@ -222,21 +237,7 @@ export default async function PosPage() {
       drawer={
         // Keyed because this element crosses the server/client boundary as a
         // prop: React re-validates it on the client and warns without one.
-        <DrawerStrip
-          key="drawer"
-          isOwner={role === "OWNER"}
-          drawer={
-            drawer
-              ? {
-                  id: drawer.id,
-                  // Formatted here rather than in the strip: see OpenDrawer.
-                  openedAtLabel: format(drawer.openedAt, "h:mm a"),
-                  openedByName: drawer.openedBy.name,
-                  openingCents: drawer.openingCents,
-                }
-              : null
-          }
-        />
+        <DrawerView key="drawer" isOwner={role === "OWNER"} drawer={openDrawer} />
       }
     />
   );

@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/components/ui/cn";
+import { TILE_CLASS } from "./tile-style";
 import {
   channelBlockedReason,
   smsSegments,
@@ -67,14 +68,28 @@ export function SendDocumentDialog({
   previewAction,
   sendAction,
   size,
+  appearance = "default",
 }: {
   doc: SendDocument;
   previewAction: (input: SendRequest) => Promise<SendPreviewState>;
   sendAction: (input: SendRequest) => Promise<SendResultState>;
   /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
   size?: ButtonProps["size"];
+  /**
+   * Easy mode's detail header: `primary` is the one big black button, `secondary`
+   * is the same split button as an outline beside it. `default` is unchanged.
+   *
+   * On the POS-style bill screen: `big` is the 56px full-width black split
+   * button, and `tiles` is two quick tiles, "Send again" and "Message", that
+   * open this same dialog (the message one on the text channel). The dialog,
+   * the preview and the send are the same for every appearance.
+   */
+  appearance?: "default" | "primary" | "secondary" | "big" | "tiles";
 }) {
   const router = useRouter();
+  const big = appearance !== "default";
+  const hero = appearance === "big";
+  const variant = appearance === "secondary" ? "outline" : "default";
 
   const emailBlocked = channelBlockedReason("EMAIL", doc);
   const smsBlocked = channelBlockedReason("SMS", doc);
@@ -183,11 +198,46 @@ export function SendDocumentDialog({
   return (
     <>
       {/* ------------------------------------------------------- trigger */}
-      <div className="flex flex-col items-start gap-1">
-        <div className="flex items-stretch">
+      {appearance === "tiles" ? (
+        <>
+          <button
+            type="button"
+            className={TILE_CLASS}
+            onClick={() => openWith({ email: !emailBlocked, sms: Boolean(emailBlocked) })}
+          >
+            <ACTIONS.send aria-hidden />
+            {doc.alreadySent ? "Send again" : "Send"}
+          </button>
+          {/* Opens on the text channel. A customer who cannot be texted lands on
+              the dialog's own row saying why, in words, rather than a dead tile. */}
+          <button
+            type="button"
+            className={TILE_CLASS}
+            aria-label={`Message ${doc.customerName}`}
+            onClick={() => openWith({ email: false, sms: true })}
+          >
+            <ICONS.message aria-hidden />
+            Message
+          </button>
+        </>
+      ) : (
+      <div
+        className={cn(
+          "flex flex-col items-start gap-1",
+          appearance === "primary" && "max-sm:w-full",
+          hero && "w-full",
+        )}
+      >
+        <div className={cn("flex items-stretch", appearance === "primary" && "max-sm:w-full", hero && "w-full")}>
           <Button
             size={size}
-            className="rounded-r-none"
+            variant={variant}
+            className={cn(
+              "rounded-r-none",
+              big && "h-12 px-6 text-base",
+              appearance === "primary" && "max-sm:flex-1",
+              hero && "h-14 flex-1 px-6 text-lg [&_svg]:size-5",
+            )}
             onClick={() =>
               openWith({ email: !emailBlocked, sms: Boolean(emailBlocked) })
             }
@@ -200,13 +250,22 @@ export function SendDocumentDialog({
             <DropdownMenuTrigger asChild>
               <Button
                 size={size}
-                className="rounded-l-none border-l border-accent-foreground/25 px-2"
+                variant={variant}
+                className={cn(
+                  "rounded-l-none px-2",
+                  appearance === "secondary" ? "-ml-px" : "border-l border-accent-foreground/25",
+                  big && "h-12 px-3",
+                  hero && "h-14 px-4",
+                )}
                 aria-label="More send options"
               >
                 <ChevronDown className="size-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              className={cn(big && "[&_[role=menuitem]]:min-h-12 [&_[role=menuitem]]:text-base")}
+            >
               <DropdownMenuLabel>Send {doc.label}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -240,11 +299,19 @@ export function SendDocumentDialog({
         {/* The history hint. Absent rather than "Never sent" — an empty line
             says the same thing without spending a row on it. */}
         {doc.lastSentHint ? (
-          <span className="pl-0.5 text-[12px] leading-none text-muted-foreground">
+          <span
+            className={cn(
+              "pl-0.5 text-muted-foreground",
+              // In the big header the hint wraps under the buttons at their width
+              // instead of stretching the whole action row to fit one long line.
+              big ? "w-0 min-w-full text-[13px] leading-snug" : "text-[12px] leading-none",
+            )}
+          >
             {doc.lastSentHint}
           </span>
         ) : null}
       </div>
+      )}
 
       {/* -------------------------------------------------------- dialog */}
       <Dialog open={open} onOpenChange={(next) => !sending && setOpen(next)}>
@@ -453,25 +520,32 @@ function ChannelRow({
 }) {
   const id = `send-channel-${label.toLowerCase()}`;
   return (
-    <div className="flex items-start gap-3">
+    // The whole row is the label for the box, so a finger anywhere on it ticks
+    // it: a 20px checkbox on its own is not a target for a counter tablet.
+    <label
+      htmlFor={id}
+      className={cn(
+        "flex min-h-14 items-start gap-3 rounded-xl border border-border bg-surface p-3",
+        blocked ? "cursor-not-allowed" : "cursor-pointer hover:bg-surface-hover",
+      )}
+    >
       <Checkbox
         id={id}
         checked={checked}
         disabled={Boolean(blocked)}
         onCheckedChange={(value) => onChange(value === true)}
-        className="mt-0.5"
+        className="mt-0.5 size-6"
       />
       <div className="flex min-w-0 flex-col gap-1">
-        <Label
-          htmlFor={id}
+        <span
           className={cn(
-            "flex items-center gap-2",
+            "flex items-center gap-2 text-sm font-medium leading-none",
             blocked && "text-muted-foreground",
           )}
         >
           <Icon className="size-4 text-muted-foreground" />
           {label}
-        </Label>
+        </span>
         {/* The address is a chip so it reads as a destination, not a caption. */}
         {address ? (
           <span className="w-fit truncate rounded-md bg-surface-hover px-2 py-0.5 text-[12.5px] font-medium text-foreground">
@@ -484,7 +558,7 @@ function ChannelRow({
           </span>
         ) : null}
       </div>
-    </div>
+    </label>
   );
 }
 

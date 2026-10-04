@@ -4,6 +4,7 @@ import { readUiPrefs } from "@/lib/prefs";
 import { PageHeader } from "@/components/ui/page-header";
 import { DocumentForm } from "@/components/billing/document-form";
 import { loadDocumentFormData } from "@/components/billing/queries";
+import { loadOpenRepairs, loadRecentCustomerIds } from "@/components/billing/bill/server";
 import { createInvoiceAction } from "../actions";
 
 export const metadata = { title: "New invoice · Repairs helper" };
@@ -41,14 +42,31 @@ export default async function NewInvoicePage({
       : null,
   ]);
 
+  // Easy mode is a bill builder (choices left, "This invoice" right) and needs the width. It also
+  // offers the few people billed last and the customer's open repairs; Full mode needs neither.
+  const [recentCustomerIds, repairs] = uiPrefs.simple
+    ? await Promise.all([
+        loadRecentCustomerIds(shopId, "invoice"),
+        loadOpenRepairs(shopId, prefillTicket?.id),
+      ])
+    : [undefined, undefined];
+
+  // Easy mode hands the title to the builder, which draws it at the top of the choices so that
+  // "This invoice" can start at the very top of the page; Full mode keeps it above the form.
+  const header = (
+    <PageHeader
+      breadcrumbs={uiPrefs.simple ? [{ label: "Invoices", href: "/invoices" }, { label: "New invoice" }] : undefined}
+      title="New invoice"
+      description={uiPrefs.simple ? undefined : "Add line items, then save as a draft you can review before sending."}
+    />
+  );
+
   return (
-    <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-3xl flex-col gap-4" : "flex flex-col"}>
-      <PageHeader
-        title="New invoice"
-        description="Add line items, then save as a draft you can review before sending."
-      />
+    <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-6xl flex-col gap-4" : "flex flex-col"}>
+      {uiPrefs.simple ? null : header}
       <DocumentForm
         simple={uiPrefs.simple}
+        header={uiPrefs.simple ? header : undefined}
         kind="invoice"
         action={createInvoiceAction}
         customers={customers}
@@ -59,6 +77,8 @@ export default async function NewInvoicePage({
           customerId: prefillCustomer?.id ?? prefillTicket?.customerId ?? null,
           ticketId: prefillTicket?.id ?? null,
         }}
+        repairs={repairs}
+        recentCustomerIds={recentCustomerIds}
         submitLabel="Create invoice"
         cancelHref="/invoices"
       />

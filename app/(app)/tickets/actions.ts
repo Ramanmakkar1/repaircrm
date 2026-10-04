@@ -37,6 +37,7 @@ import {
 } from "@/components/tickets/part-meta";
 import type { ActionState } from "@/components/tickets/action-state";
 import { newCustomerSchema, newDeviceSchema, splitCustomerName, promisedDate } from "@/lib/intake";
+import { samePhoneClause } from "@/lib/customers/phone-search";
 
 /**
  * Every action here re-reads the session and verifies the target row belongs to
@@ -231,7 +232,9 @@ export async function createTicketAction(
   if (newCustomer?.success) {
     const matches: Prisma.CustomerWhereInput[] = [];
     if (newCustomer.data.email) matches.push({ email: { equals: newCustomer.data.email, mode: "insensitive" } });
-    if (newCustomer.data.phone) matches.push({ phone: newCustomer.data.phone }, { mobile: newCustomer.data.phone });
+    // Same last-seven-digits match as estimates, invoices and appointments, so
+    // "780-555-0142" finds "(780) 555-0142".
+    matches.push(...(await samePhoneClause(shopId, newCustomer.data.phone)));
     const duplicate = matches.length ? await db.customer.findFirst({ where: { shopId, OR: matches }, select: { firstName: true, lastName: true } }) : null;
     if (duplicate) return { error: `This contact matches ${duplicate.firstName} ${duplicate.lastName}. Select that existing customer to avoid a duplicate.` };
   }
@@ -297,7 +300,7 @@ export async function createTicketAction(
 
   const ticket = await withNextNumber(shopId, "ticket", (number) => db.$transaction(async tx => {
     if (newCustomer?.success) {
-      const created = await tx.customer.create({ data: { shopId, ...splitCustomerName(newCustomer.data.name), email: newCustomer.data.email || null, phone: newCustomer.data.phone || null, mobile: newCustomer.data.phone || null,
+      const created = await tx.customer.create({ data: { shopId, ...splitCustomerName(newCustomer.data.name, newCustomer.data.phone), email: newCustomer.data.email || null, phone: newCustomer.data.phone || null, mobile: newCustomer.data.phone || null,
         // Same defaults as every other way a customer is added (the customer
         // form, public check-in): repair emails on, texts only with a yes and a
         // number. Both used to be hard-coded false here, which silently cut

@@ -32,7 +32,7 @@ export type ReceiptAction = (
 ) => Promise<{ ok: boolean; message: string }>;
 
 /** Shared by both surfaces so the toast wording cannot drift. */
-async function runReceipt(invoiceId: string, action: ReceiptAction) {
+export async function runReceipt(invoiceId: string, action: ReceiptAction) {
   const result = await action(invoiceId);
   if (result.ok) toast.success(result.message);
   else toast.warning(result.message);

@@ -2,6 +2,24 @@
 
 Reviewed September 21, 2026, using the user's Chrome browser and the current RepairPilot working tree.
 
+> Historical snapshot from September 21, 2026; hosting has since moved to the VPS -
+> see [README.md "Production hosting"](../README.md#production-hosting) and
+> [ops/README.md](../ops/README.md). The live-site observations below describe the
+> retired Cloudflare test deployment.
+
+## Findings that are no longer true (checked in code on October 3, 2026)
+
+- **New Ticket fails for an empty shop** (priority 1 row and "New Ticket failure
+  reproduced" below): `app/(app)/tickets/new/page.tsx` no longer calls `notFound()`.
+  The page renders when a shop has no customers, and `components/tickets/ticket-form.tsx`
+  offers new-customer and new-device entry inline.
+- **Device passcode is not cleared on pickup** ("Passcode retention" row and
+  suggested sequence): `markPickedUpAction` in `app/(app)/tickets/actions.ts` now
+  clears the asset's stored device passcode (`Asset.password`) when no other open
+  repair uses that device.
+
+The remaining findings were not re-checked.
+
 ## Conclusion
 
 CoreHub's clearest advantage is a focused front-counter workflow: enter a walk-in repair in one form, see the repair stages together, and reach customer messages directly. RepairPilot already has substantial repair, inventory, billing, and automation functionality. Its best next investment is reducing the steps between those features, followed by filling specific retail and intake gaps.

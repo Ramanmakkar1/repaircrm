@@ -34,6 +34,9 @@ export type ProductOption = {
 export type CustomerOption = {
   id: string;
   label: string;
+  phone?: string | null;
+  mobile?: string | null;
+  email?: string | null;
   taxRateId: string | null;
   taxRateBps: number;
   taxExempt: boolean;

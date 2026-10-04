@@ -30,11 +30,17 @@ import {
   resolveReportPeriod,
 } from "@/components/reports/period";
 import { loadReport } from "@/components/reports/query";
-import { CardLink, KpiTile, ReportCard } from "@/components/reports/stat-card";
+import {
+  CardLink,
+  KpiTile,
+  ReportCard,
+  type KpiTileProps,
+} from "@/components/reports/stat-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ALL_LOCATIONS, currentLocationId } from "@/lib/location";
 import { formatCents } from "@/lib/money";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata = { title: "Reports · Repairs helper" };
 
@@ -63,7 +69,7 @@ export default async function ReportsPage({
   }>;
 }) {
   const { shopId, role } = await requireUser();
-  const params = await searchParams;
+  const [params, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
 
   const canSeeMoney = role === "OWNER" || role === "FRONT_DESK";
   const canExport = role === "OWNER";
@@ -104,6 +110,139 @@ export default async function ReportsPage({
     { key: "resolved", label: "Resolved", className: "bg-status-resolved" },
   ];
 
+  const tile = (kpi: Kpi, variant: "stat" | "large" | "small") => (
+    <KpiTile
+      key={kpi.label}
+      variant={variant}
+      label={kpi.label}
+      value={kpi.value}
+      hint={kpi.hint}
+      icon={kpi.icon}
+      tone={kpi.tone}
+      href={kpi.href}
+    />
+  );
+
+  // The headline numbers, in the order the dense view shows them. `primary`
+  // marks the few that Easy mode makes big.
+  const kpis: Kpi[] = [
+    ...(money
+      ? [
+          {
+            label: "Net revenue",
+            value: formatCents(money.netRevenueCents),
+            hint: `${formatCents(money.revenueCents)} collected · ${formatCents(
+              money.refundCents,
+            )} refunded`,
+            icon: CircleDollarSign,
+            tone: "success" as const,
+            primary: true,
+          },
+          {
+            label: "Refunds",
+            value: formatCents(money.refundCents),
+            hint: `${money.refundCount} refund${
+              money.refundCount === 1 ? "" : "s"
+            } issued`,
+            icon: ACTIONS.refund,
+            tone: "danger" as const,
+          },
+          {
+            label: "Deposits held",
+            value: formatCents(money.depositsHeldCents),
+            hint: `${money.depositsHeldCount} deposit${
+              money.depositsHeldCount === 1 ? "" : "s"
+            } owed back · all time`,
+            icon: HandCoins,
+            tone: "info" as const,
+          },
+          {
+            label: "Invoices raised",
+            value: String(money.invoices.raised),
+            hint: `${formatCents(money.invoices.raisedCents)} billed`,
+            icon: ICONS.invoice,
+            tone: "info" as const,
+            href: "/invoices",
+          },
+          {
+            label: "Invoices paid",
+            value: String(money.invoices.paid),
+            hint: `${formatCents(money.invoices.paidCents)} settled`,
+            icon: ICONS.deposit,
+            tone: "ready" as const,
+            href: "/invoices?status=PAID",
+          },
+          {
+            label: "Outstanding A/R",
+            value: formatCents(money.ar.totalCents),
+            hint: `${money.ar.count} unpaid invoice${
+              money.ar.count === 1 ? "" : "s"
+            } · all time`,
+            icon: TrendingUp,
+            tone: "danger" as const,
+            href: "/invoices?status=SENT",
+            primary: true,
+          },
+        ]
+      : []),
+
+    // Shown to every role: keeping a promise is not a money question.
+    {
+      label: "On-time %",
+      value: onTime.pct === null ? "—" : `${onTime.pct}%`,
+      hint:
+        onTime.withDue === 0
+          ? "no dated tickets resolved yet"
+          : `${onTime.onTime} of ${onTime.withDue} met their due date`,
+      icon: CalendarCheck,
+      tone: "ready" as const,
+      href: "/tickets?due=overdue",
+      primary: true,
+    },
+
+    // The work figures fill the headline row for a technician. They are
+    // already computed for the charts below, so this costs no queries.
+    ...(money
+      ? []
+      : [
+          {
+            label: "Tickets created",
+            value: String(throughput.created),
+            hint: `taken in over ${period.rangeLabel}`,
+            icon: ICONS.ticket,
+            tone: "info" as const,
+            href: "/tickets?status=all",
+            primary: true,
+          },
+          {
+            label: "Tickets resolved",
+            value: String(throughput.resolved),
+            hint:
+              throughput.created - throughput.resolved > 0
+                ? `${throughput.created - throughput.resolved} more came in than went back out`
+                : "the bench kept up with the counter",
+            icon: CircleCheckBig,
+            tone: "success" as const,
+            href: "/tickets?status=Resolved",
+            primary: true,
+          },
+          {
+            label: "Median turnaround",
+            value:
+              resolveTime.count === 0 ? "—" : formatDuration(resolveTime.medianMs),
+            hint:
+              resolveTime.count === 0
+                ? "nothing resolved in this period"
+                : `across ${resolveTime.count} resolved ticket${
+                    resolveTime.count === 1 ? "" : "s"
+                  }`,
+            icon: Timer,
+            tone: "active" as const,
+            primary: true,
+          },
+        ]),
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -123,135 +262,54 @@ export default async function ReportsPage({
         }
       />
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <div
+        className={
+          simple
+            ? "flex flex-col gap-3"
+            : "flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"
+        }
+      >
         <PeriodPills active={period.key} location={location?.id} />
-        <DateRangeForm period={period} location={location?.id} />
+        <DateRangeForm period={period} location={location?.id} simple={simple} />
       </div>
 
       {/* Seven tiles for a money-viewer, four for a technician. A report whose
           headline row is a single stat floating in a four-column grid reads as
           a broken page, so the work figures — which are nobody's commercial
-          secret — carry the row when the money ones are withheld. */}
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-4 sm:grid-cols-2",
-          money ? "lg:grid-cols-3 xl:grid-cols-4" : "lg:grid-cols-4",
-        )}
-      >
-        {money ? (
-          <>
-          <KpiTile
-            label="Net revenue"
-            value={formatCents(money.netRevenueCents)}
-            hint={`${formatCents(money.revenueCents)} collected · ${formatCents(
-              money.refundCents,
-            )} refunded`}
-            icon={CircleDollarSign}
-            tone="success"
-          />
-          <KpiTile
-            label="Refunds"
-            value={formatCents(money.refundCents)}
-            hint={`${money.refundCount} refund${
-              money.refundCount === 1 ? "" : "s"
-            } issued`}
-            icon={ACTIONS.refund}
-            tone="danger"
-          />
-          <KpiTile
-            label="Deposits held"
-            value={formatCents(money.depositsHeldCents)}
-            hint={`${money.depositsHeldCount} deposit${
-              money.depositsHeldCount === 1 ? "" : "s"
-            } owed back · all time`}
-            icon={HandCoins}
-            tone="info"
-          />
-          <KpiTile
-            label="Invoices raised"
-            value={String(money.invoices.raised)}
-            hint={`${formatCents(money.invoices.raisedCents)} billed`}
-            icon={ICONS.invoice}
-            tone="info"
-            href="/invoices"
-          />
-          <KpiTile
-            label="Invoices paid"
-            value={String(money.invoices.paid)}
-            hint={`${formatCents(money.invoices.paidCents)} settled`}
-            icon={ICONS.deposit}
-            tone="ready"
-            href="/invoices?status=PAID"
-          />
-          <KpiTile
-            label="Outstanding A/R"
-            value={formatCents(money.ar.totalCents)}
-            hint={`${money.ar.count} unpaid invoice${
-              money.ar.count === 1 ? "" : "s"
-            } · all time`}
-            icon={TrendingUp}
-            tone="danger"
-            href="/invoices?status=SENT"
-          />
-          </>
-        ) : null}
-
-        {/* Shown to every role: keeping a promise is not a money question. */}
-        <KpiTile
-          label="On-time %"
-          value={onTime.pct === null ? "—" : `${onTime.pct}%`}
-          hint={
-            onTime.withDue === 0
-              ? "no dated tickets resolved yet"
-              : `${onTime.onTime} of ${onTime.withDue} met their due date`
-          }
-          icon={CalendarCheck}
-          tone="ready"
-          href="/tickets?due=overdue"
-        />
-
-        {/* The work figures fill the headline row for a technician. They are
-            already computed for the charts below, so this costs no queries. */}
-        {money ? null : (
-          <>
-            <KpiTile
-              label="Tickets created"
-              value={String(throughput.created)}
-              hint={`taken in over ${period.rangeLabel}`}
-              icon={ICONS.ticket}
-              tone="info"
-              href="/tickets?status=all"
-            />
-            <KpiTile
-              label="Tickets resolved"
-              value={String(throughput.resolved)}
-              hint={
-                throughput.created - throughput.resolved > 0
-                  ? `${throughput.created - throughput.resolved} more came in than went back out`
-                  : "the bench kept up with the counter"
-              }
-              icon={CircleCheckBig}
-              tone="success"
-              href="/tickets?status=Resolved"
-            />
-            <KpiTile
-              label="Median turnaround"
-              value={
-                resolveTime.count === 0 ? "—" : formatDuration(resolveTime.medianMs)
-              }
-              hint={
-                resolveTime.count === 0
-                  ? "nothing resolved in this period"
-                  : `across ${resolveTime.count} resolved ticket${
-                      resolveTime.count === 1 ? "" : "s"
-                    }`
-              }
-              icon={Timer}
-              tone="active"
-            />
-          </>
-        )}
-      </div>
+          secret — carry the row when the money ones are withheld. In Easy mode
+          the `primary` ones are the big figures and the rest sit under them. */}
+      {simple ? (
+        <section aria-label="Headline numbers" className="flex flex-col gap-3">
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-3 sm:grid-cols-2",
+              kpis.filter((kpi) => kpi.primary).length === 3
+                ? "lg:grid-cols-3"
+                : "lg:grid-cols-4",
+            )}
+          >
+            {kpis
+              .filter((kpi) => kpi.primary)
+              .map((kpi) => tile(kpi, "large"))}
+          </div>
+          {kpis.some((kpi) => !kpi.primary) ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {kpis
+                .filter((kpi) => !kpi.primary)
+                .map((kpi) => tile(kpi, "small"))}
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4 sm:grid-cols-2",
+            money ? "lg:grid-cols-3 xl:grid-cols-4" : "lg:grid-cols-4",
+          )}
+        >
+          {kpis.map((kpi) => tile(kpi, "stat"))}
+        </div>
+      )}
 
       <div className="grid items-start gap-5 lg:grid-cols-2">
         {money ? (
@@ -576,6 +634,8 @@ export default async function ReportsPage({
     </div>
   );
 }
+
+type Kpi = KpiTileProps & { primary?: boolean };
 
 /** Payment methods keep the same colour they wear on the invoice screens. */
 const METHOD_TINT: Record<string, string> = {

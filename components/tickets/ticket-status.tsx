@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { StatusBadge } from "@/components/ui/badge";
+import { STATUS_TONE, StatusPill, normalizeStatus } from "@/components/ui/badge";
 import { StatusProgress } from "./status-progress";
 
 /**
@@ -104,9 +104,14 @@ function noop(): void {}
  * component you can no longer reason about from its call site.
  */
 
-export function LiveStatusBadge({ status }: { status: string }) {
+/**
+ * The status as a pill with the shop's own word ("Waiting for Parts", not just
+ * "Waiting"), coloured by the tone that word belongs to. A status the shop made
+ * up still shows as written.
+ */
+export function LiveStatusBadge({ status, className }: { status: string; className?: string }) {
   const live = useTicketStatus(status);
-  return <StatusBadge status={live} />;
+  return <StatusPill tone={STATUS_TONE[normalizeStatus(live)]} label={live} className={className} />;
 }
 
 export function LiveStatusProgress({

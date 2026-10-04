@@ -114,7 +114,7 @@ export function DepositCard({
         {deposits.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nothing taken up front. A deposit lands on the customer&rsquo;s
-            account and comes off this ticket&rsquo;s invoice automatically.
+            account and comes off this repair&rsquo;s invoice automatically.
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-border">
@@ -322,7 +322,7 @@ function TakeDepositDialog({
         <DialogHeader>
           <DialogTitle>Take a deposit</DialogTitle>
           <DialogDescription>
-            Money up front from {customerName} for ticket #{ticketNumber}. It is
+            Money up front from {customerName} for repair #{ticketNumber}. It is
             held on their account and comes off the invoice.
           </DialogDescription>
         </DialogHeader>

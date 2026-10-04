@@ -34,7 +34,7 @@ async function lookup(productId: string, key: string): Promise<AutomaticPhotoRes
   return entry.promise;
 }
 
-export function ProductImage({ productId, name, category, imageUrl, className, sizes = "(max-width: 640px) 50vw, 280px", showFallbackLabel = false, showAttributionLinks = false, photoRevision = 0, onAutomaticReady }: ProductImageInput & {
+export function ProductImage({ productId, name, category, imageUrl, catalogImage, className, sizes = "(max-width: 640px) 50vw, 280px", showFallbackLabel = false, showAttributionLinks = false, photoRevision = 0, onAutomaticReady }: ProductImageInput & {
   className?: string;
   sizes?: string;
   showFallbackLabel?: boolean;
@@ -44,8 +44,8 @@ export function ProductImage({ productId, name, category, imageUrl, className, s
 }) {
   const frame = React.useRef<HTMLDivElement>(null);
   const [automatic, setAutomatic] = React.useState<{ key: string; result: AutomaticPhotoResponse } | null>(null);
-  const key = `${productId ?? ""}:${name}:${category ?? ""}:${photoRevision}`;
-  const source = productImageSource({ name, category, imageUrl });
+  const key = `${productId ?? ""}:${name}:${category ?? ""}:${catalogImage ?? ""}:${photoRevision}`;
+  const source = productImageSource({ name, category, imageUrl, catalogImage });
   React.useEffect(() => {
     if (!productId || source.src) return;
     let canceled = false;
@@ -69,7 +69,7 @@ export function ProductImage({ productId, name, category, imageUrl, className, s
     return () => { canceled = true; observer.disconnect(); clearTimeout(timer); };
   }, [productId, key, source.src]);
   const [failedSources, setFailedSources] = React.useState<string[]>([]);
-  const fallback = productImageSource({ name, category });
+  const fallback = productImageSource({ name, category, catalogImage });
   const result = automatic?.key === key && automatic.result.ok ? automatic.result : null;
   const automaticUrl = result?.status === "ready" && result.imageUrl === `/inventory/${productId}/photo/automatic/image` ? result.imageUrl : null;
   const image = source.src && !failedSources.includes(source.src) ? source : fallback.src ? fallback : automaticUrl ? { ...fallback, src: automaticUrl, alt: `${name}, internet reference photo`, illustrative: false } : fallback;
@@ -96,7 +96,7 @@ export function ProductImage({ productId, name, category, imageUrl, className, s
           {showFallbackLabel ? <span className="text-center text-xs">{image.kind === "service" ? "Service" : "No product photo"}</span> : null}
         </div>
       )}
-      {showFallbackLabel && image.illustrative && image.src && !failedSources.includes(image.src) ? <span className="absolute bottom-2 rounded bg-white px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Category image</span> : null}
+      {showFallbackLabel && image.illustrative && image.src && !failedSources.includes(image.src) ? <span className="absolute bottom-2 rounded bg-white px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Picture</span> : null}
       {credit && image.src && !failedSources.includes(image.src) ? <span className="absolute inset-x-1 bottom-1 bg-white px-1 text-center text-[10px] leading-tight text-muted-foreground" title={`${credit.title} · ${credit.author} · ${credit.license} · ${credit.sourceUrl}${credit.changes ? ` · ${credit.changes}` : ""}`}>
         {showFallbackLabel ? <span className="mb-0.5 block font-medium">Internet reference</span> : null}
         {showAttributionLinks ? <><a href={credit.sourceUrl} target="_blank" rel="noreferrer" className="underline">{credit.author}</a> · <a href={credit.licenseUrl} target="_blank" rel="noreferrer" className="underline">{credit.license}</a>{credit.changes ? <span className="mt-0.5 block">Resized / WebP</span> : null}</> : <span className="line-clamp-2">{credit.author} · {credit.license}{credit.changes ? " · resized" : ""}</span>}

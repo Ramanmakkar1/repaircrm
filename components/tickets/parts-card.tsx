@@ -113,14 +113,14 @@ export function PartsCard({
   const offerResume = () => {
     toast.success("Part received — stock updated.", {
       duration: 10_000,
-      description: "This ticket is still parked on “Waiting for Parts”.",
+      description: "This repair is still parked on “Waiting for Parts”.",
       action: {
         label: "Move to In Progress",
         onClick: () => {
           startTransition(async () => {
             const result = await resumeTicketFromPartsAction(ticketId);
             if (result.error) toast.error(result.error);
-            else toast.success("Ticket moved to In Progress.");
+            else toast.success("Repair moved to In Progress.");
           });
         },
       },
@@ -178,7 +178,7 @@ export function PartsCard({
             className="px-5 py-10"
             icon={ICONS.part}
             title="No parts on order"
-            hint="Order one and the ticket shows what it is waiting for, on the board and here."
+            hint="Order one and the repair shows what it is waiting for, on the board and here."
           />
         ) : (
           <ul className="divide-y divide-border">
@@ -211,7 +211,7 @@ export function PartsCard({
       {ticketStatus === "Waiting for Parts" && outstanding === 0 && parts.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
           <p className="text-[13.5px] text-muted-foreground">
-            Everything on this list has landed, but the ticket is still waiting.
+            Everything on this list has landed, but the repair is still waiting.
           </p>
           <Button
             variant="soft"
@@ -221,7 +221,7 @@ export function PartsCard({
               startTransition(async () => {
                 const result = await resumeTicketFromPartsAction(ticketId);
                 if (result.error) toast.error(result.error);
-                else toast.success("Ticket moved to In Progress.");
+                else toast.success("Repair moved to In Progress.");
               })
             }
           >
@@ -321,7 +321,7 @@ function PartRow({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        <div className="flex w-full min-w-0 flex-col items-end gap-2 sm:w-auto sm:shrink-0">
           {lineCost != null ? (
             <span className="text-sm font-semibold tabular-nums text-foreground">
               {formatCents(lineCost)}
@@ -329,7 +329,7 @@ function PartRow({
           ) : null}
 
           {!terminal ? (
-            <div className="flex flex-wrap justify-end gap-1.5">
+            <div className="flex w-full min-w-0 flex-wrap justify-end gap-1.5 sm:w-auto">
               {canAttach ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

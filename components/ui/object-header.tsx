@@ -83,7 +83,7 @@ export function ObjectHeader({
               {status}
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
-              <p
+              <h1
                 className={cn(
                   "min-w-0 break-words text-pretty text-foreground sm:truncate",
                   // when there is no headline figure the title IS the headline
@@ -93,7 +93,7 @@ export function ObjectHeader({
                 )}
               >
                 {title}
-              </p>
+              </h1>
               {subtitle ? (
                 <p className="min-w-0 text-[13px] text-muted-foreground sm:truncate">
                   {subtitle}

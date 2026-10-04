@@ -48,14 +48,14 @@ describe("sttTarget", () => {
     expect(sttTarget()).toBeNull();
   });
 
-  it("resolves OpenAI Whisper from the OpenAI key", () => {
+  it("resolves OpenAI transcription from the OpenAI key", () => {
     vi.stubEnv("STT_DRIVER", "openai");
     vi.stubEnv("OPENAI_API_KEY", "sk");
     expect(sttTarget()).toEqual({
       name: "openai",
       baseUrl: "https://api.openai.com/v1",
       apiKey: "sk",
-      model: "whisper-1",
+      model: "gpt-transcribe",
     });
   });
 
@@ -96,9 +96,10 @@ describe("transcribe", () => {
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer sk");
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body as FormData;
-    expect(form.get("model")).toBe("whisper-1");
+    expect(form.get("model")).toBe("gpt-transcribe");
     expect(form.get("file")).toBeInstanceOf(Blob);
     expect(form.get("prompt")).toContain("Repair shop");
+    expect(form.getAll("keywords[]")).toContain("screen guards");
     expect(form.get("language")).toBeNull();
   });
 

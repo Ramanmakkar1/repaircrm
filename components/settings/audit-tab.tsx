@@ -172,7 +172,7 @@ export function AuditTab({
           </Button>
         </div>
       ) : rows.length > 0 ? (
-        <p className="text-center text-[13.5px] text-muted-foreground">
+        <p className="text-center text-[14px] text-muted-foreground">
           That&apos;s the whole trail.
         </p>
       ) : null}
@@ -212,7 +212,7 @@ function Pill({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded-md border px-2.5 py-1 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "rounded-md border px-2.5 py-1 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"
           : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
@@ -243,7 +243,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
           tone={isNotableAction(row.action) ? "danger" : "neutral"}
           label={AUDIT_ACTION_LABEL[row.action] ?? row.action}
         />
-        <span className="ml-auto text-[13px] tabular-nums text-muted-foreground">
+        <span className="ml-auto text-[14px] tabular-nums text-muted-foreground">
           {formatDateTime(row.createdAt)}
         </span>
       </div>
@@ -257,7 +257,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
-            className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-[13px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <ChevronDown
               className={cn("size-3.5 transition-transform", open && "rotate-180")}
@@ -266,7 +266,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
           </button>
 
           {open ? (
-            <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-surface-hover px-3.5 py-3 text-[13px] text-muted-foreground">
+            <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-surface-hover px-3.5 py-3 text-[14px] text-muted-foreground">
               {row.ip ? (
                 <p>
                   <span className="font-semibold text-foreground">From </span>
@@ -280,7 +280,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
                 </p>
               ) : null}
               {row.meta ? (
-                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed">
+                <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-[14px] leading-relaxed">
                   {row.meta}
                 </pre>
               ) : null}

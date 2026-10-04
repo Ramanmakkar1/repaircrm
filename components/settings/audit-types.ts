@@ -66,6 +66,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "customer.deleted": "Customer deleted",
   "invoice.voided": "Invoice voided",
   "invoice.refunded": "Invoice refunded",
+  "product.price_changed": "Product price changed",
+  "product.removed": "Product removed from sale",
 };
 
 /** Actions worth colouring red: someone lost access, or money moved back. */

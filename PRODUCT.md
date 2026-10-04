@@ -13,7 +13,7 @@ back-office system.
 
 ## Product Purpose
 
-RepairPilot manages the repair-shop workflow from lead and appointment through
+Repairs helper manages the repair-shop workflow from lead and appointment through
 work order, estimate, invoice, payment, inventory, and customer handoff. Success
 means staff can see what needs attention, move work forward, and keep customers
 informed from one dependable system.
@@ -34,13 +34,17 @@ shop's everyday workspace.
 
 ## Design Principles
 
-- Start Easy mode with large task boxes: Repairs, Invoices, Sales, Customers,
-  Products, and Appointments. Each task opens its own organised workspace.
+- Start Easy mode at a Home built like a register: New repair and New sale
+  pinned as the two big buttons, a Needs attention list under them, and tabs for
+  Counter, Stock & purchasing and Shop management. Settings stays a separate
+  row. Keep every tool reachable: the longer list lives under More tools, which
+  also holds Shop overview (the old dashboard).
 - Treat the signed-in experience as a touch application on phones, tablets,
   and counter PCs: no website masthead or footer, clear Home and Back controls,
   and at least 48px controls in Easy mode.
-- Guide repair and invoice entry through short stages while retaining every
-  feature, form value, and the full workbench view.
+- Default repair, invoice and estimate entry to one screen with optional guided
+  stages. Retain every feature and form value. Use device boxes and sensible
+  presets to reduce typing; email, passcode and IMEI remain optional.
 - Put the next useful action and the work needing attention first.
 - Keep repair status, ownership, and customer context easy to scan together.
 - Use consistent navigation and labels across the shop's workflow.

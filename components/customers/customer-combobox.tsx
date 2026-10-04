@@ -5,8 +5,9 @@ import { Search, UserPlus, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/components/ui/cn";
+import { contactFromQuery, matchesCustomer, newCustomerContactMessage, type SearchCustomer } from "@/lib/customers/search-options";
 
-export type ComboCustomer = { id: string; label: string };
+export type ComboCustomer = SearchCustomer;
 
 /** Matches lib/customers/quick-add.ts — kept literal so this file stays client-safe. */
 const NEW = "new";
@@ -26,27 +27,37 @@ export function CustomerCombobox({
   onChange,
   allowNew = true,
   invalid = false,
+  newValue = NEW,
+  id,
 }: {
   customers: ComboCustomer[];
   value: string;
   onChange: (id: string) => void;
   allowNew?: boolean;
   invalid?: boolean;
+  newValue?: string;
+  id?: string;
 }) {
   const [query, setQuery] = React.useState("");
   const [person, setPerson] = React.useState({ name: "", phone: "", email: "", smsOk: true });
   const selected = customers.find((customer) => customer.id === value) ?? null;
 
   const matches = React.useMemo(() => {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    if (words.length === 0) return [];
-    return customers.filter((customer) => words.every((word) => customer.label.toLowerCase().includes(word))).slice(0, 30);
+    return customers.filter((customer) => matchesCustomer(customer, query)).slice(0, 30);
   }, [customers, query]);
 
-  if (value === NEW) {
+  // Not `required` on the name: a phone number alone is enough. Native validity
+  // is what useGuidedForm's checkValidity() reads, so the rule has to live here.
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  const adding = value === newValue;
+  React.useEffect(() => {
+    nameRef.current?.setCustomValidity(newCustomerContactMessage(person.name, person.phone));
+  }, [adding, person.name, person.phone]);
+
+  if (adding) {
     return (
       <div className="flex flex-col gap-3 rounded-md border border-border-strong bg-surface-hover p-3.5">
-        <input type="hidden" name="customerId" value={NEW} />
+        <input type="hidden" name="customerId" value={newValue} />
         <div className="flex items-center justify-between gap-2">
           <span className="text-[13.5px] font-semibold text-foreground">New customer</span>
           <button
@@ -62,14 +73,15 @@ export function CustomerCombobox({
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
+            ref={nameRef}
             name="newCustomerName"
             value={person.name}
             onChange={(event) => setPerson({ ...person, name: event.target.value })}
             placeholder="Full name"
             aria-label="New customer's name"
             autoComplete="off"
-            required
             autoFocus
+            maxLength={160}
           />
           <Input
             name="newCustomerPhone"
@@ -79,7 +91,10 @@ export function CustomerCombobox({
             aria-label="New customer's mobile number"
             inputMode="tel"
             autoComplete="off"
+            maxLength={40}
           />
+          <details open={person.email.trim() ? true : undefined} className="sm:col-span-2">
+          <summary className="flex min-h-12 cursor-pointer items-center text-sm font-medium">Add email · optional</summary>
           <Input
             name="newCustomerEmail"
             value={person.email}
@@ -90,7 +105,10 @@ export function CustomerCombobox({
             inputMode="email"
             autoComplete="off"
             className="sm:col-span-2"
+            maxLength={160}
           />
+          <p className="mt-2 text-xs text-muted-foreground">Leave blank if unknown or the customer prefers not to share.</p>
+          </details>
         </div>
         <label className="flex items-start gap-2.5 text-[13.5px] text-foreground">
           <input
@@ -109,7 +127,7 @@ export function CustomerCombobox({
           </span>
         </label>
         <p className="text-[12.5px] text-muted-foreground">
-          Saved as a customer when you create this. Someone already on file with the same mobile or email is used instead.
+          Saved with this repair or document. Search first to reuse someone already on file.
         </p>
       </div>
     );
@@ -117,16 +135,16 @@ export function CustomerCombobox({
 
   if (selected) {
     return (
-      <div className="flex h-10 items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-3.5 text-sm">
+      <div className="flex min-h-12 items-center justify-between gap-2 rounded-md border border-border-strong bg-surface px-3.5 text-sm">
         <input type="hidden" name="customerId" value={selected.id} />
-        <span className="truncate font-medium text-foreground">{selected.label}</span>
+        <span className="min-w-0"><span className="block truncate font-medium text-foreground">{selected.label}</span>{selected.mobile || selected.phone || selected.email ? <span className="block truncate text-xs text-muted-foreground">{selected.mobile || selected.phone || selected.email}</span> : null}</span>
         <button
           type="button"
           onClick={() => {
             onChange("");
             setQuery("");
           }}
-          className="flex size-7 shrink-0 items-center justify-center rounded-sm text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+          className="flex size-12 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
           aria-label="Change customer"
         >
           <X className="size-4" />
@@ -142,9 +160,10 @@ export function CustomerCombobox({
       <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
         <Input
+          id={id}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={allowNew ? "Search, or type a new customer's name…" : "Search customers…"}
+          placeholder="Search by name, mobile, or email…"
           aria-label="Customer"
           aria-invalid={invalid || undefined}
           className="pl-10"
@@ -162,7 +181,8 @@ export function CustomerCombobox({
                     onClick={() => onChange(customer.id)}
                     className="w-full px-3.5 py-2.5 text-left text-[14px] text-foreground transition-colors hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none"
                   >
-                    {customer.label}
+                    <span className="block font-medium">{customer.label}</span>
+                    {customer.mobile || customer.phone || customer.email ? <span className="block text-xs text-muted-foreground">{customer.mobile || customer.phone || customer.email}</span> : null}
                   </button>
                 </li>
               ))}
@@ -174,8 +194,8 @@ export function CustomerCombobox({
             <button
               type="button"
               onClick={() => {
-                setPerson((current) => ({ ...current, name: typed }));
-                onChange(NEW);
+                setPerson((current) => ({ ...current, ...contactFromQuery(typed) }));
+                onChange(newValue);
               }}
               className={cn(
                 "flex w-full items-center gap-2 border-t border-border px-3.5 py-3 text-left text-[14px] font-semibold text-foreground transition-colors",
@@ -183,11 +203,11 @@ export function CustomerCombobox({
               )}
             >
               <UserPlus className="size-4 shrink-0" />
-              <span className="truncate">Add &ldquo;{typed}&rdquo; as a new customer</span>
+              <span className="truncate">New customer using &ldquo;{typed}&rdquo;</span>
             </button>
           ) : null}
         </div>
-      ) : null}
+      ) : allowNew ? <button type="button" onClick={() => onChange(newValue)} className="flex min-h-12 items-center gap-2 text-left text-sm font-semibold text-foreground underline underline-offset-2"><UserPlus className="size-4" /> Add a new customer</button> : null}
     </div>
   );
 }

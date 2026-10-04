@@ -28,7 +28,7 @@ export type CsvTable = {
  * quotes?"). Inside quotes a `""` is a literal quote and a newline is data;
  * outside them a comma ends the cell and CR/LF ends the row.
  */
-export function parseCsvRows(input: string): string[][] {
+export function parseCsvRows(input: string, delimiter = ","): string[][] {
   // Excel prefixes UTF-8 files with a BOM, which would otherwise become part of
   // the first header and break every header match.
   const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
@@ -70,7 +70,7 @@ export function parseCsvRows(input: string): string[][] {
 
     if (char === '"' && cell === "") {
       quoted = true;
-    } else if (char === ",") {
+    } else if (char === delimiter) {
       endCell();
     } else if (char === "\r") {
       // Swallow the LF of a CRLF pair; a lone CR is still a row break.
@@ -122,6 +122,31 @@ function uniqueHeaders(headers: string[]): string[] {
     seen.set(base, count);
     return count === 1 ? base : `${base} (${count})`;
   });
+}
+
+/** A plain decimal ("-5", "-3.20", "1284.50") — the one kind of text allowed to start with a sign. */
+const PLAIN_NUMBER = /^[+-]?\d+(?:\.\d+)?$/;
+
+/**
+ * Makes a value safe to put in a CSV that a person will open in Excel or Sheets.
+ *
+ * A cell that starts with = + - @ (or a tab / carriage return) is read as a
+ * FORMULA, and spreadsheet text comes from customers and imports — so a part
+ * named `=HYPERLINK(...)` would become a live link, or worse, in the owner's
+ * accounting export. The standard defence is a leading single quote, which makes
+ * the cell inert text. Genuine numbers are left alone: a refund of -5.00 has to
+ * stay a number or the totals column stops adding up. JS numbers are numbers by
+ * type; text like "-5.00" (what the exports' csvAmount() returns) is judged by
+ * its shape.
+ *
+ * Used by the accounting exports (app/api/exports/_lib/csv.ts). `csvCell` /
+ * `toCsv` below are NOT run through this: the importer round-trips header text
+ * through them and must get it back unchanged.
+ */
+export function neutralizeFormula(value: string | number | null | undefined): string {
+  if (typeof value === "number") return String(value);
+  const text = value ?? "";
+  return /^[=+\-@\t\r]/.test(text) && !PLAIN_NUMBER.test(text) ? `'${text}` : text;
 }
 
 /** Quotes a value only when it has to be quoted. */

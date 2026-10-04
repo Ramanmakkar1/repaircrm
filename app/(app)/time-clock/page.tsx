@@ -16,7 +16,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ClockCard } from "./clock-card";
+import { ClockPanel } from "@/components/time-clock/clock-panel";
+import { TeamWeek, TodayShifts } from "@/components/time-clock/shift-cards";
+import { readUiPrefs } from "@/lib/prefs";
 import { EntryDialog } from "./entry-dialog";
 import {
   addDays,
@@ -67,7 +69,7 @@ export default async function TimeClockPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, userId, role } = await requireUser();
-  const params = await searchParams;
+  const [params, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
   const isOwner = role === "OWNER";
 
   // One request-time clock, so every duration on the page is measured against
@@ -166,7 +168,7 @@ export default async function TimeClockPage({
         description="Clock in when you start, clock out when you finish. That's it."
       />
 
-      <ClockCard
+      <ClockPanel
         openSinceISO={openEntry ? openEntry.clockInAt.toISOString() : null}
         // Formatted here rather than in the browser: `toLocaleTimeString` in a
         // component that also renders on the server picks a different zone on
@@ -177,6 +179,15 @@ export default async function TimeClockPage({
       />
 
       {/* ------------------------------------------------------------ mine */}
+      {simple ? (
+        <TodayShifts
+          entries={todayEntries}
+          now={now}
+          weekLabel={`${formatHours(weekSeconds)} logged this week${
+            isThisWeek ? "" : ` (week of ${format(start, "MMM d")})`
+          }`}
+        />
+      ) : (
       <Card>
         <CardHeader
           icon={ICONS.timeClock}
@@ -230,9 +241,23 @@ export default async function TimeClockPage({
           </Table>
         )}
       </Card>
+      )}
 
       {/* ------------------------------------------------------------ team */}
-      {isOwner ? (
+      {isOwner && simple ? (
+        <TeamWeek
+          rows={teamRows}
+          now={now}
+          start={start}
+          end={end}
+          totalSeconds={teamSeconds}
+          isThisWeek={isThisWeek}
+          prevHref={weekHref(addDays(start, -7))}
+          thisWeekHref={weekHref(now)}
+          nextHref={weekHref(addDays(start, 7))}
+          exportHref={exportHref}
+        />
+      ) : isOwner ? (
         <Card>
           <CardHeader
             icon={ICONS.team}

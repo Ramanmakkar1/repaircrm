@@ -41,14 +41,15 @@ function empty(status: AutomaticPhotoResult["status"], retryAt?: Date): Automati
   return { ok: true, status, imageUrl: null, attribution: null, ...(retryAt ? { retryAt: retryAt.toISOString() } : {}) };
 }
 
-function sourceFor(product: { name: string; category: string | null; attachments: Array<{ id: string }> }) {
-  return productImageSource({ name: product.name, category: product.category, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null });
+// A picture chosen on purpose (catalogImage) counts like a matched one: no internet lookup for that product.
+function sourceFor(product: { name: string; category: string | null; catalogImage?: string | null; attachments: Array<{ id: string }> }) {
+  return productImageSource({ name: product.name, category: product.category, catalogImage: product.catalogImage, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null });
 }
 
 async function ownedProduct(tx: Prisma.TransactionClient, productId: string, shopId: string) {
   return tx.product.findFirst({
     where: { id: productId, shopId },
-    select: { id: true, name: true, category: true, attachments: PRODUCT_IMAGE_SELECT, automaticPhoto: true },
+    select: { id: true, name: true, category: true, catalogImage: true, attachments: PRODUCT_IMAGE_SELECT, automaticPhoto: true },
   });
 }
 

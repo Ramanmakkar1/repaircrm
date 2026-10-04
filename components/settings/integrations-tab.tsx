@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill, type StatusTone } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
+import { attentionBorder } from "./card-attention";
 import {
   ENTITY_LABEL,
   SYNC_ENTITIES,
@@ -100,17 +101,6 @@ function connectionMeta(card: IntegrationCard) {
   return CONNECTION_META[card.status] ?? CONNECTION_META.none;
 }
 
-/**
- * The left stripe is for the card that needs something *doing*, not for every
- * card on the hub: a wall of stripes says nothing. Connected and
- * not-yet-connected are both fine, so neither gets one.
- */
-function cardTone(tone: StatusTone): StatusTone | undefined {
-  return tone === "danger" || tone === "waiting" || tone === "active"
-    ? tone
-    : undefined;
-}
-
 const SyncIcon = ACTIONS.refresh;
 const ConnectIcon = ACTIONS.connect;
 const DisconnectIcon = ACTIONS.disconnect;
@@ -125,7 +115,7 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
         <p
           role="status"
           className={cn(
-            "flex items-start gap-2.5 rounded-md px-4 py-3 text-[13.5px] font-medium leading-relaxed",
+            "flex items-start gap-2.5 rounded-md px-4 py-3 text-[14px] font-medium leading-relaxed",
             config.notice.tone === "ok"
               ? "bg-status-resolved-bg text-status-resolved-fg"
               : "bg-status-overdue-bg text-status-overdue-fg",
@@ -141,7 +131,9 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>Accounting</SectionLabel>
+        <SectionLabel hint="Send your invoices and payments to your accounting software.">
+          Accounting
+        </SectionLabel>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {config.cards.map((card) => (
             <ProviderCard key={card.provider} card={card} />
@@ -150,7 +142,9 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>Elsewhere in Repairs helper</SectionLabel>
+        <SectionLabel hint="Shortcuts to the other places a connection is set up.">
+          Elsewhere in Repairs helper
+        </SectionLabel>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <QuickCard
             icon={ICONS.payment}
@@ -220,11 +214,21 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/** A plainly titled group of cards, with one line saying what is in it. */
+function SectionLabel({
+  children,
+  hint,
+}: {
+  children: React.ReactNode;
+  hint: string;
+}) {
   return (
-    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-      {children}
-    </h2>
+    <div className="flex flex-col gap-0.5">
+      <h2 className="text-[17px] font-semibold leading-snug text-foreground">
+        {children}
+      </h2>
+      <p className="text-[14px] text-muted-foreground">{hint}</p>
+    </div>
   );
 }
 
@@ -269,9 +273,10 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
   }
 
   return (
-    // The state lives in a 3px stripe down the left edge and in the pill beside
-    // the title; the card itself stays white, so a hub of six reads as a hub.
-    <Card className="flex flex-col" tone={cardTone(status.tone)}>
+    // The state lives in the pill beside the title, and in a tinted border only
+    // when the card needs something doing; the card itself stays white, so a
+    // hub of six reads as a hub.
+    <Card className={cn("flex flex-col", attentionBorder(status.tone))}>
       <CardHeader
         icon={Building2}
         title={
@@ -305,7 +310,7 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
 
       <CardFooter className="flex-wrap justify-between gap-2">
         {!card.configured ? (
-          <span className="text-[13px] text-muted-foreground">
+          <span className="text-[14px] text-muted-foreground">
             Ask whoever runs this server to add the variables above.
           </span>
         ) : card.status === "pending" ? (
@@ -452,7 +457,7 @@ function NotConfigured({
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Redirect URI to register
         </span>
-        <code className="w-fit break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[12.5px] text-foreground">
+        <code className="w-fit break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
           {card.redirectUri}
         </code>
       </div>
@@ -479,7 +484,7 @@ function ConnectedBody({ card }: { card: IntegrationCard }) {
         ))}
       </dl>
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[13.5px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[14px] text-muted-foreground">
         <span>
           Last sync:{" "}
           <span className="font-semibold text-foreground">
@@ -490,7 +495,7 @@ function ConnectedBody({ card }: { card: IntegrationCard }) {
       </div>
 
       {card.lastError ? (
-        <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+        <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
           {card.lastError}
         </p>
       ) : null}
@@ -564,7 +569,7 @@ function AccountCodes({ card }: { card: IntegrationCard }) {
         </div>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
+        <p className="text-[14px] leading-relaxed text-muted-foreground">
           Invoice lines are booked to the sales code; payments are banked into
           the bank code.
         </p>
@@ -602,7 +607,7 @@ function QuickCard({
   external?: boolean;
 }) {
   return (
-    <Card className="flex flex-col" tone={cardTone(tone)}>
+    <Card className={cn("flex flex-col", attentionBorder(tone))}>
       <CardHeader
         icon={icon}
         title={
@@ -634,7 +639,7 @@ function QuickCard({
 
 function Env({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[13px] font-semibold text-foreground">
+    <code className="rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] font-semibold text-foreground">
       {children}
     </code>
   );

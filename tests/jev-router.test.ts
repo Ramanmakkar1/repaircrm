@@ -138,6 +138,7 @@ describe("routeWithJev", () => {
 });
 
 describe("interpretCommand with Jev on", () => {
+  beforeEach(() => vi.stubEnv("ASSISTANT_ROUTER", "jev"));
   it("never calls the generative model for a look-up", async () => {
     jevSays(answers({ action: choice("low_stock") }));
     expect(await interpretCommand("what's running low", context)).toEqual({ ok: true, intent: { action: "low_stock" } });
@@ -152,13 +153,25 @@ describe("interpretCommand with Jev on", () => {
     });
     const result = await interpretCommand("got 20 iphone 6 screens in", context);
     expect(result).toEqual({ ok: true, intent: { action: "adjust_stock", product: "iPhone 6 Screen", amount: 20 } });
-    expect(generateMock.mock.calls[0][0].prompt).toContain('"adjust_stock" action');
+    expect(generateMock.mock.calls[0][0].prompt).toContain('"adjust_stock"');
   });
 
   it("falls back to the generative model when Jev is down", async () => {
     jevSays({}, 401);
     generateMock.mockResolvedValue({ ok: true, text: '{"action":"low_stock"}' });
     expect(await interpretCommand("what's running low", context)).toEqual({ ok: true, intent: { action: "low_stock" } });
+  });
+});
+
+describe("full command interpretation", () => {
+  it("uses the whole request by default even when a classifier key exists", async () => {
+    vi.stubEnv("ASSISTANT_ROUTER", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    generateMock.mockResolvedValue({ ok: true, text: '{"intent":{"action":"search_products","query":"screen guards"}}' });
+    expect(await interpretCommand("I meant check stock for screen guards", context)).toMatchObject({ ok: true, intent: { action: "search_products", query: "screen guards" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(generateMock.mock.calls[0][0]).toMatchObject({ purpose: "command" });
   });
 });
 

@@ -284,7 +284,7 @@ export function BulkActionBar({
     <div
       aria-live="polite"
       className={cn(
-        "pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-5",
+        "pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-0 z-40 flex justify-center px-4 pb-5",
         "transition-[opacity,transform] duration-150 ease-out",
         count > 0
           ? "translate-y-0 opacity-100"

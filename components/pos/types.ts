@@ -36,6 +36,8 @@ export type PosProduct = {
   category: string | null;
   /** Private product photo; category imagery is used only when no photo exists. */
   imageUrl?: string | null;
+  /** Key of a catalog picture chosen on purpose (see lib/catalog); null = pick it from the name. */
+  catalogImage?: string | null;
   lowStockAt: number | null;
   /** True when every unit is tracked by serial number. */
   serialized: boolean;

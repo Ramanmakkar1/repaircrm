@@ -263,3 +263,85 @@ describe("SKU stability when editing", () => {
     expect(dataOf("product.update").sku).toBe("SCRE-1000");
   });
 });
+
+const { revalidatePath } = vi.mocked(await import("next/cache"));
+
+describe("Quick Add form path", () => {
+  beforeEach(() => {
+    revalidatePath.mockClear();
+  });
+
+  it("uses the category it was given for the SKU prefix and saves it", async () => {
+    handlers["product.findMany"] = () => [];
+    stubCreate();
+
+    const result = await quickAddProductAction(
+      undefined,
+      form({ name: "Anything at all", price: "5", stockQty: "2", category: "Screens" }),
+    );
+
+    expect(result).toMatchObject({ ok: true, sku: "SCRE-1000" });
+    expect(dataOf("product.create")).toMatchObject({ category: "Screens", sku: "SCRE-1000" });
+  });
+
+  it("keeps every query and write on the signed-in shop", async () => {
+    handlers["product.findMany"] = () => [];
+    stubCreate();
+
+    await quickAddProductAction(undefined, form({ name: "Screen", price: "5", stockQty: "2" }));
+
+    expect(whereOf("product.findMany")).toMatchObject({ shopId: "shop_1" });
+    expect(dataOf("product.create")).toMatchObject({ shopId: "shop_1" });
+    expect(dataOf("stockAdjustment.create")).toMatchObject({ shopId: "shop_1" });
+  });
+
+  it("leaves everything the dialog does not ask for at its default", async () => {
+    handlers["product.findMany"] = () => [];
+    stubCreate();
+
+    await quickAddProductAction(undefined, form({ name: "Screen", price: "5" }));
+
+    expect(dataOf("product.create")).toMatchObject({
+      upc: null,
+      description: null,
+      lowStockAt: null,
+      reorderQty: null,
+      warrantyDays: null,
+      vendorId: null,
+      vendorSku: null,
+    });
+  });
+
+  it("shows a negative price under the price box", async () => {
+    const result = await quickAddProductAction(undefined, form({ name: "Screen", price: "-5" }));
+
+    expect(result).toMatchObject({ ok: false, fieldErrors: { price: "Price can't be negative" } });
+    expect(callsTo("product.create")).toHaveLength(0);
+  });
+
+  it("tells the user to try again when every minted number is taken, after five draws", async () => {
+    handlers["product.findMany"] = () => [];
+    handlers["product.create"] = () => {
+      throw uniqueViolation();
+    };
+
+    const result = await quickAddProductAction(undefined, form({ name: "Screen", price: "5" }));
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Couldn't save the product just now — please try again.",
+    });
+    expect(callsTo("product.create")).toHaveLength(5);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the Stock list after a successful add, and not after a refusal", async () => {
+    await quickAddProductAction(undefined, form({ name: "", price: "5" }));
+    expect(revalidatePath).not.toHaveBeenCalled();
+
+    handlers["product.findMany"] = () => [];
+    stubCreate();
+    await quickAddProductAction(undefined, form({ name: "Screen", price: "5" }));
+    expect(revalidatePath).toHaveBeenCalledWith("/inventory");
+  });
+});

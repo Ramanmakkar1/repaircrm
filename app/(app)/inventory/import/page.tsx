@@ -4,10 +4,12 @@ import Link from "next/link";
 import { ImportWizard } from "@/components/import/import-wizard";
 import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { aiEnabled } from "@/lib/ai/config";
 import { requireRole } from "@/lib/auth";
 import {
   commitProductImportAction,
   previewProductImportAction,
+  suggestProductMappingAction,
 } from "./actions";
 
 export const metadata: Metadata = { title: "Import products · Repairs helper" };
@@ -40,6 +42,9 @@ export default async function ImportProductsPage() {
         doneLabel="Open the catalogue"
         onPreview={previewProductImportAction}
         onCommit={commitProductImportAction}
+        // Only offered when an AI provider is switched on — otherwise the button
+        // would spend a daily allowance just to say it can't help.
+        onSuggest={aiEnabled() ? suggestProductMappingAction : undefined}
       />
     </div>
   );

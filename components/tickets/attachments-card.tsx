@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -29,11 +30,11 @@ import { deleteAttachmentAction } from "@/app/(app)/tickets/attachment-actions";
 import {
   fileKind,
   formatBytes,
-  rejectionReason,
   UPLOAD_ACCEPT,
   type FileKind,
 } from "./attachment-meta";
 import { PhotoCaptureDialog } from "./photo-capture-dialog";
+import { useTicketUpload } from "./use-ticket-upload";
 
 export type AttachmentRow = {
   id: string;
@@ -68,72 +69,105 @@ export function AttachmentsCard({
   attachments,
   currentUserId,
   isOwner,
+  easy = false,
 }: {
   ticketId: string;
   attachments: AttachmentRow[];
   currentUserId: string;
   isOwner: boolean;
+  /** Easy mode: the two ways to add a file come first and are big, and the pictures are bigger. */
+  easy?: boolean;
 }) {
-  const router = useRouter();
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = React.useState(false);
+  const { upload, uploading } = useTicketUpload(ticketId);
   const [dragging, setDragging] = React.useState(false);
-
-  const upload = React.useCallback(
-    async (candidates: File[]) => {
-      if (candidates.length === 0) return;
-
-      // Reject client-side first so a 40MB file costs nothing to refuse. The
-      // server re-checks every one of these — this is courtesy, not security.
-      const accepted: File[] = [];
-      for (const file of candidates) {
-        const reason = rejectionReason(file);
-        if (reason) toast.error(reason);
-        else accepted.push(file);
-      }
-      if (accepted.length === 0) return;
-
-      const body = new FormData();
-      for (const file of accepted) body.append("files", file);
-
-      setUploading(true);
-      try {
-        const response = await fetch(`/tickets/${ticketId}/upload`, {
-          method: "POST",
-          body,
-        });
-        const result = (await response.json()) as
-          | { ok: true; uploaded: number; errors: string[] }
-          | { ok: false; error: string };
-
-        if (!result.ok) {
-          toast.error(result.error);
-          return;
-        }
-
-        // Partial success is a real outcome, so both halves get reported.
-        result.errors.forEach((message) => toast.error(message));
-        if (result.uploaded > 0) {
-          toast.success(
-            result.uploaded === 1
-              ? "File attached"
-              : `${result.uploaded} files attached`,
-          );
-          router.refresh();
-        }
-      } catch {
-        toast.error("The upload didn't go through — check your connection.");
-      } finally {
-        setUploading(false);
-      }
-    },
-    [ticketId, router],
-  );
 
   function onDrop(event: React.DragEvent) {
     event.preventDefault();
     setDragging(false);
     void upload(Array.from(event.dataTransfer.files));
+  }
+
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      multiple
+      accept={UPLOAD_ACCEPT}
+      className="sr-only"
+      onChange={(event) => {
+        void upload(Array.from(event.target.files ?? []));
+        // Reset so picking the same file twice in a row still fires.
+        event.target.value = "";
+      }}
+    />
+  );
+
+  if (easy) {
+    // No card: the repair screen's tab is the box. Adding comes first, in two big
+    // buttons; what is already attached follows as big pictures.
+    return (
+      <section
+        aria-label="Photos and files"
+        className={cn(
+          "flex flex-col gap-4 rounded-2xl",
+          dragging && "ring-2 ring-accent ring-offset-4 ring-offset-background",
+        )}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setDragging(false);
+          }
+        }}
+        onDrop={onDrop}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">Photos &amp; files</h2>
+          {attachments.length > 0 ? <Chip>{attachments.length}</Chip> : null}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <PhotoCaptureDialog large disabled={uploading} onCapture={(file) => void upload([file])} />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-14 flex-1 px-5 text-base [&_svg]:size-5"
+            disabled={uploading}
+            onClick={() => inputRef.current?.click()}
+          >
+            <ACTIONS.upload />
+            {uploading ? "Uploading…" : "Add files"}
+          </Button>
+        </div>
+        <p className="px-1 text-sm text-muted-foreground">
+          {dragging ? "Drop to attach." : "Images, PDFs, text or log files and zips, up to 10 MB each."}
+        </p>
+        {fileInput}
+
+        {attachments.length > 0 ? (
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {attachments.map((attachment) => (
+              <AttachmentTile
+                key={attachment.id}
+                attachment={attachment}
+                canDelete={isOwner || attachment.uploadedById === currentUserId}
+                large
+              />
+            ))}
+          </ul>
+        ) : (
+          <EmptyState
+            className="rounded-2xl border border-dashed border-border-strong py-10"
+            icon={ICONS.attachment}
+            title="No photos or files yet"
+            hint="Take a photo of the device as it arrived: it settles every 'that scratch was already there'."
+          />
+        )}
+      </section>
+    );
   }
 
   return (
@@ -214,18 +248,7 @@ export function AttachmentsCard({
             Images, PDFs, text or log files and zips · up to 10 MB each
           </p>
 
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept={UPLOAD_ACCEPT}
-            className="sr-only"
-            onChange={(event) => {
-              void upload(Array.from(event.target.files ?? []));
-              // Reset so picking the same file twice in a row still fires.
-              event.target.value = "";
-            }}
-          />
+          {fileInput}
         </div>
       </CardContent>
     </Card>
@@ -237,9 +260,12 @@ export function AttachmentsCard({
 function AttachmentTile({
   attachment,
   canDelete,
+  large = false,
 }: {
   attachment: AttachmentRow;
   canDelete: boolean;
+  /** Easy mode: a taller picture and bigger words. */
+  large?: boolean;
 }) {
   const kind = fileKind(attachment.mimeType);
   const Icon = KIND_ICON[kind];
@@ -262,23 +288,23 @@ function AttachmentTile({
             src={`/files/${attachment.id}`}
             alt={attachment.fileName}
             loading="lazy"
-            className="h-24 w-full object-cover"
+            className={cn("w-full object-cover", large ? "h-36" : "h-24")}
           />
         ) : (
-          <div className="flex h-24 w-full items-center justify-center">
-            <Icon className="size-7 text-faint-foreground" />
+          <div className={cn("flex w-full items-center justify-center", large ? "h-36" : "h-24")}>
+            <Icon className={cn("text-faint-foreground", large ? "size-10" : "size-7")} />
           </div>
         )}
       </a>
 
       <div className="min-w-0">
         <p
-          className="truncate text-[12.5px] font-semibold text-foreground"
+          className={cn("truncate font-semibold text-foreground", large ? "text-sm" : "text-[12.5px]")}
           title={attachment.fileName}
         >
           {attachment.fileName}
         </p>
-        <p className="truncate text-[11.5px] text-faint-foreground">
+        <p className={cn("truncate text-faint-foreground", large ? "text-[13px] text-muted-foreground" : "text-[11.5px]")}>
           {formatBytes(attachment.sizeBytes)} · {attachment.createdAtLabel}
           {attachment.uploaderName ? ` · ${attachment.uploaderName}` : ""}
         </p>
@@ -328,7 +354,7 @@ function DeleteAttachmentButton({ attachment }: { attachment: AttachmentRow }) {
         <DialogHeader>
           <DialogTitle>Delete this file?</DialogTitle>
           <DialogDescription>
-            {attachment.fileName} will be removed from the ticket and deleted
+            {attachment.fileName} will be removed from the repair and deleted
             from storage. This can&rsquo;t be undone.
           </DialogDescription>
         </DialogHeader>

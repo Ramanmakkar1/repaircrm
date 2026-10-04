@@ -56,7 +56,9 @@ export async function generate(input: GenerateInput): Promise<AiResult> {
       if (!target) {
         return { ok: false, reason: `AI provider "${driver}" is not configured` };
       }
-      return generateOpenAiCompatible(input, target);
+      return generateOpenAiCompatible(input, input.purpose === "command"
+        ? { ...target, model: process.env.ASSISTANT_MODEL?.trim() || (driver === "openai" ? "gpt-6.1-sol" : target.model) }
+        : target);
     }
   }
 }

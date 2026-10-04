@@ -83,6 +83,7 @@ export default async function DisplayPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5 rounded-2xl bg-[#0a0a0b] p-5 text-white sm:p-6">
+      <h1 className="sr-only">Shop display</h1>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
         <span className="text-5xl font-black tracking-tight tabular-nums">
           Open {tickets.length}
@@ -131,7 +132,7 @@ export default async function DisplayPage() {
           <span className="text-white/60">No open tickets right now.</span>
         </div>
       ) : (
-        <div className="grid flex-1 auto-rows-fr grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {tickets.map((ticket) => (
             <TicketTile key={ticket.id} ticket={ticket} now={nowMs} />
           ))}

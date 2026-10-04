@@ -6,6 +6,7 @@ import { fullName } from "@/components/customers/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Edit customer · Repairs helper" };
 
@@ -29,8 +30,7 @@ export default async function EditCustomerPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
-  const { id } = await params;
+  const [{ shopId }, { id }, { simple }] = await Promise.all([requireUser(), params, readUiPrefs()]);
 
   // findFirst (not findUnique) so an id from another shop 404s instead of leaking.
   const customer = await db.customer.findFirst({
@@ -62,7 +62,8 @@ export default async function EditCustomerPage({
   const taxRates = await loadTaxRates(shopId);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    // Easy mode is a register: the boxes on the left, "This customer" on the right, so it needs the width.
+    <div className={simple ? "mx-auto flex w-full max-w-6xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-4"}>
       <PageHeader
         breadcrumbs={[
           { label: "Customers", href: "/customers" },
@@ -70,10 +71,10 @@ export default async function EditCustomerPage({
           { label: "Edit" },
         ]}
         title="Edit customer"
-        description="Changes apply from the next ticket, estimate and invoice on."
+        description={simple ? undefined : "Changes apply from the next ticket, estimate and invoice on."}
       />
 
-      <CustomerForm customer={customer} taxRates={taxRates} />
+      <CustomerForm customer={customer} taxRates={taxRates} simple={simple} />
     </div>
   );
 }

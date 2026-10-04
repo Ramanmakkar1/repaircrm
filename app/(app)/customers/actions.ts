@@ -46,6 +46,11 @@ function text(formData: FormData, key: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
+/** "Anna  Maria" and "Anna Maria" are the same name. */
+function oneSpace(value: string): string {
+  return value.trim().split(/\s+/).join(" ");
+}
+
 /** Radix Switch / native checkbox submit "on" only when checked. */
 function flag(formData: FormData, key: string): boolean {
   const raw = formData.get(key);
@@ -66,8 +71,8 @@ function fieldErrorsOf(error: z.ZodError): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 const customerSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(80),
-  lastName: z.string().min(1, "Last name is required").max(80),
+  firstName: z.string().max(80),
+  lastName: z.string().max(80),
   businessName: z.string().max(120).optional(),
   email: z.email("Enter a valid email address").max(160).optional(),
   phone: z.string().max(40).optional(),
@@ -85,14 +90,44 @@ const customerSchema = z.object({
   taxExempt: z.boolean(),
   /** A TaxRate id, verified against this shop before it is stored. */
   taxRateId: z.string().max(40).optional(),
+}).refine((c) => Boolean(c.firstName || c.lastName || c.mobile || c.phone), {
+  path: ["name"],
+  message: "Add a name or a phone number",
 });
 
 type CustomerInput = z.infer<typeof customerSchema>;
 
-function readCustomer(formData: FormData) {
+/**
+ * The counter form sends one "name" box (people type "Sarah Patel", not two
+ * fields); older callers still send firstName/lastName. A customer with only
+ * a phone number is saved as "Customer" + the number so lists stay readable.
+ */
+function readName(
+  formData: FormData,
+  stored?: { firstName: string; lastName: string },
+): { firstName: string; lastName: string } {
+  const full = text(formData, "name");
+  if (full !== undefined) {
+    // Editing: the form shows first + last as one box. A name left alone keeps
+    // its stored split — "Anna Maria" + "Lopez" must not come back as "Anna" +
+    // "Maria Lopez", which would change where they sort.
+    if (stored && oneSpace(full) === oneSpace(`${stored.firstName} ${stored.lastName}`)) {
+      return { firstName: stored.firstName.slice(0, 80), lastName: stored.lastName.slice(0, 80) };
+    }
+    const parts = full.split(/\s+/);
+    return { firstName: parts[0].slice(0, 80), lastName: parts.slice(1).join(" ").slice(0, 80) };
+  }
+  return { firstName: text(formData, "firstName") ?? "", lastName: text(formData, "lastName") ?? "" };
+}
+
+function readCustomer(formData: FormData, stored?: { firstName: string; lastName: string }) {
+  const named = readName(formData, stored);
+  const contact = text(formData, "mobile") ?? text(formData, "phone");
+  const firstName = named.firstName || named.lastName ? named.firstName : contact ? "Customer" : "";
+  const lastName = named.firstName || named.lastName ? named.lastName : (contact ?? "").slice(0, 80);
   return {
-    firstName: text(formData, "firstName") ?? "",
-    lastName: text(formData, "lastName") ?? "",
+    firstName,
+    lastName,
     businessName: text(formData, "businessName"),
     email: text(formData, "email")?.toLowerCase(),
     phone: text(formData, "phone"),
@@ -206,11 +241,11 @@ export async function updateCustomerAction(
 
   const owned = await db.customer.findFirst({
     where: { id, shopId },
-    select: { id: true },
+    select: { id: true, firstName: true, lastName: true },
   });
   if (!owned) return { error: "Customer not found." };
 
-  const parsed = customerSchema.safeParse(readCustomer(formData));
+  const parsed = customerSchema.safeParse(readCustomer(formData, owned));
   if (!parsed.success) {
     return {
       error: "Please fix the highlighted fields.",
@@ -222,6 +257,9 @@ export async function updateCustomerAction(
     where: { id },
     data: {
       ...customerData(parsed.data),
+      // The form has no country box. Leave the stored one (an API client may
+      // have set it) instead of resetting it to "US" on every edit.
+      country: parsed.data.country,
       taxRateId: await validTaxRateId(
         shopId,
         parsed.data.taxRateId,

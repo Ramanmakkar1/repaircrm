@@ -47,12 +47,17 @@ export function Timeline({
   entries,
   now,
   statuses,
+  easy = false,
 }: {
   entries: TimelineEntry[];
   now: number;
   /** The shop's workflow states, used to tell a status move from a lifecycle event. */
   statuses: string[];
+  /** Easy mode: no card around the list (the repair screen's tab is the box), bigger text. */
+  easy?: boolean;
 }) {
+  if (easy) return <EasyTimeline entries={entries} now={now} statuses={statuses} />;
+
   return (
     <Card>
       <CardHeader icon={ICONS.audit} title="Timeline" />
@@ -131,5 +136,80 @@ export function Timeline({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The history for the repair screen's Updates tab: the same entries, as plain
+ * rows under a heading instead of a card of cards. The words say who it is for
+ * ("Private" / "Sent to customer"), the tint only backs them up.
+ */
+function EasyTimeline({
+  entries,
+  now,
+  statuses,
+}: {
+  entries: TimelineEntry[];
+  now: number;
+  statuses: string[];
+}) {
+  return (
+    <section aria-label="History" className="flex flex-col gap-3">
+      <h2 className="px-1 text-lg font-semibold tracking-tight text-foreground">History</h2>
+      {entries.length === 0 ? (
+        <EmptyState
+          className="px-2 py-10"
+          icon={ICONS.message}
+          title="Nothing logged yet"
+          hint="Every status change, note and message to the customer lands here, newest first."
+        />
+      ) : (
+        <ol className="flex flex-col gap-2">
+          {entries.map((entry) => (
+            <li
+              key={entry.id}
+              className={cn(
+                "rounded-2xl border p-4",
+                entry.isPublic ? "border-border bg-surface" : "border-status-in-progress-bg bg-status-in-progress-bg/60",
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Avatar className="size-8">
+                  <AvatarFallback className="text-xs">{initials(entry.authorName ?? "System")}</AvatarFallback>
+                </Avatar>
+                <span className="text-[15px] font-semibold text-foreground">{entry.authorName ?? "System"}</span>
+
+                {entry.updateType ? (
+                  <Badge variant="default" className="text-[13px]">
+                    {statuses.includes(entry.updateType) ? `Status → ${entry.updateType}` : entry.updateType}
+                  </Badge>
+                ) : null}
+
+                <span className="ml-auto flex items-center gap-2 text-[13px] text-muted-foreground">
+                  {entry.isPublic ? (
+                    <span className="flex items-center gap-1 text-accent-soft-foreground">
+                      <Send className="size-3.5" />
+                      Sent to customer
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Lock className="size-3.5" />
+                      Private
+                    </span>
+                  )}
+                  <time dateTime={entry.createdAt.toISOString()} title={format(entry.createdAt, "EEEE d MMMM yyyy, h:mm a")}>
+                    {relativeShort(entry.createdAt, now)}
+                  </time>
+                </span>
+              </div>
+
+              {entry.subject ? <p className="mt-2 text-[15px] font-semibold text-foreground">{entry.subject}</p> : null}
+
+              <p className="mt-1 whitespace-pre-wrap text-[15px] leading-relaxed text-foreground">{entry.body}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

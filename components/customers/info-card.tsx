@@ -4,8 +4,9 @@ import { Check, IdCard, Mail, MapPin, Phone, Smartphone, X } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { Separator } from "@/components/ui/separator";
-import { formatBps } from "@/lib/money";
+import { formatBps, formatCents } from "@/lib/money";
 import { CustomerField } from "./customer-field";
+import { primaryPhone } from "./customer-facts";
 import { EM_DASH, addressLines } from "./format";
 
 export type CustomerInfo = {
@@ -29,33 +30,89 @@ export type CustomerInfo = {
   taxRate: { name: string; rateBps: number } | null;
 };
 
-export function InfoCard({ customer }: { customer: CustomerInfo }) {
+/**
+ * `easy` is the Easy mode "Contact" section, first on the page after the
+ * header. The Easy header has no editable strip, so this is where the phone and
+ * email are changed in place (the same fields, written the same way): the
+ * number the header dials is the one edited here, and a second number, when
+ * there is one, stays a plain tap-to-call line. It also carries "Total paid",
+ * which the old Easy header showed as a fact ("Customer since" is now in the
+ * summary strip's last-visit pair).
+ */
+export function InfoCard({
+  customer,
+  easy = false,
+  totalPaidCents,
+}: {
+  customer: CustomerInfo;
+  easy?: boolean;
+  /** Easy mode only: what they have paid the shop over time, a fact that used to sit in the header. */
+  totalPaidCents?: number;
+}) {
   const address = addressLines(customer);
+  const main = primaryPhone(customer);
+  const otherNumber = main.field === "mobile" ? customer.phone : customer.mobile;
 
   return (
     <Card>
-      <CardHeader icon={IdCard} title="Details" />
+      <CardHeader icon={IdCard} title={easy ? "Contact" : "Details"} />
 
       <CardContent className="flex flex-col gap-5">
         <section className="flex flex-col gap-3">
           <GroupLabel>How to reach them</GroupLabel>
-          <ContactLine
-            icon={Mail}
-            value={customer.email}
-            href={customer.email ? `mailto:${customer.email}` : undefined}
-          />
-          <ContactLine
-            icon={Phone}
-            value={customer.phone}
-            href={customer.phone ? `tel:${customer.phone}` : undefined}
-            suffix="office"
-          />
-          <ContactLine
-            icon={Smartphone}
-            value={customer.mobile}
-            href={customer.mobile ? `tel:${customer.mobile}` : undefined}
-            suffix="mobile"
-          />
+          {easy ? (
+            <dl className="flex flex-col gap-1 text-base">
+              <EditRow label={main.label}>
+                <CustomerField
+                  customerId={customer.id}
+                  field={main.field}
+                  label={main.label}
+                  value={main.value}
+                  className="whitespace-normal"
+                />
+              </EditRow>
+              <EditRow label="Email">
+                <CustomerField
+                  customerId={customer.id}
+                  field="email"
+                  label="Email"
+                  value={customer.email ?? ""}
+                  className="whitespace-normal"
+                />
+              </EditRow>
+              {otherNumber ? (
+                <EditRow label={main.field === "mobile" ? "Office phone" : "Mobile"}>
+                  <a
+                    href={`tel:${otherNumber}`}
+                    data-touch-control
+                    className="inline-flex min-h-12 items-center font-medium text-foreground hover:underline"
+                  >
+                    {otherNumber}
+                  </a>
+                </EditRow>
+              ) : null}
+            </dl>
+          ) : (
+            <>
+              <ContactLine
+                icon={Mail}
+                value={customer.email}
+                href={customer.email ? `mailto:${customer.email}` : undefined}
+              />
+              <ContactLine
+                icon={Phone}
+                value={customer.phone}
+                href={customer.phone ? `tel:${customer.phone}` : undefined}
+                suffix="office"
+              />
+              <ContactLine
+                icon={Smartphone}
+                value={customer.mobile}
+                href={customer.mobile ? `tel:${customer.mobile}` : undefined}
+                suffix="mobile"
+              />
+            </>
+          )}
         </section>
 
         <Separator />
@@ -120,12 +177,25 @@ export function InfoCard({ customer }: { customer: CustomerInfo }) {
               />
             </dd>
           </div>
-          {/* "Customer since" is a column in the header's metadata strip now.
-              One fact, one place — repeating it here just made the reader
-              check whether the two agreed. */}
+          {easy && typeof totalPaidCents === "number" ? (
+            <Row label="Total paid" value={formatCents(totalPaidCents)} />
+          ) : null}
         </dl>
       </CardContent>
     </Card>
+  );
+}
+
+/** A label and its value on one line; the value may be an in-place editor. */
+function EditRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[6.5rem_minmax(0,1fr)]">
+      <dt className="text-sm text-muted-foreground sm:text-base">{label}</dt>
+      {/* The editor is an inline-flex box that is as wide as its text; capping it
+          at the column makes a very long email end in an ellipsis instead of
+          pushing the page sideways. */}
+      <dd className="min-w-0 font-medium text-foreground [&_[data-inline-edit]]:max-w-full">{children}</dd>
+    </div>
   );
 }
 

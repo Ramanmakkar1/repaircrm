@@ -174,7 +174,7 @@ export function openAiTarget(name: AiDriverName): OpenAiTarget | null {
  * multipart shape, so — like the text providers — one driver serves them all.
  *
  *   STT_DRIVER = off (default) | openai | groq | custom
- *   STT_MODEL  = override (openai -> whisper-1, groq -> whisper-large-v3)
+ *   STT_MODEL  = override (default: openai -> gpt-transcribe, groq -> whisper-large-v3, custom -> whisper-1)
  *   openai/groq reuse OPENAI_API_KEY / GROQ_API_KEY
  *   custom     STT_API_KEY + STT_BASE_URL (any OpenAI-compatible transcription URL)
  *
@@ -192,7 +192,7 @@ const STT_PROVIDERS: Record<
   openai: {
     baseUrl: "https://api.openai.com/v1",
     keyEnv: "OPENAI_API_KEY",
-    defaultModel: "whisper-1",
+    defaultModel: "gpt-transcribe",
   },
   groq: {
     baseUrl: "https://api.groq.com/openai/v1",

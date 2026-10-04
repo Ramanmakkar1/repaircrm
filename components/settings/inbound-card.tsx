@@ -12,6 +12,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
+import { attentionBorder } from "./card-attention";
 import type { InboundConfig } from "./types";
 
 /**
@@ -31,9 +32,9 @@ export function InboundCard({ config }: { config: InboundConfig }) {
   const live = config.resendSecretSet || config.inboundTokenSet || config.twilioTokenSet;
 
   return (
-    // Red stripe when no secret is set: both endpoints reject every request, so
+    // Red border when no secret is set: both endpoints reject every request, so
     // customer replies are being dropped on the floor right now.
-    <Card tone={live ? undefined : "danger"}>
+    <Card className={live ? undefined : attentionBorder("danger")}>
       <CardHeader
         icon={ICONS.inbound}
         title={
@@ -65,7 +66,7 @@ export function InboundCard({ config }: { config: InboundConfig }) {
         </Section>
 
         <Section title="Email — Resend">
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             In Resend, add an inbound address on your domain and point it at the
             email URL above, then paste the signing secret it gives you into{" "}
             <Env>RESEND_WEBHOOK_SECRET</Env>. Set the address you chose in the
@@ -89,7 +90,7 @@ export function InboundCard({ config }: { config: InboundConfig }) {
         </Section>
 
         <Section title="SMS — Twilio">
-          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+          <p className="text-[14px] leading-relaxed text-muted-foreground">
             In the Twilio console, open your number, and under{" "}
             <em>A message comes in</em> set the webhook to the SMS URL above with
             method <strong>POST</strong>. Verification uses the same{" "}
@@ -159,7 +160,7 @@ function InboundAddress({ config }: { config: InboundConfig }) {
           </Button>
         ) : null}
       </div>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
+      <p className="text-[14px] leading-relaxed text-muted-foreground">
         {config.singleShop
           ? "Optional while this is the only shop on the server — anything that arrives is filed here. Set it before adding a second shop."
           : "Required: a message is filed against the shop whose address it was sent to."}
@@ -188,10 +189,10 @@ function Section({
 function UrlRow({ label, url }: { label: string; url: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="w-12 shrink-0 text-[13px] font-semibold text-foreground">
+      <span className="w-12 shrink-0 text-[14px] font-semibold text-foreground">
         {label}
       </span>
-      <code className="min-w-0 flex-1 break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[13px] text-foreground">
+      <code className="min-w-0 flex-1 break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
         {url}
       </code>
     </div>
@@ -220,7 +221,7 @@ function VarList({ vars }: { vars: { name: string; set: boolean }[] }) {
 
 function Warning({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[13.5px] font-medium leading-relaxed text-status-overdue-fg">
+    <p className="rounded-md bg-status-overdue-bg px-4 py-3 text-[14px] font-medium leading-relaxed text-status-overdue-fg">
       {children}
     </p>
   );
@@ -228,7 +229,7 @@ function Warning({ children }: { children: React.ReactNode }) {
 
 function Env({ children }: { children: React.ReactNode }) {
   return (
-    <code className="whitespace-nowrap rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[13px] font-semibold text-foreground">
+    <code className="whitespace-nowrap rounded-sm bg-surface-hover px-1.5 py-0.5 font-mono text-[14px] font-semibold text-foreground">
       {children}
     </code>
   );

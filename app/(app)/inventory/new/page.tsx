@@ -6,6 +6,7 @@ import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "New product · Repairs helper" };
 
@@ -22,7 +23,7 @@ export default async function NewProductPage({
 }: {
   searchParams: Promise<{ upc?: string; sku?: string }>;
 }) {
-  const { shopId, role } = await requireUser();
+  const [{ shopId, role }, { simple }] = await Promise.all([requireUser(), readUiPrefs()]);
   const seed = await searchParams;
 
   const vendors = await db.vendor.findMany({
@@ -32,21 +33,35 @@ export default async function NewProductPage({
   });
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
-      <Link
-        href="/inventory"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ACTIONS.back className="size-4" />
-        All inventory
-      </Link>
+    // Easy mode is a register: the picture on the left, the three boxes on the right, so it needs the width.
+    <div className={simple ? "mx-auto flex w-full max-w-5xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-1"}>
+      {simple ? (
+        <PageHeader
+          breadcrumbs={[
+            { label: "Inventory", href: "/inventory" },
+            { label: "New product" },
+          ]}
+          title="New product"
+        />
+      ) : (
+        <>
+          <Link
+            href="/inventory"
+            className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ACTIONS.back className="size-4" />
+            All inventory
+          </Link>
 
-      <PageHeader
-        title="New product"
-        description="Only a name and a price are required — the rest can come later."
-      />
+          <PageHeader
+            title="New product"
+            description="Only a name and a price are required — the rest can come later."
+          />
+        </>
+      )}
 
       <ProductForm
+        simple={simple}
         vendors={vendors}
         canSeeCost={role === "OWNER"}
         defaults={{
