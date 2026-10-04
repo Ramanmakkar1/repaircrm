@@ -54,4 +54,3 @@ credential, payment, logo or notification submission was used for this release.
 Core solid-surface text/action combinations have contrast of at least 6.5:1
 (blue button 6.53:1; muted slate copy 7.34:1; navy section copy 11.96:1).
 This is palette verification, not a claim of a complete accessibility audit.
-
