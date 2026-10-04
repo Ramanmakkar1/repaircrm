@@ -20,11 +20,17 @@ import { pickIntakePhotoId } from "./repair-card-facts";
 // The tabs: one section at a time, in the URL
 // ---------------------------------------------------------------------------
 
+/**
+ * One word each, so all five fit the left column of a counter tablet (1024px)
+ * even when four of them carry a count; "Photos & files" and "Customer &
+ * device" pushed Money off the edge. Each section still opens under its full
+ * heading.
+ */
 export const JOB_TABS = [
   { id: "work", label: "Work" },
   { id: "updates", label: "Updates" },
-  { id: "photos", label: "Photos & files" },
-  { id: "customer", label: "Customer & device" },
+  { id: "photos", label: "Photos" },
+  { id: "customer", label: "Customer" },
   { id: "money", label: "Money" },
 ] as const;
 
@@ -83,36 +89,68 @@ export function openPartCount(parts: readonly { status: string }[]): number {
 // The status row
 // ---------------------------------------------------------------------------
 
-export type StepState = "done" | "current" | "todo";
+/** `skipped`: a step before the current one that this repair never actually went through. */
+export type StepState = "done" | "skipped" | "current" | "todo";
 export type JobStep = { status: string; state: StepState };
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const key = (status: string) => status.trim().toLowerCase();
 
 /**
- * One pill per state of the shop's pipeline: the ones before the current one are
- * done (ticked), the current one is filled, the rest are still to come.
+ * One pill per state of the shop's pipeline: the current one is filled, the
+ * ones after it are still to come, and the ones before it are either done
+ * (ticked) or skipped.
+ *
+ * `visited` is the repair's real history: every status it has been moved to
+ * (the `updateType` of its status-change updates). With it, an earlier step the
+ * repair jumped straight past (New to Ready for Pickup, never Waiting for Parts)
+ * says "Skipped" instead of being ticked as done. The first step counts as
+ * visited, because every repair is booked in there and the booking does not
+ * record a status. Without a history every earlier step reads as done.
  *
  * A status the shop has since renamed away (a repair written under an old name)
  * is added at the end as the current step, so the row never claims the repair is
  * at a step it is not at.
  */
-export function jobSteps(statuses: readonly string[], current: string): JobStep[] {
+export function jobSteps(statuses: readonly string[], current: string, visited?: readonly string[]): JobStep[] {
   const list = [...statuses];
   let index = list.findIndex((status) => same(status, current));
   if (index < 0) {
     list.push(current);
     index = list.length - 1;
   }
+  const been = visited ? new Set(visited.map(key)) : null;
   return list.map((status, i) => ({
     status,
-    state: i < index ? "done" : i === index ? "current" : "todo",
+    state:
+      i === index ? "current"
+      : i > index ? "todo"
+      : !been || i === 0 || been.has(key(status)) ? "done"
+      : "skipped",
   }));
 }
 
-/** The state a "start" or "resume" press moves a repair to: the shop's In Progress, else the next step. */
+/** A state that is not work on the bench: waiting on someone, ready to collect, or finished. */
+function isWorkingStatus(status: string): boolean {
+  const name = key(status);
+  if (/\bwait|\bhold\b|\bpaused?\b/.test(name)) return false;
+  if (isReadyForPickup(status) || same(status, RESOLVED_STATUS)) return false;
+  return !/\b(closed|completed?|cancell?ed|picked up|collected|done)\b/.test(name);
+}
+
+/**
+ * The state a "start", "resume" or "reopen" press moves a repair to: the shop's
+ * In Progress; for a pipeline without one, the first working step (not the
+ * booking-in step, not a waiting state, not ready or finished); and only when
+ * there is no such step at all, the next step. Resuming from "Waiting for
+ * Parts" in New / Diagnosing / Waiting for Parts / Ready / Resolved goes back to
+ * Diagnosing, never on to Ready.
+ */
 export function inProgressTarget(statuses: readonly string[], current: string): string | null {
   const found = statuses.find((status) => same(status, IN_PROGRESS_STATUS));
   if (found) return found;
+  const working = statuses.slice(1).find(isWorkingStatus);
+  if (working) return working;
   const index = statuses.findIndex((status) => same(status, current));
   return statuses[index + 1] ?? null;
 }

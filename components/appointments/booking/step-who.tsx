@@ -15,6 +15,7 @@ import {
   findCustomers,
   hasCustomer,
   noMatchLine,
+  pickerLines,
   searchPlaceholder,
   searchesByContact,
   withCustomer,
@@ -34,17 +35,17 @@ function contactOf(customer: CustomerOption) {
 
 /** A person as one large tap row: initials, name, number. */
 function CustomerRow({ customer, onPick }: { customer: CustomerOption; onPick: () => void }) {
-  const contact = contactOf(customer);
+  const { title, detail } = pickerLines(customer);
   return (
     <button
       type="button"
       onClick={onPick}
       className="flex min-h-[4.5rem] w-full items-center gap-4 rounded-2xl border border-border bg-surface p-3 text-left transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.99] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <InitialsVisual name={customer.label} className="size-12 text-lg" />
+      <InitialsVisual name={detail === "No name saved yet" ? "#" : customer.label} className="size-12 text-lg" />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-lg font-semibold leading-tight">{customer.label}</span>
-        {contact ? <span className="truncate text-[15px] text-muted-foreground">{contact}</span> : null}
+        <span className="truncate text-lg font-semibold leading-tight">{title}</span>
+        {detail ? <span className="truncate text-[15px] text-muted-foreground">{detail}</span> : null}
       </span>
     </button>
   );
@@ -62,6 +63,8 @@ export function WhoStep({
   onChosen,
   issues,
   focusSearch,
+  onSearch,
+  searching = false,
 }: {
   values: AppointmentFormValues;
   ctx: Pick<BookingContext, "customers">;
@@ -71,10 +74,20 @@ export function WhoStep({
   issues: Issue[];
   /** A keyboard is at hand, so the cursor goes straight to the search box. */
   focusSearch: boolean;
+  /** The shop has more customers than the page sent: ask the server too (after a short pause in typing). */
+  onSearch?: (query: string) => void;
+  /** That server search is still out. */
+  searching?: boolean;
 }) {
   const [query, setQuery] = React.useState("");
   const [email, setEmail] = React.useState(() => Boolean(values.newCustomerEmail));
   const typed = query.trim();
+
+  React.useEffect(() => {
+    if (!onSearch || typed.length < 2) return;
+    const timer = window.setTimeout(() => onSearch(typed), 300);
+    return () => window.clearTimeout(timer);
+  }, [onSearch, typed]);
   const adding = values.customerId === NEW;
   const messages = issues.filter((issue) => issue.step === 0).map((issue) => issue.message);
 
@@ -228,7 +241,9 @@ export function WhoStep({
             <CustomerRow key={customer.value} customer={customer} onPick={() => pick(customer.value)} />
           ))}
           {matches.length === 0 ? (
-            <p className="px-1 text-base text-muted-foreground">{noMatchLine(ctx.customers, typed)}</p>
+            <p className="px-1 text-base text-muted-foreground">
+              {searching ? "Looking through all your customers…" : noMatchLine(ctx.customers, typed)}
+            </p>
           ) : null}
           {matches.length > SHOWN ? (
             <p className="px-1 text-sm text-muted-foreground">{matches.length - SHOWN} more match. Keep typing to narrow it down.</p>

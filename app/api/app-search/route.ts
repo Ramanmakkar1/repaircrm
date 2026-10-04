@@ -8,8 +8,11 @@ import {
   phoneQueryDigits,
 } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
+import { formatCents } from "@/lib/money";
+import { deviceImageSource, PRODUCT_IMAGE_SELECT, productImageSource } from "@/lib/inventory/product-images";
 import type { SearchGroup, SearchItem } from "@/components/search/types";
 import { TYPE_LABEL } from "@/components/search/types";
+import { numberFor, parseRecordQuery } from "@/components/search/record-number";
 
 /**
  * Backing store for the ⌘K command palette.
@@ -45,8 +48,15 @@ export async function GET(request: Request) {
   }
 
   const like = { contains: q, mode: "insensitive" as const };
-  /** Numeric query -> also try it as a ticket / invoice / estimate number. */
-  const number = /^\d{1,9}$/.test(q) ? Number(q) : null;
+  /**
+   * A record number, written any way people write one: "1012", "#1012",
+   * "INV-1012", "repair 1012". A word in front ("INV", "repair", "EST") only
+   * looks up that kind; a bare number or "#1012" tries all three.
+   */
+  const record = parseRecordQuery(q);
+  const ticketNumber = numberFor(record, "ticket");
+  const invoiceNumber = numberFor(record, "invoice");
+  const estimateNumber = numberFor(record, "estimate");
 
   // "elena m" should find Elena Marsh even though neither column contains the
   // whole string. First term against firstName, last term against lastName.
@@ -96,6 +106,15 @@ export async function GET(request: Request) {
     businessName: true,
   } as const;
 
+  const ticketSelect = {
+    id: true,
+    number: true,
+    subject: true,
+    status: true,
+    customer: { select: customerSelect },
+    asset: { select: { type: true, make: true, model: true } },
+  } as const;
+
   const [customers, tickets, ticketExact, invoices, invoiceExact, estimates, estimateExact, products, serials, leads] =
     await Promise.all([
       db.customer.findMany({
@@ -117,7 +136,7 @@ export async function GET(request: Request) {
         where: {
           shopId,
           OR: [
-            ...(number !== null ? [{ number }] : []),
+            ...(ticketNumber !== null ? [{ number: ticketNumber }] : []),
             { subject: like },
             { problemType: like },
             { customer: { OR: customerOr } },
@@ -125,36 +144,24 @@ export async function GET(request: Request) {
             { asset: { OR: [{ serial: like }, { make: like }, { model: like }] } },
           ],
         },
-        select: {
-          id: true,
-          number: true,
-          subject: true,
-          status: true,
-          customer: { select: customerSelect },
-        },
+        select: ticketSelect,
         orderBy: { updatedAt: "desc" },
         take: PER_GROUP,
       }),
       // The unique ([shopId, number]) hit is pinned to the top of its group so
       // typing "1003" can never lose ticket #1003 behind five recent matches.
-      number === null
+      ticketNumber === null
         ? null
         : db.ticket.findFirst({
-            where: { shopId, number },
-            select: {
-              id: true,
-              number: true,
-              subject: true,
-              status: true,
-              customer: { select: customerSelect },
-            },
+            where: { shopId, number: ticketNumber },
+            select: ticketSelect,
           }),
 
       db.invoice.findMany({
         where: {
           shopId,
           OR: [
-            ...(number !== null ? [{ number }] : []),
+            ...(invoiceNumber !== null ? [{ number: invoiceNumber }] : []),
             { customer: { OR: customerOr } },
           ],
         },
@@ -167,10 +174,10 @@ export async function GET(request: Request) {
         orderBy: { updatedAt: "desc" },
         take: PER_GROUP,
       }),
-      number === null
+      invoiceNumber === null
         ? null
         : db.invoice.findFirst({
-            where: { shopId, number },
+            where: { shopId, number: invoiceNumber },
             select: {
               id: true,
               number: true,
@@ -183,7 +190,7 @@ export async function GET(request: Request) {
         where: {
           shopId,
           OR: [
-            ...(number !== null ? [{ number }] : []),
+            ...(estimateNumber !== null ? [{ number: estimateNumber }] : []),
             { customer: { OR: customerOr } },
           ],
         },
@@ -196,10 +203,10 @@ export async function GET(request: Request) {
         orderBy: { updatedAt: "desc" },
         take: PER_GROUP,
       }),
-      number === null
+      estimateNumber === null
         ? null
         : db.estimate.findFirst({
-            where: { shopId, number },
+            where: { shopId, number: estimateNumber },
             select: {
               id: true,
               number: true,
@@ -219,6 +226,10 @@ export async function GET(request: Request) {
           sku: true,
           stockQty: true,
           active: true,
+          priceCents: true,
+          category: true,
+          catalogImage: true,
+          attachments: PRODUCT_IMAGE_SELECT,
         },
         orderBy: { name: "asc" },
         take: PER_GROUP,
@@ -232,7 +243,7 @@ export async function GET(request: Request) {
           id: true,
           serial: true,
           status: true,
-          product: { select: { id: true, name: true } },
+          product: { select: { id: true, name: true, category: true, catalogImage: true } },
           invoiceLine: {
             select: { invoice: { select: { id: true, number: true } } },
           },
@@ -272,10 +283,11 @@ export async function GET(request: Request) {
         id: c.id,
         title: personName(c),
         subtitle:
-          [c.businessName, c.email, c.phone ?? c.mobile]
+          [c.phone ?? c.mobile, c.businessName, c.email]
             .filter(Boolean)
             .join(" · ") || undefined,
         href: `/customers/${c.id}`,
+        initials: initialsOf(personName(c)),
       })),
     ),
 
@@ -284,10 +296,12 @@ export async function GET(request: Request) {
       pinExact(ticketExact, tickets).map((t) => ({
         type: "ticket" as const,
         id: t.id,
-        title: `#${t.number} · ${t.subject}`,
-        subtitle: personName(t.customer),
+        title: `#${t.number} · ${personName(t.customer)}`,
+        subtitle: [deviceLabel(t.asset), t.subject].filter(Boolean).join(" · ") || undefined,
         href: `/tickets/${t.id}`,
         badge: t.status,
+        picture: devicePicture(t.asset, t.subject),
+        exact: t.number === ticketNumber,
       })),
     ),
 
@@ -300,6 +314,8 @@ export async function GET(request: Request) {
         subtitle: personName(i.customer),
         href: `/invoices/${i.id}`,
         badge: titleCase(i.status),
+        picture: "/images/home/invoice-pad.webp",
+        exact: i.number === invoiceNumber,
       })),
     ),
 
@@ -312,6 +328,8 @@ export async function GET(request: Request) {
         subtitle: personName(e.customer),
         href: `/estimates/${e.id}`,
         badge: titleCase(e.status),
+        picture: "/images/home/price-tag.webp",
+        exact: e.number === estimateNumber,
       })),
     ),
 
@@ -322,11 +340,19 @@ export async function GET(request: Request) {
         id: p.id,
         title: p.name,
         subtitle:
-          [p.sku ? `SKU ${p.sku}` : null, `${p.stockQty} in stock`]
+          [`${p.stockQty} in stock`, p.sku ? `SKU ${p.sku}` : null]
             .filter(Boolean)
             .join(" · ") || undefined,
         href: `/inventory/${p.id}`,
-        badge: p.active ? undefined : "Inactive",
+        badge: p.active ? undefined : "Not for sale",
+        picture: productImageSource({
+          productId: p.id,
+          name: p.name,
+          category: p.category,
+          catalogImage: p.catalogImage,
+          imageUrl: p.attachments[0] ? `/files/${p.attachments[0].id}` : null,
+        }).src,
+        price: formatCents(p.priceCents),
       })),
     ),
 
@@ -351,6 +377,7 @@ export async function GET(request: Request) {
           ? `/invoices/${unit.invoiceLine.invoice.id}`
           : `/inventory/${unit.product.id}`,
         badge: serialBadge(unit.status),
+        picture: productImageSource({ name: unit.product.name, category: unit.product.category, catalogImage: unit.product.catalogImage }).src,
       })),
     ),
 
@@ -361,9 +388,10 @@ export async function GET(request: Request) {
         id: l.id,
         title: l.name,
         subtitle:
-          [l.email ?? l.phone, l.source].filter(Boolean).join(" · ") || undefined,
+          [l.phone ?? l.email, l.source].filter(Boolean).join(" · ") || undefined,
         href: `/leads/${l.id}`,
         badge: titleCase(l.status),
+        initials: initialsOf(l.name),
       })),
     ),
   ].filter((g) => g.items.length > 0);
@@ -392,6 +420,24 @@ function personName(c: {
 }): string {
   const name = `${c.firstName} ${c.lastName}`.trim();
   return name || c.businessName || "Unnamed";
+}
+
+/** "PA" for Priscilla Adeyemi: the picture for a person. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
+}
+
+/** "Lenovo ThinkPad T14", or the device type when make and model are blank. */
+function deviceLabel(asset: { type: string; make: string | null; model: string | null } | null): string | null {
+  if (!asset) return null;
+  return [asset.make, asset.model].filter(Boolean).join(" ").trim() || asset.type.trim() || null;
+}
+
+/** The device-family picture (a phone, a laptop...): never an exact model. */
+function devicePicture(asset: { type: string; make: string | null; model: string | null } | null, subject: string): string | null {
+  const text = [asset?.type, asset?.make, asset?.model, subject].filter(Boolean).join(" ");
+  return deviceImageSource(text)?.src ?? null;
 }
 
 /** IN_STOCK -> In stock. */

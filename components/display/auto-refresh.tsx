@@ -15,7 +15,7 @@ const REFRESH_MS = 30_000;
  * that's switched to another HDMI input doesn't keep hammering the DB, and
  * immediately refreshes the moment it becomes visible again.
  */
-export function AutoRefresh({ className }: { className?: string }) {
+export function AutoRefresh({ className, timeZone }: { className?: string; /** The shop's zone, for the "Updated" time. */ timeZone?: string }) {
   const router = useRouter();
   const [lastRefreshed, setLastRefreshed] = React.useState<Date | null>(null);
 
@@ -62,7 +62,7 @@ export function AutoRefresh({ className }: { className?: string }) {
 
   return (
     <span className={className} suppressHydrationWarning>
-      {lastRefreshed ? `Updated ${formatClockTime(lastRefreshed)}` : "Updated —"}
+      {lastRefreshed ? `Updated ${formatClockTime(lastRefreshed, timeZone)}` : "Updated —"}
     </span>
   );
 }

@@ -20,6 +20,8 @@ import { RowLink } from "@/components/list/row-link";
 import { DocumentGrid, EstimateCard } from "@/components/billing/document-cards";
 import { BillingFilterBar } from "@/components/billing/filter-bar";
 import { formatDate } from "@/components/billing/format";
+import { loadShopZone } from "@/components/billing/print-queries";
+import { shopNow, shopWall } from "@/components/billing/shop-clock";
 import { PAGE_SIZE, Pagination } from "@/components/billing/pagination";
 import { estimateTabCounts } from "@/components/billing/record-format";
 import {
@@ -38,7 +40,7 @@ export default async function EstimatesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shopId } = await requireUser();
-  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  const [params, prefs, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   // Easy mode (the default) shows cards and big buttons; Full mode keeps the table.
   const easy = prefs.simple;
 
@@ -94,7 +96,8 @@ export default async function EstimatesPage({
   ]);
 
   const filtered = Boolean(q || status || customerId);
-  const now = requestNow();
+  // Calendar rules (expired, "Written Sep 18") read the shop's own wall clock.
+  const now = shopNow(requestNow(), zone);
   const tabCounts = easy ? estimateTabCounts(statusCounts) : null;
 
   const emptyState = (
@@ -196,9 +199,9 @@ export default async function EstimatesPage({
                       number: estimate.number,
                       customerName: customerLabel(estimate.customer),
                       status: estimate.status,
-                      createdAt: estimate.createdAt,
+                      createdAt: shopWall(estimate.createdAt, zone) ?? estimate.createdAt,
                       expiresAt: estimate.expiresAt,
-                      approvedAt: estimate.approvedAt,
+                      approvedAt: shopWall(estimate.approvedAt, zone),
                       totalCents: calcTotals(estimate.lines, estimate.taxRateBps).totalCents,
                     }}
                   />
@@ -273,7 +276,7 @@ export default async function EstimatesPage({
                             <EstimateStatusBadge status={estimate.status} size="md" />
                           </Td>
                           <Td className="text-muted-foreground">
-                            {formatDate(estimate.createdAt)}
+                            {formatDate(estimate.createdAt, zone)}
                           </Td>
                           {/* Red on the date is what the card's left stripe used to
                               say, spent on the cell that actually explains it. */}

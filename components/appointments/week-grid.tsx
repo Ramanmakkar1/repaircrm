@@ -1,20 +1,25 @@
 import Link from "next/link";
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns";
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import {
   APPOINTMENT_STATUS_META,
-  DAY_START_HOUR,
-  GRID_HEIGHT_PX,
+  EASY_HOUR_PX,
+  EASY_MIN_BLOCK_PX,
   HOUR_PX,
   HOUR_SLOTS,
   VISIBLE_HOURS,
   asAppointmentStatus,
   customerNameOf,
+  hourLabel,
   initialsOf,
+  isOnDay,
   layoutDay,
+  nowOffsetPx,
   shortTime,
+  toDateParam,
+  todayIn,
   type CalendarAppointment,
 } from "./calendar-meta";
 
@@ -32,6 +37,10 @@ import {
  * Interaction is links, for the same reason: an empty hour links to
  * `?at=<slot>` and a block links to `?edit=<id>`, so both are deep-linkable,
  * survive a refresh, and work with the back button.
+ *
+ * Where a booking sits is read on the SHOP'S wall clock (`zone`). `easy` draws
+ * the touch version: 96px hours, so no block is under 48px, bigger words, and
+ * "Today" written over today's column.
  */
 export function WeekGrid({
   days,
@@ -39,14 +48,21 @@ export function WeekGrid({
   slotHref,
   editHref,
   now,
+  zone,
+  easy = false,
 }: {
   days: Date[];
   appointments: CalendarAppointment[];
   slotHref: (day: Date, hour: number) => string;
   editHref: (id: string) => string;
   now: Date;
+  zone?: string;
+  easy?: boolean;
 }) {
-  const columns = `60px repeat(${days.length}, minmax(0, 1fr))`;
+  const columns = `${easy ? 72 : 60}px repeat(${days.length}, minmax(0, 1fr))`;
+  const hourPx = easy ? EASY_HOUR_PX : HOUR_PX;
+  const gridHeight = VISIBLE_HOURS * hourPx;
+  const todayKey = toDateParam(todayIn(now, zone));
 
   return (
     <Card className="overflow-hidden">
@@ -60,7 +76,7 @@ export function WeekGrid({
           >
             <div />
             {days.map((day) => {
-              const today = isSameDay(day, now);
+              const today = toDateParam(day) === todayKey;
               return (
                 <div
                   key={day.toISOString()}
@@ -69,8 +85,14 @@ export function WeekGrid({
                     today && "bg-accent-soft/40",
                   )}
                 >
-                  <span className="text-[11.5px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {format(day, "EEE")}
+                  <span
+                    className={cn(
+                      "font-semibold uppercase tracking-wide",
+                      easy ? "text-sm" : "text-[11.5px]",
+                      today ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {today && easy ? "Today" : format(day, "EEE")}
                   </span>
                   <span
                     className={cn(
@@ -90,15 +112,20 @@ export function WeekGrid({
           {/* -------------------------------------------------- hour grid -- */}
           <div className="grid" style={{ gridTemplateColumns: columns }}>
             {/* Time gutter. Labels sit ON the hour line, nudged up half a line. */}
-            <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
+            <div className="relative" style={{ height: gridHeight }}>
               {HOUR_SLOTS.map((hour) => (
                 <div
                   key={hour}
                   className="relative"
-                  style={{ height: HOUR_PX }}
+                  style={{ height: hourPx }}
                 >
-                  <span className="absolute -top-2 right-2 text-[11.5px] font-medium tabular-nums text-faint-foreground">
-                    {formatHour(hour)}
+                  <span
+                    className={cn(
+                      "absolute -top-2 right-2 font-medium tabular-nums",
+                      easy ? "text-sm text-muted-foreground" : "text-[11.5px] text-faint-foreground",
+                    )}
+                  >
+                    {hourLabel(hour)}
                   </span>
                 </div>
               ))}
@@ -109,11 +136,14 @@ export function WeekGrid({
                 key={day.toISOString()}
                 day={day}
                 appointments={appointments.filter((appointment) =>
-                  isSameDay(appointment.startsAt, day),
+                  isOnDay(appointment.startsAt, day, zone),
                 )}
                 slotHref={slotHref}
                 editHref={editHref}
                 now={now}
+                zone={zone}
+                today={toDateParam(day) === todayKey}
+                easy={easy}
               />
             ))}
           </div>
@@ -131,21 +161,31 @@ function DayColumn({
   slotHref,
   editHref,
   now,
+  zone,
+  today,
+  easy,
 }: {
   day: Date;
   appointments: CalendarAppointment[];
   slotHref: (day: Date, hour: number) => string;
   editHref: (id: string) => string;
   now: Date;
+  zone?: string;
+  today: boolean;
+  easy: boolean;
 }) {
-  const placed = layoutDay(day, appointments);
-  const today = isSameDay(day, now);
-  const nowOffset = today ? nowOffsetPx(now) : null;
+  const hourPx = easy ? EASY_HOUR_PX : HOUR_PX;
+  const placed = layoutDay(day, appointments, {
+    zone,
+    hourPx,
+    minBlockPx: easy ? EASY_MIN_BLOCK_PX : undefined,
+  });
+  const nowOffset = today ? nowOffsetPx(now, zone, hourPx) : null;
 
   return (
     <div
       className={cn("relative border-l border-border", today && "bg-accent-soft/15")}
-      style={{ height: GRID_HEIGHT_PX }}
+      style={{ height: VISIBLE_HOURS * hourPx }}
     >
       {/* Empty hours are the click target for "book something here". */}
       {HOUR_SLOTS.map((hour) => (
@@ -153,9 +193,9 @@ function DayColumn({
           key={hour}
           href={slotHref(day, hour)}
           scroll={false}
-          aria-label={`Book ${format(day, "EEEE d MMMM")} at ${formatHour(hour)}`}
+          aria-label={`Book ${format(day, "EEEE d MMMM")} at ${hourLabel(hour)}`}
           className="block border-t border-border transition-colors hover:bg-accent-soft/50"
-          style={{ height: HOUR_PX }}
+          style={{ height: hourPx }}
         />
       ))}
 
@@ -173,7 +213,7 @@ function DayColumn({
         const meta = APPOINTMENT_STATUS_META[status];
         const customerName = customerNameOf(item.customer);
         const initials = initialsOf(item.assignedTo?.name);
-        const roomy = heightPx >= 52;
+        const roomy = heightPx >= (easy ? 72 : 52);
 
         return (
           <Link
@@ -181,7 +221,8 @@ function DayColumn({
             href={editHref(item.id)}
             scroll={false}
             className={cn(
-              "absolute z-10 flex flex-col gap-0.5 overflow-hidden rounded-md border px-2 py-1 text-[11.5px] leading-tight shadow-xs transition-colors",
+              "absolute z-10 flex flex-col gap-0.5 overflow-hidden rounded-md border px-2 py-1 leading-tight shadow-xs transition-colors",
+              easy ? "text-sm" : "text-[11.5px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
               meta.block,
             )}
@@ -191,12 +232,12 @@ function DayColumn({
               left: `calc(${(lane / lanes) * 100}% + 2px)`,
               width: `calc(${100 / lanes}% - 4px)`,
             }}
-            title={`${shortTime(item.startsAt)} · ${item.title}${
+            title={`${shortTime(item.startsAt, zone)} · ${item.title}${
               customerName ? ` · ${customerName}` : ""
             }`}
           >
             <span className="flex items-baseline justify-between gap-1">
-              <span className="truncate font-bold">{item.title}</span>
+              <span className="truncate font-bold">{easy ? (customerName ?? item.title) : item.title}</span>
               {initials ? (
                 <span className="shrink-0 rounded-sm bg-surface/70 px-1 text-[10px] font-bold tabular-nums">
                   {initials}
@@ -206,9 +247,16 @@ function DayColumn({
             {roomy ? (
               <>
                 <span className="truncate tabular-nums opacity-80">
-                  {shortTime(item.startsAt)}
+                  {shortTime(item.startsAt, zone)}
                 </span>
-                {customerName ? (
+                {easy ? (
+                  // A visit still to come is the normal case; Done and Canceled say so in words.
+                  status !== "SCHEDULED" ? (
+                    <span className="truncate font-semibold">{meta.label}</span>
+                  ) : customerName ? (
+                    <span className="truncate opacity-80">{item.title}</span>
+                  ) : null
+                ) : customerName ? (
                   <span className="truncate opacity-80">{customerName}</span>
                 ) : null}
               </>
@@ -218,20 +266,4 @@ function DayColumn({
       })}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-/** "8 AM", "12 PM", "5 PM" — no minutes, they're always :00. */
-function formatHour(hour: number): string {
-  const suffix = hour < 12 ? "AM" : "PM";
-  const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${twelve} ${suffix}`;
-}
-
-/** Where the "now" line sits, or null when the clock is outside the window. */
-function nowOffsetPx(now: Date): number | null {
-  const minutes = (now.getHours() - DAY_START_HOUR) * 60 + now.getMinutes();
-  if (minutes < 0 || minutes > VISIBLE_HOURS * 60) return null;
-  return (minutes / 60) * HOUR_PX;
 }

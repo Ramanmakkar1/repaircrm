@@ -44,7 +44,7 @@ export async function draftTicketReplyAction(
   const { shopId, name } = await requireUser();
 
   const ctx = await loadTicketContext(shopId, ticketId);
-  if (!ctx) return { ok: false, reason: "Ticket not found." };
+  if (!ctx) return { ok: false, reason: "Repair not found." };
 
   // The signer is whoever is at the keyboard, not the assigned tech: they are
   // the one the customer will reply to.
@@ -65,7 +65,7 @@ export async function summarizeTicketAction(ticketId: string): Promise<AiResult>
   const { shopId } = await requireUser();
 
   const ctx = await loadTicketContext(shopId, ticketId);
-  if (!ctx) return { ok: false, reason: "Ticket not found." };
+  if (!ctx) return { ok: false, reason: "Repair not found." };
 
   const quota = await consumeAiQuota(shopId, "text");
   if (!quota.ok) return quota;

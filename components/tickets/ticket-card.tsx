@@ -1,13 +1,13 @@
 import * as React from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 // BellRing and HandCoins have no concept in components/ui/icons.ts.
 // The device chip uses `ICONS.device`, deliberately NOT the wrench: on this
 // card the wrench already means "ticket", so reusing it for the machine on the
 // bench would say two things at once.
 import { BellRing, HandCoins } from "lucide-react";
 
-import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
+import { DUE_TONE_CLASS, dueChip, dueDateLabel } from "@/lib/sla";
+import { formatInZone } from "@/lib/shop-time";
 import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
 
 import { StatusBadge, TONE_CLASS } from "@/components/ui/badge";
@@ -92,12 +92,15 @@ export type TicketCardData = {
 export function TicketCard({
   ticket,
   now,
+  timeZone,
   selectSlot,
   className,
 }: {
   ticket: TicketCardData;
   /** One request-time clock, so every card in a render agrees on "now". */
   now: number;
+  /** The shop's time zone (Shop.timezone): the due date is the shop's date, not the server's. */
+  timeZone?: string | null;
   /**
    * A selection checkbox, pinned to the top-right corner above the link
    * overlay. Omitted on the boards and the dashboard, where there is nothing
@@ -256,10 +259,10 @@ export function TicketCard({
             <Chip
               icon={ICONS.dueDate}
               className={cn(DUE_TONE_CLASS[due.tone])}
-              title={`Due ${format(ticket.dueDate, "EEEE d MMMM yyyy")}`}
+              title={`Due ${formatInZone(ticket.dueDate, "EEEE d MMMM yyyy", timeZone)}`}
             >
               {due.tone === "later"
-                ? `Due ${format(ticket.dueDate, "MMM d")}`
+                ? dueDateLabel(ticket.dueDate, timeZone)
                 : due.label}
             </Chip>
           ) : null}

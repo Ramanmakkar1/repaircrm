@@ -11,6 +11,7 @@ import {
   GoogleNoticeBanner,
 } from "@/components/auth/google-button";
 
+import { AUTH_LINK } from "../auth-link";
 import { SignupForm } from "./signup-form";
 
 export const metadata: Metadata = {
@@ -34,7 +35,7 @@ export default async function SignupPage({
           Create your shop
         </h1>
         <p className="text-[15px] text-muted-foreground">
-          Sets up your workspace and makes you the owner.
+          Free to start. It sets up your shop and makes you the owner; you can add your team after.
         </p>
       </div>
 
@@ -51,12 +52,22 @@ export default async function SignupPage({
 
       <SignupForm email={email?.slice(0, 254)} />
 
-      <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
+      {/* Consent where the account (and its personal data) is created. */}
+      <p className="mt-4 text-center text-[14px] leading-relaxed text-muted-foreground">
+        By creating a shop you agree to the{" "}
+        <Link href="/terms" className={AUTH_LINK}>
+          Terms
+        </Link>{" "}
+        and the{" "}
+        <Link href="/privacy" className={AUTH_LINK}>
+          Privacy policy
+        </Link>
+        .
+      </p>
+
+      <p className="mt-2 border-t border-border pt-4 text-center text-[15px] text-muted-foreground">
         Already have an account?{" "}
-        <Link
-          href="/login"
-          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
-        >
+        <Link href="/login" className={AUTH_LINK}>
           Sign in
         </Link>
       </p>

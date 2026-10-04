@@ -16,6 +16,7 @@ import { problemVisualFor } from "@/components/tickets/intake/flow";
 import { PROBLEM_ICONS } from "@/components/tickets/intake/visuals";
 import {
   FIRST_SCREEN_BOXES,
+  FIRST_SCREEN_KINDS,
   MAX_DEVICE_KINDS,
   MAX_PROBLEMS,
   addDeviceKind,
@@ -37,6 +38,8 @@ import {
   renameChecklistNote,
   renamesBetween,
   resetChecklistNote,
+  restoreDeviceKind,
+  restoreProblem,
   setDeviceHidden,
   updateDeviceKind,
   updateProblem,
@@ -88,6 +91,11 @@ export function IntakeOptionsEditor({
 }) {
   const initial: Lists = { kinds: [...deviceKinds], problems: problemTypes, pictures: problemPictures };
   const [lists, setLists] = React.useState<Lists>(initial);
+  // The lists as they are right now, for an Undo pressed after other changes were made.
+  const current = React.useRef<Lists>(initial);
+  React.useEffect(() => {
+    current.current = lists;
+  }, [lists]);
   const confirmed = React.useRef<Lists>(initial);
   const latest = React.useRef(0);
   const [status, setStatus] = React.useState<Status>({ state: "idle" });
@@ -95,13 +103,21 @@ export function IntakeOptionsEditor({
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [resetting, setResetting] = React.useState<"devices" | "problems" | null>(null);
   // The button that opened a dialog gets the cursor back when it closes (there is no Trigger to do it for us).
+  // When that button has gone (its box was just removed), the cursor goes to the box that took its
+  // place, or to "Add a device", never to the page body.
   const opener = React.useRef<HTMLElement | null>(null);
+  const fallback = React.useRef<string | null>(null);
   const rememberOpener = (element: HTMLElement) => {
     opener.current = element;
+    fallback.current = null;
   };
   const restoreFocus = (event: Event) => {
     event.preventDefault();
-    if (opener.current?.isConnected) opener.current.focus();
+    if (opener.current?.isConnected) {
+      opener.current.focus();
+      return;
+    }
+    focusFirst(fallback.current);
   };
 
   /** Show `next` now, save it, and either keep it (the server's own tidied copy) or put the old list back. */
@@ -134,9 +150,9 @@ export function IntakeOptionsEditor({
     return true;
   }
 
-  const saveDevices = (kinds: DeviceKind[], message?: string) => commit({ ...lists, kinds }, { deviceKinds: kinds }, message);
+  const saveDevices = (kinds: DeviceKind[], message?: string) => commit({ ...current.current, kinds }, { deviceKinds: kinds }, message);
   const saveProblems = (value: { problems: string[]; pictures: Record<string, string> }, message?: string | ((saved: Saved) => string), renamed: ProblemRename[] = []) =>
-    commit({ ...lists, ...value }, { problemTypes: value.problems, problemPictures: value.pictures, ...(renamed.length > 0 ? { renamed } : {}) }, message);
+    commit({ ...current.current, ...value }, { problemTypes: value.problems, problemPictures: value.pictures, ...(renamed.length > 0 ? { renamed } : {}) }, message);
 
   function openSheet(target: SheetTarget, element: HTMLElement) {
     rememberOpener(element);
@@ -163,14 +179,21 @@ export function IntakeOptionsEditor({
 
   function removeDevice(kind: DeviceKind) {
     const before = lists.kinds;
+    const index = before.findIndex((item) => item.id === kind.id);
+    // The Edit button that opened the sheet goes with the box: send the cursor to the box that
+    // takes its place (or the one before it), else to "Add a device".
+    const neighbour = before[index + 1] ?? before[index - 1];
+    opener.current = null;
+    fallback.current = neighbour ? `[data-option-id="device:${neighbour.id}"] button:not([disabled])` : `[data-add-tile="device"]`;
     setSheetOpen(false);
     void saveDevices(removeDeviceKind(before, kind.id)).then((ok) => {
       if (!ok) return;
       toastWithUndo({
         message: `${kind.label} removed`,
         description: "Repairs already checked in keep it.",
+        // Back where it was, in the list as it is now: moves made since are kept.
         undo: async () => {
-          if (!(await saveDevices(before))) throw new Error("Could not put it back.");
+          if (!(await saveDevices(restoreDeviceKind(current.current.kinds, kind, index)))) throw new Error("Could not put it back.");
         },
       });
     });
@@ -206,17 +229,23 @@ export function IntakeOptionsEditor({
       toast.error(result.error);
       return;
     }
+    const index = before.problems.indexOf(name);
+    const picture = before.pictures[name];
+    const neighbour = before.problems[index + 1] ?? before.problems[index - 1];
     const tied = checklistsOn(checklists, name);
     void saveProblems(result.value).then((ok) => {
       if (!ok) return;
       toastWithUndo({
         message: `${name} removed`,
         description: tied.length > 0 ? removeChecklistNote(tied) : "Repairs already checked in keep their wording.",
+        // Back where it was, with its picture, in the list as it is now.
         undo: async () => {
-          if (!(await saveProblems(before))) throw new Error("Could not put it back.");
+          if (!(await saveProblems(restoreProblem(current.current, name, picture, index)))) throw new Error("Could not put it back.");
         },
       });
     });
+    // The Remove button pressed has gone with its box: keep the cursor in the list.
+    focusFirst(neighbour ? `[data-option-id="problem:${cssEscape(neighbour)}"] button:not([disabled])` : `[data-add-tile="problem"]`, true);
   }
 
   async function reset(which: "devices" | "problems") {
@@ -290,7 +319,7 @@ export function IntakeOptionsEditor({
               const picture = kindPicture(kind);
               const other = isOtherKind(kind);
               return (
-                <OptionTile key={kind.id} title={kind.label} photo={picture?.image ?? null} icon={Package} hidden={Boolean(kind.hidden)}>
+                <OptionTile key={kind.id} optionId={`device:${kind.id}`} title={kind.label} photo={picture?.image ?? null} icon={Package} hidden={Boolean(kind.hidden)}>
                   {other ? (
                     <>
                       <TileButton icon={Pencil} label={`Edit ${kind.label}`} onClick={(event) => openSheet({ kind: "device", mode: "edit", id: kind.id }, event.currentTarget)}>Edit</TileButton>
@@ -313,11 +342,11 @@ export function IntakeOptionsEditor({
                 </OptionTile>
               );
             })}
-            <AddTile label="Add a device" disabled={devicesFull} detail={devicesFull ? `Up to ${MAX_DEVICE_KINDS} devices` : undefined} onClick={(event) => openSheet({ kind: "device", mode: "add" }, event.currentTarget)} />
+            <AddTile kind="device" label="Add a device" disabled={devicesFull} detail={devicesFull ? `Up to ${MAX_DEVICE_KINDS} devices` : undefined} onClick={(event) => openSheet({ kind: "device", mode: "add" }, event.currentTarget)} />
           </ul>
           {visibleCount > FIRST_SCREEN_BOXES ? (
             <p className="text-[14px] text-muted-foreground">
-              On the first screen staff see the first {FIRST_SCREEN_BOXES - 1} boxes, then a “More devices” box that opens the rest. Put the ones you do most first.
+              On the first screen staff see your first {FIRST_SCREEN_KINDS} boxes, then Other, then a “More devices” box that opens the rest. Put the ones you do most first.
             </p>
           ) : null}
         </CardContent>
@@ -342,7 +371,7 @@ export function IntakeOptionsEditor({
               const visual = problemVisualFor(name, lists.pictures);
               const only = lists.problems.length <= 1;
               return (
-                <OptionTile key={name} title={name} photo={visual.kind === "photo" ? visual.src : null} icon={visual.kind === "icon" ? PROBLEM_ICONS[visual.icon] : Package}>
+                <OptionTile key={name} optionId={`problem:${name}`} title={name} photo={visual.kind === "photo" ? visual.src : null} icon={visual.kind === "icon" ? PROBLEM_ICONS[visual.icon] : Package}>
                   <TileButton icon={ArrowLeft} label={`Move ${name} earlier`} disabled={!canMoveProblem(lists.problems, name, -1)} onClick={() => void saveProblems({ problems: moveProblem(lists.problems, name, -1), pictures: lists.pictures })}>Earlier</TileButton>
                   <TileButton icon={ArrowRight} label={`Move ${name} later`} disabled={!canMoveProblem(lists.problems, name, 1)} onClick={() => void saveProblems({ problems: moveProblem(lists.problems, name, 1), pictures: lists.pictures })}>Later</TileButton>
                   <TileButton icon={Pencil} label={`Edit ${name}`} onClick={(event) => openSheet({ kind: "problem", mode: "edit", id: name }, event.currentTarget)}>Edit</TileButton>
@@ -350,7 +379,7 @@ export function IntakeOptionsEditor({
                 </OptionTile>
               );
             })}
-            <AddTile label="Add a problem" disabled={problemsFull} detail={problemsFull ? `Up to ${MAX_PROBLEMS} problems` : undefined} onClick={(event) => openSheet({ kind: "problem", mode: "add" }, event.currentTarget)} />
+            <AddTile kind="problem" label="Add a problem" disabled={problemsFull} detail={problemsFull ? `Up to ${MAX_PROBLEMS} problems` : undefined} onClick={(event) => openSheet({ kind: "problem", mode: "add" }, event.currentTarget)} />
           </ul>
           <p className="text-[14px] text-muted-foreground">
             Staff first see a few problems that suit the kind of device (for example Screen Repair for a phone), then yours, then Other.
@@ -411,12 +440,15 @@ export function IntakeOptionsEditor({
  * buttons below. Hidden boxes are dimmed AND say so in words.
  */
 function OptionTile({
+  optionId,
   title,
   photo,
   icon,
   hidden = false,
   children,
 }: {
+  /** "device:<id>" or "problem:<name>": where the cursor goes when a neighbour is removed. */
+  optionId: string;
   title: string;
   photo: string | null;
   icon: LucideIcon;
@@ -424,7 +456,7 @@ function OptionTile({
   children: React.ReactNode;
 }) {
   return (
-    <li className="@container flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+    <li data-option-id={optionId} className="@container flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="relative">
         <div className={cn(hidden && "opacity-40")}>
           <TileFace photo={photo} icon={icon} />
@@ -459,11 +491,12 @@ function TileButton({
 }
 
 /** The last box of a grid: opens the sheet that adds one. */
-function AddTile({ label, detail, disabled, onClick }: { label: string; detail?: string; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
+function AddTile({ kind, label, detail, disabled, onClick }: { kind: "device" | "problem"; label: string; detail?: string; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
   return (
     <li className="flex min-w-0">
       <button
         type="button"
+        data-add-tile={kind}
         disabled={disabled}
         onClick={onClick}
         className="flex min-h-44 w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border-strong bg-surface p-3 text-center text-base font-semibold transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
@@ -476,4 +509,20 @@ function AddTile({ label, detail, disabled, onClick }: { label: string; detail?:
       </button>
     </li>
   );
+}
+
+/** Escapes a problem name for use inside an attribute selector. */
+function cssEscape(value: string): string {
+  return typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(value) : value.replace(/["\\]/g, "\\$&");
+}
+
+/**
+ * Puts the cursor on the first element matching `selector` (a box's first button, or an Add tile).
+ * `later` waits for the list to re-render first: the box being replaced is still on screen now.
+ */
+function focusFirst(selector: string | null, later = false) {
+  if (!selector) return;
+  const go = () => document.querySelector<HTMLElement>(selector)?.focus();
+  if (later) requestAnimationFrame(() => requestAnimationFrame(go));
+  else go();
 }

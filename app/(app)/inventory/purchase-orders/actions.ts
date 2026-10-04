@@ -12,9 +12,11 @@ import {
   poStatusAfterReceipt,
   poTotals,
 } from "@/components/inventory/purchasing";
+import { planLowStockOrders } from "@/components/inventory/restock";
 import { requireUser } from "@/lib/auth";
 import { deliverEmail } from "@/lib/comms/drivers";
 import { db } from "@/lib/db";
+import { formatDay, parseDayInput } from "@/lib/inventory/dates";
 import { formatCents } from "@/lib/money";
 import {
   SerialError,
@@ -79,12 +81,13 @@ function whole(formData: FormData, key: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-/** `<input type="date">` -> a Date at local midnight, or null when blank. */
+/**
+ * `<input type="date">` -> the calendar day, stored as UTC midnight, or null when
+ * blank. Not "midnight on the server": the server's zone is not the shop's, and
+ * a delivery date is a day, not a moment (lib/inventory/dates.ts).
+ */
 function dateValue(formData: FormData, key: string): Date | null {
-  const raw = text(formData, key);
-  if (!raw) return null;
-  const parsed = new Date(`${raw}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseDayInput(text(formData, key));
 }
 
 function revalidatePo(poId?: string): void {
@@ -110,7 +113,7 @@ export async function createPurchaseOrderAction(
     where: { id: vendorId, shopId },
     select: { id: true },
   });
-  if (!vendor) return { error: "Choose a vendor for this order." };
+  if (!vendor) return { error: "Choose who you are ordering from." };
 
   let json: unknown;
   try {
@@ -128,13 +131,18 @@ export async function createPurchaseOrderAction(
   // somebody else's catalogue.
   const owned = await ownedProductIds(shopId, parsed.data.map((line) => line.productId));
 
+  // Optional: "place" saves it as already sent to the supplier (the New order
+  // screen's black button). Anything else, or nothing, is a draft, as before.
+  const place = text(formData, "intent") === "place";
+
   const order = await withNextNumber(shopId, "purchaseOrder", (number) =>
     db.purchaseOrder.create({
       data: {
         shopId,
         vendorId: vendor.id,
         number,
-        status: "DRAFT",
+        status: place ? "ORDERED" : "DRAFT",
+        ...(place ? { orderedAt: new Date() } : {}),
         shippingCents: Math.max(0, whole(formData, "shippingCents")),
         notes: text(formData, "notes") || null,
         expectedAt: dateValue(formData, "expectedAt"),
@@ -172,6 +180,103 @@ async function ownedProductIds(
 }
 
 // ---------------------------------------------------------------------------
+// Order everything that is running low
+// ---------------------------------------------------------------------------
+
+export type LowStockOrderResult = {
+  ok?: boolean;
+  error?: string;
+  /** The drafts written or added to, one per supplier. */
+  orders?: { id: string; number: number; vendorName: string; lines: number }[];
+  /** Low items left out because no supplier is set on them. */
+  noSupplier?: number;
+  /** Low items left out because they are already on an open order. */
+  alreadyOrdered?: number;
+};
+
+/**
+ * "Order all low items": one DRAFT per supplier with every product at or below
+ * its reorder point, at its suggested quantity, at its last cost.
+ *
+ * A product already on an open order (draft, ordered or part-arrived, with
+ * something still to come) is left out, so pressing it twice does not order
+ * twice. A supplier's existing draft is added to rather than duplicated, the
+ * same way ticket part orders collect onto one draft. A product with no
+ * supplier cannot go on a purchase order (an order needs someone to send it
+ * to), so it is counted and reported, never guessed.
+ *
+ * Nothing is placed: these are drafts for the owner to check and send.
+ */
+export async function orderLowStockAction(): Promise<LowStockOrderResult> {
+  const { shopId, userId, role } = await requireUser();
+  if (role !== "OWNER") return { error: OWNER_ONLY };
+
+  const [low, openLines, drafts] = await Promise.all([
+    db.product.findMany({
+      where: { shopId, active: true, lowStockAt: { gte: db.product.fields.stockQty } },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        stockQty: true,
+        lowStockAt: true,
+        reorderQty: true,
+        costCents: true,
+        vendorId: true,
+        vendor: { select: { id: true, name: true, active: true } },
+      },
+    }),
+    // PurchaseOrderLine has no shopId of its own: it is reached through its order, which does.
+    db.purchaseOrderLine.findMany({
+      where: { productId: { not: null }, purchaseOrder: { shopId, status: { in: ["DRAFT", "ORDERED", "PARTIAL"] } } },
+      select: { productId: true, quantity: true, receivedQty: true },
+    }),
+    db.purchaseOrder.findMany({
+      where: { shopId, status: "DRAFT" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, number: true, vendorId: true, _count: { select: { lines: true } } },
+    }),
+  ]);
+
+  const plan = planLowStockOrders(low, openLines);
+  if (plan.groups.length === 0) {
+    return {
+      ok: true,
+      orders: [],
+      noSupplier: plan.noSupplier.length,
+      alreadyOrdered: plan.alreadyOrdered.length,
+    };
+  }
+
+  const orders: NonNullable<LowStockOrderResult["orders"]> = [];
+  for (const group of plan.groups) {
+    const existing = drafts.find((draft) => draft.vendorId === group.vendorId);
+    const target = existing
+      ? existing
+      : await withNextNumber(shopId, "purchaseOrder", (number) =>
+          db.purchaseOrder.create({
+            data: { shopId, vendorId: group.vendorId, number, status: "DRAFT", createdById: userId },
+            select: { id: true, number: true, vendorId: true, _count: { select: { lines: true } } },
+          }),
+        );
+    await db.purchaseOrderLine.createMany({
+      data: group.lines.map((line, index) => ({
+        purchaseOrderId: target.id,
+        productId: line.productId,
+        description: line.description,
+        quantity: line.quantity,
+        unitCostCents: line.unitCostCents,
+        sortOrder: target._count.lines + index,
+      })),
+    });
+    orders.push({ id: target.id, number: target.number, vendorName: group.vendorName, lines: group.lines.length });
+  }
+
+  revalidatePo();
+  return { ok: true, orders, noSupplier: plan.noSupplier.length, alreadyOrdered: plan.alreadyOrdered.length };
+}
+
+// ---------------------------------------------------------------------------
 // Status transitions
 // ---------------------------------------------------------------------------
 
@@ -190,7 +295,7 @@ export async function markPurchaseOrderedAction(
   });
   if (!order) return { error: "Purchase order not found." };
   if (order.status !== "DRAFT") {
-    return { error: `A ${order.status.toLowerCase()} order has already been placed.` };
+    return { error: "This order has already been placed." };
   }
 
   await db.purchaseOrder.update({
@@ -302,9 +407,9 @@ export async function receivePurchaseOrderAction(
 
     if (serialized && serials.length !== qty) {
       return {
-        error: `${line.description}: ${qty} received but ${serials.length} serial${
+        error: `${line.description}: ${qty} arrived but ${serials.length} serial${
           serials.length === 1 ? "" : "s"
-        } pasted. Every unit needs its own serial number.`,
+        } scanned. Scan one serial number per unit.`,
       };
     }
 
@@ -320,7 +425,7 @@ export async function receivePurchaseOrderAction(
   }
 
   if (receipts.length === 0) {
-    return { error: "Enter how many of at least one line arrived." };
+    return { error: "Set how many of at least one item arrived." };
   }
 
   const reason = `PO #${order.number} received`;
@@ -555,7 +660,7 @@ export async function emailPurchaseOrderAction(poId: string): Promise<PoActionSt
   const textBody = [
     heading,
     order.vendor.accountNumber ? `Account: ${order.vendor.accountNumber}` : null,
-    order.expectedAt ? `Needed by: ${order.expectedAt.toDateString()}` : null,
+    order.expectedAt ? `Needed by: ${formatDay(order.expectedAt)}` : null,
     "",
     ...rows.map(
       (row) =>

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 import { settleGatewayPayment } from "../settle-gateway";
+import { invoicePaymentKey } from "../invoice-key";
 import { squareRequest } from "./api";
 import { withSquareConnection } from "./connect";
 
@@ -142,10 +143,11 @@ export async function createSquareTerminalCheckout(input: {
       shop: { select: { currency: true } },
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
     },
   });
   if (!invoice || invoice.status === "VOID") return { ok: false, reason: "That invoice cannot be paid." };
-  const amountCents = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments).balanceCents;
+  const amountCents = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds).balanceCents;
   if (amountCents <= 0) return { ok: false, reason: "That invoice is already paid." };
 
   try {
@@ -155,7 +157,11 @@ export async function createSquareTerminalCheckout(input: {
         method: "POST",
         accessToken: connection.accessToken,
         body: {
-          idempotency_key: `rp-invoice-${invoice.id}-${amountCents}`,
+          idempotency_key: await invoicePaymentKey(
+            `rp-invoice-${invoice.id}-${amountCents}`,
+            invoice.payments.length,
+            invoice.refunds.length,
+          ),
           checkout: {
             amount_money: { amount: amountCents, currency: invoice.shop.currency.toUpperCase() },
             device_options: { device_id: input.deviceId },

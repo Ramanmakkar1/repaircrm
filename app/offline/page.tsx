@@ -1,43 +1,48 @@
 import { WifiOff } from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { RetryButton } from "@/components/pwa/retry-button";
+import { FriendlyScreen } from "@/components/public/friendly-screen";
+import { Reconnect } from "./reconnect";
 
-export const metadata = { title: "Offline · Repairs helper" };
+export const metadata = { title: "No internet · Repairs helper" };
 
 /**
  * What the service worker shows when a navigation cannot reach the network.
  *
  * OUTSIDE THE APP SHELL, on purpose: the shell calls `requireUser()`, which
  * needs the database, which is exactly what is unreachable. It is also
- * precached by public/sw.js, so it has to render with nothing — no session, no
- * data, no fetch.
+ * precached by public/sw.js, so it has to render with nothing: no session, no
+ * data, no fetch, and no photo (pictures are not in the offline cache, so the
+ * card uses an icon and the precached app icon).
  *
- * The copy says what Repairs helper is rather than apologising: a shop staring at
- * this needs to know their tickets are fine and their connection is not.
+ * Honest about what survives: anything already saved is safe; a form that was
+ * never sent is not, and the page says so.
  */
 export default function OfflinePage() {
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background px-6 py-16">
-      <Card className="w-full max-w-md">
-        <CardContent className="flex flex-col items-center gap-4 px-8 py-10 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-surface-hover text-muted-foreground">
-            <WifiOff className="size-6" />
+    <FriendlyScreen
+      icon={WifiOff}
+      header={
+        <div className="mx-auto flex min-h-12 items-center gap-2.5 px-2 text-foreground">
+          {/* The one image the service worker precaches with this page. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/helper-192.png" alt="" className="size-10 rounded-xl" />
+          <span className="text-xl tracking-tight">
+            <span className="font-medium">Repairs </span>
+            <span className="font-bold">helper</span>
           </span>
-
-          <div className="flex flex-col gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
-              You&rsquo;re offline
-            </h1>
-            <p className="text-[14.5px] leading-relaxed text-muted-foreground">
-              Repairs helper needs a connection to show live tickets. Nothing has
-              been lost — reconnect and everything will be where you left it.
-            </p>
-          </div>
-
-          <RetryButton />
-        </CardContent>
-      </Card>
-    </main>
+        </div>
+      }
+      title="No internet right now"
+      body={
+        <>
+          <p>Your repairs and everything you already saved are safe.</p>
+          <p className="mt-2">
+            This page will reconnect by itself when the internet comes back. A form you had not sent yet may need filling in again.
+          </p>
+        </>
+      }
+    >
+      <Reconnect />
+    </FriendlyScreen>
   );
 }

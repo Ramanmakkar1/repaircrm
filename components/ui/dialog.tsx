@@ -41,8 +41,9 @@ export function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-2 top-2 flex size-12 items-center justify-center rounded-md text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:right-4 sm:top-4 sm:size-8">
-          <X className="size-[18px]" />
+        {/* 48px everywhere: a finger on a counter tablet is the same size as one on a phone. */}
+        <DialogPrimitive.Close className="absolute right-2 top-2 flex size-12 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:right-3 sm:top-3">
+          <X aria-hidden className="size-5" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
@@ -51,7 +52,7 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("flex flex-col gap-1 pr-10", className)} {...props} />;
+  return <div className={cn("flex flex-col gap-1 pr-12", className)} {...props} />;
 }
 
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -69,7 +70,7 @@ export function DialogTitle({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("text-[16px] font-semibold tracking-[-0.01em] text-foreground", className)}
+      className={cn("text-[18px] font-semibold leading-snug tracking-[-0.01em] text-foreground", className)}
       {...props}
     />
   );
@@ -81,7 +82,7 @@ export function DialogDescription({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
   return (
     <DialogPrimitive.Description
-      className={cn("text-[13.5px] text-muted-foreground", className)}
+      className={cn("text-[14.5px] leading-snug text-muted-foreground", className)}
       {...props}
     />
   );

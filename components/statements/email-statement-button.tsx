@@ -19,15 +19,30 @@ export function EmailStatementButton({
   from,
   to,
   disabledReason,
+  className,
 }: {
   customerId: string;
   from: string;
   to: string;
   /** e.g. "No email address on file" — shown as the button's tooltip. */
   disabledReason?: string;
+  /**
+   * The big Easy-mode button. A finger has no hover to read a tooltip, so a
+   * blocked send answers with its reason as a message instead of greying out.
+   */
+  className?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+
+  if (disabledReason && className) {
+    return (
+      <Button variant="outline" className={className} onClick={() => toast.warning(`${disabledReason}. Add one on their page to email a statement.`)}>
+        <ACTIONS.email />
+        Email statement
+      </Button>
+    );
+  }
 
   if (disabledReason) {
     return (
@@ -53,7 +68,7 @@ export function EmailStatementButton({
   }
 
   return (
-    <Button variant="outline" disabled={busy} onClick={send}>
+    <Button variant="outline" className={className} disabled={busy} onClick={send}>
       {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.email />}
       Email statement
     </Button>

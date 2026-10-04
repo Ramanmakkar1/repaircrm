@@ -37,6 +37,7 @@
 
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { dayKeyIn, safeTimeZone } from "@/lib/dashboard/zone";
 import type { DraftTone } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -93,8 +94,8 @@ export type TicketContext = {
 };
 
 /** ISO day. Times of day never matter to a repair update and add noise. */
-function day(value: Date): string {
-  return value.toISOString().slice(0, 10);
+function day(value: Date, zone: string): string {
+  return dayKeyIn(value.getTime(), zone);
 }
 
 /**
@@ -118,6 +119,7 @@ export async function loadTicketContext(
       createdAt: true,
       updatedAt: true,
       diagnosticNotes: true,
+      shop: { select: { timezone: true } },
       // firstName ONLY — no lastName, businessName, email, phone, address.
       customer: { select: { firstName: true } },
       // type/make/model ONLY — no serial, and never `password`.
@@ -142,6 +144,7 @@ export async function loadTicketContext(
   });
 
   if (!ticket) return null;
+  const zone = safeTimeZone(ticket.shop?.timezone);
 
   const device = ticket.asset
     ? [ticket.asset.make, ticket.asset.model, `(${ticket.asset.type})`]
@@ -157,14 +160,14 @@ export async function loadTicketContext(
     priority: ticket.priority,
     customerFirstName: firstNameOnly(ticket.customer.firstName) || "there",
     device,
-    openedOn: day(ticket.createdAt),
-    updatedOn: day(ticket.updatedAt),
-    dueOn: ticket.dueDate ? day(ticket.dueDate) : null,
+    openedOn: day(ticket.createdAt, zone),
+    updatedOn: day(ticket.updatedAt, zone),
+    dueOn: ticket.dueDate ? day(ticket.dueDate, zone) : null,
     diagnosticNotes: ticket.diagnosticNotes
       ? redact(ticket.diagnosticNotes)
       : null,
     comments: ticket.comments.map((comment) => ({
-      on: day(comment.createdAt),
+      on: day(comment.createdAt, zone),
       role: comment.author?.role ?? "STAFF",
       visibility: comment.isPublic ? "customer-facing" : "internal",
       body: redact(comment.body).slice(0, MAX_COMMENT_CHARS),

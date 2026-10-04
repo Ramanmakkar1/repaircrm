@@ -5,7 +5,11 @@ import { CalendarPlus, Clock } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { formatIn } from "@/lib/dashboard/zone";
+import { readUiPrefs } from "@/lib/prefs";
 import { StatusPill } from "@/components/ui/badge";
+import { InitialsVisual, PhotoVisual } from "@/components/ui/record-card";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -19,19 +23,25 @@ import { formatDate, formatDateTime } from "@/components/billing/format";
 import { customerLabel } from "@/components/billing/queries";
 import {
   CampaignActiveButton,
+  CampaignMoreMenu,
   SyncCampaignButton,
 } from "@/components/marketing/campaign-controls";
+import { MessagePreview } from "@/components/marketing/campaign-flow";
 import { SendStatusChip } from "@/components/marketing/send-status-chip";
 import {
   CHANNEL_LABEL,
+  SEND_STATUS_META,
   TRIGGER_HINT,
   TRIGGER_LABEL,
+  TRIGGER_WORDS,
   asChannel,
   asTrigger,
   delayLabel,
   previewVars,
   renderMessage,
   sendBucket,
+  waitWords,
+  type SendBucket,
 } from "@/components/marketing/meta";
 import { LOOKBACK_DAYS, MAX_BACKFILL_DAYS } from "../engine";
 import { deleteCampaignAction } from "../actions";
@@ -61,7 +71,7 @@ export default async function CampaignDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { id } = await params;
+  const [{ id }, { simple }, zone] = await Promise.all([params, readUiPrefs(), loadShopZone(shopId)]);
 
   const campaign = await db.campaign.findFirst({
     where: { id, shopId },
@@ -110,6 +120,127 @@ export default async function CampaignDetailPage({
   const previewSubject = renderMessage(campaign.subject ?? "", vars);
   const previewBody = renderMessage(campaign.body, vars);
 
+  if (simple) {
+    // Easy mode: what it is, ONE big button (Pause / Turn on), what the
+    // customer gets, three numbers in words, and the latest people it went to.
+    // The long explanation and the full message log wait below, folded.
+    const recent = campaign.sends.slice(0, 8);
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+        <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <PhotoVisual src="/images/home/megaphone.webp" className="size-20 sm:size-24" />
+            <div className="flex min-w-0 flex-col items-start gap-1.5">
+              <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{campaign.name}</h1>
+              <StatusPill tone={campaign.active ? "success" : "neutral"} label={campaign.active ? "Live" : "Paused"} />
+              <p className="text-base text-muted-foreground">
+                {TRIGGER_WORDS[trigger]} · {waitWords(campaign.delayDays).toLowerCase()} · {channel === "SMS" ? "Text message" : "Email"}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 [&>*:first-child]:flex-1 sm:[&>*:first-child]:flex-none">
+            <CampaignActiveButton campaignId={campaign.id} active={campaign.active} campaignName={campaign.name} big />
+            <CampaignMoreMenu
+              campaignId={campaign.id}
+              campaignName={campaign.name}
+              active={campaign.active}
+              canDelete={role === "OWNER"}
+              sendCount={campaign._count.sends}
+            />
+          </div>
+        </section>
+
+        <ul className="grid grid-cols-3 gap-3" aria-label="How it is going">
+          <EasyStat label="Waiting to go" value={tally.scheduled} />
+          <EasyStat label="Sent" value={tally.sent} />
+          <EasyStat label="Did not send" value={tally.skipped + tally.failed} />
+        </ul>
+
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <section aria-labelledby="gets-title" className="flex flex-col gap-2">
+            <h2 id="gets-title" className="text-lg font-semibold">What the customer gets</h2>
+            <MessagePreview sms={channel === "SMS"} subject={previewSubject} body={previewBody} />
+          </section>
+
+          <section aria-labelledby="recent-title" className="flex flex-col gap-2">
+            <h2 id="recent-title" className="text-lg font-semibold">Latest customers</h2>
+            {recent.length === 0 ? (
+              <p className="rounded-2xl border border-border bg-surface px-4 py-5 text-base text-muted-foreground">
+                {campaign.active
+                  ? "Nobody yet. It goes to customers as they qualify; More, then Send what is due now, looks back over the last few weeks."
+                  : "Nobody yet. Turn it on and it starts with the customers who qualify."}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {recent.map((send) => {
+                  const name = customerLabel(send.customer);
+                  const bucket = sendBucket(send.status);
+                  return (
+                    <li key={send.id}>
+                      <Link
+                        href={`/customers/${send.customer.id}`}
+                        data-touch-control
+                        className="flex min-h-16 items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-2 transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <InitialsVisual name={name} className="size-11 text-base sm:size-11 sm:text-base" />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-base font-semibold">{name}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {send.sentAt
+                              ? `Sent ${formatIn(send.sentAt.getTime(), zone, { month: "short", day: "numeric" })}`
+                              : `Goes ${formatIn(send.scheduledAt.getTime(), zone, { month: "short", day: "numeric" })}`}
+                          </span>
+                        </span>
+                        <StatusPill tone={SEND_STATUS_META[bucket].tone} label={SEND_WORDS[bucket]} />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <details className="group/how rounded-2xl border border-border bg-surface">
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-base font-semibold [&::-webkit-details-marker]:hidden">
+            How it works, and every message
+            <span className="text-[15px] text-accent-soft-foreground">
+              <span className="group-open/how:hidden">Show</span>
+              <span className="hidden group-open/how:inline">Hide</span>
+            </span>
+          </summary>
+          <div className="flex flex-col gap-4 border-t border-border p-4">
+            <p className="text-[15px] leading-relaxed text-muted-foreground">
+              {TRIGGER_HINT[trigger]} Customers who said no to {channel === "SMS" ? "texts" : "email"}, or who have no{" "}
+              {channel === "SMS" ? "mobile number" : "email address"} on file, are left out, and the reason is written down. Anything more
+              than {MAX_BACKFILL_DAYS} days late is left out rather than sent late.
+            </p>
+            {campaign.sends.length > 0 ? (
+              <ul className="flex flex-col divide-y divide-border">
+                {campaign.sends.map((send) => (
+                  <li key={send.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <Link href={`/customers/${send.customer.id}`} className="font-semibold hover:underline">
+                      {customerLabel(send.customer)}
+                    </Link>
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {formatIn((send.sentAt ?? send.scheduledAt).getTime(), zone, { month: "short", day: "numeric", year: "numeric" })}
+                      <SendStatusChip status={send.status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {campaign._count.sends > SEND_LIMIT ? (
+              <p className="text-sm text-muted-foreground">
+                The {SEND_LIMIT} most recent of {campaign._count.sends} messages.
+              </p>
+            ) : null}
+          </div>
+        </details>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <Breadcrumbs
@@ -130,7 +261,7 @@ export default async function CampaignDetailPage({
                 </span>
                 <StatusPill
                   tone={campaign.active ? "success" : "neutral"}
-                  label={campaign.active ? "Active" : "Paused"}
+                  label={campaign.active ? "Live" : "Paused"}
                 />
               </div>
               <p className="text-[15px] leading-snug text-muted-foreground">
@@ -173,7 +304,7 @@ export default async function CampaignDetailPage({
             <Chip icon={channel === "SMS" ? ICONS.message : ICONS.email}>
               {CHANNEL_LABEL[channel]}
             </Chip>
-            <Chip icon={CalendarPlus}>Added {formatDate(campaign.createdAt)}</Chip>
+            <Chip icon={CalendarPlus}>Added {formatDate(campaign.createdAt, zone)}</Chip>
           </div>
 
           <div className="flex flex-wrap items-end gap-7 border-t border-border pt-4">
@@ -303,10 +434,10 @@ export default async function CampaignDetailPage({
                         )}
                       </Td>
                       <Td className="tabular-nums text-muted-foreground">
-                        {formatDate(send.scheduledAt)}
+                        {formatDate(send.scheduledAt, zone)}
                       </Td>
                       <Td className="tabular-nums text-muted-foreground">
-                        {send.sentAt ? formatDateTime(send.sentAt) : "—"}
+                        {send.sentAt ? formatDateTime(send.sentAt, zone) : "—"}
                       </Td>
                       <Td>
                         <SendStatusChip status={send.status} />
@@ -327,6 +458,24 @@ export default async function CampaignDetailPage({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** The send outcomes in Easy words. */
+const SEND_WORDS: Record<SendBucket, string> = {
+  scheduled: "Waiting",
+  sending: "Sending",
+  sent: "Sent",
+  skipped: "Not sent",
+  failed: "Failed",
+};
+
+function EasyStat({ label, value }: { label: string; value: number }) {
+  return (
+    <li className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-4">
+      <span className="rf-num text-3xl font-semibold leading-none">{value}</span>
+      <span className="text-[15px] text-muted-foreground">{label}</span>
+    </li>
   );
 }
 

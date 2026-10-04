@@ -53,7 +53,7 @@ export async function loadTakingsRows(
       select: { amountCents: true, method: true, createdAt: true },
     }),
     db.refund.findMany({
-      where: { shopId, createdAt: inRange, ...viaInvoice },
+      where: { shopId, createdAt: inRange, status: { not: "failed" }, ...viaInvoice },
       select: { amountCents: true, createdAt: true },
     }),
   ]);

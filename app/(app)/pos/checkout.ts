@@ -18,7 +18,7 @@ import {
   markInvoiceSerialsSold,
   syncSerializedStock,
 } from "@/lib/serials";
-import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/pos/types";
+import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
 
 /**
  * The POS sale itself.
@@ -91,7 +91,7 @@ import type { CheckoutInput, CheckoutResult, TenderMethod } from "@/components/p
 
 export const WALK_IN = { firstName: "Walk-in", lastName: "Customer" } as const;
 
-const METHODS = ["CASH", "CARD", "CHECK", "OTHER", "CREDIT"] as const;
+const METHODS = ["CASH", "CARD", "CHECK", "OTHER", "CREDIT", "SPLIT"] as const;
 
 const lineSchema = z.object({
   productId: z.string().min(1).nullable(),
@@ -109,6 +109,7 @@ const checkoutSchema = z.object({
   method: z.enum(METHODS),
   reference: z.string().trim().max(200).nullable(),
   tenderedCents: z.number().int().min(0).max(100_000_000).nullable(),
+  cashAmountCents: z.number().int().min(1).max(100_000_000).nullable().optional().default(null),
   /**
    * Set when the card was already presented to a Stripe Terminal reader. It is
    * a CLAIM, not a receipt: `performCheckout` retrieves the intent from Stripe
@@ -494,6 +495,10 @@ export async function performCheckout(
           dueCents,
         } = await resolveSale(tx, shopId, sale);
 
+        const cashPart = sale.method === "SPLIT" ? sale.cashAmountCents ?? 0 : 0;
+        if (sale.method === "SPLIT" && (cashPart <= 0 || cashPart >= dueCents)) throw new SaleError("Enter a cash part smaller than the amount due.");
+        if ((sale.method === "CASH" || sale.method === "SPLIT") && sale.tenderedCents != null && sale.tenderedCents < (sale.method === "SPLIT" ? cashPart : dueCents)) throw new SaleError("Not enough cash was handed over.");
+
         // The walk-in placeholder is created only now, when the sale is real —
         // `resolveSale` leaves it null so that pricing a cart writes nothing.
         const customerId =
@@ -614,12 +619,13 @@ export async function performCheckout(
         // change, not a $77 overpayment. A sale fully covered by a deposit
         // takes no tender at all.
         if (dueCents > 0) {
+          if (sale.method === "SPLIT") await tx.payment.create({data: { shopId, invoiceId: invoice.id, amountCents: cashPart, method: "CASH", reference: buildReference("CASH", null, sale.tenderedCents), takenById: userId }});
           await tx.payment.create({
             data: {
               shopId,
               invoiceId: invoice.id,
-              amountCents: dueCents,
-              method: sale.method as TenderMethod,
+              amountCents: dueCents - cashPart,
+              method: sale.method === "SPLIT" ? "CARD" : sale.method,
               reference: terminal
                 ? terminal.intentId
                 : squareTerminal
@@ -659,10 +665,13 @@ export async function performCheckout(
           // ticket and invisible to the next POS sale — the same mechanism
           // makeInvoiceAction uses. Scoped by shopId so a forged id from
           // another tenant matches nothing.
-          await tx.ticketCharge.updateMany({
-            where: { id: { in: ticketChargeIds }, shopId, invoiceId: null },
+          const claimed = await tx.ticketCharge.updateMany({
+            where: { id: { in: ticketChargeIds }, shopId, ticketId: billedTicket.id, invoiceId: null },
             data: { invoiceId: invoice.id },
           });
+          if (claimed.count !== ticketChargeIds.length) {
+            throw new SaleError("Those repair charges changed or were already billed. Refresh before trying again.");
+          }
 
           // A private note, not a customer-facing update: this is bookkeeping
           // for the shop, and the customer is standing at the counter holding
@@ -730,8 +739,8 @@ export async function performCheckout(
         }
 
         const changeDueCents =
-          sale.method === "CASH" && sale.tenderedCents != null
-            ? Math.max(0, sale.tenderedCents - dueCents)
+          (sale.method === "CASH" || sale.method === "SPLIT") && sale.tenderedCents != null
+            ? Math.max(0, sale.tenderedCents - (sale.method === "SPLIT" ? cashPart : dueCents))
             : 0;
 
         return {

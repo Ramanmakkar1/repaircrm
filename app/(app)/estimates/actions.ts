@@ -256,7 +256,7 @@ async function loadEstimateForSend(shopId: string, id: string) {
         },
       },
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
-      shop: { select: { name: true } },
+      shop: { select: { name: true, timezone: true } },
     },
   });
 }
@@ -306,6 +306,7 @@ function composeEstimateMessage(
   const totals = calcTotals(estimate.lines, estimate.taxRateBps);
   return estimateMessage({
     shopName: estimate.shop.name,
+    timeZone: estimate.shop.timezone,
     customerFirstName: estimate.customer.firstName,
     number: estimate.number,
     publicToken: estimate.publicToken,

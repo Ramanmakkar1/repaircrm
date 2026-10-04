@@ -11,6 +11,7 @@
  */
 
 import { PRIORITIES, type PriorityKey } from "@/components/tickets/ticket-meta";
+import { formatInZone, zonedToday } from "@/lib/shop-time";
 
 /** Shipped defaults, used until a shop sets its own in Settings → Workflow. */
 export const DEFAULT_SLA_HOURS: Record<PriorityKey, number> = {
@@ -105,6 +106,25 @@ export function dueChip(
   if (due < now) return { tone: "overdue", label: `Overdue ${spanShort(now - due)}` };
   if (due - now <= DAY_MS) return { tone: "soon", label: `Due in ${spanShort(due - now)}` };
   return { tone: "later", label: "" };
+}
+
+/**
+ * "Due Oct 12": the date a repair is due, on the shop's own calendar. The date is
+ * read in the shop's zone (Shop.timezone), so a job due at 7pm in Edmonton is
+ * "Due Oct 4" whatever the server's clock says; a caller with no zone to give
+ * reads it in the runtime's zone, as before.
+ */
+export function dueDateLabel(dueDate: Date | string | number, zone?: string | null): string {
+  return `Due ${formatInZone(dueDate, "MMM d", zone)}`;
+}
+
+/**
+ * The "Due today" lens: open work due from now until the end of the shop's day.
+ * The day ends at midnight in the shop's zone (the same cut Shop overview uses),
+ * never at the server's midnight. Work already late is the Overdue lens.
+ */
+export function dueTodayRange(nowMs: number, zone?: string | null): { gte: Date; lt: Date } {
+  return { gte: new Date(nowMs), lt: new Date(zonedToday(nowMs, zone).toExclusive) };
 }
 
 /** Chip classes per tone, reusing the app's status tokens. */

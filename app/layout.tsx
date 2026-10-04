@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Toaster } from "sonner";
 import { readUiPrefs } from "@/lib/prefs";
+import { AppToaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 /** Relative metadata URLs (canonical, social image) resolve against the public origin. */
@@ -46,6 +46,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // The on-screen keyboard shrinks the page instead of covering it, so the
+  // fixed Next / Save / Pay bars ride above the keyboard rather than behind it.
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0b0c0e" },
@@ -66,7 +69,7 @@ export default async function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         {children}
-        <Toaster position="bottom-right" richColors closeButton />
+        <AppToaster theme={prefs.theme} />
       </body>
     </html>
   );

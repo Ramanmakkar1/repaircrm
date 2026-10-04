@@ -33,6 +33,14 @@ import { ProductImage } from "@/components/inventory/product-image";
  * live footer can never disagree with what gets saved.
  */
 
+
+/**
+ * The product picker's box keeps a long name on one line, cut with an ellipsis,
+ * instead of spilling over its border at tablet and phone width. Products are
+ * named in words; the stock code is not shown to the customer-facing line.
+ */
+const PRODUCT_TRIGGER = "min-w-0 [&>span]:min-w-0 [&>span]:truncate [&>span]:text-left";
+
 export const CUSTOM = "__custom__";
 /** Radix Select cannot hold "", so "no unit chosen" needs a sentinel. */
 const NO_SERIAL = "__none__";
@@ -284,7 +292,7 @@ export function LineItemsEditor({
           })() : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Product or service
-              <Select value={draft.productId} onValueChange={(value) => pickProduct(draft.key, value)}><SelectTrigger aria-label="Product"><SelectValue placeholder="Custom" /></SelectTrigger><SelectContent className="max-h-64 overflow-y-auto"><SelectItem value={CUSTOM}>Custom line</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}{product.sku ? " · " + product.sku : ""}</SelectItem>)}</SelectContent></Select>
+              <Select value={draft.productId} onValueChange={(value) => pickProduct(draft.key, value)}><SelectTrigger aria-label="Product" className={PRODUCT_TRIGGER}><SelectValue placeholder="Custom" /></SelectTrigger><SelectContent className="max-h-64 overflow-y-auto"><SelectItem value={CUSTOM}>Custom line</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>)}</SelectContent></Select>
             </label>
             <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Description<Input value={draft.description} onChange={(event) => update(draft.key, { description: event.target.value })} placeholder="What are you billing for?" aria-label="Description" maxLength={500} /></label>
             <label className="flex flex-col gap-2 text-sm font-medium">Quantity<Input id={"line-quantity-" + draft.key} value={draft.quantity} onChange={(event) => update(draft.key, { quantity: event.target.value })} required type="number" min="1" max="100000" step="1" inputMode="numeric" aria-label="Quantity" className="tabular-nums" /></label>
@@ -322,7 +330,7 @@ export function LineItemsEditor({
                       value={draft.productId}
                       onValueChange={(v) => pickProduct(draft.key, v)}
                     >
-                      <SelectTrigger aria-label="Product">
+                      <SelectTrigger aria-label="Product" className={PRODUCT_TRIGGER}>
                         <SelectValue placeholder="Custom" />
                       </SelectTrigger>
                       <SelectContent className="max-h-64 overflow-y-auto">
@@ -330,7 +338,6 @@ export function LineItemsEditor({
                         {products.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             {p.name}
-                            {p.sku ? ` · ${p.sku}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

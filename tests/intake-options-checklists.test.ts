@@ -32,7 +32,7 @@ describe("the Checklists card says when a checklist has lost its problem", () =>
   it("shows a checklist whose problem is on the list as it always did", () => {
     const html = text(card([template("Laptop intake", "Diagnostics")], problems));
     expect(html).toContain("Laptop intake");
-    expect(html).toContain("2 steps · auto-attaches to Diagnostics");
+    expect(html).toContain("2 steps · added to every Diagnostics repair");
     expect(html).not.toContain("Not attached");
   });
 
@@ -41,16 +41,16 @@ describe("the Checklists card says when a checklist has lost its problem", () =>
     const html = text(card([template("Laptop intake", "Diagnostic")], problems));
     expect(html).toContain("Not attached");
     expect(html).toContain("“Diagnostic” is not on your problem list, so this checklist is not added to new repairs. Edit it to pick another problem.");
-    expect(html).not.toContain("auto-attaches to Diagnostic");
+    expect(html).not.toContain("added to every Diagnostic repair");
   });
 
   it("matches the problem by its exact name, as a new repair does", () => {
     expect(text(card([template("Laptop intake", "diagnostics")], problems))).toContain("Not attached");
   });
 
-  it("does not flag a checklist that is picked by hand", () => {
+  it("does not flag a checklist that is added by hand", () => {
     const html = text(card([template("QC pass", null)], problems));
-    expect(html).toContain("picked by hand");
+    expect(html).toContain("added by hand");
     expect(html).not.toContain("Not attached");
   });
 

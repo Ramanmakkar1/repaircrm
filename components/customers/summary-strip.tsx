@@ -16,7 +16,9 @@ const VALUE_TONE: Record<SummaryTone, string> = {
  * ("$27.05 owed", "Nothing owed"). One panel with four label/value pairs and no
  * cards inside it.
  *
- * Four across from a tablet up. On a phone the strip is kept short, because the
+ * Four across from a landscape tablet (lg) up, two by two on a portrait tablet
+ * (four 170px columns at 768px broke "$746.14 owed" and "Customer since Jun 18,
+ * 2026" over two lines each). On a phone the strip is kept short, because the
  * header and this panel are the whole first screen and the sections start right
  * under them: repairs, owed and last visit share one row of small figures, and
  * store credit gets a row of its own with the "Add credit" button beside the
@@ -30,9 +32,9 @@ export function SummaryStrip({ items, creditAction }: { items: SummaryItem[]; cr
     <dl
       aria-label="Summary"
       className={cn(
-        "grid grid-cols-3 gap-x-2 gap-y-3 rounded-2xl border border-border bg-surface p-3 sm:gap-x-4 sm:gap-y-5 sm:p-5",
+        "grid grid-cols-3 gap-x-2 gap-y-3 rounded-2xl border border-border bg-surface p-3 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5 sm:p-5 lg:gap-x-4",
         // The store-credit pair is wider when it carries the "Add credit" button, so the button sits beside the amount.
-        creditAction ? "sm:grid-cols-[1fr_1fr_1.6fr_1.15fr]" : "sm:grid-cols-4",
+        creditAction ? "lg:grid-cols-[1fr_1fr_1.6fr_1.15fr]" : "lg:grid-cols-4",
       )}
     >
       {items.map((item) => {

@@ -37,6 +37,7 @@ import {
 } from "@/components/tickets/part-meta";
 import type { ActionState } from "@/components/tickets/action-state";
 import { newCustomerSchema, newDeviceSchema, splitCustomerName, promisedDate } from "@/lib/intake";
+import { parseZonedDateInput } from "@/lib/shop-time";
 import { samePhoneClause } from "@/lib/customers/phone-search";
 
 /**
@@ -71,23 +72,30 @@ function bool(fd: FormData, key: string): boolean {
 }
 
 /**
- * Reads a `<input type="date">` value as LOCAL midnight.
+ * Reads a `<input type="date">` value as midnight in the SHOP's time zone.
  *
  * `new Date("2026-08-24")` is specified to parse a bare date as *UTC* midnight,
  * which renders as the 23rd for anyone west of UTC — so a due date typed as the
- * 24th would read back as the 23rd. Splitting the parts and using the
- * multi-arg Date constructor pins it to the shop's own calendar day.
+ * 24th would read back as the 23rd. The server's own midnight is no better: the
+ * server runs in UTC while the shop is in Edmonton. So the day starts where the
+ * shop is (`zone` is Shop.timezone), and every screen, which reads dates in the
+ * same zone, shows the day that was typed. Without a zone it is the runtime's
+ * midnight, as before.
  */
-function optionalDate(fd: FormData, key: string): Date | null {
+function optionalDate(fd: FormData, key: string, zone?: string | null): Date | null {
   const value = str(fd, key);
   if (!value) return null;
 
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const date = parts
-    ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
-    : new Date(value);
-
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return parseZonedDateInput(value, zone);
+  const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** The shop's time zone, read only when a typed date needs placing in it. */
+async function shopZoneFor(shopId: string, fd: FormData, key: string): Promise<string | null> {
+  if (!str(fd, key)) return null;
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
+  return shop?.timezone ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,10 +282,10 @@ export async function createTicketAction(
   // which is what makes "Overdue" mean something on a board nobody dated.
   const shop = await db.shop.findUnique({
     where: { id: shopId },
-    select: { settings: true },
+    select: { settings: true, timezone: true },
   });
   const dueDate =
-    promisedAt ?? optionalDate(formData, "dueDate") ?? slaDueDate(shop?.settings, priority);
+    promisedAt ?? optionalDate(formData, "dueDate", shop?.timezone) ?? slaDueDate(shop?.settings, priority);
 
   // A checklist named on the form wins; on "auto" (the default, and what a
   // form with no picker at all sends) the template that claims this problem
@@ -367,7 +375,7 @@ export async function updateTicketAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const subject = str(formData, "subject");
   if (!subject) return { error: "A subject is required." };
@@ -377,6 +385,7 @@ export async function updateTicketAction(
     ticket.customerId,
     optionalId(formData, "warrantyInvoiceLineId"),
   );
+  const zone = await shopZoneFor(shopId, formData, "dueDate");
 
   await db.ticket.update({
     where: { id: ticket.id },
@@ -393,7 +402,7 @@ export async function updateTicketAction(
         ticket.customerId,
         optionalId(formData, "assetId"),
       ),
-      dueDate: optionalDate(formData, "dueDate"),
+      dueDate: optionalDate(formData, "dueDate", zone),
       // The claim is only kept when the line is still one of THIS customer's
       // warranted purchases — clearing the picker clears the flag with it.
       warrantyInvoiceLineId: warrantyLineId,
@@ -436,7 +445,7 @@ export async function deleteTicketAction(ticketId: string): Promise<void> {
     action: "ticket.deleted",
     entity: "ticket",
     entityId: ticketId,
-    summary: `Deleted ticket #${doomed?.number ?? "?"}`,
+    summary: `Deleted repair #${doomed?.number ?? "?"}`,
   });
 
   revalidatePath("/tickets");
@@ -454,7 +463,7 @@ export async function postUpdateAction(
 ): Promise<ActionState> {
   const { shopId, userId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const nextStatus = str(formData, "status") || ticket.status;
   const statusChanged = nextStatus !== ticket.status;
@@ -470,7 +479,7 @@ export async function postUpdateAction(
 
   const subject =
     str(formData, "subject") ||
-    (isPublic ? `Update on ticket #${ticket.number}` : null);
+    (isPublic ? `Update on repair #${ticket.number}` : null);
 
   // A status-only submit still gets a body so the timeline never has a blank row.
   const commentBody = body || `Status changed to ${nextStatus}.`;
@@ -521,7 +530,7 @@ export async function postUpdateAction(
   // are already true. lib/comms writes the single outbox row itself — including
   // when it skips (opted out / no address), so the history stays complete.
   if (isPublic) {
-    const emailSubject = subject ?? `Update on ticket #${ticket.number}`;
+    const emailSubject = subject ?? `Update on repair #${ticket.number}`;
 
     await sendEmail({
       shopId,
@@ -529,7 +538,7 @@ export async function postUpdateAction(
       ticketId: ticket.id,
       subject: emailSubject,
       body: commentBody,
-      context: `Ticket #${ticket.number} · ${ticket.subject}`,
+      context: `Repair #${ticket.number} · ${ticket.subject}`,
       portalPath: `/portal/tickets/${ticket.id}`,
     });
 
@@ -540,7 +549,7 @@ export async function postUpdateAction(
         shopId,
         customerId: ticket.customerId,
         ticketId: ticket.id,
-        body: `Ticket #${ticket.number} — ${commentBody}`,
+        body: `Repair #${ticket.number} — ${commentBody}`,
         portalPath: `/portal/tickets/${ticket.id}`,
       });
     }
@@ -561,7 +570,7 @@ export async function addChargeAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const productId = optionalId(formData, "productId");
   let description = str(formData, "description");
@@ -619,8 +628,8 @@ export async function updateChargeAction(
   const description = str(formData, "description");
   if (!description) return { error: "Describe the charge." };
 
-  await db.ticketCharge.update({
-    where: { id: charge.id },
+  const updated = await db.ticketCharge.updateMany({
+    where: { id: charge.id, shopId, invoiceId: null },
     data: {
       description,
       quantity: Math.max(1, Math.round(Number(str(formData, "quantity")) || 1)),
@@ -628,6 +637,9 @@ export async function updateChargeAction(
       taxable: bool(formData, "taxable"),
     },
   });
+  if (updated.count === 0) {
+    return { error: "This charge is already gone, or it is on an invoice now." };
+  }
 
   revalidateTicket(charge.ticketId);
   return { ok: true };
@@ -642,8 +654,126 @@ export async function deleteChargeAction(chargeId: string): Promise<void> {
   });
   if (!charge) return;
 
-  await db.ticketCharge.delete({ where: { id: charge.id } });
+  const deleted = await db.ticketCharge.deleteMany({
+    where: { id: charge.id, shopId, invoiceId: null },
+  });
+  if (deleted.count === 0) return;
   revalidateTicket(charge.ticketId);
+}
+
+/**
+ * What a removed charge was, handed back so the screen can offer "Undo". Cents
+ * are carried as integers, exactly as stored, so putting it back cannot round.
+ */
+export type RemovedCharge = {
+  ticketId: string;
+  productId: string | null;
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  taxable: boolean;
+  /** ISO time it was first added, so it goes back to the same place in the list. */
+  createdAt: string;
+};
+
+/**
+ * Removes one charge that is not on an invoice yet, like `deleteChargeAction`,
+ * and returns what it was: the repair screen deletes with one tap and shows
+ * "Charge removed · Undo" rather than asking first (see components/ui/undo-toast.ts).
+ */
+export async function removeChargeAction(
+  chargeId: string,
+): Promise<{ ok: true; removed: RemovedCharge } | { ok?: undefined; error: string }> {
+  const { shopId } = await requireUser();
+  if (!chargeId) return { error: "Charge not found." };
+
+  const charge = await db.ticketCharge.findFirst({
+    where: { id: chargeId, shopId, invoiceId: null },
+    select: {
+      id: true,
+      ticketId: true,
+      productId: true,
+      description: true,
+      quantity: true,
+      unitPriceCents: true,
+      taxable: true,
+      createdAt: true,
+    },
+  });
+  if (!charge) return { error: "That charge is already gone, or it is on an invoice now." };
+
+  const deleted = await db.ticketCharge.deleteMany({
+    where: { id: charge.id, shopId, invoiceId: null },
+  });
+  if (deleted.count === 0) {
+    return { error: "That charge is already gone, or it is on an invoice now." };
+  }
+  revalidateTicket(charge.ticketId);
+  return {
+    ok: true,
+    removed: {
+      ticketId: charge.ticketId,
+      productId: charge.productId,
+      description: charge.description,
+      quantity: charge.quantity,
+      unitPriceCents: charge.unitPriceCents,
+      taxable: charge.taxable,
+      createdAt: charge.createdAt.toISOString(),
+    },
+  };
+}
+
+/** Bounds on a charge put back by Undo: the same shape `addChargeAction` writes. */
+const RESTORE_MAX_CENTS = 100_000_000;
+const RESTORE_MAX_QUANTITY = 100_000;
+
+/**
+ * The Undo for `removeChargeAction`: writes the charge back onto its repair.
+ *
+ * Nothing from the browser is trusted more than a new charge would be: the
+ * repair and the product are re-checked against the session's shop, the
+ * numbers must be whole and in range, and the time may not be in the future.
+ * It is a new row (a new id) with the old values, which is all anything reads.
+ */
+export async function restoreChargeAction(removed: RemovedCharge): Promise<ActionState> {
+  const { shopId } = await requireUser();
+  const ticket = await findTicket(shopId, typeof removed?.ticketId === "string" ? removed.ticketId : "");
+  if (!ticket) return { error: "Repair not found." };
+
+  const description = typeof removed.description === "string" ? removed.description.trim() : "";
+  if (!description) return { error: "Describe the charge." };
+  const { quantity, unitPriceCents } = removed;
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > RESTORE_MAX_QUANTITY) {
+    return { error: "That quantity can't be put back." };
+  }
+  if (!Number.isSafeInteger(unitPriceCents) || Math.abs(unitPriceCents) > RESTORE_MAX_CENTS) {
+    return { error: "That price can't be put back." };
+  }
+
+  const productId =
+    typeof removed.productId === "string" && removed.productId
+      ? ((await db.product.findFirst({ where: { id: removed.productId, shopId }, select: { id: true } }))?.id ?? null)
+      : null;
+
+  const added = new Date(removed.createdAt);
+  const now = new Date();
+  const createdAt = Number.isNaN(added.getTime()) || added > now ? now : added;
+
+  await db.ticketCharge.create({
+    data: {
+      shopId,
+      ticketId: ticket.id,
+      productId,
+      description,
+      quantity,
+      unitPriceCents,
+      taxable: removed.taxable === true,
+      createdAt,
+    },
+  });
+
+  revalidateTicket(ticket.id);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -708,7 +838,7 @@ export async function addPartOrderAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const productId = optionalId(formData, "productId");
   const vendorId = optionalId(formData, "vendorId");
@@ -745,6 +875,8 @@ export async function addPartOrderAction(
       })
     : null;
 
+  const zone = await shopZoneFor(shopId, formData, "expectedAt");
+
   await db.partOrder.create({
     data: {
       shopId,
@@ -758,7 +890,7 @@ export async function addPartOrderAction(
       quantity,
       costCents: costCents !== null && costCents > 0 ? costCents : null,
       status: "NEEDED",
-      expectedAt: optionalDate(formData, "expectedAt"),
+      expectedAt: optionalDate(formData, "expectedAt", zone),
       notes: str(formData, "notes") || null,
     },
   });
@@ -847,7 +979,7 @@ export async function markPartReceivedAction(
             shopId,
             productId: part.productId,
             delta: part.quantity,
-            reason: `Part received — ticket #${part.ticket.number}`,
+            reason: `Part received — repair #${part.ticket.number}`,
             userId,
           },
         });
@@ -921,7 +1053,7 @@ export async function resumeTicketFromPartsAction(
 ): Promise<PartActionState> {
   const { shopId, userId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
   if (ticket.status !== WAITING_FOR_PARTS_STATUS) return { ok: true };
 
   await db.$transaction(async (tx) => {
@@ -1030,7 +1162,7 @@ export async function saveCustomFieldsAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const keys = formData.getAll("fieldKey");
   const values = formData.getAll("fieldValue");
@@ -1111,6 +1243,8 @@ export async function deleteCannedResponseAction(id: string): Promise<void> {
 // Takes an options object rather than state/formData: a shorter parameter list
 // is still assignable to what `useActionState` expects, and the only choice on
 // the confirm dialog is the one checkbox.
+class RepairBillingChangedError extends Error {}
+
 export async function makeInvoiceAction(
   ticketId: string,
   options?: { includeTime?: boolean },
@@ -1139,12 +1273,12 @@ export async function makeInvoiceAction(
     },
   });
 
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const [shop, tax] = await Promise.all([
     db.shop.findUnique({
       where: { id: shopId },
-      select: { settings: true },
+      select: { settings: true, timezone: true },
     }),
     resolveDocumentTax(shopId, ticket.customerId, null),
   ]);
@@ -1153,7 +1287,7 @@ export async function makeInvoiceAction(
   const timeEntries = includeTime
     ? await loadBillableTime(db, shopId, ticket.id)
     : [];
-  const labourLines = labourLinesFor(timeEntries, labour);
+  const labourLines = labourLinesFor(timeEntries, labour, shop?.timezone ?? "UTC");
 
   const charges = ticket.charges;
   const locationId = await newRecordLocationId(shopId, userId);
@@ -1216,23 +1350,32 @@ export async function makeInvoiceAction(
       });
 
       if (charges.length > 0) {
-        await tx.ticketCharge.updateMany({
-          where: { id: { in: charges.map((c) => c.id) }, shopId },
+        const claimed = await tx.ticketCharge.updateMany({
+          where: { id: { in: charges.map((c) => c.id) }, shopId, ticketId: ticket.id, invoiceId: null },
           data: { invoiceId: created.id },
         });
+        if (claimed.count !== charges.length) {
+          throw new RepairBillingChangedError("Those repair charges changed or were already billed. Refresh and try again.");
+        }
       }
 
       // Stamping the entries inside the transaction is what stops the same
       // hour being billed twice by two people pressing the button at once.
       if (timeEntries.length > 0) {
-        await tx.timeEntry.updateMany({
+        const claimed = await tx.timeEntry.updateMany({
           where: {
             id: { in: timeEntries.map((entry) => entry.id) },
             shopId,
+            ticketId: ticket.id,
+            billable: true,
+            endedAt: { not: null },
             invoiceId: null,
           },
           data: { invoiceId: created.id },
         });
+        if (claimed.count !== timeEntries.length) {
+          throw new RepairBillingChangedError("That repair time changed or was already billed. Refresh and try again.");
+        }
       }
 
       const deposit = await applyTicketDeposits(tx, {
@@ -1272,7 +1415,11 @@ export async function makeInvoiceAction(
 
       return created;
     }),
-  );
+  ).catch((error: unknown) => {
+    if (error instanceof RepairBillingChangedError) return { error: error.message };
+    throw error;
+  });
+  if ("error" in invoice) return invoice;
 
   revalidateTicket(ticket.id);
   revalidatePath("/invoices");
@@ -1352,9 +1499,9 @@ export async function notifyReadyForPickupAction(
       },
     },
   });
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
   if (isReadyForPickup(ticket.status)) {
-    return { error: "This ticket is already marked ready for pickup." };
+    return { error: "This repair is already marked ready for pickup." };
   }
 
   const [shop, canned] = await Promise.all([
@@ -1400,7 +1547,7 @@ export async function notifyReadyForPickupAction(
         authorId: userId,
         body: message,
         isPublic: true,
-        subject: `Ticket #${ticket.number} is ready for pickup`,
+        subject: `Repair #${ticket.number} is ready for pickup`,
         updateType: READY_FOR_PICKUP_STATUS,
         channel: "NOTE",
       },
@@ -1417,9 +1564,9 @@ export async function notifyReadyForPickupAction(
       shopId,
       customerId: ticket.customerId,
       ticketId: ticket.id,
-      subject: `Ticket #${ticket.number} is ready for pickup`,
+      subject: `Repair #${ticket.number} is ready for pickup`,
       body: message,
-      context: `Ticket #${ticket.number} · ${ticket.subject}`,
+      context: `Repair #${ticket.number} · ${ticket.subject}`,
       portalPath,
     });
 
@@ -1494,7 +1641,7 @@ export async function markPickedUpAction(ticketId: string): Promise<ActionState>
   const { shopId, userId } = await requireUser();
 
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const now = new Date();
 

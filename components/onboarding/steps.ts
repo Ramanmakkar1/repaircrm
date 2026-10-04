@@ -12,29 +12,56 @@ export const STEPS = [
   {
     key: "shop",
     title: "Your shop",
-    blurb: "The name and tax rate that go on every invoice.",
+    blurb: "The name, address and sales tax that go on every receipt.",
+    photo: "/images/home/cash-register.webp",
   },
   {
     key: "team",
     title: "Your team",
-    blurb: "Add the people who will use Repairs helper with you.",
+    blurb: "The people who will use Repairs helper with you.",
+    photo: "/images/home/customers-cards.webp",
   },
   {
     key: "payments",
     title: "Getting paid",
-    blurb: "How money reaches you — card, reader or cash.",
+    blurb: "Cash works today. Card payments when you are ready.",
+    photo: "/images/home/card-terminal.webp",
   },
   {
     key: "items",
     title: "Your first items",
-    blurb: "The parts and services you sell most often.",
+    blurb: "Two or three of the jobs and parts you sell most.",
+    photo: "/images/home/price-tag.webp",
   },
   {
     key: "ready",
     title: "Ready",
-    blurb: "Two things worth trying before your first customer.",
+    blurb: "Three things worth doing before your first customer.",
+    photo: "/images/home/pickup-bag.webp",
   },
 ] as const;
+
+/** "Step 2 of 5: Your team", the words the progress bar says. */
+export function stepWords(key: StepKey): string {
+  const index = STEP_KEYS.indexOf(key);
+  return `Step ${index + 1} of ${STEP_KEYS.length}: ${STEPS[index].title}`;
+}
+
+/** How far through, 0-100, for the progress bar: done or skipped steps count, plus where you are. */
+export function stepProgress(key: StepKey, done: ReadonlySet<StepKey>): number {
+  const passed = new Set([...done]);
+  passed.add(key);
+  const at = STEP_KEYS.indexOf(key) + 1;
+  return Math.round((Math.max(at, passed.size) / STEP_KEYS.length) * 100);
+}
+
+/** One word for a step's state on the step list. */
+export function stepState(key: StepKey, current: StepKey, completed: ReadonlySet<StepKey>, skipped: ReadonlySet<StepKey>): "Now" | "Done" | "Later" | "" {
+  if (key === current) return "Now";
+  if (completed.has(key)) return "Done";
+  if (skipped.has(key)) return "Later";
+  return "";
+}
 
 export type StepKey = (typeof STEPS)[number]["key"];
 
@@ -55,7 +82,7 @@ export function isStepKey(value: unknown): value is StepKey {
 export type OnboardingState = {
   /** Steps whose primary action was completed. */
   completed?: StepKey[];
-  /** Steps the operator pressed "Skip for now" on. */
+  /** Steps the operator pressed "Do this later" on. */
   skipped?: StepKey[];
   /** Where they were last, so a reload resumes rather than restarts. */
   current?: StepKey;

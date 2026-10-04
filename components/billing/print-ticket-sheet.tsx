@@ -9,7 +9,6 @@ import {
   MetaTable,
   PartyBlock,
   SectionHead,
-  SheetFooter,
   SignatureBlock,
   Stamp,
   type PrintMetaRow,
@@ -29,6 +28,16 @@ import { PrintToolbar } from "./print-toolbar";
  * The blank ruled area is not decoration. Technicians write on this in pen while
  * the machine is open, and a work order with no room to write gets replaced by
  * a sticky note.
+ *
+ * ONE PAGE. The whole sheet, claim check included, fits one US Letter page and
+ * one A4 page (the `rf-wo` rules in print-styles.ts tighten the house spacing,
+ * an empty charges table is one line, and the footer barcode lives on the stub
+ * instead of twice). The claim check is handed over at the counter, so it must
+ * never fall onto a second sheet.
+ *
+ * THE PASSCODE stays off the paper by default: this sheet is pinned to the
+ * device and handed around the shop. It reads "On file" unless the page was
+ * asked to print it (`showPasscode`, the toolbar's "Show passcode" link).
  */
 
 export type TicketCharge = {
@@ -69,6 +78,8 @@ export function TicketSheet({
   backLabel,
   chrome = true,
   terms,
+  showPasscode = false,
+  passcodeToggleHref,
 }: {
   number: number;
   shop: PrintParty;
@@ -91,6 +102,10 @@ export function TicketSheet({
   /** See the note on `PrintSheet.chrome` — off when a batch page stacks sheets. */
   chrome?: boolean;
   terms: string;
+  /** Print the device passcode itself rather than "On file". */
+  showPasscode?: boolean;
+  /** The same page with the passcode shown (or hidden again), for the toolbar. */
+  passcodeToggleHref?: string;
 }) {
   const totals = calcTotals(charges, taxRateBps);
   const code = `T${number}`;
@@ -102,10 +117,16 @@ export function TicketSheet({
           backHref={backHref}
           backLabel={backLabel}
           title={`Work order #${number}`}
-        />
+        >
+          {passcodeToggleHref && device?.password ? (
+            <a href={passcodeToggleHref} className="rf-toolbar-back">
+              {showPasscode ? "Hide passcode" : "Show passcode"}
+            </a>
+          ) : null}
+        </PrintToolbar>
       ) : null}
 
-      <article className="rf-sheet">
+      <article className="rf-sheet rf-wo">
         {resolved ? <Stamp label="Resolved" /> : null}
 
         <div className="rf-body">
@@ -127,22 +148,24 @@ export function TicketSheet({
             <div className="rf-panel">
               {device ? (
                 <>
+                  {/* One row: what it is, its serial, the passcode, and how it came in. */}
                   <div className="rf-fields">
-                    <Field label="Type" value={device.type} />
-                    <Field label="Make" value={device.make || "—"} />
-                    <Field label="Model" value={device.model || "—"} />
+                    <Field
+                      label="Device"
+                      value={
+                        [device.make, device.model].filter(Boolean).length > 0
+                          ? `${[device.make, device.model].filter(Boolean).join(" ")} (${device.type})`
+                          : device.type
+                      }
+                    />
                     <Field label="Serial / IMEI" value={device.serial || "—"} mono />
+                    <Field
+                      label="Passcode"
+                      value={device.password ? (showPasscode ? device.password : "On file") : "None given"}
+                      mono={Boolean(device.password && showPasscode)}
+                    />
+                    <Field label="Condition on intake" value={device.notes || "—"} />
                   </div>
-                  {device.password || device.notes ? (
-                    <div className="rf-fields is-2" style={{ marginTop: "0.12in" }}>
-                      {device.password ? (
-                        <Field label="Passcode" value={device.password} mono />
-                      ) : null}
-                      {device.notes ? (
-                        <Field label="Condition on intake" value={device.notes} />
-                      ) : null}
-                    </div>
-                  ) : null}
                 </>
               ) : (
                 <div className="rf-field-value rf-muted">
@@ -152,29 +175,36 @@ export function TicketSheet({
             </div>
           </section>
 
-          {/* --------------------------------------------------- problem --- */}
-          <section className="rf-section rf-avoid">
-            <SectionHead title="Reported problem" aside={problemType} />
-            <p className="rf-note" style={{ marginTop: 0, fontSize: "10pt" }}>
-              {subject}
-            </p>
+          {/* ------------------------------------------ problem + diagnosis --- */}
+          {/* Side by side when both are known, so the page keeps its room. */}
+          <section className={`rf-section rf-avoid${diagnosis ? " rf-wo-split" : ""}`}>
+            <div>
+              <SectionHead title="What they said is wrong" aside={problemType} />
+              <p className="rf-note" style={{ marginTop: 0, fontSize: "10pt" }}>
+                {subject}
+              </p>
+            </div>
+            {diagnosis ? (
+              <div>
+                <SectionHead title="What we found" />
+                <p className="rf-note" style={{ marginTop: 0 }}>
+                  {diagnosis}
+                </p>
+              </div>
+            ) : null}
           </section>
 
-          {diagnosis ? (
+          {/* --------------------------------------------------- charges --- */}
+          {charges.length === 0 ? (
             <section className="rf-section-tight rf-avoid">
-              <SectionHead title="Diagnosis" />
+              <SectionHead title="Charges so far" />
               <p className="rf-note" style={{ marginTop: 0 }}>
-                {diagnosis}
+                Nothing charged yet. Prices are added as the work is done.
               </p>
             </section>
-          ) : null}
-
-          {/* --------------------------------------------------- charges --- */}
+          ) : (
           <section className="rf-section">
-            <SectionHead
-              title="Charges to date"
-              aside={charges.length > 0 ? "Not a receipt" : undefined}
-            />
+            <SectionHead title="Charges so far" aside="Not a receipt" />
             <table className="rf-items is-dense">
               <thead>
                 <tr>
@@ -201,48 +231,23 @@ export function TicketSheet({
                     </td>
                   </tr>
                 ))}
-                {charges.length === 0 ? (
-                  <tr>
-                    <td className="rf-empty" colSpan={4}>
-                      No charges recorded yet.
-                    </td>
-                  </tr>
-                ) : null}
               </tbody>
             </table>
 
-            <div className="rf-totals-wrap">
-              <div className="rf-totals-panel">
-                <table className="rf-totals">
-                  <tbody>
-                    <tr>
-                      <td className="rf-t-label">Subtotal</td>
-                      <td className="rf-t-value">
-                        {formatCents(totals.subtotalCents)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="rf-t-label">
-                        Estimated tax ({formatBps(taxRateBps)})
-                      </td>
-                      <td className="rf-t-value">{formatCents(totals.taxCents)}</td>
-                    </tr>
-                    <tr className="is-strong">
-                      <td className="rf-t-label">Estimated total</td>
-                      <td className="rf-t-value">
-                        {formatCents(totals.totalCents)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            {/* One line, not a three-row panel: this is the work so far, not a bill. */}
+            <div className="rf-wo-total">
+              <span>Subtotal {formatCents(totals.subtotalCents)}</span>
+              <span>Tax, as it stands ({formatBps(taxRateBps)}) {formatCents(totals.taxCents)}</span>
+              <strong>Total so far {formatCents(totals.totalCents)}</strong>
             </div>
           </section>
+          )}
 
           {/* ------------------------------------------ technician notes --- */}
-          <section className="rf-section rf-avoid">
-            <SectionHead title="Technician notes" aside="Work performed / parts used" />
-            <div className="rf-ruled" style={{ height: "1.8in" }} />
+          <section className="rf-section-tight rf-avoid">
+            <SectionHead title="Technician notes" aside="Work done / parts used" />
+            {/* Two writing lines with charges on the sheet, four without. */}
+            <div className="rf-ruled" style={{ height: charges.length > 0 ? "0.75in" : "1.2in" }} />
           </section>
 
           {/* ------------------------------------------------- signature --- */}
@@ -254,18 +259,11 @@ export function TicketSheet({
               />
               <SignatureBlock caption="Released to / date" width="2.4in" />
             </div>
-            <p className="rf-note">{terms}</p>
+            <p className="rf-note rf-wo-terms">{terms}</p>
           </section>
 
-          <SheetFooter
-            barcode={code}
-            message={`Work order #${number}`}
-            contact={
-              shopPhone
-                ? `${shop.name}  ·  ${shopPhone}`
-                : shop.name
-            }
-          />
+          {/* The scannable code is on the claim check below, which is where
+              the counter scans it; a second footer barcode cost the page. */}
 
           {/* ------------------------------------------------ claim stub --- */}
           <CutLine />
@@ -274,8 +272,8 @@ export function TicketSheet({
               <div className="rf-stub-title">Claim check</div>
               <div className="rf-stub-number">#{number}</div>
               <div className="rf-stub-lines">
-                <div>{customer.name}</div>
                 <div>
+                  {customer.name} ·{" "}
                   {device
                     ? [device.make, device.model || device.type]
                         .filter(Boolean)

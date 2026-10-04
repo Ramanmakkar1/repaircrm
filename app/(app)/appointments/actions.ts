@@ -2,22 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
-import { format } from "date-fns";
 
 import type {
   AppointmentResult,
+  CustomerSearchResult,
   SimpleResult,
 } from "@/components/appointments/appointment-state";
-import {
-  asAppointmentStatus,
-  parseLocalDateTime,
-} from "@/components/appointments/calendar-meta";
+import { asAppointmentStatus } from "@/components/appointments/calendar-meta";
 import { requireRole, requireUser } from "@/lib/auth";
 import { sendEmail, sendSms } from "@/lib/comms";
-import { samePhoneClause } from "@/lib/customers/phone-search";
+import { customerMatchClauses, samePhoneClause } from "@/lib/customers/phone-search";
 import { splitCustomerName } from "@/lib/intake";
 import { db } from "@/lib/db";
 import { emitAppointmentEvent, emitCustomerEvent } from "@/lib/events";
+import { formatIn, parseWallDateTime, safeTimeZone } from "@/lib/dashboard/zone";
 
 /**
  * Server actions for the Appointments calendar.
@@ -102,6 +100,22 @@ async function validLocationId(shopId: string, id: string | null) {
   return row?.id ?? null;
 }
 
+/**
+ * The shop's time zone: the date and time typed into the booking are the
+ * shop's wall clock, and every time this file writes into a message is read on
+ * it too. The server's own zone never enters into it (it runs in UTC). A zone
+ * that cannot be read is UTC, as on every other screen: it must never block a
+ * booking.
+ */
+async function shopZone(shopId: string): Promise<string> {
+  try {
+    const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
+    return safeTimeZone(shop?.timezone);
+  } catch {
+    return "UTC";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Parsing the form's date + time + duration triple
 // ---------------------------------------------------------------------------
@@ -110,15 +124,23 @@ type ParsedWhen =
   | { ok: true; startsAt: Date; endsAt: Date }
   | { ok: false; error: string };
 
-function readWhen(fd: FormData): ParsedWhen {
-  const startsAt = parseLocalDateTime(`${str(fd, "startDate")}T${str(fd, "startTime")}`);
-  if (!startsAt) return { ok: false, error: "Pick a start date and time." };
+/**
+ * The form's date and time are what the shop's wall clock will read ("Oct 4,
+ * 9:00 AM" in Edmonton), so they are turned into an instant in the SHOP'S zone.
+ * Read in the server's zone instead, a 9 AM booking made on a UTC server would
+ * land at 3 AM Edmonton time.
+ */
+function readWhen(fd: FormData, zone: string): ParsedWhen {
+  const startMs = parseWallDateTime(`${str(fd, "startDate")}T${str(fd, "startTime")}`, zone);
+  if (startMs === null) return { ok: false, error: "Pick a start date and time." };
+  const startsAt = new Date(startMs);
 
   const duration = str(fd, "duration") || "60";
 
   if (duration === "custom") {
     const endTime = str(fd, "endTime");
-    const endsAt = parseLocalDateTime(`${str(fd, "startDate")}T${endTime}`);
+    const endMs = parseWallDateTime(`${str(fd, "startDate")}T${endTime}`, zone);
+    const endsAt = endMs === null ? null : new Date(endMs);
     if (!endsAt) return { ok: false, error: "Pick an end time." };
     if (endsAt <= startsAt) {
       return { ok: false, error: "The end time has to be after the start time." };
@@ -174,11 +196,21 @@ async function findConflict(
   });
 }
 
-function conflictPayload(row: NonNullable<Awaited<ReturnType<typeof findConflict>>>) {
+/** "Sun Oct 4, 9:00 AM" on the shop's wall clock. */
+function dayAndTime(at: Date, zone: string): string {
+  return `${formatIn(at.getTime(), zone, { weekday: "short", month: "short", day: "numeric" }).replace(",", "")}, ${clockTime(at, zone)}`;
+}
+
+/** "9:00 AM" on the shop's wall clock. */
+function clockTime(at: Date, zone: string): string {
+  return formatIn(at.getTime(), zone, { hour: "numeric", minute: "2-digit" });
+}
+
+function conflictPayload(row: NonNullable<Awaited<ReturnType<typeof findConflict>>>, zone: string) {
   return {
     id: row.id,
     title: row.title,
-    when: `${format(row.startsAt, "EEE MMM d, h:mm a")} – ${format(row.endsAt, "h:mm a")}`,
+    when: `${dayAndTime(row.startsAt, zone)} – ${clockTime(row.endsAt, zone)}`,
     techName: row.assignedTo?.name ?? "This tech",
     customerName: row.customer
       ? row.customer.businessName ||
@@ -208,10 +240,11 @@ async function sendConfirmation(input: {
   startsAt: Date;
   endsAt: Date;
   action: "booked" | "updated";
+  zone: string;
 }): Promise<void> {
   if (!input.customerId) return;
 
-  const when = `${format(input.startsAt, "EEEE, MMMM d")} at ${format(input.startsAt, "h:mm a")}`;
+  const when = `${formatIn(input.startsAt.getTime(), input.zone, { weekday: "long", month: "long", day: "numeric" })} at ${clockTime(input.startsAt, input.zone)}`;
 
   try {
     const result = await sendEmail({
@@ -228,7 +261,7 @@ async function sendConfirmation(input: {
           : `Your appointment has been moved.`,
         "",
         `${input.title}`,
-        `${when} (until ${format(input.endsAt, "h:mm a")})`,
+        `${when} (until ${clockTime(input.endsAt, input.zone)})`,
         "",
         "If that no longer works, just reply or give us a call.",
       ].join("\n"),
@@ -337,7 +370,8 @@ export async function saveAppointmentAction(
   const title = str(formData, "title");
   if (!title) return { ok: false, error: "Give the appointment a title." };
 
-  const when = readWhen(formData);
+  const zone = await shopZone(shopId);
+  const when = readWhen(formData, zone);
   if (!when.ok) return { ok: false, error: when.error };
 
   // Verify the row we're editing before spending queries on its new contents.
@@ -378,7 +412,7 @@ export async function saveAppointmentAction(
       return {
         ok: false,
         error: "That tech is already booked then.",
-        conflict: conflictPayload(clash),
+        conflict: conflictPayload(clash, zone),
       };
     }
   }
@@ -435,6 +469,7 @@ export async function saveAppointmentAction(
     startsAt: when.startsAt,
     endsAt: when.endsAt,
     action: appointmentId ? "updated" : "booked",
+    zone,
   });
 
   revalidateCalendar();
@@ -488,7 +523,7 @@ export async function setAppointmentStatusAction(
         // `SimpleResult` carries a string, not the structured payload the
         // booking dialog renders — so the same facts are said in one line,
         // in the dialog's own words.
-        const { techName, title, when } = conflictPayload(clash);
+        const { techName, title, when } = conflictPayload(clash, await shopZone(shopId));
         return {
           ok: false,
           error: `${techName} is already booked — "${title}", ${when}. Move that one, or reassign this.`,
@@ -523,4 +558,60 @@ export async function deleteAppointmentAction(
 
   revalidateCalendar();
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Finding a customer the page did not send
+// ---------------------------------------------------------------------------
+
+/**
+ * The booking dialog loads the first 500 customers to search as you type. A
+ * shop with more asks here as well: name, business, email or a phone number
+ * (any punctuation), and "Daniel Brooks" finds Daniel Brooks. Scoped to the
+ * session's shop; at most 20 people, with up to 10 of each one's repairs so a
+ * repair can still be linked to the visit.
+ */
+export async function searchBookingCustomersAction(query: string): Promise<CustomerSearchResult> {
+  const { shopId } = await requireUser();
+  const text = String(query ?? "").trim().slice(0, 80);
+  if (text.length < 2) return { customers: [], ticketsByCustomer: {} };
+
+  const like = (value: string) => ({ contains: value, mode: "insensitive" as const });
+  const words = text.split(/\s+/).filter(Boolean);
+  const everyWord: Prisma.CustomerWhereInput[] =
+    words.length > 1
+      ? [{ AND: words.map((word) => ({ OR: [{ firstName: like(word) }, { lastName: like(word) }, { businessName: like(word) }] })) }]
+      : [];
+
+  const rows = await db.customer.findMany({
+    where: { shopId, OR: [...(await customerMatchClauses(shopId, text)), ...everyWord] },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 20,
+    select: { id: true, firstName: true, lastName: true, businessName: true, phone: true, mobile: true, email: true },
+  });
+
+  const tickets = rows.length
+    ? await db.ticket.findMany({
+        where: { shopId, customerId: { in: rows.map((row) => row.id) } },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+        select: { id: true, number: true, subject: true, customerId: true },
+      })
+    : [];
+
+  const ticketsByCustomer: CustomerSearchResult["ticketsByCustomer"] = {};
+  for (const ticket of tickets) {
+    const list = (ticketsByCustomer[ticket.customerId] ??= []);
+    if (list.length < 10) list.push({ value: ticket.id, label: `#${ticket.number} · ${ticket.subject}` });
+  }
+
+  return {
+    customers: rows.map((row) => ({
+      value: row.id,
+      label: row.businessName || `${row.firstName} ${row.lastName}`.trim(),
+      phone: row.mobile || row.phone,
+      email: row.email,
+    })),
+    ticketsByCustomer,
+  };
 }

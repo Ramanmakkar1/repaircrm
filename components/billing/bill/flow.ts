@@ -23,6 +23,8 @@ import { calcTotals, formatBps, formatCents, parseCents, type Totals } from "@/l
 import { NO_TAX, defaultTaxRate, type TaxRateOption } from "@/lib/tax";
 import type { CustomerOption, ProductOption, SubmittedLine } from "../types";
 import type { InitialLine } from "../line-items-editor";
+import { chargeLine, type RepairCharge } from "../repair-charges";
+import { FREQUENCY_CADENCE, FREQUENCY_LABEL, asFrequency } from "@/components/recurring/meta";
 
 // ---------------------------------------------------------------------------
 // Vocabulary shared with the server actions
@@ -35,7 +37,37 @@ export const NEW = "new";
 export const MAX_QUANTITY = 100_000;
 export const MAX_PRICE_CENTS = 100_000_000;
 
-export type BillKind = "invoice" | "estimate";
+/**
+ * What is being built. "repeat" is a recurring invoice ("repeat bill"): the
+ * same customer and items steps, then "How often" in place of the review, and
+ * it posts the schedule's fields to createScheduleAction / updateScheduleAction.
+ */
+export type BillKind = "invoice" | "estimate" | "repeat";
+
+/** The extra choices a repeat bill carries. Posted exactly as the old schedule form posted them. */
+export type RepeatDetails = {
+  /** For the shop's own list; filled in from the customer and how often when left blank. */
+  name: string;
+  /** WEEKLY | MONTHLY | QUARTERLY | YEARLY. */
+  frequency: string;
+  /** Days the customer has to pay each bill; 0 is due on receipt. */
+  dueInDays: number;
+  /** Paused schedules make no bills. */
+  active: boolean;
+  /** Email each bill as soon as it is made. */
+  autoSend: boolean;
+  /** Take each bill from the card on file. Only possible when there is one. */
+  autoCharge: boolean;
+};
+
+export const DEFAULT_REPEAT: RepeatDetails = {
+  name: "",
+  frequency: "MONTHLY",
+  dueInDays: 14,
+  active: true,
+  autoSend: false,
+  autoCharge: false,
+};
 
 /** An open repair the document can be linked to (the `ticketId` the old form carried as a hidden field). */
 export type RepairOption = {
@@ -44,6 +76,11 @@ export type RepairOption = {
   subject: string;
   customerId: string;
   status: string;
+  /**
+   * The repair's charges that are on no invoice yet. Picking the repair puts
+   * them on the bill; saving the invoice marks exactly these as billed.
+   */
+  charges?: RepairCharge[];
 };
 
 export type BillContext = {
@@ -65,14 +102,30 @@ export type BillInitial = {
   date?: string;
   notes?: string | null;
   lines?: InitialLine[];
+  /**
+   * A saved document's own tax snapshot. When given (editing), the bill opens
+   * on it instead of the customer's current rate, so opening a document to
+   * change a note never silently re-taxes it.
+   */
+  tax?: { taxRateId: string | null; taxRateBps: number };
+  /**
+   * Opened for a repair (?ticketId=) on a NEW invoice: put the repair's
+   * unbilled charges on the bill straight away, as "From repair" does.
+   */
+  withRepairCharges?: boolean;
+  /** A repeat bill's own choices (kind "repeat"). */
+  repeat?: Partial<RepeatDetails>;
 };
+
+/** New document, or a saved one being changed. */
+export type BillMode = "new" | "edit";
 
 // ---------------------------------------------------------------------------
 // Words
 // ---------------------------------------------------------------------------
 
 export type Copy = {
-  noun: "invoice" | "estimate";
+  noun: string;
   /** The panel's name: "This invoice". */
   panel: string;
   save: string;
@@ -88,7 +141,42 @@ export type Copy = {
   stepsLabel: string;
 };
 
-export function copyFor(kind: BillKind): Copy {
+export function copyFor(kind: BillKind, mode: BillMode = "new"): Copy {
+  const copy = newCopyFor(kind);
+  if (mode === "new") return copy;
+  if (kind === "repeat") {
+    return {
+      ...copy,
+      save: "Save changes",
+      dateLabel: "Next bill on",
+      dateHint: "The next bill is made on this day. The ones after follow on from it.",
+      saveNote: "Changes count from the next bill on. Bills already made stay as they are.",
+    };
+  }
+  // Editing a saved document: the same screen, saying what saving does now.
+  return {
+    ...copy,
+    save: "Save changes",
+    saveNote: `Saving puts these items on the ${copy.noun} in place of the ones there now.`,
+  };
+}
+
+function newCopyFor(kind: BillKind): Copy {
+  if (kind === "repeat") {
+    return {
+      noun: "repeat bill",
+      panel: "Each bill",
+      save: "Save repeat bill",
+      saving: "Saving…",
+      itemsTitle: "What goes on each bill?",
+      itemsHint: "Tap a picture to add it. Tap again for one more.",
+      dateLabel: "First bill on",
+      dateHint: "The first bill is made on this day. The ones after follow on from it.",
+      dateEmpty: "Not picked yet",
+      saveNote: "Nothing is billed until the first bill day.",
+      stepsLabel: "Repeat bill steps",
+    };
+  }
   if (kind === "invoice") {
     return {
       noun: "invoice",
@@ -126,7 +214,15 @@ export const STEPS = [
 ] as const;
 export const LAST_STEP = STEPS.length - 1;
 
+/** The three steps' names: the last is "How often" for a repeat bill. */
+export function stepLabels(kind: BillKind): string[] {
+  return STEPS.map((item, index) => (kind === "repeat" && index === LAST_STEP ? "How often" : item.label));
+}
+
 export function stepTitle(kind: BillKind, step: number): { title: string; hint: string } {
+  if (kind === "repeat" && step === LAST_STEP) {
+    return { title: "How often?", hint: "Pick how often to bill and the first day. Change anything before you save." };
+  }
   if (step === 1) {
     const copy = copyFor(kind);
     return { title: copy.itemsTitle, hint: copy.itemsHint };
@@ -153,6 +249,8 @@ export type BillLine = {
   taxable: boolean;
   /** "" = none. */
   serial: string;
+  /** The repair charge this line bills ("From repair"), or null for anything else. */
+  chargeId?: string | null;
 };
 
 export type BillState = {
@@ -167,6 +265,8 @@ export type BillState = {
   notes: string;
   /** The linked repair ("" = none). */
   ticketId: string;
+  /** A repeat bill's own choices; unused (and never posted) by an invoice or an estimate. */
+  repeat: RepeatDetails;
   /** Counts the lines made so far, so each gets its own key. */
   seq: number;
 };
@@ -191,13 +291,15 @@ function lineFromInitial(line: InitialLine, index: number): BillLine {
 export function initialBillState(ctx: BillContext, initial: BillInitial = {}): BillState {
   const prefill = ctx.customers.find((customer) => customer.id === initial.customerId) ?? null;
   const fallback = defaultTaxRate(ctx.taxRates);
-  const tax = prefill
-    ? { taxRateId: prefill.taxRateId, taxRateBps: prefill.taxRateBps }
-    : fallback
-      ? { taxRateId: fallback.id, taxRateBps: fallback.rateBps }
-      : { taxRateId: null, taxRateBps: ctx.taxRateBps };
+  const tax = initial.tax
+    ? initial.tax
+    : prefill
+      ? { taxRateId: prefill.taxRateId, taxRateBps: prefill.taxRateBps }
+      : fallback
+        ? { taxRateId: fallback.id, taxRateBps: fallback.rateBps }
+        : { taxRateId: null, taxRateBps: ctx.taxRateBps };
   const lines = (initial.lines ?? []).map(lineFromInitial);
-  return {
+  const state: BillState = {
     customerId: initial.customerId ?? "",
     newCustomer: { name: "", phone: "", email: "", smsOk: true },
     lines,
@@ -206,8 +308,11 @@ export function initialBillState(ctx: BillContext, initial: BillInitial = {}): B
     date: initial.date ?? "",
     notes: initial.notes ?? "",
     ticketId: initial.ticketId ?? "",
+    repeat: { ...DEFAULT_REPEAT, ...initial.repeat },
     seq: lines.length,
   };
+  // Opened from a repair: its unbilled charges come along, as "From repair" brings them.
+  return initial.withRepairCharges && state.ticketId ? linkRepair(state, state.ticketId, ctx) : state;
 }
 
 // ---------------------------------------------------------------------------
@@ -233,12 +338,14 @@ export function withCustomer(state: BillState, id: string, ctx: Pick<BillContext
   if (id === state.customerId) return state;
   const customer = ctx.customers.find((option) => option.id === id);
   const repair = state.ticketId ? ctx.repairs.find((option) => option.id === state.ticketId) : undefined;
-  return {
+  const next: BillState = {
     ...state,
     customerId: id,
     ...(customer ? { taxRateId: customer.taxRateId, taxRateBps: customer.taxRateBps } : {}),
-    ...(repair && repair.customerId !== id ? { ticketId: "" } : {}),
   };
+  // Someone else's repair is let go, and its charges with it: they are that
+  // person's bill, not this one's.
+  return repair && repair.customerId !== id ? linkRepair(next, "", ctx) : next;
 }
 
 /** The few people to tap before anything is typed: the recent ones in order, then whoever fills the row. */
@@ -284,6 +391,38 @@ export function repairLabel(repair: Pick<RepairOption, "number" | "subject">): s
 
 export function withRepair(state: BillState, id: string): BillState {
   return state.ticketId === id ? state : { ...state, ticketId: id };
+}
+
+/**
+ * "From repair": link the repair AND put its unbilled charges on the bill, one
+ * line each, exactly as the repair's Make invoice button would write them.
+ *
+ *  - A charge already on the bill is not added twice.
+ *  - Lines brought in from a different repair (or from this one, when it is
+ *    unlinked with `id = ""`) come off again: a charge must only ever be billed
+ *    against its own repair.
+ *  - Lines typed or tapped in by hand are never touched.
+ */
+export function linkRepair(state: BillState, id: string, ctx: Pick<BillContext, "repairs">): BillState {
+  const repair = id ? ctx.repairs.find((option) => option.id === id) : undefined;
+  const keep = new Set((repair?.charges ?? []).map((charge) => charge.id));
+  let next: BillState = {
+    ...state,
+    ticketId: repair ? repair.id : "",
+    lines: state.lines.filter((line) => !line.chargeId || keep.has(line.chargeId)),
+  };
+  for (const charge of repair?.charges ?? []) {
+    if (next.lines.some((line) => line.chargeId === charge.id)) continue;
+    const { key, seq } = nextKey(next);
+    next = { ...next, seq, lines: [...next.lines, { key, ...chargeLine(charge), serial: "", chargeId: charge.id }] };
+  }
+  return next;
+}
+
+/** The repair charges this bill will mark as billed when it is saved: those whose lines are still on it. */
+export function billedChargeIds(state: BillState): string[] {
+  if (!state.ticketId) return [];
+  return [...new Set(state.lines.flatMap((line) => (line.chargeId ? [line.chargeId] : [])))];
 }
 
 // ---------------------------------------------------------------------------
@@ -380,7 +519,8 @@ export function addProduct(state: BillState, product: ProductOption, kind: BillK
     return state;
   } else {
     const existing = state.lines.find(
-      (line) => line.productId === product.id && line.unitPriceCents === product.priceCents && line.serial.trim() === "",
+      // A repair's charge stays its own line: a tapped product is a new sale, not more of that charge.
+      (line) => line.productId === product.id && line.unitPriceCents === product.priceCents && line.serial.trim() === "" && !line.chargeId,
     );
     if (existing) return setQuantity(state, existing.key, existing.quantity + 1);
   }
@@ -514,7 +654,12 @@ export type Issue = { step: number; message: string };
 export function validate(state: BillState, ctx: Pick<BillContext, "kind" | "customers" | "products">): Issue[] {
   const issues: Issue[] = [];
   if (!state.customerId) {
-    issues.push({ step: 0, message: "Choose a customer or add a new one." });
+    issues.push({
+      step: 0,
+      message: ctx.kind === "repeat" ? "Choose a customer." : "Choose a customer or add a new one.",
+    });
+  } else if (state.customerId === NEW && ctx.kind === "repeat") {
+    issues.push({ step: 0, message: "Choose someone already on file. Add new people from Customers first." });
   } else if (state.customerId === NEW) {
     const { name, phone, email } = state.newCustomer;
     if (!name.trim() && !phone.trim()) issues.push({ step: 0, message: "Add the new customer's name or phone number." });
@@ -531,6 +676,9 @@ export function validate(state: BillState, ctx: Pick<BillContext, "kind" | "cust
         issues.push({ step: 1, message: `Choose which unit of ${line.description || product.name} you are selling.` });
       }
     }
+  }
+  if (ctx.kind === "repeat" && !/^\d{4}-\d{2}-\d{2}$/.test(state.date)) {
+    issues.push({ step: LAST_STEP, message: "Pick the day of the first bill." });
   }
   return issues;
 }
@@ -559,8 +707,34 @@ export function stepStatuses(state: BillState, ctx: BillContext): StepStatus[] {
   return [
     { done: customerDone, text: customerName(state, ctx) },
     { done: state.lines.length > 0, text: count > 0 ? itemsLabel(count) : "" },
-    { done: false, text: "" },
+    ctx.kind === "repeat"
+      ? { done: state.date !== "", text: FREQUENCY_LABEL[asFrequency(state.repeat.frequency)] }
+      : { done: false, text: "" },
   ];
+}
+
+/** What a repeat bill is called in the shop's list when nobody typed a name: "Okonkwo Dental Group · Monthly". */
+export function repeatName(state: BillState, ctx: Pick<BillContext, "customers">): string {
+  const typed = state.repeat.name.trim();
+  if (typed) return typed.slice(0, 120);
+  const who = customerName(state, ctx) || "Repeat bill";
+  return `${who} · ${FREQUENCY_LABEL[asFrequency(state.repeat.frequency)]}`.slice(0, 120);
+}
+
+const DAY_MONTH = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+
+/** "Bills Okonkwo Dental Group $450.00 every month, from Oct 18, 2026." The whole schedule in one sentence. */
+export function repeatSentence(state: BillState, ctx: BillContext): string {
+  const who = customerName(state, ctx) || "this customer";
+  const total = formatCents(totalsOf(state, ctx.kind).totalCents);
+  const cadence = FREQUENCY_CADENCE[asFrequency(state.repeat.frequency)];
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(state.date) ? ` from ${DAY_MONTH.format(new Date(`${state.date}T00:00:00Z`))}` : "";
+  return `Bills ${who} ${total} ${cadence}${from}.`;
+}
+
+/** "Due on receipt" / "Pay within 14 days": the words the paperwork prints for the terms. */
+export function payWithinLabel(days: number): string {
+  return days <= 0 ? "Due on receipt" : `Pay within ${days} day${days === 1 ? "" : "s"}`;
 }
 
 /**
@@ -592,8 +766,30 @@ export function submitReason(state: BillState, ctx: BillContext): string | null 
  * page: the linked repair, the customer (and a new person's details), the date,
  * the tax rate (only when the shop keeps named rates), the notes and the lines.
  */
-export function fieldEntries(state: BillState, ctx: Pick<BillContext, "kind" | "taxRates">): [string, string][] {
+export function fieldEntries(
+  state: BillState,
+  ctx: Pick<BillContext, "kind" | "taxRates"> & Partial<Pick<BillContext, "customers">>,
+  documentId?: string | null,
+): [string, string][] {
   const out: [string, string][] = [];
+  // Editing a saved document: the id the update action reads first.
+  if (documentId) out.push(["id", documentId]);
+  if (ctx.kind === "repeat") {
+    // Exactly the fields the old schedule form posted, in its order.
+    const customer = (ctx.customers ?? []).find((option) => option.id === state.customerId);
+    out.push(["frequency", asFrequency(state.repeat.frequency)]);
+    out.push(["active", state.repeat.active ? "true" : "false"]);
+    // A card can only be charged when there is one on file; the server checks again.
+    out.push(["autoCharge", state.repeat.autoCharge && customer?.hasCard ? "true" : "false"]);
+    out.push(["autoSend", state.repeat.autoSend ? "true" : "false"]);
+    out.push(["name", repeatName(state, { customers: ctx.customers ?? [] })]);
+    out.push(["customerId", state.customerId]);
+    out.push(["nextRunAt", state.date]);
+    out.push(["dueInDays", String(Math.max(0, Math.min(365, Math.round(state.repeat.dueInDays) || 0)))]);
+    if (ctx.taxRates.length > 0) out.push(["taxRateId", state.taxRateId ?? NO_TAX]);
+    out.push(["lines", JSON.stringify(toPayload(state.lines, ctx.kind))]);
+    return out;
+  }
   if (state.ticketId) out.push(["ticketId", state.ticketId]);
   out.push(["customerId", state.customerId]);
   if (state.customerId === NEW) {
@@ -606,12 +802,19 @@ export function fieldEntries(state: BillState, ctx: Pick<BillContext, "kind" | "
   if (ctx.taxRates.length > 0) out.push(["taxRateId", state.taxRateId ?? NO_TAX]);
   out.push(["notes", state.notes]);
   out.push(["lines", JSON.stringify(toPayload(state.lines, ctx.kind))]);
+  // Only an invoice bills a repair's charges; a quote just lists them.
+  const charges = ctx.kind === "invoice" ? billedChargeIds(state) : [];
+  if (charges.length > 0) out.push(["ticketChargeIds", JSON.stringify(charges)]);
   return out;
 }
 
 /** The same entries as the FormData the server action receives. */
-export function toFormData(state: BillState, ctx: Pick<BillContext, "kind" | "taxRates">): FormData {
+export function toFormData(
+  state: BillState,
+  ctx: Pick<BillContext, "kind" | "taxRates"> & Partial<Pick<BillContext, "customers">>,
+  documentId?: string | null,
+): FormData {
   const data = new FormData();
-  for (const [name, value] of fieldEntries(state, ctx)) data.append(name, value);
+  for (const [name, value] of fieldEntries(state, ctx, documentId)) data.append(name, value);
   return data;
 }

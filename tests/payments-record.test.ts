@@ -634,3 +634,23 @@ describe("the overpayment check and the transaction", () => {
     expect(transaction.args.options).toEqual({ isolationLevel: "Serializable" });
   });
 });
+
+describe("invoice split payment", () => {
+ it("commits cash and card in the same serializable transaction and emits both", async () => {
+  stubInvoice(); stubWrites(); let next = 0; handlers["payment.create"] = () => ({id: `p${++next}`});
+  const result = await recordPayment({shopId: SHOP, invoiceId: INVOICE, amountCents: TOTAL, method: "CARD", cashPartCents: 3000, cashReference: "Tendered $50.00", reference: "4242"});
+  expect(result).toMatchObject({ok: true, settled: true});
+  expect(callsTo("payment.create").map(c => c.args.data)).toMatchObject([{method: "CASH", amountCents: 3000, shopId: SHOP, invoiceId: INVOICE}, {method: "CARD", amountCents: 8000, shopId: SHOP, invoiceId: INVOICE}]);
+  expect(callsTo("$transaction")).toHaveLength(1);
+  expect(callsTo("$transaction")[0].args.options).toEqual({isolationLevel: "Serializable"});
+  expect(emitPaymentEvent).toHaveBeenCalledWith(SHOP, "p1"); expect(emitPaymentEvent).toHaveBeenCalledWith(SHOP, "p2");
+ });
+ it("announces nothing when the second tender fails", async () => {
+  stubInvoice(); stubWrites(); let next = 0; handlers["payment.create"] = () => {if (++next === 2) throw new Error("Second tender failed"); return {id: "cash"};};
+  expect(await recordPayment({shopId: SHOP, invoiceId: INVOICE, amountCents: TOTAL, method: "CARD", cashPartCents: 3000})).toMatchObject({ok: false});
+  expect(emitPaymentEvent).not.toHaveBeenCalled(); expect(callsTo("invoice.update")).toHaveLength(0);
+ });
+ it.each([-1, TOTAL, TOTAL + 1, 1.2])("refuses invalid split %s before querying the database", async cashPartCents => {
+  expect(await recordPayment({shopId: SHOP, invoiceId: INVOICE, amountCents: TOTAL, method: "CARD", cashPartCents})).toMatchObject({ok: false}); expect(calls).toHaveLength(0);
+ });
+});

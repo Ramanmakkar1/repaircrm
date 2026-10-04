@@ -10,6 +10,7 @@ import {
 import { runIntegrationSyncForShop } from "./integrations";
 import { runDueRecurringInvoicesForShop } from "./recurring";
 import { runSlaChecksForShop } from "./sla";
+import { runStaffPushForShop } from "./push";
 import { runDueWebhookDeliveries } from "./webhooks";
 import { runDueReviewRequestsForShop } from "./reviews";
 import {
@@ -328,6 +329,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
 
 /** Every job for one shop. Each is isolated so one failure is not all of them. */
 async function runShop(shopId: string, summary: JobsSummary): Promise<void> {
+  try { await runStaffPushForShop(shopId); } catch (error) { summary.errors.push(`phone notifications: ${message(error)}`); }
   try {
     const recurring = await runDueRecurringInvoicesForShop(shopId);
     summary.recurring.created += recurring.created;

@@ -22,9 +22,15 @@
 import { refundAwareTotals, type RefundLike } from "@/components/billing/refund-math";
 import { formatCents, type LineLike } from "@/lib/money";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import { dayKeyIn, safeTimeZone, startOfZonedDay, wallClock } from "./zone";
+
+// The wall-clock primitives live in ./zone (shared with the calendar and the
+// time clock); they stay importable from here, where other screens took them.
+export { dayKeyIn, safeTimeZone, startOfZonedDay };
 
 export const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
+const MINUTE_MS = 60_000;
 
 const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
@@ -66,53 +72,9 @@ export type ReportDay = {
   isToday: boolean;
 };
 
-const wallFormats = new Map<string, Intl.DateTimeFormat>();
-
-/** The clock on the wall in `zone` at an instant: the calendar date, and the same reading as a UTC timestamp. */
-function wallOf(ms: number, zone: string): { year: number; month: number; day: number; asUtc: number } {
-  let format = wallFormats.get(zone);
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
-    wallFormats.set(zone, format);
-  }
-  const parts = format.formatToParts(new Date(ms));
-  const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value);
-  const year = part("year");
-  const month = part("month");
-  const day = part("day");
-  return { year, month, day, asUtc: Date.UTC(year, month - 1, day, part("hour") % 24, part("minute"), part("second")) };
-}
+const wallOf = (ms: number, zone: string) => wallClock(ms, zone);
 
 const ymd = (date: Date) => date.toISOString().slice(0, 10);
-
-/** `yyyy-mm-dd` of an instant on the shop's wall calendar. */
-export function dayKeyIn(ms: number, zone: string): string {
-  const { year, month, day } = wallOf(ms, safeTimeZone(zone));
-  return ymd(new Date(Date.UTC(year, month - 1, day)));
-}
-
-/**
- * The instant a calendar day (month 1-12) starts in `zone`: midnight there. The
- * zone's offset is read where midnight falls, so a day with a clock change is
- * still cut at the right instant. A day whose midnight does not exist (clocks
- * jump at 00:00) starts at its first minute.
- */
-export function startOfZonedDay(year: number, month: number, day: number, zone: string): number {
-  const tz = safeTimeZone(zone);
-  const target = Date.UTC(year, month - 1, day);
-  const dateAt = (ms: number) => {
-    const wall = wallOf(ms, tz);
-    return Date.UTC(wall.year, wall.month - 1, wall.day);
-  };
-  const offsetAt = (ms: number) => wallOf(ms, tz).asUtc - Math.floor(ms / 1000) * 1000;
-  let start = target - offsetAt(target);
-  start = target - offsetAt(start);
-  // Midnight skipped by a clock change: step forward to the first real minute of the day.
-  for (let step = 0; step < 3 && dateAt(start) < target; step++) start += HOUR_MS;
-  // Midnight that happens twice: the day starts at the first one.
-  for (let step = 0; step < 3 && dateAt(start - 1) === target; step++) start -= HOUR_MS;
-  return start;
-}
 
 /**
  * The last `count` days of the shop's calendar ending today, oldest first.
@@ -139,7 +101,12 @@ export function reportDays(nowMs: number, zone: string, count: number): ReportDa
 
 /** The Reports page for one day. */
 export function reportsDayHref(key: string): string {
-  return `/reports?period=custom&from=${key}&to=${key}`;
+  return reportsRangeHref(key, key);
+}
+
+/** The Reports page for a run of days, both ends included. */
+export function reportsRangeHref(from: string, to: string): string {
+  return `/reports?period=custom&from=${from}&to=${to}`;
 }
 
 /** Whole calendar days (UTC) from `from` to `now`; negative while `from` is still ahead. */
@@ -149,28 +116,24 @@ export function calendarDaysSince(from: number, now: number): number {
   return Math.round((Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate()) - Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate())) / DAY_MS);
 }
 
-/** "5 minutes", "3 hours", "7 days": a span in plain words. Under an hour reads "a few minutes". */
+/**
+ * "5 minutes", "3 hours", "4 days": a span in plain words. Under an hour reads
+ * "a few minutes". Rounded exactly like the Repairs list's "Overdue 4d" chip
+ * (spanShort in lib/sla.ts), so the overview and the list never disagree about
+ * how late a repair is: 3 days 14 hours is "4 days" on both.
+ */
 export function spanWords(ms: number): string {
   const span = Math.max(0, ms);
-  if (span < HOUR_MS) return "a few minutes";
-  if (span < DAY_MS) return plural(Math.floor(span / HOUR_MS), "hour");
-  return plural(Math.floor(span / DAY_MS), "day");
+  const minutes = Math.max(1, Math.round(span / MINUTE_MS));
+  if (minutes < 60) return "a few minutes";
+  const hours = Math.round(span / HOUR_MS);
+  if (hours < 24) return plural(hours, "hour");
+  return plural(Math.round(span / DAY_MS), "day");
 }
 
 // ---------------------------------------------------------------------------
 // Time of day, in the shop's own time zone
 // ---------------------------------------------------------------------------
-
-/** A time zone Intl accepts, else UTC (a bad value in the database must not break the page). */
-export function safeTimeZone(zone: string | null | undefined): string {
-  if (!zone) return "UTC";
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-    return zone;
-  } catch {
-    return "UTC";
-  }
-}
 
 /** 0-23 in the given zone. */
 export function hourIn(nowMs: number, zone: string): number {
@@ -526,9 +489,23 @@ export type OwedSummary = {
   lateInvoices: LateInvoice[];
 };
 
-/** How many whole days past due (UTC calendar days), 0 when not late or today is the due day. */
-export function invoiceDaysLate(dueAt: number | null, now: number): number {
-  if (dueAt == null || dueAt >= now) return 0;
+/**
+ * How many whole days past due, 0 when not late or today is the due day.
+ *
+ * An invoice's due date is a calendar day kept at UTC midnight (the date box on
+ * the invoice form, components/billing/format.ts `fromDateInputValue`). With
+ * the shop's zone that day is compared with TODAY ON THE SHOP'S CALENDAR, so an
+ * invoice due today is not "1 day late" at 6pm in Edmonton just because UTC has
+ * already reached tomorrow. Without a zone it falls back to UTC calendar days.
+ */
+export function invoiceDaysLate(dueAt: number | null, now: number, zone?: string): number {
+  if (dueAt == null) return 0;
+  if (zone) {
+    const dueKey = new Date(dueAt).toISOString().slice(0, 10);
+    const days = Math.round((Date.parse(dayKeyIn(now, zone)) - Date.parse(dueKey)) / DAY_MS);
+    return Math.max(0, days);
+  }
+  if (dueAt >= now) return 0;
   return Math.max(0, calendarDaysSince(dueAt, now));
 }
 
@@ -537,7 +514,7 @@ export function invoiceDaysLate(dueAt: number | null, now: number): number {
  * unpaid invoice is total minus payments plus refunds paid back out, so a
  * refunded invoice owes again. An overpaid invoice never cancels another's debt.
  */
-export function summariseOwed(invoices: readonly OwedInvoice[], now: number, options: { customerLimit?: number; lateLimit?: number } = {}): OwedSummary {
+export function summariseOwed(invoices: readonly OwedInvoice[], now: number, options: { customerLimit?: number; lateLimit?: number; /** The shop's zone: days late are counted on its calendar. */ zone?: string } = {}): OwedSummary {
   const customerLimit = options.customerLimit ?? 3;
   const lateLimit = options.lateLimit ?? 6;
   let totalCents = 0;
@@ -557,7 +534,7 @@ export function summariseOwed(invoices: readonly OwedInvoice[], now: number, opt
     entry.invoices += 1;
     customers.set(invoice.customerId, entry);
 
-    const daysLate = invoiceDaysLate(invoice.dueAt, now);
+    const daysLate = invoiceDaysLate(invoice.dueAt, now, options.zone);
     if (daysLate >= 1 && invoice.dueAt != null) {
       overdueCount += 1;
       late.push({ id: invoice.id, number: invoice.number, customerId: invoice.customerId, customerName: invoice.customerName, dueAt: invoice.dueAt, daysLate, balanceCents });

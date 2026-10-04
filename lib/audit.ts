@@ -29,6 +29,8 @@ export type AuditAction =
   | "user.login"
   | "user.login_locked"
   | "user.logout"
+  | "user.pin_changed"
+  | "user.staff_switch"
   | "user.password_changed"
   | "user.password_reset"
   | "user.2fa_enabled"

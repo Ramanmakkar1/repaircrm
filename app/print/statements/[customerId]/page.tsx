@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requestNow } from "@/lib/now";
 import { StatementSheet } from "@/components/billing/print-statement-sheet";
 import { resolvePeriod } from "@/components/statements/period";
 import { loadStatement } from "@/components/statements/query";
@@ -28,11 +29,14 @@ export default async function StatementPrintPage({
   const { shopId } = await requireUser();
   const [{ customerId }, query] = await Promise.all([params, searchParams]);
 
-  const period = resolvePeriod(query.from, query.to);
-  const [statement, shop] = await Promise.all([
-    loadStatement(shopId, customerId, period),
-    db.shop.findUnique({ where: { id: shopId }, select: { logoUrl: true } }),
-  ]);
+  // The logo and the zone first: the period's days are the shop's own days.
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { logoUrl: true, timezone: true },
+  });
+  const nowMs = requestNow();
+  const period = resolvePeriod(query.from, query.to, new Date(nowMs), shop?.timezone);
+  const statement = await loadStatement(shopId, customerId, period);
   if (!statement) notFound();
 
   return (
@@ -40,6 +44,8 @@ export default async function StatementPrintPage({
       statement={statement}
       from={period.from}
       to={period.to}
+      zone={shop?.timezone}
+      nowMs={nowMs}
       logoUrl={shop?.logoUrl}
       backHref={`/customers/${customerId}/statement?from=${period.fromValue}&to=${period.toValue}`}
     />

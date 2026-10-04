@@ -49,6 +49,8 @@ export function ConvertLeadDialog({
   matches,
   problemTypes,
   defaultSubject,
+  easy = false,
+  startWithRepair = true,
 }: {
   leadId: string;
   open: boolean;
@@ -56,13 +58,17 @@ export function ConvertLeadDialog({
   matches: LeadMatch[];
   problemTypes: string[];
   defaultSubject: string;
+  /** Easy mode: plain words ("Start a repair"), big targets, and on success it opens the new repair. */
+  easy?: boolean;
+  /** Whether "open a repair" starts ticked. */
+  startWithRepair?: boolean;
 }) {
   const router = useRouter();
 
   // A match, when we found one, is the safer default — creating a duplicate is
   // the expensive mistake, and linking the wrong one is visible immediately.
   const [choice, setChoice] = React.useState(() => matches[0]?.id ?? CREATE);
-  const [createTicket, setCreateTicket] = React.useState(true);
+  const [createTicket, setCreateTicket] = React.useState(startWithRepair);
   const [subject, setSubject] = React.useState(defaultSubject);
   const [problemType, setProblemType] = React.useState(problemTypes[0] ?? "Other");
   const [busy, setBusy] = React.useState(false);
@@ -88,6 +94,15 @@ export function ConvertLeadDialog({
       return;
     }
 
+    if (easy) {
+      toast.success(result.ticketId ? "Repair started." : "Saved as a customer.");
+      onOpenChange(false);
+      // The next thing to do is on the repair itself: go there.
+      if (result.ticketId) router.push(`/tickets/${result.ticketId}`);
+      else router.refresh();
+      return;
+    }
+
     toast.success(
       result.ticketId ? "Lead converted — ticket opened." : "Lead converted.",
     );
@@ -95,21 +110,51 @@ export function ConvertLeadDialog({
     router.refresh();
   }
 
+  const words = easy
+    ? {
+        title: createTicket ? "Start a repair" : "Save as a customer",
+        description:
+          matches.length > 0
+            ? "They look like someone you already have. Pick them, or make a new customer."
+            : "Nobody on file matches, so they become a new customer.",
+        customer: "Who is it?",
+        create: "New customer",
+        createMeta: "Made from this enquiry's name, phone and email.",
+        ticket: "Start the repair now",
+        ticketMeta: "Numbered like any walk-in. You can add the device on the repair.",
+        subject: "What's wrong",
+        problem: "Kind of repair",
+        submit: createTicket ? "Start the repair" : "Save customer",
+        busy: "Saving…",
+      }
+    : {
+        title: "Convert this lead",
+        description:
+          matches.length > 0
+            ? "This enquiry looks like someone you already have on file. Link it, or start a fresh account."
+            : "Nobody on file matches this enquiry, so a new customer will be created.",
+        customer: "Customer",
+        create: "Create a new customer",
+        createMeta: "Built from this lead\u2019s name, email and phone.",
+        ticket: "Open a ticket now",
+        ticketMeta: "Numbered from the shop\u2019s ticket sequence, same as any walk-in.",
+        subject: "Subject",
+        problem: "Problem type",
+        submit: "Convert lead",
+        busy: "Converting…",
+      };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Convert this lead</DialogTitle>
-          <DialogDescription>
-            {matches.length > 0
-              ? "This enquiry looks like someone you already have on file. Link it, or start a fresh account."
-              : "Nobody on file matches this enquiry, so a new customer will be created."}
-          </DialogDescription>
+          <DialogTitle className={easy ? "text-xl" : undefined}>{words.title}</DialogTitle>
+          <DialogDescription>{words.description}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label>Customer</Label>
+            <Label>{words.customer}</Label>
             <div className="flex flex-col gap-2">
               {matches.map((match) => (
                 <ChoiceRow
@@ -135,6 +180,7 @@ export function ConvertLeadDialog({
                     </span>
                   }
                   badge={match.on === "email" ? "Same email" : "Same phone"}
+                  big={easy}
                 />
               ))}
 
@@ -142,46 +188,43 @@ export function ConvertLeadDialog({
                 selected={choice === CREATE}
                 onSelect={() => setChoice(CREATE)}
                 icon={UserPlus}
-                title="Create a new customer"
-                meta={
-                  <span>Built from this lead&rsquo;s name, email and phone.</span>
-                }
+                title={words.create}
+                meta={<span>{words.createMeta}</span>}
+                big={easy}
               />
             </div>
           </div>
 
           <div className="flex flex-col gap-4 rounded-md border border-border bg-surface-hover/60 p-4">
-            <label className="flex items-start gap-3">
+            <label className={cn("flex items-start gap-3", easy && "min-h-12 items-center")}>
               <Checkbox
                 checked={createTicket}
                 onCheckedChange={(next) => setCreateTicket(next === true)}
-                className="mt-0.5"
+                className={cn("mt-0.5", easy && "mt-0 size-6")}
               />
               <span className="flex flex-col gap-1">
-                <span className="text-sm font-semibold text-foreground">
-                  Open a ticket now
+                <span className={cn("font-semibold text-foreground", easy ? "text-base" : "text-sm")}>
+                  {words.ticket}
                 </span>
-                <span className="text-[13px] text-muted-foreground">
-                  Numbered from the shop&rsquo;s ticket sequence, same as any
-                  walk-in.
-                </span>
+                <span className="text-[13px] text-muted-foreground">{words.ticketMeta}</span>
               </span>
             </label>
 
             {createTicket ? (
               <div className="flex flex-col gap-4 border-t border-border pt-4">
-                <Field label="Subject" htmlFor="ticketSubject" required>
+                <Field label={words.subject} htmlFor="ticketSubject" required>
                   <Input
                     id="ticketSubject"
                     value={subject}
                     onChange={(event) => setSubject(event.target.value)}
                     maxLength={200}
                     required
+                    className={easy ? "h-12 text-base" : undefined}
                   />
                 </Field>
-                <Field label="Problem type" htmlFor="ticketProblemType">
+                <Field label={words.problem} htmlFor="ticketProblemType">
                   <Select value={problemType} onValueChange={setProblemType}>
-                    <SelectTrigger id="ticketProblemType">
+                    <SelectTrigger id="ticketProblemType" className={easy ? "h-12 text-base" : undefined}>
                       <SelectValue placeholder="Choose…" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72">
@@ -203,12 +246,13 @@ export function ConvertLeadDialog({
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={busy}
+              className={easy ? "h-12 px-5 text-base" : undefined}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={busy}>
-              <Sparkles />
-              {busy ? "Converting…" : "Convert lead"}
+            <Button type="submit" disabled={busy} className={easy ? "h-12 px-6 text-base" : undefined}>
+              {easy ? null : <Sparkles />}
+              {busy ? words.busy : words.submit}
               <ArrowRight />
             </Button>
           </DialogFooter>
@@ -227,6 +271,7 @@ function ChoiceRow({
   title,
   meta,
   badge,
+  big = false,
 }: {
   selected: boolean;
   onSelect: () => void;
@@ -234,6 +279,8 @@ function ChoiceRow({
   title: string;
   meta: React.ReactNode;
   badge?: string;
+  /** Easy mode: a 56px+ row with rounder corners. */
+  big?: boolean;
 }) {
   return (
     <button
@@ -241,7 +288,8 @@ function ChoiceRow({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "flex w-full items-start gap-3 rounded-md border p-3.5 text-left transition-colors",
+        "flex w-full items-start gap-3 border p-3.5 text-left transition-colors",
+        big ? "min-h-16 rounded-xl" : "rounded-md",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         selected
           ? "border-accent bg-accent-soft/60 shadow-xs"

@@ -25,6 +25,8 @@ import {
 } from "@/lib/payments";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
 import { refundAwareTotals } from "@/components/billing/refund-math";
+import { shopNow, shopWall } from "@/components/billing/shop-clock";
+import { safeTimeZone } from "@/lib/dashboard/logic";
 import {
   balanceBlock,
   docTabs,
@@ -33,7 +35,7 @@ import {
   invoiceTiles,
   parseDocTab,
 } from "@/components/billing/bill-display";
-import { BackLink, BalanceHero, BillSummary, PinnedAction } from "@/components/billing/bill-hero";
+import { BalanceHero, BillSummary, PinnedAction } from "@/components/billing/bill-hero";
 import {
   ActivityList,
   EmptyLines,
@@ -51,7 +53,7 @@ import { CopyLinkTile, EmailReceiptTile } from "@/components/billing/quick-tiles
 import { RefundDialog, type RefundablePayment } from "@/components/billing/refund-dialog";
 import { SignatureDialog } from "@/components/billing/signature-dialog";
 import { BIG_BUTTON_SLOT, TILE_CLASS } from "@/components/billing/tile-style";
-import { primaryPhone } from "@/components/customers/customer-facts";
+import { primaryPhone, telHref } from "@/components/customers/customer-facts";
 import { SendDocumentDialog } from "@/components/billing/send-dialog";
 import { UnbilledTimeBanner } from "@/components/billing/unbilled-time-banner";
 import { ShareRow } from "@/components/billing/send-links";
@@ -158,7 +160,7 @@ export default async function InvoiceDetailPage({
     where: { id, shopId },
     include: {
       customer: true,
-      shop: { select: { name: true, settings: true } },
+      shop: { select: { name: true, settings: true, timezone: true } },
       taxRate: { select: { name: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       estimate: { select: { id: true, number: true } },
@@ -195,12 +197,23 @@ export default async function InvoiceDetailPage({
     invoice.customer.businessName ||
     `${invoice.customer.firstName} ${invoice.customer.lastName}`;
 
+  // The shop's clock, not the server's: when a payment was taken and whether
+  // the bill is late are both read on the shop's own calendar.
+  const zone = safeTimeZone(invoice.shop.timezone);
+  const nowMs = requestNow();
+  const wallNow = shopNow(nowMs, zone);
+
   const isVoid = invoice.status === "VOID";
   const canEdit = invoice.status === "DRAFT" || invoice.status === "SENT";
   const canTakePayment = !isVoid && totals.balanceCents > 0;
   const hasPayments = invoice.payments.length > 0;
   const hasRefunds = invoice.refunds.length > 0;
-  const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
+  const overdue = isOverdue(invoice.dueDate, totals.balanceCents, wallNow);
+  // A refund put money back on the bill: say so, in words, wherever the
+  // balance is shown, so nobody chases money the shop handed back on purpose.
+  const owedAfterRefund = !isVoid && totals.refundedCents > 0 && totals.balanceCents > 0;
+  // The 80mm counter slip, reprinted from the invoice whenever money came in.
+  const receiptHref = `/print/receipts/${invoice.id}`;
   const settled = !isVoid && totals.balanceCents <= 0;
   const square = await squareConnectionStatus(shopId);
   const squareDevices = square.connected ? await listSquareDevices(shopId) : [];
@@ -221,8 +234,9 @@ export default async function InvoiceDetailPage({
         payment.reference,
         payment.stripeSource ?? payment.gatewaySource,
         payment.gateway,
-      )} · ${formatCents(payment.amountCents)} · ${formatDate(payment.createdAt)}`,
+      )} · ${formatCents(payment.amountCents)} · ${formatDate(payment.createdAt, zone)}`,
       amountCents: payment.amountCents,
+      method: payment.method,
       isStripe:
         isStripeReference(payment.reference) || Boolean(payment.stripeSource),
       // Only a payment whose PaymentIntent we hold can be reversed from here.
@@ -364,6 +378,7 @@ export default async function InvoiceDetailPage({
       invoiceNumber={invoice.number}
       customerName={customerName}
       printHref={`/print/invoices/${invoice.id}`}
+      receiptPrintHref={hasPayments ? receiptHref : null}
       editHref={canEdit ? `/invoices/${invoice.id}/edit` : null}
       receipt={
         receiptable
@@ -397,6 +412,7 @@ export default async function InvoiceDetailPage({
               refundableCents: totals.refundableCents,
               payments: refundablePayments,
               defaultMethod: paidWithCredit ? "CREDIT" : "CARD",
+              owingNowCents: totals.balanceCents,
             }
           : null
       }
@@ -486,7 +502,7 @@ export default async function InvoiceDetailPage({
         </Link>
       }
       subtitle={headlineHint}
-      status={<InvoiceStatusBadge status={invoice.status} size="md" />}
+      status={<InvoiceStatusBadge status={invoice.status} size="md" refunded={totals.refundedCents > 0} />}
       id={
         <CopyableId
           value={`Invoice #${invoice.number}`}
@@ -503,7 +519,7 @@ export default async function InvoiceDetailPage({
           ),
         },
         { label: "Collected", value: formatCents(totals.paidCents) },
-        { label: "Issued", value: formatDate(invoice.createdAt) },
+        { label: "Issued", value: formatDate(invoice.createdAt, zone) },
         {
           label: "Due",
           value: (
@@ -513,7 +529,7 @@ export default async function InvoiceDetailPage({
           ),
         },
         {
-          label: "Ticket",
+          label: "Repair",
           value: invoice.ticket ? (
             <Link
               href={`/tickets/${invoice.ticket.id}`}
@@ -562,7 +578,8 @@ export default async function InvoiceDetailPage({
   // button for this state and a few quick tiles. Every figure and every action
   // below is the one the Full layout uses; only the arrangement is new.
   if (easy) {
-    const now = requestNow();
+    // Calendar rules (late, "Paid Sep 25") read the shop's wall clock.
+    const now = wallNow;
     const tab = parseDocTab(query.tab);
     const basePath = `/invoices/${invoice.id}`;
     const printHref = `/print/invoices/${invoice.id}`;
@@ -586,7 +603,7 @@ export default async function InvoiceDetailPage({
         refundedCents: totals.refundedCents,
         balanceCents: totals.balanceCents,
         dueDate: invoice.dueDate,
-        paidAt: invoice.paidAt,
+        paidAt: shopWall(invoice.paidAt, zone),
       },
       now,
     );
@@ -606,9 +623,11 @@ export default async function InvoiceDetailPage({
         );
       }
       if (primary === "print") {
+        // Paid with money taken: the big button is the counter slip (80mm);
+        // the full letter invoice is the "Print invoice" tile beside it.
         return (
           <Button asChild className="h-14 w-full px-6 text-lg [&_svg]:size-5">
-            <Link href={printHref} target="_blank">
+            <Link href={receiptable ? receiptHref : printHref} target="_blank">
               <ACTIONS.print /> {primaryLabel}
             </Link>
           </Button>
@@ -648,7 +667,8 @@ export default async function InvoiceDetailPage({
           return (
             <Link key="print" href={printHref} target="_blank" data-touch-control className={TILE_CLASS}>
               <ACTIONS.print aria-hidden />
-              Print
+              {/* Beside a "Print receipt" big button, say which paper this is. */}
+              {primary === "print" && receiptable ? "Print invoice" : "Print"}
             </Link>
           );
         case "copy":
@@ -677,7 +697,7 @@ export default async function InvoiceDetailPage({
         payment.stripeSource ?? payment.gatewaySource,
         payment.gateway,
       ),
-      detail: `${formatDateTime(payment.createdAt)}${payment.takenBy ? ` · taken by ${payment.takenBy.name}` : ""}`,
+      detail: `${formatDateTime(payment.createdAt, zone)}${payment.takenBy ? ` · taken by ${payment.takenBy.name}` : ""}`,
       reference:
         payment.reference || payment.stripePaymentIntentId ? (
           <PaymentReference
@@ -700,7 +720,7 @@ export default async function InvoiceDetailPage({
             )}`
           : ""
       }`,
-      detail: `${formatDateTime(refund.createdAt)}${refund.refundedBy ? ` · by ${refund.refundedBy.name}` : ""}`,
+      detail: `${formatDateTime(refund.createdAt, zone)}${refund.refundedBy ? ` · by ${refund.refundedBy.name}` : ""}`,
       note: refund.reason,
       badge: <RefundStatusBadge status={refund.status} />,
       reference: refund.stripeRefundId ? (
@@ -750,7 +770,7 @@ export default async function InvoiceDetailPage({
         settled
           ? { label: "Balance", value: "Paid in full", size: "large", tone: "good", divider: true }
           : {
-              label: "Balance due",
+              label: owedAfterRefund ? "Owing after refund" : "Balance due",
               value: formatCents(totals.balanceCents),
               size: "large",
               tone: overdue ? "alert" : undefined,
@@ -795,6 +815,21 @@ export default async function InvoiceDetailPage({
 
         {invoice.lines.length > 0 ? <TotalsBlock rows={totalRows} /> : null}
 
+        {owedAfterRefund ? (
+          // Why a refunded bill says "owing": in words, with the way out.
+          <div role="note" className="flex flex-col gap-1 rounded-2xl border border-border bg-surface-hover p-4 text-base leading-snug">
+            <p className="font-semibold text-foreground">
+              {formatCents(totals.refundedCents)} was given back, so{" "}
+              {formatCents(totals.balanceCents)} shows as owing again.
+            </p>
+            <p className="text-muted-foreground">
+              {canEdit
+                ? "If the items came back, edit the invoice and take them off so it reads paid. If they still owe it, take a payment."
+                : "If they still owe it, take a payment. If the items came back, nothing more is owed: write a note on the invoice for the record."}
+            </p>
+          </div>
+        ) : null}
+
         <Section
           title="Payments"
           action={
@@ -813,8 +848,16 @@ export default async function InvoiceDetailPage({
                 : "Nothing collected yet. Every payment taken against this invoice is listed here, with who took it and when."
             }
             footer={
-              canRefund ? (
-                <div className="w-fit [&_[data-slot=button]]:h-12 [&_[data-slot=button]]:px-5 [&_[data-slot=button]]:text-base">
+              hasPayments || canRefund ? (
+                <div className="flex flex-wrap gap-2 [&_[data-slot=button]]:h-12 [&_[data-slot=button]]:px-5 [&_[data-slot=button]]:text-base">
+                  {hasPayments ? (
+                    <Button asChild variant="outline">
+                      <Link href={receiptHref} target="_blank">
+                        <ACTIONS.print /> Print receipt
+                      </Link>
+                    </Button>
+                  ) : null}
+                  {canRefund ? (
                   <RefundDialog
                     action={refundInvoiceAction}
                     invoiceId={invoice.id}
@@ -822,8 +865,10 @@ export default async function InvoiceDetailPage({
                     payments={refundablePayments}
                     customerName={customerName}
                     defaultMethod={paidWithCredit ? "CREDIT" : "CARD"}
+                    owingNowCents={totals.balanceCents}
                     size="lg"
                   />
+                  ) : null}
                 </div>
               ) : null
             }
@@ -862,10 +907,14 @@ export default async function InvoiceDetailPage({
           savedCard.expMonth && savedCard.expYear
             ? ` · expires ${String(savedCard.expMonth).padStart(2, "0")}/${String(savedCard.expYear).slice(-2)}`
             : ""
-        }${cardExpired(savedCard, new Date(now)) ? " (expired)" : ""}`
+        }${cardExpired(savedCard, new Date(nowMs)) ? " (expired)" : ""}`
       : null;
+    // A whole 48px row to tap, and a tel: link of digits only ("(512) 555-0142"
+    // dials as tel:5125550142), the same rule as the Call button.
+    const ROW_LINK =
+      "flex min-h-12 items-center rounded-lg text-accent-soft-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
     const telLink = (value: string) => (
-      <a href={`tel:${value}`} className="rf-num text-accent-soft-foreground hover:underline">
+      <a href={telHref(value)} data-touch-control className={cn(ROW_LINK, "rf-num")}>
         {value}
       </a>
     );
@@ -878,10 +927,7 @@ export default async function InvoiceDetailPage({
               {
                 label: "Name",
                 value: (
-                  <Link
-                    href={`/customers/${invoice.customer.id}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <Link href={`/customers/${invoice.customer.id}`} data-touch-control className={ROW_LINK}>
                     {customerName}
                   </Link>
                 ),
@@ -891,10 +937,7 @@ export default async function InvoiceDetailPage({
               {
                 label: "Email",
                 value: invoice.customer.email ? (
-                  <a
-                    href={`mailto:${invoice.customer.email}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <a href={`mailto:${invoice.customer.email}`} data-touch-control className={cn(ROW_LINK, "break-all")}>
                     {invoice.customer.email}
                   </a>
                 ) : (
@@ -921,7 +964,7 @@ export default async function InvoiceDetailPage({
         <Section title="This invoice">
           <FactList
             facts={[
-              { label: "Issued", value: formatDate(invoice.createdAt) },
+              { label: "Issued", value: formatDate(invoice.createdAt, zone) },
               {
                 label: "Due",
                 value: (
@@ -931,14 +974,11 @@ export default async function InvoiceDetailPage({
                   </span>
                 ),
               },
-              ...(invoice.paidAt ? [{ label: "Paid on", value: formatDate(invoice.paidAt) }] : []),
+              ...(invoice.paidAt ? [{ label: "Paid on", value: formatDate(invoice.paidAt, zone) }] : []),
               {
                 label: "Repair",
                 value: invoice.ticket ? (
-                  <Link
-                    href={`/tickets/${invoice.ticket.id}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <Link href={`/tickets/${invoice.ticket.id}`} data-touch-control className={ROW_LINK}>
                     #{invoice.ticket.number}
                     {invoice.ticket.subject ? ` · ${invoice.ticket.subject}` : ""}
                   </Link>
@@ -951,11 +991,8 @@ export default async function InvoiceDetailPage({
                     {
                       label: "From estimate",
                       value: (
-                        <Link
-                          href={`/estimates/${invoice.estimate.id}`}
-                          className="text-accent-soft-foreground hover:underline"
-                        >
-                          #{invoice.estimate.number}
+                        <Link href={`/estimates/${invoice.estimate.id}`} data-touch-control className={ROW_LINK}>
+                          Estimate #{invoice.estimate.number}
                         </Link>
                       ),
                     },
@@ -989,6 +1026,7 @@ export default async function InvoiceDetailPage({
     const activityPanel = (
       <Section title="Activity">
         <ActivityList
+          zone={zone}
           items={invoiceActivity({
             createdAt: invoice.createdAt,
             paidAt: invoice.paidAt,
@@ -1096,7 +1134,7 @@ export default async function InvoiceDetailPage({
 
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <BackLink label="Invoices" href="/invoices" />
+        {/* One Back in Easy mode: the shell's, which knows where you came from. */}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
           {/* The summary is first in the page (and on a phone) and sits in the right
@@ -1105,7 +1143,7 @@ export default async function InvoiceDetailPage({
           <BillSummary
             className="lg:col-start-2 lg:row-start-1"
             title={`Invoice #${invoice.number}`}
-            status={<InvoiceStatusBadge status={invoice.status} size="md" />}
+            status={<InvoiceStatusBadge status={invoice.status} size="md" refunded={totals.refundedCents > 0} />}
             customer={{
               name: customerName,
               href: `/customers/${invoice.customer.id}`,
@@ -1126,7 +1164,7 @@ export default async function InvoiceDetailPage({
 
         {pinned ? (
           <PinnedAction
-            caption={primary === "pay" && block.figure ? { label: "Balance due", value: block.figure } : null}
+            caption={primary === "pay" && block.figure ? { label: owedAfterRefund ? "Owing again" : "Balance due", value: block.figure } : null}
           >
             {pinned}
           </PinnedAction>
@@ -1297,7 +1335,7 @@ export default async function InvoiceDetailPage({
                           )}
                         </Td>
                         <Td className="text-muted-foreground">
-                          {formatDateTime(payment.createdAt)}
+                          {formatDateTime(payment.createdAt, zone)}
                         </Td>
                         <Td className="max-w-[18rem]">
                           <PaymentReference
@@ -1378,7 +1416,7 @@ export default async function InvoiceDetailPage({
                           </div>
                         </Td>
                         <Td className="text-muted-foreground">
-                          {formatDateTime(refund.createdAt)}
+                          {formatDateTime(refund.createdAt, zone)}
                         </Td>
                         <Td className="max-w-[16rem]">
                           {refund.stripeRefundId ? (
@@ -1539,7 +1577,7 @@ export default async function InvoiceDetailPage({
               </Fact>
               {invoice.paidAt ? (
                 <Fact label="Paid on">
-                  <span className="rf-num">{formatDate(invoice.paidAt)}</span>
+                  <span className="rf-num">{formatDate(invoice.paidAt, zone)}</span>
                 </Fact>
               ) : null}
               {invoice.ticket?.subject ? (

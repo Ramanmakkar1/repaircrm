@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { cn } from "@/components/ui/cn";
 import { IconVisual } from "@/components/ui/record-card";
+import { dayKeyIn, longDayLabel } from "@/lib/dashboard/zone";
 import {
   customerNameOf,
   shortTime,
@@ -27,6 +28,8 @@ export function TodayStrip({
   now,
   editHref,
   simple = false,
+  zone,
+  todayHref,
 }: {
   count: number;
   next: CalendarAppointment | null;
@@ -34,9 +37,14 @@ export function TodayStrip({
   editHref: (id: string) => string;
   /** Easy mode: bigger type, bigger tap target, "visits" not "appointments". */
   simple?: boolean;
+  /** The shop's time zone: what "today" and the times are read in. */
+  zone?: string;
+  /** Easy mode: opens today in the Day view (the strip is shown while browsing another week). */
+  todayHref?: string;
 }) {
   const customerName = next ? customerNameOf(next.customer) : null;
   const started = next ? next.startsAt <= now : false;
+  const dateLabel = zone ? longDayLabel(dayKeyIn(now.getTime(), zone)) : format(now, "EEEE, MMMM d");
 
   if (simple) {
     return (
@@ -53,7 +61,15 @@ export function TodayStrip({
                 : `${count} ${count === 1 ? "visit" : "visits"} today`}
             </span>
             <span className="text-sm text-muted-foreground">
-              {format(now, "EEEE, MMMM d")}
+              {dateLabel}
+              {todayHref ? (
+                <>
+                  {" · "}
+                  <Link href={todayHref} scroll={false} className="font-semibold text-accent-soft-foreground hover:underline">
+                    Open today
+                  </Link>
+                </>
+              ) : null}
             </span>
           </div>
         </div>
@@ -70,14 +86,14 @@ export function TodayStrip({
             <Clock className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="flex min-w-0 flex-col">
               <span className="text-sm font-semibold text-muted-foreground">
-                {started ? "In progress" : `Next · ${shortTime(next.startsAt)}`}
+                {started ? "Happening now" : `Next · ${shortTime(next.startsAt, zone)}`}
               </span>
               <span className="truncate text-base font-semibold text-foreground">
                 {customerName ?? next.title}
               </span>
               <span className="truncate text-sm text-muted-foreground">
                 {customerName ? `${next.title} · ` : ""}
-                {timeRange(next.startsAt, next.endsAt)}
+                {timeRange(next.startsAt, next.endsAt, zone)}
                 {next.assignedTo ? ` · ${next.assignedTo.name}` : ""}
               </span>
             </span>
@@ -98,7 +114,7 @@ export function TodayStrip({
               : `${count} appointment${count === 1 ? "" : "s"} today`}
           </span>
           <span className="text-[12.5px] text-muted-foreground">
-            {format(now, "EEEE, MMMM d")}
+            {dateLabel}
           </span>
         </div>
       </div>
@@ -115,7 +131,7 @@ export function TodayStrip({
           <Clock className="size-4 shrink-0 text-accent" />
           <div className="flex min-w-0 flex-col">
             <span className="text-[11.5px] font-semibold tracking-[0.02em] text-muted-foreground">
-              {started ? "In progress" : `Next · ${shortTime(next.startsAt)}`}
+              {started ? "In progress" : `Next · ${shortTime(next.startsAt, zone)}`}
             </span>
             <span className="truncate text-[13.5px] font-semibold text-foreground">
               {next.title}
@@ -127,7 +143,7 @@ export function TodayStrip({
               ) : null}
             </span>
             <span className="rf-num text-[12px] text-faint-foreground">
-              {timeRange(next.startsAt, next.endsAt)}
+              {timeRange(next.startsAt, next.endsAt, zone)}
               {next.assignedTo ? ` · ${next.assignedTo.name}` : ""}
             </span>
           </div>

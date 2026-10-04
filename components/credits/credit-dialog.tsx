@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/components/ui/cn";
 import { formatCents } from "@/lib/money";
+import { formatDateTime } from "@/components/billing/format";
 
 /** One row of the audit trail, as the customer hub loads it. */
 export type CreditHistoryItem = {
@@ -48,11 +49,13 @@ export function CreditDialog({
   customerName,
   balanceCents,
   history,
+  timeZone = "UTC",
 }: {
   customerId: string;
   customerName: string;
   balanceCents: number;
   history: CreditHistoryItem[];
+  timeZone?: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -191,7 +194,7 @@ export function CreditDialog({
           </DialogFooter>
         </form>
 
-        <CreditHistory history={history} />
+        <CreditHistory history={history} timeZone={timeZone} />
       </DialogContent>
     </Dialog>
   );
@@ -206,7 +209,7 @@ export function CreditDialog({
  * balance above and look like a bug. The heading says "adjustments" for the
  * same reason — it is honest about what it covers.
  */
-function CreditHistory({ history }: { history: CreditHistoryItem[] }) {
+function CreditHistory({ history, timeZone }: { history: CreditHistoryItem[]; timeZone: string | null }) {
   if (history.length === 0) {
     return (
       <p className="border-t border-border pt-4 text-[13px] text-muted-foreground">
@@ -228,7 +231,7 @@ function CreditHistory({ history }: { history: CreditHistoryItem[] }) {
                 {entry.reason}
               </span>
               <span className="text-[12.5px] text-muted-foreground">
-                {formatStamp(entry.createdAt)}
+                {formatDateTime(entry.createdAt, timeZone)}
                 {entry.userName ? ` · ${entry.userName}` : ""}
               </span>
             </div>
@@ -248,15 +251,4 @@ function CreditHistory({ history }: { history: CreditHistoryItem[] }) {
       </ul>
     </section>
   );
-}
-
-const STAMP = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function formatStamp(iso: string): string {
-  return STAMP.format(new Date(iso));
 }

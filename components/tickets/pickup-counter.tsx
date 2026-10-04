@@ -8,6 +8,7 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { PickupCard } from "./pickup-card";
 import {
+  PICKUP_TITLE_ID,
   pickupCountWords,
   pickupEmpty,
   toCollectWords,
@@ -34,6 +35,7 @@ import {
 export function PickupCounter({
   cards,
   now,
+  timeZone,
   total,
   q,
   tabs,
@@ -45,6 +47,8 @@ export function PickupCounter({
 }: {
   cards: PickupCardData[];
   now: number;
+  /** The shop's time zone (Shop.timezone), for "Ready since yesterday". */
+  timeZone?: string | null;
   /** Every repair the filters match, across pages. */
   total: number;
   q: string;
@@ -67,7 +71,12 @@ export function PickupCounter({
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-balance text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-foreground sm:text-[34px]">
+          {/* Focusable from script only: where focus lands when the last card on screen is handed over. */}
+          <h1
+            id={PICKUP_TITLE_ID}
+            tabIndex={-1}
+            className="text-balance text-[28px] font-semibold leading-[1.1] tracking-[-0.03em] text-foreground outline-none sm:text-[34px]"
+          >
             Ready for pickup
           </h1>
           <span className="rf-num rounded-full bg-status-ready-bg px-3.5 py-1.5 text-base font-semibold leading-none text-status-ready-fg">
@@ -114,7 +123,8 @@ export function PickupCounter({
             <ACTIONS.search aria-hidden />
             <span className="max-sm:sr-only">Search</span>
           </Button>
-          {searching ? (
+          {/* With no match the empty card below already offers "Clear search": one Clear, not two. */}
+          {searching && cards.length > 0 ? (
             <Button asChild variant="ghost" size="lg" className="h-14 rounded-xl px-4 text-base max-sm:w-full">
               <Link href={clearHref}>
                 <ACTIONS.cancel aria-hidden />
@@ -154,7 +164,7 @@ export function PickupCounter({
           <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {cards.map((card) => (
               <li key={card.id}>
-                <PickupCard card={card} now={now} className="h-full" />
+                <PickupCard card={card} now={now} timeZone={timeZone} className="h-full" />
               </li>
             ))}
           </ul>

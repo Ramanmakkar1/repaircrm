@@ -28,6 +28,7 @@ import { EntryMode } from "@/components/ui/entry-mode";
 import { newCustomerSchema, newDeviceSchema, repairSubject } from "@/lib/intake";
 import { deviceIntakeProfile } from "@/lib/device-intake";
 import { EasyCheckIn } from "./intake/checkin";
+import { promisedLabel } from "./intake/flow";
 import type { AssetOption, Option, WarrantyOption } from "./intake/flow";
 
 /**
@@ -39,6 +40,7 @@ import type { AssetOption, Option, WarrantyOption } from "./intake/flow";
 export type { AssetOption, Option, WarrantyOption };
 
 export type TicketFormProps = {
+  timeZone?: string;
   customers: ComboCustomer[];
   assetsByCustomer: Record<string, AssetOption[]>;
   techs: Option[];
@@ -74,6 +76,7 @@ export function TicketForm({ simple = false, ...props }: TicketFormProps) {
  * (the device unlock code) never leaves the server.
  */
 function FullTicketForm({
+  timeZone,
   customers,
   assetsByCustomer,
   techs,
@@ -276,7 +279,7 @@ function FullTicketForm({
               </Select>
             </Field>
 
-            <PromisedTimeField hint={slaHint} />
+            <PromisedTimeField hint={slaHint} timeZone={timeZone} />
 
             {locations.length > 1 ? (
               <Field label="Location" htmlFor="locationId">
@@ -383,7 +386,7 @@ function FullTicketForm({
               { label: "Priority", value: PRIORITY_META[reviewValue("priority") as keyof typeof PRIORITY_META]?.label ?? "Normal" },
               { label: "Quoted price", value: reviewValue("quotedPrice") ? "$" + reviewValue("quotedPrice") : "Not quoted yet" },
               { label: "Inspection fee", value: reviewValue("inspectionFee") ? "$" + reviewValue("inspectionFee") : "$0.00" },
-              { label: "Promised pickup", value: reviewValue("promisedAt") ? new Date(reviewValue("promisedAt")).toLocaleString() : "Shop's standard repair target" },
+              { label: "Promised pickup", value: promisedLabel(reviewValue("promisedAt")) || "Shop's standard repair target" },
               { label: "Warranty", value: isWarranty ? warranties.find((warranty) => warranty.value === warrantyLineId)?.label ?? "No purchase chosen" : "Not a warranty claim" },
               { label: "Repair notes", value: reviewValue("diagnosticNotes") || "No notes" },
             ]} />

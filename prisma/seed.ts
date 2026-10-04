@@ -19,7 +19,9 @@ import path from "node:path";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const db = new PrismaClient();
+const seedDatabaseUrl = process.env.DATABASE_URL;
+if (!seedDatabaseUrl) throw new Error("Set DATABASE_URL before seeding; Prisma’s generated-client fallback is not used.");
+const db = new PrismaClient({ datasourceUrl: seedDatabaseUrl });
 
 const SHOP_SLUG = "demo";
 const PASSWORD = "demo1234";

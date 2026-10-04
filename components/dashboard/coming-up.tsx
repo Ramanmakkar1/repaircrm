@@ -12,13 +12,17 @@ import { ProductThumb } from "./thumbs";
 
 const CARD_TITLE = "text-lg font-semibold";
 
-/** "Coming up": the next visits booked, each one a big tap that opens that day. */
+/**
+ * "Next visits": the next visits booked, each one a big tap that opens that day.
+ * (The column it sits in is the "Coming up" landmark; this card has its own
+ * name, so a screen reader never hears "Coming up" inside "Coming up".)
+ */
 export function AppointmentsCard({ appointments, className }: { appointments: ShopOverview["appointments"]; className?: string }) {
   return (
     <Panel aria-labelledby="visits-title" className={className}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="visits-title" className={CARD_TITLE}>
-          Coming up
+          Next visits
         </h2>
         <Link href="/appointments" data-touch-control className="inline-flex min-h-11 items-center text-[15px] font-semibold text-accent-soft-foreground hover:underline">
           All visits →
@@ -32,7 +36,7 @@ export function AppointmentsCard({ appointments, className }: { appointments: Sh
           <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
             <p className="text-[15px] font-medium text-muted-foreground">No visits booked.</p>
             <Button asChild variant="outline" className="h-12 text-[15px]">
-              <Link href="/appointments">
+              <Link href="/appointments?book=1">
                 <Plus aria-hidden />
                 Book a visit
               </Link>

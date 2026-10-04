@@ -5,16 +5,28 @@
  * grid is rendered on the SERVER and the new-appointment dialog runs on the
  * client, and both need the same idea of where 2:30pm sits.
  *
- * TIME ZONES: everything here works in the server's local time zone, which is
- * also the browser's during development. `Shop.timezone` exists in the schema
- * but honouring it properly needs a TZ-aware date library, and none is
- * installed — so a shop in another zone would see its grid shifted. Called out
- * rather than half-solved.
+ * TIME ZONES. A booking's `startsAt` is an instant; where it sits on the
+ * calendar is decided on the SHOP'S wall clock (`Shop.timezone`), never the
+ * server's: the live server runs in UTC. Every function that reads an instant
+ * takes the shop's zone (`zone`); left out, it falls back to the runtime's own
+ * zone, which is what the tests and the client-side wall-time sums use.
+ *
+ * A DAY on screen (the columns of the week, the anchor in `?date=`) is a
+ * calendar date, not an instant. It travels as a local-midnight Date built from
+ * its parts (`dayCarrier`), read back only through its own parts
+ * (`toDateParam`, date-fns `format`), so it never depends on a zone either.
  */
 
 import { addDays, format, startOfDay, startOfWeek } from "date-fns";
 
 import type { StatusTone } from "@/components/ui/badge";
+import {
+  clockLabel,
+  dayKeyIn,
+  parseDayKey,
+  wallClock,
+  zonedInstant,
+} from "@/lib/dashboard/zone";
 
 // ---------------------------------------------------------------------------
 // The visible window
@@ -31,6 +43,13 @@ export const GRID_HEIGHT_PX = VISIBLE_HOURS * HOUR_PX;
 
 /** Even a 15-minute job needs to be readable and clickable. */
 const MIN_BLOCK_PX = 26;
+
+/**
+ * Easy mode's calendar: an hour is 96px, so half an hour is a 48px block, and
+ * no block is shorter than 48px, the touch target every Easy screen keeps.
+ */
+export const EASY_HOUR_PX = 96;
+export const EASY_MIN_BLOCK_PX = 48;
 
 export const HOUR_SLOTS: number[] = Array.from(
   { length: VISIBLE_HOURS },
@@ -107,6 +126,76 @@ export function toTimeParam(date: Date): string {
   return format(date, "HH:mm");
 }
 
+/** A calendar day ("2026-10-04") as the local-midnight Date the calendar's day maths carries it in. */
+export function dayCarrier(key: string): Date | null {
+  const parts = parseDayKey(key);
+  return parts ? new Date(parts.year, parts.month - 1, parts.day) : null;
+}
+
+/** Today on the shop's calendar, as a day carrier. */
+export function todayIn(now: Date, zone?: string): Date {
+  return zone ? (dayCarrier(dayKeyIn(now.getTime(), zone)) ?? startOfDay(now)) : startOfDay(now);
+}
+
+/** The calendar day an INSTANT falls on, on the shop's wall ("2026-10-04"). */
+export function dayKeyOfInstant(at: Date, zone?: string): string {
+  return zone ? dayKeyIn(at.getTime(), zone) : toDateParam(at);
+}
+
+/** Does this instant fall on this calendar day, on the shop's wall? */
+export function isOnDay(at: Date, day: Date, zone?: string): boolean {
+  return dayKeyOfInstant(at, zone) === toDateParam(day);
+}
+
+/** `HH:mm` of an INSTANT on the shop's wall, for `<input type="time">`. */
+export function wallTimeOf(at: Date, zone?: string): string {
+  if (!zone) return toTimeParam(at);
+  const { hour, minute } = wallClock(at.getTime(), zone);
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** Hour (0-23) and minute of an INSTANT on the shop's wall. */
+export function wallHourMinute(at: Date, zone?: string): { hour: number; minute: number } {
+  if (!zone) return { hour: at.getHours(), minute: at.getMinutes() };
+  const { hour, minute } = wallClock(at.getTime(), zone);
+  return { hour, minute };
+}
+
+/**
+ * The instants the calendar days `first`..`last` cover on the shop's wall:
+ * from the first day's midnight to the midnight after the last. What the page
+ * asks the database for.
+ */
+export function rangeOfDays(first: Date, last: Date, zone?: string): { from: Date; toExclusive: Date } {
+  const next = addDays(last, 1);
+  if (!zone) return { from: startOfDay(first), toExclusive: startOfDay(next) };
+  return {
+    from: new Date(zonedInstant(first.getFullYear(), first.getMonth() + 1, first.getDate(), 0, 0, zone)),
+    toExclusive: new Date(zonedInstant(next.getFullYear(), next.getMonth() + 1, next.getDate(), 0, 0, zone)),
+  };
+}
+
+/**
+ * A new booking's starting slot: the next round hour on the shop's clock,
+ * inside the calendar's day. Before opening it is the first hour of the day;
+ * once the last slot has started (7pm on an 8am-8pm calendar) it is the first
+ * hour of TOMORROW, never "today, 9-10 PM" outside the grid.
+ */
+export function defaultBookingSlot(now: Date, zone?: string): { date: string; time: string; endTime: string } {
+  const wall = zone
+    ? wallClock(now.getTime(), zone)
+    : { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate(), hour: now.getHours() };
+  const today = new Date(wall.year, wall.month - 1, wall.day);
+  let day = today;
+  let hour = Math.max(DAY_START_HOUR, wall.hour + 1);
+  if (hour > DAY_END_HOUR - 1) {
+    day = addDays(today, 1);
+    hour = DAY_START_HOUR;
+  }
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return { date: toDateParam(day), time: `${pad(hour)}:00`, endTime: `${pad(hour + 1)}:00` };
+}
+
 /**
  * Parses a `yyyy-MM-dd` param as LOCAL midnight.
  *
@@ -152,13 +241,25 @@ export function slotParam(day: Date, hour: number): string {
 // Formatting
 // ---------------------------------------------------------------------------
 
-/** "9:00 AM" — but "9 AM" when it lands on the hour, which most slots do. */
-export function shortTime(date: Date): string {
+/**
+ * "9:00 AM" — but "9 AM" when it lands on the hour, which most slots do. With
+ * the shop's zone an instant is read on the shop's wall clock.
+ */
+export function shortTime(date: Date, zone?: string): string {
+  if (zone) {
+    const { hour, minute } = wallClock(date.getTime(), zone);
+    return clockLabel(hour, minute);
+  }
   return format(date, date.getMinutes() === 0 ? "h a" : "h:mm a");
 }
 
-export function timeRange(startsAt: Date, endsAt: Date): string {
-  return `${shortTime(startsAt)} – ${shortTime(endsAt)}`;
+export function timeRange(startsAt: Date, endsAt: Date, zone?: string): string {
+  return `${shortTime(startsAt, zone)} – ${shortTime(endsAt, zone)}`;
+}
+
+/** "8 AM", "12 PM", "5 PM": an hour of the grid. */
+export function hourLabel(hour: number): string {
+  return clockLabel(hour, 0);
 }
 
 export function durationLabel(startsAt: Date, endsAt: Date): string {
@@ -238,12 +339,28 @@ export function customerNameOf(
 
 export type Interval = { startsAt: Date; endsAt: Date };
 
-/** Minutes from the top of the visible window, clamped into it. */
-function offsetMinutes(day: Date, moment: Date): number {
+/** The instant the visible window opens on `day` (8 AM on the shop's wall). */
+function windowStart(day: Date, zone?: string): number {
+  if (zone) {
+    return zonedInstant(day.getFullYear(), day.getMonth() + 1, day.getDate(), DAY_START_HOUR, 0, zone);
+  }
   const dayStart = new Date(day);
   dayStart.setHours(DAY_START_HOUR, 0, 0, 0);
-  const minutes = (moment.getTime() - dayStart.getTime()) / 60_000;
+  return dayStart.getTime();
+}
+
+/** Minutes from the top of the visible window, clamped into it. */
+function offsetMinutes(day: Date, moment: Date, zone?: string): number {
+  const minutes = (moment.getTime() - windowStart(day, zone)) / 60_000;
   return Math.max(0, Math.min(VISIBLE_HOURS * 60, minutes));
+}
+
+/** Where the "now" line sits on a day column, or null when the clock is outside the window. */
+export function nowOffsetPx(now: Date, zone?: string, hourPx: number = HOUR_PX): number | null {
+  const { hour, minute } = wallHourMinute(now, zone);
+  const minutes = (hour - DAY_START_HOUR) * 60 + minute;
+  if (minutes < 0 || minutes > VISIBLE_HOURS * 60) return null;
+  return (minutes / 60) * hourPx;
 }
 
 export type Positioned<T> = {
@@ -265,7 +382,20 @@ export type Positioned<T> = {
  * standard greedy interval-colouring, and it never needs more lanes than the
  * deepest simultaneous overlap.
  */
-export function layoutDay<T extends Interval>(day: Date, items: T[]): Positioned<T>[] {
+export function layoutDay<T extends Interval>(
+  day: Date,
+  items: T[],
+  options: {
+    /** The shop's zone: where 8 AM is. */
+    zone?: string;
+    /** Pixels per hour (Easy mode draws taller hours). */
+    hourPx?: number;
+    /** The shortest a block may be drawn. */
+    minBlockPx?: number;
+  } = {},
+): Positioned<T>[] {
+  const hourPx = options.hourPx ?? HOUR_PX;
+  const minBlockPx = options.minBlockPx ?? MIN_BLOCK_PX;
   const sorted = [...items].sort(
     (a, b) =>
       a.startsAt.getTime() - b.startsAt.getTime() ||
@@ -302,13 +432,13 @@ export function layoutDay<T extends Interval>(day: Date, items: T[]): Positioned
     }
     clusterEnd = Math.max(clusterEnd, end);
 
-    const top = (offsetMinutes(day, item.startsAt) / 60) * HOUR_PX;
-    const bottom = (offsetMinutes(day, item.endsAt) / 60) * HOUR_PX;
+    const top = (offsetMinutes(day, item.startsAt, options.zone) / 60) * hourPx;
+    const bottom = (offsetMinutes(day, item.endsAt, options.zone) / 60) * hourPx;
 
     cluster.push({
       item,
       topPx: top,
-      heightPx: Math.max(MIN_BLOCK_PX, bottom - top),
+      heightPx: Math.max(minBlockPx, bottom - top),
       lane,
       lanes: 1,
     });

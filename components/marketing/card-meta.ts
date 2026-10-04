@@ -6,10 +6,10 @@
  */
 
 import {
-  TRIGGER_LABEL,
+  TRIGGER_WORDS,
   asChannel,
   asTrigger,
-  delayLabel,
+  waitWords,
 } from "./meta";
 
 export type CampaignFact = {
@@ -18,7 +18,7 @@ export type CampaignFact = {
 };
 
 export type CampaignCardParts = {
-  /** "After ticket resolved · 14 days later" - when it goes out. */
+  /** "After a repair is finished · 2 weeks later" - when it goes out, in plain words. */
   subtitle: string;
   /** Channel, how many went out, how many are waiting. Three at most. */
   facts: CampaignFact[];
@@ -35,14 +35,14 @@ export function campaignCardParts(
   counts: { scheduled: number; sent: number },
 ): CampaignCardParts {
   return {
-    subtitle: `${TRIGGER_LABEL[asTrigger(campaign.trigger)]} · ${delayLabel(campaign.delayDays)}`,
+    subtitle: `${TRIGGER_WORDS[asTrigger(campaign.trigger)]} · ${waitWords(campaign.delayDays)}`,
     facts: [
       {
         key: "channel",
         text: asChannel(campaign.channel) === "SMS" ? "Text" : "Email",
       },
       { key: "sent", text: `${counts.sent} sent` },
-      { key: "queued", text: `${counts.scheduled} queued` },
+      { key: "queued", text: `${counts.scheduled} waiting` },
     ],
     statusLabel: campaign.active ? "Live" : "Paused",
   };

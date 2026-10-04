@@ -2,12 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { LayoutGrid, Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
-import {
-  setDensityAction,
-  setSimpleModeAction,
-  setThemeAction,
-} from "@/app/(app)/prefs-actions";
+import { Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
+import { setDensityAction, setThemeAction } from "@/app/(app)/prefs-actions";
 import { cn } from "@/components/ui/cn";
 import type { Density, Theme } from "@/lib/prefs";
 import { Avatar, AvatarFallback, getInitials } from "@/components/ui/avatar";
@@ -22,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InstallAppItem } from "@/components/pwa/install-app-item";
 import { useAppInstall } from "@/components/pwa/install-provider";
+import { ScreenStyleSwitch } from "@/components/counter/view-switch";
 
 const SettingsIcon = ICONS.settings;
 const ProfileIcon = ICONS.profile;
@@ -32,6 +29,21 @@ export interface CurrentUser {
   role: string;
 }
 
+/** The role in the words a shop uses, not the enum. */
+export function roleWords(role: string): string {
+  if (role === "OWNER") return "Owner";
+  if (role === "FRONT_DESK") return "Front desk";
+  if (role === "TECH") return "Technician";
+  return role.charAt(0) + role.slice(1).toLowerCase().replace(/_/g, " ");
+}
+
+/**
+ * The account menu: who is signed in, how this screen looks, and Log out.
+ *
+ * Easy mode keeps it short for a counter the customer can see: no email
+ * address and no density setting (a back-office choice). Every row is a 48px
+ * target, and the whole Log out row signs out.
+ */
 export function UserMenu({
   user,
   density,
@@ -44,82 +56,71 @@ export function UserMenu({
   simple?: boolean;
 }) {
   const install = useAppInstall();
+  const logout = React.useRef<HTMLFormElement>(null);
+  const initials = getInitials(user.name);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger aria-label="Your account and display settings" className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring/40">
-        <Avatar>
-          <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={install?.menuClosed}>
-        <DropdownMenuLabel className="flex flex-col gap-0.5 px-2 py-1.5">
-          <span className="truncate text-sm font-bold text-foreground">
-            {user.name}
-          </span>
-          <span className="truncate text-[13px] font-normal text-muted-foreground">
-            {user.email}
-          </span>
-          <span className="mt-1.5 inline-flex w-fit items-center rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-accent-soft-foreground">
-            {user.role}
-          </span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/settings">
-            <SettingsIcon className="size-4 text-muted-foreground" />
-            Settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings?tab=profile">
-            <ProfileIcon className="size-4 text-muted-foreground" />
-            Profile
-          </Link>
-        </DropdownMenuItem>
-        {/* Offers a native prompt when supported, otherwise installation steps. */}
-        <InstallAppItem />
-        <SimpleModeItem simple={simple} />
-        <DropdownMenuSeparator />
-        <ThemeChoice current={theme} />
-        <DropdownMenuSeparator />
-        <DensityChoice current={density} />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild className="text-destructive focus:text-destructive">
-          <form action="/logout" method="post" className="contents">
-            <button type="submit" className="flex w-full items-center gap-2.5">
-              <ACTIONS.signOut className="size-4" />
-              Log out
-            </button>
-          </form>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-full p-1 outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-ring/40">
+          <Avatar className="size-10">
+            <AvatarFallback className="text-[14px]">{initials}</AvatarFallback>
+          </Avatar>
+          {/* Read after the initials, so the button's name starts with what it shows. */}
+          <span className="sr-only">, your account and screen settings ({user.name})</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[19rem] max-w-[calc(100vw-1rem)] max-h-[min(85dvh,46rem)] overflow-y-auto" onCloseAutoFocus={install?.menuClosed}>
+          <DropdownMenuLabel className="flex items-center gap-3 px-2.5 py-2">
+            <Avatar className="size-11">
+              <AvatarFallback className="text-[15px]">{initials}</AvatarFallback>
+            </Avatar>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[16px] font-semibold text-foreground">{user.name}</span>
+              <span className="truncate text-[13px] font-normal text-muted-foreground">
+                {simple ? roleWords(user.role) : `${roleWords(user.role)} · ${user.email}`}
+              </span>
+            </span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <ScreenStyleSwitch simple={simple} />
+          <DropdownMenuSeparator />
+          <ThemeChoice current={theme} />
+          {simple ? null : <DensityChoice current={density} />}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]">
+            <Link href="/settings">
+              <SettingsIcon className="size-5 text-muted-foreground" />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]">
+            <Link href="/settings?tab=profile">
+              <ProfileIcon className="size-5 text-muted-foreground" />
+              Your profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]"><Link href="/staff-switch"><ProfileIcon className="size-5" />Switch staff</Link></DropdownMenuItem>
+          {/* Offers a native prompt when supported, otherwise installation steps. */}
+          <InstallAppItem />
+          <DropdownMenuSeparator />
+          {/* The whole row signs out: selecting it submits the form below. */}
+          <DropdownMenuItem
+            onSelect={() => logout.current?.requestSubmit()}
+            className="min-h-12 text-[15px] font-semibold text-destructive focus:text-destructive"
+          >
+            <ACTIONS.signOut aria-hidden className="size-5" />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {/* Outside the menu, so it is still in the page when the menu closes on select. */}
+      <form ref={logout} action="/logout" method="post" hidden aria-hidden />
+    </>
   );
 }
 
 /**
- * Easy mode, on THIS device: big cards and no side menu, for the counter
- * tablet and the phone. Lives here because this menu is the one control that
- * survives the side menu being gone — so it is also always the way back.
- */
-function SimpleModeItem({ simple }: { simple: boolean }) {
-  const [pending, start] = React.useTransition();
-  return (
-    <DropdownMenuItem
-      disabled={pending}
-      onSelect={() => start(() => void setSimpleModeAction(!simple))}
-    >
-      <LayoutGrid className="size-4 text-muted-foreground" />
-      {simple ? "Full workbench" : "Easy mode (task boxes)"}
-    </DropdownMenuItem>
-  );
-}
-
-/**
- * Visual theme, on THIS device: System (follow OS), Light, or Dark.
- *
- * Like density, this is a per-device display preference that immediately sets
- * `data-theme` and writes the persistent cookie on the server.
+ * Visual theme, on THIS device: Auto (follow the device), Light, or Dark.
+ * Three 48px buttons that keep the menu open, so the change is seen in place.
  */
 function ThemeChoice({ current }: { current: Theme }) {
   const [pending, start] = React.useTransition();
@@ -135,11 +136,9 @@ function ThemeChoice({ current }: { current: Theme }) {
   ];
 
   return (
-    <div className="px-2 py-1.5">
-      <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
-        Theme
-      </p>
-      <div className="flex items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1">
+    <div className="px-2.5 py-1.5">
+      <p className="pb-1.5 text-[13px] font-semibold text-muted-foreground">Light or dark</p>
+      <div role="group" aria-label="Light or dark" className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-surface-hover p-1">
         {options.map((option) => {
           const active = option.value === current;
           const Icon = option.icon;
@@ -158,14 +157,14 @@ function ThemeChoice({ current }: { current: Theme }) {
               }}
               aria-pressed={active}
               className={cn(
-                "inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm text-[12.5px] font-semibold transition-colors",
+                "inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-md text-[13px] font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60",
                 active
-                  ? "bg-surface text-foreground shadow-xs"
+                  ? "bg-surface text-foreground shadow-xs ring-1 ring-border-strong"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="size-3.5" />
+              <Icon className="size-[18px]" />
               {option.label}
             </button>
           );
@@ -176,28 +175,22 @@ function ThemeChoice({ current }: { current: Theme }) {
 }
 
 /**
- * How tight the app is, on THIS device.
- *
- * A segmented pair rather than two menu items, because it is one setting with
- * two positions and the current one has to be visible without opening
- * anything else. `onSelect` is prevented from closing the menu so the change
- * can be seen and reversed in place — picking the wrong one and having the
- * menu vanish is a needless second trip.
+ * How tight the lists are, on THIS device. A back-office setting, so Full
+ * mode only. Two positions of one setting, so a segmented pair that keeps the
+ * menu open.
  */
 function DensityChoice({ current }: { current: Density }) {
   const [pending, start] = React.useTransition();
 
   const options: { value: Density; label: string; icon: typeof Rows2 }[] = [
-    { value: "comfortable", label: "Comfortable", icon: Rows2 },
+    { value: "comfortable", label: "Roomy", icon: Rows2 },
     { value: "compact", label: "Compact", icon: Rows3 },
   ];
 
   return (
-    <div className="px-2 py-1.5">
-      <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-faint-foreground">
-        Density
-      </p>
-      <div className="flex items-center gap-0.5 rounded-md border border-border bg-surface-hover p-1">
+    <div className="px-2.5 py-1.5">
+      <p className="pb-1.5 text-[13px] font-semibold text-muted-foreground">Rows</p>
+      <div role="group" aria-label="Rows" className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-surface-hover p-1">
         {options.map((option) => {
           const active = option.value === current;
           const Icon = option.icon;
@@ -209,14 +202,14 @@ function DensityChoice({ current }: { current: Density }) {
               onClick={() => start(() => void setDensityAction(option.value))}
               aria-pressed={active}
               className={cn(
-                "inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-sm text-[12.5px] font-semibold transition-colors",
+                "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md text-[13px] font-semibold transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-60",
                 active
-                  ? "bg-surface text-foreground shadow-xs"
+                  ? "bg-surface text-foreground shadow-xs ring-1 ring-border-strong"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon aria-hidden className="size-3.5" />
+              <Icon aria-hidden className="size-4" />
               {option.label}
             </button>
           );

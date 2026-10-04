@@ -35,8 +35,13 @@ picture helps, plain words.
 | A small fact on a card | `MetaChip` | same |
 | Status | `StatusBadge` / `StatusPill` | `components/ui/badge.tsx` |
 | Page title + one action | `PageHeader` | `components/ui/page-header.tsx` |
-| Empty list | `EmptyState` with a next action | `components/ui/empty-state.tsx` |
+| Empty list | `EmptyState` with `photo`, and `actionLabel` + `actionHref` | `components/ui/empty-state.tsx` |
 | Device picture | `DeviceVisual` | `components/dashboard/device-visual.tsx` |
+| Loading screen | `PageHeaderSkeleton`, `RecordCardsSkeleton`, `PictureTileGridSkeleton` | `components/ui/skeleton.tsx` |
+| Focus a field on arrival | `useFineAutoFocus` (never bare `autoFocus` on a form) | `components/ui/auto-focus.ts` |
+| A search field | `{...SEARCH_INPUT_PROPS}` (type=search, Search key) | same |
+| "Done · Undo" | `toastWithUndo` | `components/ui/undo-toast.ts` |
+| Open the search sheet from a page | `OpenSearchButton` / `openSearch()` | `components/search/open-search-button.tsx` |
 
 Colours come only from the theme tokens in `app/globals.css` (`bg-surface`,
 `border-border`, `text-muted-foreground`, `bg-accent`, `ring`, ...). No hex, no
@@ -64,6 +69,62 @@ sections. No coloured side stripes. Facts as label/value pairs, not nested cards
 ### Form (new repair, new invoice, new customer)
 Already one screen with optional "more details". Keep it: at most four visible
 inputs, everything else behind one toggle.
+
+## Page headers (one system)
+
+- **One title size.** `PageHeader` draws every list and form title at 22px on a
+  phone and 24px from `sm`. A detail page that builds its own hero uses
+  `PAGE_TITLE_CLASS` on its h1. Hubs (Home and the box screens) are 26px.
+- **One way back.** The controls row's Back returns to where the person came
+  from, with that list's filters (the Pickup counter, a filtered Repairs list,
+  the customer they were on), and falls back to the screen above when there is
+  no earlier screen in the visit. It says where it goes ("Back to Repairs").
+  Do not add text back links ("< All invoices") or back chips in a page.
+- **No breadcrumbs in Easy mode.** `Breadcrumbs` (and `PageHeader`'s
+  `breadcrumbs`) are hidden in Easy mode by CSS; Full mode keeps them.
+- **Nothing above the title.** The title is the first thing in the page, so
+  it sits at the same height on every screen.
+
+## The controls row, Needs you and search
+
+- Back, Home, the shop (only with 2+ locations), Search, the **Needs you**
+  bell and the account. All 48px.
+- **Needs you** counts ready for pickup, customer replies, overdue repairs,
+  new enquiries, unpaid invoices (not for technicians) and low stock. Home's
+  list, the bell and the badge on the phone tab bar's Home all read the same
+  counts (`components/counter/attention*.ts`), so they can never disagree.
+- **Search** finds names, phones with any punctuation, and numbers written
+  `1012`, `#1012`, `INV-1012`, `R-1012` or `repair 1012`.
+
+## Touch, keyboard and the bottom of the screen
+
+- Easy-mode touch rules live in `app/globals.css` under
+  `[data-touch-workspace="true"]`. The attribute is on `<html>` while the app
+  is open, so dialogs, sheets, menus and selects (portalled to `<body>`) get
+  the 48px rules too. Do not re-add per-dialog size hacks.
+- **No auto-focus on touch.** Focusing a field on arrival opens the on-screen
+  keyboard over the picture choices. Use `useFineAutoFocus()` (focuses only
+  with a mouse or trackpad), or check `prefersFinePointer()` in a Radix
+  `onOpenAutoFocus`. A sheet the person opened *to type* (search) may focus.
+- Search fields spread `SEARCH_INPUT_PROPS`; other fields set `enterKeyHint`
+  (`next`, `done`, `send`) so the keyboard's return key says what it does.
+- The viewport uses `interactive-widget=resizes-content`: fixed Next / Save /
+  Pay bars ride above the keyboard.
+- The bottom belongs to the phone tab bar, the flows' Next bars and the round
+  Ask button (the wide Ask bar only shows on Home and its hubs, and steps back
+  while a dialog is open or someone types). `<main>` keeps `--rf-dock-space`
+  free at its foot. Toasts appear top centre, never at the bottom.
+
+## Feedback
+
+- **Toasts**: 16px, a 48px close, a 44px Undo. `toast.error` stays until
+  closed and adds "Try again..." when the message does not say what to do.
+  Use `toastWithUndo` for anything that can be put back (10 seconds, "Undo").
+- **Taps**: every in-app link shows a slim bar across the top while the next
+  screen loads; picture tiles also dim with a spinner (`LinkPending`). Give a
+  route a `loading.tsx` built from the shared skeletons when it is slow.
+- **Empty and error screens**: a picture, one plain sentence, one line of what
+  to do and one big button. The in-app error and not-found screens follow it.
 
 ## Pictures
 

@@ -5,6 +5,10 @@ import {
   RepairPilotWordmark,
 } from "@/components/brand/repairpilot";
 
+/** Footer links at the public 48px touch size. */
+const FOOTER_LINK =
+  "inline-flex min-h-12 items-center rounded-md px-1 font-medium hover:text-foreground hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
 export function LegalPage({
   eyebrow,
   title,
@@ -22,14 +26,14 @@ export function LegalPage({
         <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5 sm:px-8">
           <Link
             href="/"
-            className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="flex min-h-12 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <RepairPilotMark className="size-9" />
             <RepairPilotWordmark className="text-base text-foreground" />
           </Link>
           <Link
             href="/signup"
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
+            className="inline-flex min-h-12 items-center rounded-md bg-accent px-5 text-[15px] font-semibold text-accent-foreground transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2"
           >
             Start free
           </Link>
@@ -53,11 +57,18 @@ export function LegalPage({
       </main>
 
       <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-5 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-5 py-6 text-[15px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p>© {new Date().getFullYear()} Repairs helper</p>
-          <nav aria-label="Legal" className="flex gap-5">
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/terms">Terms</Link>
+          <nav aria-label="Legal" className="flex gap-3">
+            <Link href="/privacy" className={FOOTER_LINK}>
+              Privacy
+            </Link>
+            <Link href="/terms" className={FOOTER_LINK}>
+              Terms
+            </Link>
+            <Link href="/portal" className={FOOTER_LINK}>
+              Check your repair
+            </Link>
           </nav>
         </div>
       </footer>

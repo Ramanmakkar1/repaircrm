@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -30,6 +30,8 @@ export function ClockPanel({
   openSinceLabel,
   todaySeconds,
   weekSeconds,
+  forgotSince = null,
+  ownerFixes = false,
 }: {
   /** ISO start of the running shift, or null when clocked out. */
   openSinceISO: string | null;
@@ -42,6 +44,13 @@ export function ClockPanel({
   /** Completed seconds today, as of the render. */
   todaySeconds: number;
   weekSeconds: number;
+  /**
+   * "Wed Sep 30, 9:02 AM" when the running shift looks forgotten (it started
+   * on an earlier day, or has run 14 hours): said in words above the button.
+   */
+  forgotSince?: string | null;
+  /** The viewer can fix shifts themselves (an owner), below in the team's week. */
+  ownerFixes?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -106,6 +115,21 @@ export function ClockPanel({
           <span className="text-base text-muted-foreground">{copy.caption}</span>
         </div>
       </div>
+
+      {running && forgotSince ? (
+        <p
+          role="status"
+          className="flex items-start gap-2.5 rounded-xl border border-status-overdue/40 bg-status-overdue-bg px-4 py-3 text-[15px] font-medium text-status-overdue-fg"
+        >
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <span>
+            Still clocked in since {forgotSince}. Forgot to clock out?{" "}
+            {ownerFixes
+              ? "Use Fix this shift in the week below to put the right time in."
+              : "Clock out now, then ask the owner to put the right time in."}
+          </span>
+        </p>
+      ) : null}
 
       <Button
         size="lg"

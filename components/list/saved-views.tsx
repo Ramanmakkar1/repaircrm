@@ -205,6 +205,7 @@ export function SavedViewsControl({
                   id="saved-view-name"
                   value={name}
                   autoFocus
+                  enterKeyHint="done"
                   maxLength={SAVED_VIEW_NAME_MAX}
                   placeholder="Waiting on parts"
                   onChange={(event) => setName(event.target.value)}

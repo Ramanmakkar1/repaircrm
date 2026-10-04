@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { requireUser } from "@/lib/auth";
@@ -18,19 +17,12 @@ import {
 } from "@/components/ui/tooltip";
 import { ClockPanel } from "@/components/time-clock/clock-panel";
 import { TeamWeek, TodayShifts } from "@/components/time-clock/shift-cards";
+import { clockTime, forgottenShift, shiftDay } from "@/components/time-clock/shift-meta";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { addDaysToKey, dayKeyLabel, wallDateTimeValue } from "@/lib/dashboard/zone";
 import { readUiPrefs } from "@/lib/prefs";
 import { EntryDialog } from "./entry-dialog";
-import {
-  addDays,
-  endOfDay,
-  formatHours,
-  parseDateParam,
-  secondsBetween,
-  startOfDay,
-  toDateParam,
-  weekEnd,
-  weekStart,
-} from "./meta";
+import { formatHours, secondsBetween, shopWeek } from "./meta";
 
 export const metadata = { title: "Time clock · Repairs helper" };
 
@@ -69,22 +61,22 @@ export default async function TimeClockPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, userId, role } = await requireUser();
-  const [params, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
+  const [params, { simple }, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   const isOwner = role === "OWNER";
 
   // One request-time clock, so every duration on the page is measured against
   // the same instant rather than each row reaching for its own.
   const now = new Date();
 
-  const anchor = parseDateParam(one(params.week), now);
-  const start = weekStart(anchor);
-  const end = weekEnd(start);
+  // The week and "today" are the SHOP'S, cut at its own midnight (Shop.timezone), never the server's.
+  const week = shopWeek(one(params.week), now.getTime(), zone);
+  const start = week.from;
 
   const [mine, team] = await Promise.all([
     // My own week, always — a technician needs their own hours even though they
     // cannot see anyone else's.
     db.timeClockEntry.findMany({
-      where: { shopId, userId, clockInAt: { gte: start, lte: end } },
+      where: { shopId, userId, clockInAt: { gte: start, lt: week.toExclusive } },
       orderBy: { clockInAt: "desc" },
       select: {
         id: true,
@@ -95,7 +87,7 @@ export default async function TimeClockPage({
     }),
     isOwner
       ? db.timeClockEntry.findMany({
-          where: { shopId, clockInAt: { gte: start, lte: end } },
+          where: { shopId, clockInAt: { gte: start, lt: week.toExclusive } },
           orderBy: [{ clockInAt: "desc" }],
           select: {
             id: true,
@@ -110,15 +102,15 @@ export default async function TimeClockPage({
   ]);
 
   const openEntry = mine.find((entry) => entry.clockOutAt === null) ?? null;
+  const forgot = openEntry ? forgottenShift(openEntry, now, zone) : null;
 
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
+  const dayStart = week.todayFrom;
+  const dayEnd = week.todayToExclusive;
+  const isToday = (at: Date) => at >= dayStart && at < dayEnd;
 
   const todaySeconds = mine
-    .filter(
-      (entry) => entry.clockInAt >= dayStart && entry.clockInAt <= dayEnd,
-    )
-    // A running entry counts up to the render's clock; the ticker in ClockCard
+    .filter((entry) => isToday(entry.clockInAt))
+    // A running entry counts up to the render's clock; the ticker in ClockPanel
     // continues from there rather than restating it.
     .reduce(
       (sum, entry) =>
@@ -133,8 +125,10 @@ export default async function TimeClockPage({
     0,
   );
 
-  const todayEntries = mine.filter(
-    (entry) => entry.clockInAt >= dayStart && entry.clockInAt <= dayEnd,
+  const todayEntries = mine.filter((entry) => isToday(entry.clockInAt));
+  const todayWorked = todayEntries.reduce(
+    (sum, entry) => sum + secondsBetween(entry.clockInAt, entry.clockOutAt ?? now),
+    0,
   );
 
   // The owner's week, grouped by person, newest shift first within each.
@@ -157,9 +151,11 @@ export default async function TimeClockPage({
   );
   const teamSeconds = teamRows.reduce((sum, row) => sum + row.seconds, 0);
 
-  const weekHref = (date: Date) => `/time-clock?week=${toDateParam(date)}`;
-  const exportHref = `/time-clock/export?week=${toDateParam(start)}`;
-  const isThisWeek = toDateParam(start) === toDateParam(weekStart(now));
+  const weekHref = (key: string) => `/time-clock?week=${key}`;
+  const exportHref = `/time-clock/export?week=${week.monday}`;
+  const isThisWeek = week.isThisWeek;
+  const weekTitle = `${dayKeyLabel(week.monday, { month: "short", day: "numeric" })} – ${dayKeyLabel(week.sunday, { month: "short", day: "numeric", year: "numeric" })}`;
+  const weekOf = isThisWeek ? "" : ` (week of ${dayKeyLabel(week.monday, { month: "short", day: "numeric" })})`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -170,12 +166,15 @@ export default async function TimeClockPage({
 
       <ClockPanel
         openSinceISO={openEntry ? openEntry.clockInAt.toISOString() : null}
-        // Formatted here rather than in the browser: `toLocaleTimeString` in a
-        // component that also renders on the server picks a different zone on
-        // each side and React reports the difference as a hydration mismatch.
-        openSinceLabel={openEntry ? format(openEntry.clockInAt, "h:mm a") : null}
+        // Formatted here, on the shop's clock, rather than in the browser:
+        // `toLocaleTimeString` in a component that also renders on the server
+        // picks a different zone on each side and React reports the difference
+        // as a hydration mismatch.
+        openSinceLabel={openEntry ? clockTime(openEntry.clockInAt, zone) : null}
         todaySeconds={todaySeconds}
         weekSeconds={weekSeconds}
+        forgotSince={forgot?.since ?? null}
+        ownerFixes={isOwner}
       />
 
       {/* ------------------------------------------------------------ mine */}
@@ -183,18 +182,19 @@ export default async function TimeClockPage({
         <TodayShifts
           entries={todayEntries}
           now={now}
-          weekLabel={`${formatHours(weekSeconds)} logged this week${
-            isThisWeek ? "" : ` (week of ${format(start, "MMM d")})`
-          }`}
+          zone={zone}
+          caption={
+            todayEntries.length === 0
+              ? `${formatHours(weekSeconds)} this week${weekOf}`
+              : `${formatHours(todayWorked)} worked today`
+          }
         />
       ) : (
       <Card>
         <CardHeader
           icon={ICONS.timeClock}
           title="Today"
-          description={`${formatHours(weekSeconds)} logged this week${
-            isThisWeek ? "" : ` (week of ${format(start, "MMM d")})`
-          }`}
+          description={`${formatHours(weekSeconds)} logged this week${weekOf}`}
         />
 
         {todayEntries.length === 0 ? (
@@ -216,10 +216,10 @@ export default async function TimeClockPage({
             <TBody>
               {todayEntries.map((entry) => (
                 <Tr key={entry.id}>
-                  <Td className="font-medium">{format(entry.clockInAt, "h:mm a")}</Td>
+                  <Td className="font-medium">{clockTime(entry.clockInAt, zone)}</Td>
                   <Td>
                     {entry.clockOutAt ? (
-                      format(entry.clockOutAt, "h:mm a")
+                      clockTime(entry.clockOutAt, zone)
                     ) : (
                       <StatusPill tone="active" label="Running" size="sm" />
                     )}
@@ -249,19 +249,21 @@ export default async function TimeClockPage({
           rows={teamRows}
           now={now}
           start={start}
-          end={end}
+          end={week.toExclusive}
+          title={weekTitle}
+          zone={zone}
           totalSeconds={teamSeconds}
           isThisWeek={isThisWeek}
-          prevHref={weekHref(addDays(start, -7))}
-          thisWeekHref={weekHref(now)}
-          nextHref={weekHref(addDays(start, 7))}
+          prevHref={weekHref(addDaysToKey(week.monday, -7))}
+          thisWeekHref={weekHref(week.todayKey)}
+          nextHref={weekHref(addDaysToKey(week.monday, 7))}
           exportHref={exportHref}
         />
       ) : isOwner ? (
         <Card>
           <CardHeader
             icon={ICONS.team}
-            title={`The team · ${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`}
+            title={`The team · ${weekTitle}`}
             description={`${formatHours(teamSeconds)} across ${
               teamRows.length === 1 ? "1 person" : `${teamRows.length} people`
             }`}
@@ -271,7 +273,7 @@ export default async function TimeClockPage({
                   <TooltipTrigger asChild>
                     <Button asChild variant="outline" size="sm">
                       <Link
-                        href={weekHref(addDays(start, -7))}
+                        href={weekHref(addDaysToKey(week.monday, -7))}
                         aria-label="Previous week"
                       >
                         <ChevronLeft className="size-4" />
@@ -282,13 +284,13 @@ export default async function TimeClockPage({
                 </Tooltip>
                 {isThisWeek ? null : (
                   <Button asChild variant="ghost" size="sm">
-                    <Link href={weekHref(now)}>This week</Link>
+                    <Link href={weekHref(week.todayKey)}>This week</Link>
                   </Button>
                 )}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button asChild variant="outline" size="sm">
-                      <Link href={weekHref(addDays(start, 7))} aria-label="Next week">
+                      <Link href={weekHref(addDaysToKey(week.monday, 7))} aria-label="Next week">
                         <ChevronRight className="size-4" />
                       </Link>
                     </Button>
@@ -298,7 +300,7 @@ export default async function TimeClockPage({
                 <Button asChild variant="soft" size="sm">
                   <a href={exportHref}>
                     <ACTIONS.download className="size-4" />
-                    Export CSV
+                    Download timesheet
                   </a>
                 </Button>
               </>
@@ -328,12 +330,12 @@ export default async function TimeClockPage({
                       {row.entries.map((entry) => (
                         <Tr key={entry.id}>
                           <Td className="font-medium">
-                            {format(entry.clockInAt, "EEE MMM d")}
+                            {shiftDay(entry.clockInAt, zone)}
                           </Td>
-                          <Td>{format(entry.clockInAt, "h:mm a")}</Td>
+                          <Td>{clockTime(entry.clockInAt, zone)}</Td>
                           <Td>
                             {entry.clockOutAt ? (
-                              format(entry.clockOutAt, "h:mm a")
+                              clockTime(entry.clockOutAt, zone)
                             ) : (
                               <StatusPill tone="active" label="Running" size="sm" />
                             )}
@@ -349,14 +351,14 @@ export default async function TimeClockPage({
                           >
                             {entry.note ?? "—"}
                           </Td>
-                          <Td className="w-24">
+                          <Td className="w-40">
                             <EntryDialog
                               entryId={entry.id}
                               userName={entry.user.name}
-                              clockInValue={format(entry.clockInAt, "yyyy-MM-dd'T'HH:mm")}
+                              clockInValue={wallDateTimeValue(entry.clockInAt.getTime(), zone)}
                               clockOutValue={
                                 entry.clockOutAt
-                                  ? format(entry.clockOutAt, "yyyy-MM-dd'T'HH:mm")
+                                  ? wallDateTimeValue(entry.clockOutAt.getTime(), zone)
                                   : ""
                               }
                               note={entry.note ?? ""}

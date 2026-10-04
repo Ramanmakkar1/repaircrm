@@ -41,6 +41,7 @@ async function redirectedTo(run: Promise<unknown>): Promise<string> {
 
 beforeEach(() => {
   resetDb();
+  handlers["$queryRaw"] = () => [];
   handlers["customer.create"] = () => ({ id: "cus_new" });
 });
 
@@ -183,3 +184,20 @@ describe("updateCustomerAction", () => {
     expect(callsTo("customer.update")).toEqual([]);
   });
 });
+
+ describe("duplicate customer warnings", () => {
+  it("refuses a duplicate before saving and scopes the normalized lookup", async () => {
+   handlers["$queryRaw"] = () => [{id: "existing", firstName: "Anna", lastName: "Lopez"}];
+   const state = await createCustomerAction(undefined, form({name: "Other", mobile: "+1 (780) 555-0142"}));
+   expect(state).toMatchObject({duplicateCheck: "7805550142", duplicates: [{id: "existing"}]});
+   expect(callsTo("$queryRaw")[0].args.values).toContain("7805550142");
+   expect((callsTo("$queryRaw")[0].args.values as unknown[])[0]).toBe("shop_1");
+   expect(callsTo("customer.create")).toHaveLength(0);
+  });
+  it("allows an explicit override only for the currently submitted phone", async () => {
+   handlers["$queryRaw"] = () => [{id: "existing", firstName: "Anna", lastName: "Lopez"}];
+   await redirectedTo(createCustomerAction(undefined, form({name: "Another", mobile: "7805550142", confirmDuplicate: "7805550142"})));
+   expect(callsTo("customer.create")).toHaveLength(1);
+   expect(await createCustomerAction(undefined, form({name: "Another", mobile: "7805550143", confirmDuplicate: "7805550142"}))).toHaveProperty("duplicates");
+  });
+ });

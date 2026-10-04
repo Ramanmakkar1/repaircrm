@@ -17,7 +17,7 @@ import {
 import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 
-/** MapPin, not a storefront — a storefront is this app's *vendor* glyph. */
+/** MapPin, not a storefront — a storefront is this app's *supplier* glyph. */
 const LocationIcon = ICONS.location;
 
 export type SwitcherLocation = { id: string; name: string };
@@ -25,14 +25,17 @@ export type SwitcherLocation = { id: string; name: string };
 /** Matches lib/location.ts — the "don't filter" sentinel. */
 const ALL = "all";
 
+/** What the "everything" choice is called: the shop owner's word, not a filter's. */
+export const ALL_SHOPS_LABEL = "All shops";
+
 /**
- * Which branch the app is showing, in the topbar.
+ * Which shop the app is showing, in the controls row.
  *
- * Rendered ONLY when the shop has two or more active locations (the topbar
- * decides), so a single-store shop never sees a control it would have to think
- * about. The choice is a cookie, not a URL parameter: it should survive
- * clicking through to a ticket and back, and it should be the same tomorrow
- * morning when the same person opens the same laptop at the same counter.
+ * Rendered ONLY when the shop has two or more active locations, so a
+ * single-store shop never sees a control it would have to think about. The
+ * choice is a cookie, not a URL parameter: it should survive clicking through
+ * to a repair and back, and it should be the same tomorrow morning when the
+ * same person opens the same tablet at the same counter.
  */
 export function LocationSwitcher({
   locations,
@@ -48,16 +51,19 @@ export function LocationSwitcher({
   const [pending, startTransition] = React.useTransition();
 
   const current = locations.find((location) => location.id === currentId);
-  const label = current ? current.name : "All locations";
+  const label = current ? current.name : ALL_SHOPS_LABEL;
 
   function choose(next: string) {
     if (next === currentId) return;
+    const name = next === ALL ? ALL_SHOPS_LABEL.toLowerCase() : locations.find((location) => location.id === next)?.name ?? "that shop";
     startTransition(async () => {
       try {
         await setLocationCookie(next);
         router.refresh();
+        // Lists change under the person's hands: say why.
+        toast.success(`Showing ${name}`);
       } catch {
-        toast.error("Could not switch location. Try again.");
+        toast.error("Could not switch shop. Try again.");
       }
     });
   }
@@ -71,27 +77,22 @@ export function LocationSwitcher({
           className={cn(
             compact
               ? "flex h-5 max-w-[11rem] items-center gap-1 rounded-sm text-xs text-muted-foreground transition-colors"
-              : "flex min-h-12 max-w-[7.5rem] sm:max-w-[13rem] items-center gap-2 rounded-md border border-border bg-surface px-3 text-[13.5px] font-semibold text-foreground transition-colors",
+              : "flex min-h-12 min-w-12 max-w-[8.5rem] items-center justify-center gap-2 rounded-md border border-border-strong bg-surface px-3 text-[15px] font-semibold text-foreground shadow-xs transition-colors sm:max-w-[14rem]",
             "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
             "disabled:opacity-60",
           )}
-          aria-label={`Location: ${label}`}
+          aria-label={`Shop: ${label}. Change shop`}
         >
-          {compact ? null : <LocationIcon className="size-4 shrink-0 text-muted-foreground" />}
-          <span className="truncate">{label}</span>
-          <ChevronDown className="size-4 shrink-0 text-faint-foreground" />
+          {compact ? null : <LocationIcon aria-hidden className="size-5 shrink-0" />}
+          <span className={cn("truncate", compact ? null : "hidden min-[400px]:inline")}>{label}</span>
+          <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuLabel>Show work from</DropdownMenuLabel>
+      <DropdownMenuContent align="end" className="min-w-64">
+        <DropdownMenuLabel className="text-[14px]">Show work from</DropdownMenuLabel>
         <DropdownMenuSeparator />
 
-        <Choice
-          label="All locations"
-          selected={currentId === ALL}
-          onSelect={() => choose(ALL)}
-        />
         {locations.map((location) => (
           <Choice
             key={location.id}
@@ -100,6 +101,13 @@ export function LocationSwitcher({
             onSelect={() => choose(location.id)}
           />
         ))}
+        <DropdownMenuSeparator />
+        <Choice
+          label={ALL_SHOPS_LABEL}
+          hint="Every shop together"
+          selected={currentId === ALL}
+          onSelect={() => choose(ALL)}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -107,17 +115,26 @@ export function LocationSwitcher({
 
 function Choice({
   label,
+  hint,
   selected,
   onSelect,
 }: {
   label: string;
+  hint?: string;
   selected: boolean;
   onSelect: () => void;
 }) {
   return (
-    <DropdownMenuItem onSelect={onSelect} className="justify-between gap-3">
-      <span className="truncate">{label}</span>
-      {selected ? <Check className="size-4 shrink-0 text-accent" /> : null}
+    <DropdownMenuItem onSelect={onSelect} className="min-h-12 justify-between gap-3 text-[15px]">
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate font-semibold">{label}</span>
+        {hint ? <span className="truncate text-[13px] font-normal text-muted-foreground">{hint}</span> : null}
+      </span>
+      {selected ? (
+        <span className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-foreground">
+          <Check aria-hidden className="size-4" /> Showing
+        </span>
+      ) : null}
     </DropdownMenuItem>
   );
 }

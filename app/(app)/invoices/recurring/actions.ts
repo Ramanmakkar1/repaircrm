@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { recurringCalendarDate } from "@/lib/recurring-clock";
 import { shopDefaultLocationId } from "@/lib/location";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import { withNextNumber } from "@/lib/sequence";
@@ -12,11 +14,9 @@ import { fromDateInputValue } from "@/components/billing/format";
 import { resolveDocumentTax } from "@/components/billing/queries";
 import { formError, parseLines, type FormState } from "@/components/billing/types";
 import {
-  addUtcDays,
   advanceRunDate,
   anchorDayFor,
   asFrequency,
-  startOfUtcDay,
 } from "@/components/recurring/meta";
 
 /**
@@ -325,9 +325,8 @@ async function generate(shopId: string, scheduleId: string): Promise<RunResult> 
     asFrequency(schedule.frequency),
     schedule.anchorDay,
   );
-  // Terms run from the day the bill is raised, normalised to UTC midnight so
-  // the printed due date reads the same in every timezone.
-  const dueDate = addUtcDays(startOfUtcDay(new Date()), schedule.dueInDays);
+  const zone = await loadShopZone(shopId);
+  const dueDate = recurringCalendarDate(Date.now(), zone, schedule.dueInDays);
 
   const invoice = await withNextNumber(shopId, "invoice", (number) =>
     db.$transaction(async (tx) => {
@@ -397,9 +396,10 @@ export async function runDueRecurringInvoices(): Promise<{
   errors: string[];
 }> {
   const { shopId } = await requireUser();
+  const zone = await loadShopZone(shopId);
 
   const due = await db.recurringInvoice.findMany({
-    where: { shopId, active: true, nextRunAt: { lte: new Date() } },
+    where: { shopId, active: true, nextRunAt: { lte: recurringCalendarDate(Date.now(), zone) } },
     orderBy: { nextRunAt: "asc" },
     select: { id: true },
   });

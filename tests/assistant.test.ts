@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calls, callsTo, dataOf, handlers, resetDb, whereOf } from "./helpers/db-mock";
 import { clearRateLimit } from "@/lib/rate-limit";
@@ -59,6 +59,8 @@ const { runAssistantAction, confirmRemoveProductAction, confirmAssistantAction }
 function says(intent: unknown) {
   generateMock.mockResolvedValue({ ok: true, text: JSON.stringify(intent) });
 }
+
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   clearRateLimit("assistant:shop_1:user_1");
@@ -387,6 +389,50 @@ describe("confirmRemoveProductAction", () => {
 });
 
 describe("the wider shop assistant", () => {
+  it.each([
+    ["today", "2026-09-30T06:00:00.000Z", "2026-10-01T03:00:00.000Z"],
+    ["yesterday", "2026-09-29T06:00:00.000Z", "2026-09-30T06:00:00.000Z"],
+    ["this week", "2026-09-28T06:00:00.000Z", "2026-10-01T03:00:00.000Z"],
+    ["this month", "2026-09-01T06:00:00.000Z", "2026-10-01T03:00:00.000Z"],
+  ])("reads sales %s on the shop calendar and ignores failed refunds", async (period, from, to) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-01T03:00:00Z"));
+    handlers["shop.findUnique"] = () => ({ settings: null, timezone: "America/Edmonton" });
+    handlers["payment.aggregate"] = () => ({ _sum: { amountCents: 10000 }, _count: { _all: 1 } });
+    handlers["refund.aggregate"] = () => ({ _sum: { amountCents: 2000 } });
+    handlers["ticket.count"] = () => 0;
+    const result = await runAssistantAction(`sales ${period}`);
+    expect(result).toMatchObject({ kind: "info", message: expect.stringContaining("$80.00 taken") });
+    const window = whereOf("payment.aggregate").createdAt as { gte: Date; lt: Date };
+    expect(window.gte.toISOString()).toBe(from);
+    expect(window.lt.toISOString()).toBe(to);
+    expect(whereOf("refund.aggregate")).toMatchObject({ shopId: "shop_1", status: { not: "failed" }, createdAt: window });
+  });
+
+  it("reads tomorrow's spring-change bookings as a 23-hour shop day", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-08T03:00:00Z"));
+    handlers["shop.findUnique"] = () => ({ settings: null, timezone: "America/Edmonton" });
+    handlers["appointment.findMany"] = () => [{ id: "a1", title: "Drop-off", startsAt: new Date("2026-03-08T15:00:00Z"), customer: null }];
+    const result = await runAssistantAction("appointments tomorrow");
+    expect(result).toMatchObject({ kind: "info", links: [{ label: "9 AM · Drop-off" }] });
+    const range = whereOf("appointment.findMany").startsAt as { gte: Date; lt: Date };
+    expect(range.gte.toISOString()).toBe("2026-03-08T07:00:00.000Z");
+    expect(range.lt.toISOString()).toBe("2026-03-09T06:00:00.000Z");
+  });
+
+  it("finds refunded paid invoices and an older debt behind ten settled invoices", async () => {
+    const base = { taxRateBps: 0, status: "PAID", lines: [{ quantity: 1, unitPriceCents: 10000, taxable: false }], payments: [{ amountCents: 10000 }], refunds: [], customer: { firstName: "Ada", lastName: "Lovelace", businessName: null } };
+    handlers["invoice.findMany"] = () => [
+      ...Array.from({ length: 10 }, (_, i) => ({ ...base, id: `paid_${i}`, number: i + 1 })),
+      { ...base, id: "reopened", number: 11, refunds: [{ amountCents: 2000, status: "completed" }] },
+    ];
+    const result = await runAssistantAction("unpaid invoices");
+    expect(result).toMatchObject({ kind: "info", message: expect.stringContaining("$20.00 owing"), links: [{ href: "/invoices/reopened" }] });
+    expect(whereOf("invoice.findMany")).toMatchObject({ shopId: "shop_1", status: { in: ["SENT", "PARTIAL", "PAID"] } });
+    expect(callsTo("invoice.findMany")[0].args.take).toBeUndefined();
+  });
+
   it("stages a status move against the shop's OWN status list", async () => {
     says({ action: "set_ticket_status", ticket: 1042, status: "ready for pickup" });
     handlers["ticket.findFirst"] = () => ({

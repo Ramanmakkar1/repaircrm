@@ -36,7 +36,7 @@ import {
   parseDocTab,
   quoteBlock,
 } from "@/components/billing/bill-display";
-import { BackLink, BillSummary, PinnedAction, QuoteHero } from "@/components/billing/bill-hero";
+import { BillSummary, PinnedAction, QuoteHero } from "@/components/billing/bill-hero";
 import {
   ActivityList,
   EmptyLines,
@@ -50,7 +50,10 @@ import { EstimateActionMenu } from "@/components/billing/estimate-action-menu";
 import { estimatePrimaryAction } from "@/components/billing/primary-action";
 import { CopyLinkTile } from "@/components/billing/quick-tiles";
 import { TILE_CLASS } from "@/components/billing/tile-style";
-import { primaryPhone } from "@/components/customers/customer-facts";
+import { primaryPhone, telHref } from "@/components/customers/customer-facts";
+import { messageOutcome } from "@/components/billing/bill-display";
+import { shopNow, shopWall } from "@/components/billing/shop-clock";
+import { safeTimeZone } from "@/lib/dashboard/logic";
 import { formatDate } from "@/components/billing/format";
 import { SendDocumentDialog } from "@/components/billing/send-dialog";
 import { ShareRow } from "@/components/billing/send-links";
@@ -104,7 +107,7 @@ export default async function EstimateDetailPage({
     include: {
       customer: true,
       taxRate: { select: { name: true } },
-      shop: { select: { name: true } },
+      shop: { select: { name: true, timezone: true } },
       ticket: { select: { id: true, number: true, subject: true } },
       lines: { orderBy: { sortOrder: "asc" } },
       invoices: {
@@ -128,9 +131,13 @@ export default async function EstimateDetailPage({
     ["DRAFT", "SENT", "APPROVED"].includes(estimate.status) &&
     estimate.lines.length > 0;
 
+  // The shop's clock: the expiry is a calendar day, read against the shop's
+  // own "now", and every instant below prints in the shop's zone.
+  const zone = safeTimeZone(estimate.shop.timezone);
+  const wallNow = shopNow(requestNow(), zone);
   const expired =
     estimate.expiresAt !== null &&
-    estimate.expiresAt.getTime() < requestNow() &&
+    estimate.expiresAt.getTime() < wallNow &&
     (estimate.status === "DRAFT" || estimate.status === "SENT");
 
   // ---------------------------------------------------------------- sending
@@ -227,7 +234,7 @@ export default async function EstimateDetailPage({
       }
       meta={[
         { label: "Tax", value: formatCents(totals.taxCents) },
-        { label: "Quoted", value: formatDate(estimate.createdAt) },
+        { label: "Quoted", value: formatDate(estimate.createdAt, zone) },
         {
           label: "Expires",
           value: (
@@ -238,10 +245,10 @@ export default async function EstimateDetailPage({
         },
         {
           label: "Approved",
-          value: estimate.approvedAt ? formatDate(estimate.approvedAt) : "—",
+          value: estimate.approvedAt ? formatDate(estimate.approvedAt, zone) : "—",
         },
         {
-          label: "Ticket",
+          label: "Repair",
           value: estimate.ticket ? (
             <Link
               href={`/tickets/${estimate.ticket.id}`}
@@ -337,7 +344,8 @@ export default async function EstimateDetailPage({
   // the left, the till on the right (who, the quoted total, the one big button
   // for this state, a few tiles). Each action is the one the Full layout has.
   if (easy) {
-    const now = requestNow();
+    // Calendar rules ("Expires Oct 10", "Approved Sep 29") read the shop's wall clock.
+    const now = wallNow;
     const tab = parseDocTab(query.tab);
     const basePath = `/estimates/${estimate.id}`;
     const printHref = `/print/estimates/${estimate.id}`;
@@ -352,7 +360,12 @@ export default async function EstimateDetailPage({
     const primaryLabel = estimatePrimaryLabel(primary, {
       alreadySent,
       invoiceNumber: firstInvoice?.number ?? null,
+      declined: estimate.status === "DECLINED",
     });
+    // A send that did not reach them is a warning with a way to fix it, not a
+    // grey footnote under the tiles.
+    const sendTrouble = lastSent ? messageOutcome(lastSent.status) : null;
+    const troubled = Boolean(sendTrouble?.alert);
     // The hint sits under the tiles, once, instead of inside each send button.
     const quietDoc: SendDocument = { ...sendDoc, lastSentHint: null };
     const phone = primaryPhone(estimate.customer).value || null;
@@ -362,7 +375,7 @@ export default async function EstimateDetailPage({
         status: estimate.status,
         totalCents: totals.totalCents,
         expiresAt: estimate.expiresAt,
-        approvedAt: estimate.approvedAt,
+        approvedAt: shopWall(estimate.approvedAt, zone),
         expired,
       },
       now,
@@ -379,6 +392,20 @@ export default async function EstimateDetailPage({
             size="lg"
             appearance="big"
           />
+        );
+      }
+      if (primary === "approve") {
+        return (
+          <ActionForm
+            action={approveEstimateAction}
+            fields={{ id: estimate.id }}
+            size="lg"
+            pendingLabel="Saving…"
+            className="w-full"
+            buttonClassName="h-14 w-full px-6 text-lg [&_svg]:size-5"
+          >
+            <ACTIONS.approve /> {primaryLabel}
+          </ActionForm>
         );
       }
       if (primary === "convert") {
@@ -431,6 +458,19 @@ export default async function EstimateDetailPage({
           );
         case "copy":
           return <CopyLinkTile key="copy" url={viewUrl} />;
+        case "sign":
+          // Approve with the customer's signature, on this screen.
+          return canApprove ? (
+            <SignatureDialog
+              key="sign"
+              action={approveWithSignatureAction}
+              documentId={estimate.id}
+              title="Approve with signature"
+              description={`Have ${customerName} sign to agree to the work on estimate #${estimate.number}.`}
+              triggerLabel="Sign on screen"
+              triggerClassName={TILE_CLASS}
+            />
+          ) : null;
         case "edit":
           return canEdit ? (
             <Link key="edit" href={`${basePath}/edit`} data-touch-control className={TILE_CLASS}>
@@ -448,7 +488,7 @@ export default async function EstimateDetailPage({
                 customerName={customerName}
                 printHref={printHref}
                 editHref={canEdit ? `${basePath}/edit` : null}
-                approve={canApprove ? { action: approveEstimateAction } : null}
+                approve={canApprove && primary !== "approve" ? { action: approveEstimateAction } : null}
                 approveWithSignature={canApprove ? { action: approveWithSignatureAction } : null}
                 decline={canDecline ? { action: declineEstimateAction } : null}
                 convert={canConvert && primary !== "convert" ? { action: convertEstimateAction } : null}
@@ -537,8 +577,11 @@ export default async function EstimateDetailPage({
     );
 
     // ----------------------------------------------------------- Customer tab
+    // Whole 48px rows to tap, and a tel: link of digits only.
+    const ROW_LINK =
+      "flex min-h-12 items-center rounded-lg text-accent-soft-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
     const telLink = (value: string) => (
-      <a href={`tel:${value}`} className="rf-num text-accent-soft-foreground hover:underline">
+      <a href={telHref(value)} data-touch-control className={cn(ROW_LINK, "rf-num")}>
         {value}
       </a>
     );
@@ -550,10 +593,7 @@ export default async function EstimateDetailPage({
               {
                 label: "Name",
                 value: (
-                  <Link
-                    href={`/customers/${estimate.customer.id}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <Link href={`/customers/${estimate.customer.id}`} data-touch-control className={ROW_LINK}>
                     {customerName}
                   </Link>
                 ),
@@ -563,10 +603,7 @@ export default async function EstimateDetailPage({
               {
                 label: "Email",
                 value: estimate.customer.email ? (
-                  <a
-                    href={`mailto:${estimate.customer.email}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <a href={`mailto:${estimate.customer.email}`} data-touch-control className={cn(ROW_LINK, "break-all")}>
                     {estimate.customer.email}
                   </a>
                 ) : (
@@ -580,7 +617,7 @@ export default async function EstimateDetailPage({
         <Section title="This estimate">
           <FactList
             facts={[
-              { label: "Quoted", value: formatDate(estimate.createdAt) },
+              { label: "Quoted", value: formatDate(estimate.createdAt, zone) },
               {
                 label: "Expires",
                 value: (
@@ -592,16 +629,13 @@ export default async function EstimateDetailPage({
               },
               {
                 label: "Approved",
-                value: estimate.approvedAt ? formatDate(estimate.approvedAt) : "—",
+                value: estimate.approvedAt ? formatDate(estimate.approvedAt, zone) : "—",
               },
               { label: "Tax rate", value: taxLabel(estimate.taxRate?.name, estimate.taxRateBps) },
               {
                 label: "Repair",
                 value: estimate.ticket ? (
-                  <Link
-                    href={`/tickets/${estimate.ticket.id}`}
-                    className="text-accent-soft-foreground hover:underline"
-                  >
+                  <Link href={`/tickets/${estimate.ticket.id}`} data-touch-control className={ROW_LINK}>
                     #{estimate.ticket.number}
                     {estimate.ticket.subject ? ` · ${estimate.ticket.subject}` : ""}
                   </Link>
@@ -619,6 +653,7 @@ export default async function EstimateDetailPage({
     const activityPanel = (
       <Section title="Activity">
         <ActivityList
+          zone={zone}
           items={estimateActivity({
             createdAt: estimate.createdAt,
             approvedAt: estimate.approvedAt,
@@ -667,7 +702,7 @@ export default async function EstimateDetailPage({
               />
             ) : (
               <p className="text-base text-muted-foreground">
-                Not signed yet.{canApprove ? " Use More, then Approve + sign, to collect one." : ""}
+                Not signed yet.{canApprove ? " Use Sign on screen (or More, then Approve + sign) to collect one." : ""}
               </p>
             )}
           </div>
@@ -687,7 +722,23 @@ export default async function EstimateDetailPage({
 
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-        <BackLink label="Estimates" href="/estimates" />
+        {/* One Back in Easy mode: the shell's. */}
+        {troubled && lastSent ? (
+          <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-status-overdue/50 bg-status-overdue-bg p-4 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 text-base leading-snug text-status-overdue-fg">
+              <span className="font-semibold">
+                The last {lastSent.type === "SMS" ? "text" : "email"} did not reach {customerName}
+              </span>{" "}
+              ({sendTrouble?.text.toLowerCase()}, {relativeTime(lastSent.createdAt.toISOString())}). Check their{" "}
+              {lastSent.type === "SMS" ? "mobile number" : "email address"}, then send it again.
+            </p>
+            <Button asChild variant="outline" className="h-12 shrink-0 px-5 text-base">
+              <Link href={`/customers/${estimate.customer.id}/edit`}>
+                <ACTIONS.edit /> Fix their details
+              </Link>
+            </Button>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
           {/* The summary is first in the page (and on a phone) and sits in the right
@@ -706,7 +757,7 @@ export default async function EstimateDetailPage({
             primary={bigAction()}
             tiles={tiles}
             tileCount={tileKeys.length}
-            hint={lastSentHint}
+            hint={troubled ? null : lastSentHint}
           />
 
           <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">

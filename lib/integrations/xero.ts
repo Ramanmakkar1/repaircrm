@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { dayKeyIn } from "@/lib/dashboard/zone";
 
 import { xeroApiBase } from "./config";
 import {
@@ -202,11 +204,12 @@ export async function syncXero(
   watermark: Date | null,
 ): Promise<void> {
   const settings = connection.settings;
+  const zone = await loadShopZone(connection.shopId);
 
   await syncContacts(connection, result, watermark);
   await syncItems(connection, settings, result, watermark);
-  await syncInvoices(connection, settings, result, watermark);
-  await syncPayments(connection, settings, result);
+  await syncInvoices(connection, settings, result, watermark, zone);
+  await syncPayments(connection, settings, result, zone);
 }
 
 // --- Contacts --------------------------------------------------------------
@@ -469,6 +472,7 @@ async function syncInvoices(
   settings: ConnectionSettings,
   result: SyncResult,
   watermark: Date | null,
+  zone: string,
 ): Promise<void> {
   const [invoiceLinks, contactLinks, itemLinks] = await Promise.all([
     loadLinks(connection.shopId, "xero", "invoice"),
@@ -557,7 +561,7 @@ async function syncInvoices(
               Contact: { ContactID: contactLink.remoteId },
               InvoiceNumber: `INV-${row.number}`,
               Reference: row.notes?.slice(0, 255) ?? undefined,
-              Date: day(row.createdAt),
+              Date: dayKeyIn(row.createdAt.getTime(), zone),
               DueDate: row.dueDate ? day(row.dueDate) : undefined,
               // Exclusive: our unit prices are pre-tax and the tax sits on top,
               // which is exactly how lib/money.ts computes a total.
@@ -598,6 +602,7 @@ async function syncPayments(
   connection: LiveConnection,
   settings: ConnectionSettings,
   result: SyncResult,
+  zone: string,
 ): Promise<void> {
   const [paymentLinks, invoiceLinks] = await Promise.all([
     loadLinks(connection.shopId, "xero", "payment"),
@@ -636,7 +641,7 @@ async function syncPayments(
             {
               Invoice: { InvoiceID: invoiceLink.remoteId },
               Account: { Code: account },
-              Date: day(row.createdAt),
+              Date: dayKeyIn(row.createdAt.getTime(), zone),
               Amount: money(row.amountCents),
               Reference: row.reference?.slice(0, 255) ?? row.method,
             },

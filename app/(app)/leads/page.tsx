@@ -41,8 +41,9 @@ import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { readUiPrefs } from "@/lib/prefs";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
 
-export const metadata: Metadata = { title: "Leads · Repairs helper" };
+export const metadata: Metadata = { title: "Enquiries · Repairs helper" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ export default async function LeadsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { shopId, role } = await requireUser();
-  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  const [params, prefs, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   // Easy mode (the default) is a wall of big enquiry cards; Full mode keeps the table and bulk actions.
   const easy = prefs.simple;
 
@@ -255,7 +256,7 @@ export default async function LeadsPage({
             />
           </div>
         ) : (
-          <LeadCards rows={leads} now={now} />
+          <LeadCards rows={leads} now={now} zone={zone} />
         )
       ) : (
         <>
@@ -375,7 +376,7 @@ export default async function LeadsPage({
                             </Td>
 
                             <Td className="rf-num text-right text-[12.5px] text-muted-foreground">
-                              {leadAge(lead.createdAt, now)}
+                              {leadAge(lead.createdAt, now, zone)}
                             </Td>
                           </RowLink>
                         );

@@ -18,6 +18,7 @@
  */
 
 import { formatCents } from "@/lib/money";
+import { formatInZone } from "@/lib/shop-time";
 
 import { estimateTokenPath, invoiceTokenPath, portalUrl } from "./config";
 import type { SummaryRow } from "./templates";
@@ -34,10 +35,10 @@ const SHORT_DATE = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-function shortDate(value: Date | null | undefined): string {
+function shortDate(value: Date | null | undefined, zone?: string): string {
   if (!value) return "—";
   const time = value.getTime();
-  return Number.isNaN(time) ? "—" : SHORT_DATE.format(value);
+  return Number.isNaN(time) ? "—" : zone ? formatInZone(value, "MMM d, yyyy", zone) : SHORT_DATE.format(value);
 }
 
 /** What a caller needs to hand to `sendEmail` / `sendSms` for one document. */
@@ -64,6 +65,7 @@ export type DocumentMessage = {
 
 export type InvoiceMessageInput = {
   shopName: string;
+  timeZone?: string;
   customerFirstName: string;
   number: number;
   publicToken: string;
@@ -104,7 +106,7 @@ export function invoiceMessage(input: InvoiceMessageInput): DocumentMessage {
 
   const summary: SummaryRow[] = [
     { label: "Invoice", value: `#${input.number}` },
-    { label: "Date", value: shortDate(input.createdAt) },
+    { label: "Date", value: shortDate(input.createdAt, input.timeZone) },
     {
       label: "Due",
       value: input.dueDate ? shortDate(input.dueDate) : "On receipt",
@@ -142,6 +144,7 @@ export function invoiceMessage(input: InvoiceMessageInput): DocumentMessage {
 
 export type EstimateMessageInput = {
   shopName: string;
+  timeZone?: string;
   customerFirstName: string;
   number: number;
   publicToken: string;
@@ -178,7 +181,7 @@ export function estimateMessage(input: EstimateMessageInput): DocumentMessage {
 
   const summary: SummaryRow[] = [
     { label: "Estimate", value: `#${input.number}` },
-    { label: "Quoted", value: shortDate(input.createdAt) },
+    { label: "Quoted", value: shortDate(input.createdAt, input.timeZone) },
     {
       label: "Valid until",
       value: input.expiresAt ? shortDate(input.expiresAt) : "No expiry",
@@ -214,6 +217,7 @@ export function estimateMessage(input: EstimateMessageInput): DocumentMessage {
 
 export type ReceiptMessageInput = {
   shopName: string;
+  timeZone?: string;
   customerFirstName: string;
   number: number;
   publicToken: string;
@@ -233,7 +237,7 @@ export function receiptMessage(input: ReceiptMessageInput): DocumentMessage {
 
   const summary: SummaryRow[] = [
     { label: "Invoice", value: `#${input.number}` },
-    { label: "Paid on", value: shortDate(input.paidAt) },
+    { label: "Paid on", value: shortDate(input.paidAt, input.timeZone) },
     { label: "Method", value: input.method },
     { label: "Payment received", value: formatCents(input.amountCents) },
     { label: "Invoice total", value: formatCents(input.totalCents) },

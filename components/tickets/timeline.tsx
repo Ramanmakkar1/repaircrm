@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { Lock, Send } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -7,7 +6,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
+import { formatInZone } from "@/lib/shop-time";
 import { relativeShort } from "./ticket-meta";
+
+/** The full date and time under the short "3h" (hover / long press), on the shop's own clock. */
+const STAMP = "EEEE d MMMM yyyy, h:mm a";
 
 /**
  * Local copy of the avatar initials logic.
@@ -48,6 +51,7 @@ export function Timeline({
   now,
   statuses,
   easy = false,
+  timeZone,
 }: {
   entries: TimelineEntry[];
   now: number;
@@ -55,8 +59,10 @@ export function Timeline({
   statuses: string[];
   /** Easy mode: no card around the list (the repair screen's tab is the box), bigger text. */
   easy?: boolean;
+  /** The shop's time zone (Shop.timezone), for the full date and time of each entry. */
+  timeZone?: string | null;
 }) {
-  if (easy) return <EasyTimeline entries={entries} now={now} statuses={statuses} />;
+  if (easy) return <EasyTimeline entries={entries} now={now} statuses={statuses} timeZone={timeZone} />;
 
   return (
     <Card>
@@ -115,7 +121,7 @@ export function Timeline({
                   )}
                   <time
                     dateTime={entry.createdAt.toISOString()}
-                    title={format(entry.createdAt, "EEEE d MMMM yyyy, h:mm a")}
+                    title={formatInZone(entry.createdAt, STAMP, timeZone)}
                   >
                     {relativeShort(entry.createdAt, now)}
                   </time>
@@ -148,10 +154,12 @@ function EasyTimeline({
   entries,
   now,
   statuses,
+  timeZone,
 }: {
   entries: TimelineEntry[];
   now: number;
   statuses: string[];
+  timeZone?: string | null;
 }) {
   return (
     <section aria-label="History" className="flex flex-col gap-3">
@@ -197,7 +205,7 @@ function EasyTimeline({
                       Private
                     </span>
                   )}
-                  <time dateTime={entry.createdAt.toISOString()} title={format(entry.createdAt, "EEEE d MMMM yyyy, h:mm a")}>
+                  <time dateTime={entry.createdAt.toISOString()} title={formatInZone(entry.createdAt, STAMP, timeZone)}>
                     {relativeShort(entry.createdAt, now)}
                   </time>
                 </span>

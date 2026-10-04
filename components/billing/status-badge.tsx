@@ -36,12 +36,26 @@ const ESTIMATE_TONES: Record<string, DocStatusMeta> = {
 
 const FALLBACK: DocStatusMeta = { label: "Unknown", tone: "neutral" };
 
+/**
+ * The word a refunded invoice wears instead of "Sent" / "Partial": money went
+ * back, so it owes again, and "Sent" beside "Paid in full" history read as a
+ * contradiction. Only those two stored statuses change; Paid and Void keep theirs.
+ */
+export function refundedStatusLabel(status: string): string | null {
+  if (status === "SENT") return "Refunded";
+  if (status === "PARTIAL") return "Part refunded";
+  return null;
+}
+
 export function InvoiceStatusBadge({
   status,
   size = "sm",
   className,
+  refunded = false,
 }: {
   status: string;
+  /** Money has been handed back on it (refund-aware): say so in the badge. */
+  refunded?: boolean;
   /**
    * `sm` is the default because most callers are dense embedded lists (a
    * customer's activity feed, the portal). A list TABLE, where the status is
@@ -52,11 +66,12 @@ export function InvoiceStatusBadge({
   className?: string;
 }) {
   const meta = INVOICE_TONES[status] ?? FALLBACK;
+  const refundLabel = refunded ? refundedStatusLabel(status) : null;
   return (
     <StatusPill
       size={size}
-      tone={meta.tone}
-      label={meta.label}
+      tone={refundLabel ? "waiting" : meta.tone}
+      label={refundLabel ?? meta.label}
       struck={meta.struck}
       className={className}
     />

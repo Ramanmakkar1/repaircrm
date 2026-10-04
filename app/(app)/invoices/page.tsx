@@ -34,6 +34,10 @@ import { formatDate, isOverdue } from "@/components/billing/format";
 import { PAGE_SIZE, Pagination } from "@/components/billing/pagination";
 import { invoiceTabCounts } from "@/components/billing/record-format";
 import { refundAwareTotals } from "@/components/billing/refund-math";
+import { loadShopZone } from "@/components/billing/print-queries";
+import { shopNow, shopWall } from "@/components/billing/shop-clock";
+import { summariseOwed } from "@/lib/dashboard/logic";
+import { loadOwedInvoices } from "@/lib/dashboard/money";
 import {
   INVOICE_STATUS_OPTIONS,
   INVOICE_STATUSES,
@@ -56,7 +60,7 @@ export default async function InvoicesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shopId } = await requireUser();
-  const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
+  const [params, prefs, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   // Easy mode (the default) shows cards and big buttons. Full mode keeps the
   // dense table, the bulk actions and the saved views exactly as they were.
   const easy = prefs.simple;
@@ -77,6 +81,9 @@ export default async function InvoicesPage({
 
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const statusParam = typeof params.status === "string" ? params.status : "";
+  // "Find a receipt": sales and payments, newest first, each with its slip to
+  // reprint. A view of this list (?view=receipts), not a stored status.
+  const receipts = params.view === "receipts";
   // "unpaid" is a view, not a stored status: sent and part-paid invoices, i.e.
   // everything the shop is still owed (what Home and the dashboard count).
   const status = statusParam === UNPAID_VIEW || STATUS_SET.has(statusParam) ? statusParam : "";
@@ -86,7 +93,8 @@ export default async function InvoicesPage({
   // Tenant boundary first, then the branch on screen, then the user's filters.
   const branch = await locationWhere();
   const where: Prisma.InvoiceWhereInput = { shopId, ...branch };
-  if (status === UNPAID_VIEW) where.status = { in: ["SENT", "PARTIAL"] };
+  if (receipts) where.payments = { some: {} };
+  else if (status === UNPAID_VIEW) where.status = { in: ["SENT", "PARTIAL"] };
   else if (status) where.status = status as Prisma.InvoiceWhereInput["status"];
   if (customerId) where.customerId = customerId;
 
@@ -138,9 +146,16 @@ export default async function InvoicesPage({
       : Promise.resolve([]),
   ]);
 
-  const filtered = Boolean(q || status || customerId);
-  const now = requestNow();
+  const filtered = Boolean(q || status || customerId || receipts);
+  // Calendar rules (late, "Raised Sep 18") read the shop's own wall clock.
+  const now = shopNow(requestNow(), zone);
   const tabCounts = easy ? invoiceTabCounts(statusCounts) : null;
+  // The Unpaid view says what is owed in money too: the same "Owed to you" as
+  // Reports and the Shop overview (one definition, lib/dashboard).
+  const owed =
+    status === UNPAID_VIEW && !receipts
+      ? summariseOwed((await loadOwedInvoices(shopId, branch.locationId)).invoices, now)
+      : null;
 
   const emptyState = (
     <EmptyState
@@ -170,17 +185,19 @@ export default async function InvoicesPage({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Invoices"
+        title={receipts ? "Find a receipt" : "Invoices"}
         description={
-          easy
-            ? "Bill customers and see who still owes you."
-            : "Bill customers and track payment status."
+          receipts
+            ? "Every sale and payment, newest first. Tap Print receipt to print the slip again."
+            : easy
+              ? "Bill customers and see who still owes you."
+              : "Bill customers and track payment status."
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" className={cn(easy && "px-5 text-base")}>
               <Link href="/invoices/recurring">
-                <ICONS.recurring /> Recurring
+                <ICONS.recurring /> Repeat bills
               </Link>
             </Button>
             <Button asChild className={cn(easy && "px-5 text-base")}>
@@ -200,7 +217,7 @@ export default async function InvoicesPage({
               (view) => ({
                 label: view.label,
                 href: hrefFor(view.value, q, customerId),
-                active: status === view.value,
+                active: !receipts && status === view.value,
                 ...(tabCounts ? { count: tabCounts[view.value] ?? 0 } : {}),
               }),
             ),
@@ -209,6 +226,8 @@ export default async function InvoicesPage({
               href: savedViewHref("/invoices", view.query),
               active: view.query === currentQuery,
             })),
+            // Paid sales with their counter slip to reprint.
+            { label: "Receipts", href: receiptsHref(q), active: receipts },
           ]}
           trailing={
             <SavedViewsControl
@@ -229,7 +248,9 @@ export default async function InvoicesPage({
         <BillingFilterBar
           basePath="/invoices"
           q={q}
-          status={status}
+          // Searching inside "Find a receipt" stays inside it.
+          status={receipts ? "receipts" : status}
+          statusParam={receipts ? "view" : "status"}
           customerId={customerId}
           placeholder={
             easy
@@ -254,7 +275,15 @@ export default async function InvoicesPage({
         ) : null}
       </div>
 
-      {easy ? (
+      {owed && owed.count > 0 ? (
+        <p role="status" className="rounded-2xl border border-border bg-surface px-4 py-3 text-base text-foreground">
+          <span className="rf-num text-xl font-semibold">{formatCents(owed.totalCents)}</span>{" "}
+          owed to you on {owed.count} invoice{owed.count === 1 ? "" : "s"}
+          {owed.overdueCount > 0 ? `, ${owed.overdueCount} late` : ""}.
+        </p>
+      ) : null}
+
+      {easy || receipts ? (
         invoices.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface">{emptyState}</div>
         ) : (
@@ -268,7 +297,7 @@ export default async function InvoicesPage({
                   invoice.refunds,
                 );
                 return (
-                  <li key={invoice.id}>
+                  <li key={invoice.id} className={receipts ? "flex flex-col gap-2" : undefined}>
                     <InvoiceCard
                       now={now}
                       invoice={{
@@ -276,13 +305,22 @@ export default async function InvoicesPage({
                         number: invoice.number,
                         customerName: customerLabel(invoice.customer),
                         status: invoice.status,
-                        createdAt: invoice.createdAt,
+                        // Instants on the shop's wall clock, for the card's words.
+                        createdAt: shopWall(invoice.createdAt, zone) ?? invoice.createdAt,
                         dueDate: invoice.dueDate,
-                        paidAt: invoice.paidAt,
+                        paidAt: shopWall(invoice.paidAt, zone),
                         totalCents: totals.totalCents,
                         balanceCents: totals.balanceCents,
+                        refunded: totals.refundedCents > 0,
                       }}
                     />
+                    {receipts ? (
+                      <Button asChild variant="outline" className="h-12 w-full px-5 text-base">
+                        <Link href={`/print/receipts/${invoice.id}`} target="_blank">
+                          <ACTIONS.print /> Print receipt #{invoice.number}
+                        </Link>
+                      </Button>
+                    ) : null}
                   </li>
                 );
               })}
@@ -296,6 +334,7 @@ export default async function InvoicesPage({
                 q: q || undefined,
                 status: status || undefined,
                 customerId: customerId || undefined,
+                view: receipts ? "receipts" : undefined,
               }}
             />
           </>
@@ -303,7 +342,7 @@ export default async function InvoicesPage({
       ) : null}
 
       {/* Full mode: the dense table. Table and action bar share one selection; the provider adds no DOM. */}
-      {!easy ? (
+      {!easy && !receipts ? (
         <SelectionScope ids={invoices.map((invoice) => invoice.id)}>
           <Card>
             <CardContent className="px-0 py-0">
@@ -333,7 +372,7 @@ export default async function InvoicesPage({
                           invoice.refunds,
                         );
                         const voided = invoice.status === "VOID";
-                        const overdue = isOverdue(invoice.dueDate, totals.balanceCents);
+                        const overdue = isOverdue(invoice.dueDate, totals.balanceCents, now);
                         const settled = !voided && totals.balanceCents <= 0;
 
                         return (
@@ -370,7 +409,7 @@ export default async function InvoicesPage({
                               <InvoiceStatusBadge status={invoice.status} size="md" />
                             </Td>
                             <Td className="text-muted-foreground">
-                              {formatDate(invoice.createdAt)}
+                              {formatDate(invoice.createdAt, zone)}
                             </Td>
                             {/* Red on the date is what the card's left stripe used to
                                 say, spent on the cell that actually explains it. */}
@@ -436,6 +475,13 @@ export default async function InvoicesPage({
 }
 
 // ---------------------------------------------------------------------------
+
+/** "Find a receipt": the list's receipts view, keeping the search. */
+function receiptsHref(q: string): string {
+  const search = new URLSearchParams({ view: "receipts" });
+  if (q) search.set("q", q);
+  return `/invoices?${search.toString()}`;
+}
 
 /** A view is a URL: shareable, bookmarkable, and back-button correct. */
 function hrefFor(status: string, q: string, customerId: string): string {

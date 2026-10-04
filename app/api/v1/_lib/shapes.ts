@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
 import { invoiceTotals } from "@/lib/money";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 
 /**
  * The v1 payload shapes, in one file.
@@ -256,6 +257,7 @@ export const invoiceSelect = {
       sortOrder: true,
     },
   },
+  refunds: { select: { amountCents: true, status: true } },
   payments: {
     orderBy: { createdAt: "asc" },
     select: {
@@ -271,7 +273,7 @@ export const invoiceSelect = {
 type InvoiceRow = Prisma.InvoiceGetPayload<{ select: typeof invoiceSelect }>;
 
 function invoiceBase(invoice: InvoiceRow) {
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+  const totals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
   return {
     id: invoice.id,
     number: invoice.number,
@@ -290,6 +292,8 @@ function invoiceBase(invoice: InvoiceRow) {
       taxCents: totals.taxCents,
       totalCents: totals.totalCents,
       paidCents: totals.paidCents,
+      refundedCents: totals.refundedCents,
+      netPaidCents: totals.netPaidCents,
       balanceCents: totals.balanceCents,
     },
   };

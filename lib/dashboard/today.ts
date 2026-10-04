@@ -34,7 +34,8 @@ export async function loadTodayStrip(
   const { shopId } = user;
   // The day is cut in the shop's own zone, so the zone comes first (one row by primary key).
   const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
-  const today = todayWindow(nowMs, safeTimeZone(shop?.timezone));
+  const zone = safeTimeZone(shop?.timezone);
+  const today = todayWindow(nowMs, zone);
 
   const [takings, owed, readyCount] = await Promise.all([
     loadTakingsRows(shopId, branch.locationId, today.from, today.toExclusive),
@@ -46,7 +47,7 @@ export async function loadTodayStrip(
   return {
     todayKey: today.key,
     takingsCents: day.netCents,
-    owedCents: summariseOwed(owed.invoices, nowMs).totalCents,
+    owedCents: summariseOwed(owed.invoices, nowMs, { zone }).totalCents,
     owedTruncated: owed.truncated,
     readyCount,
   };

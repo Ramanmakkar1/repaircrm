@@ -54,7 +54,7 @@ export function TicketLocation({
       toast.error(result.error);
       return;
     }
-    toast.success("Ticket moved.");
+    toast.success("Repair moved.");
     router.refresh();
   }
 

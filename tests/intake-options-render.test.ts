@@ -57,14 +57,14 @@ const kindTiles = (html: string) => {
 };
 
 describe("the device step with the shop's own boxes", () => {
-  it("shows at most eight boxes on the first screen: seven kinds and a More devices box when there are more than eight", () => {
+  it("shows at most eight boxes on the first screen: six kinds, Other and a More devices box when there are more than eight", () => {
     const html = device(ctxWith({ deviceKinds: standard }));
     const tiles = kindTiles(html);
     expect(tiles).toHaveLength(8);
-    expect(tiles.slice(0, 7)).toEqual(["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Watch"]);
+    expect(tiles.slice(0, 7)).toEqual(["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Other"]);
     expect(tiles[7]).toMatch(/^More devices\s+6 more$/);
-    // the rest are not on the first screen
-    for (const hidden of ["Handheld console", "Headphones", "Camera", "Drone", "Printer", "Other"]) expect(text(html)).not.toContain(hidden);
+    // the rest are not on the first screen; Other always is
+    for (const hidden of ["Watch", "Handheld console", "Headphones", "Camera", "Drone", "Printer"]) expect(text(html)).not.toContain(hidden);
     // the More box is a disclosure, not a choice
     expect(html).toMatch(/aria-expanded="false"[^>]*data-more-devices/);
     expect(text(html)).toContain("No device");
@@ -88,7 +88,7 @@ describe("the device step with the shop's own boxes", () => {
     const html = device(ctxWith({ deviceKinds: hidden }));
     // 13 - 4 hidden = 9 visible: still more than eight
     const tiles = kindTiles(html);
-    expect(tiles.slice(0, 7)).toEqual(["Phone", "Laptop", "Computer", "Game console", "TV", "Watch", "Handheld console"]);
+    expect(tiles.slice(0, 7)).toEqual(["Phone", "Laptop", "Computer", "Game console", "TV", "Watch", "Other"]);
     expect(tiles[7]).toMatch(/^More devices\s+2 more$/);
 
     const fewer = standard.filter((kind) => kind.id !== "tablet" && kind.id !== "other").map((kind) => (kind.id === "drone" ? { ...kind, hidden: true } : kind));

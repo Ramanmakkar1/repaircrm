@@ -78,6 +78,9 @@ export default async function NewInvoicePage({
           ticketId: prefillTicket?.id ?? null,
         }}
         repairs={repairs}
+        // Opened from a repair: its unbilled charges go straight on the bill,
+        // and saving marks them billed (exactly as "From repair" does).
+        withRepairCharges={Boolean(prefillTicket)}
         recentCustomerIds={recentCustomerIds}
         submitLabel="Create invoice"
         cancelHref="/invoices"

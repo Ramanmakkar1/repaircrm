@@ -10,9 +10,25 @@ export interface Crumb {
 }
 
 /**
+ * THE PAGE HEADER RULE (docs/touch-style-guide.md, "Page headers"):
+ *
+ *   - One title size: 22px on a phone, 24px from `sm`. Use `PageHeader`, or
+ *     `PAGE_TITLE_CLASS` on a detail page's own h1.
+ *   - One way back: the shell's Back button (it returns to where the person
+ *     came from, filters and all). Do not add text back links or back chips.
+ *   - In Easy mode the breadcrumb trail is hidden (globals.css,
+ *     `[data-breadcrumbs]`): it repeated Back and the title in 13px links.
+ *     Full mode keeps it for the back office.
+ *   - The title sits at the top of the page content, nothing above it, so it
+ *     never jumps between screens.
+ */
+export const PAGE_TITLE_CLASS =
+  "text-balance text-[22px] font-semibold leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[24px]";
+
+/**
  * The trail above a page title: where this record sits, and one click back to
  * every level of it. Small and muted on purpose — it orients, it doesn't
- * compete with the title.
+ * compete with the title. Full mode only by default (see the rule above).
  *
  * Exported on its own as well as through `PageHeader`, because several detail
  * pages build their own hero block and only need the trail.
@@ -20,14 +36,17 @@ export interface Crumb {
 export function Breadcrumbs({
   items,
   className,
+  keepInEasyMode = false,
 }: {
   items: Crumb[];
   className?: string;
+  /** Show the trail in Easy mode too. Almost never right: the shell's Back already goes there. */
+  keepInEasyMode?: boolean;
 }) {
   if (items.length === 0) return null;
 
   return (
-    <nav aria-label="Breadcrumb" className={cn("min-w-0", className)}>
+    <nav aria-label="Breadcrumb" data-breadcrumbs={keepInEasyMode ? "keep" : "full-only"} className={cn("min-w-0", className)}>
       <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-none">
         {items.map((crumb, index) => {
           const isLast = index === items.length - 1;
@@ -36,7 +55,7 @@ export function Breadcrumbs({
               {crumb.href && !isLast ? (
                 <Link
                   href={crumb.href}
-                  className="truncate font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                  className="-my-2 truncate py-2 font-semibold text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {crumb.label}
                 </Link>
@@ -91,9 +110,7 @@ export function PageHeader({
           {breadcrumbs && breadcrumbs.length > 0 ? (
             <Breadcrumbs items={breadcrumbs} className="mb-0.5" />
           ) : null}
-          <h1 className="text-balance text-[22px] font-semibold leading-[1.12] tracking-[-0.03em] text-foreground sm:text-[24px]">
-            {title}
-          </h1>
+          <h1 className={PAGE_TITLE_CLASS}>{title}</h1>
           {description ? (
             <p className="max-w-[65ch] text-[14px] leading-relaxed text-muted-foreground">
               {description}

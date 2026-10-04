@@ -69,7 +69,8 @@ function DeviceTile({ asset, onOpen }: { asset: AssetRow; onOpen: () => void }) 
       onClick={onOpen}
       aria-label={`Edit ${label}`}
       className={cn(
-        "group relative flex h-full min-h-44 w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface text-left",
+        // No min height: the 4:3 picture and the name already make every tile taller than any floor would.
+        "group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface text-left",
         "transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.98]",
         "motion-reduce:transition-none motion-reduce:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -144,7 +145,7 @@ export function AssetsCard({
    *
    * A device IS referenced by id: `Ticket.assetId` points at it. What makes
    * the undo honest anyway is that `deleteAssetAction` refuses outright when
-   * any ticket is attached ("This device is attached to 2 tickets and can't be
+   * any repair is attached ("This device is attached to 2 repairs and can't be
    * deleted") — so the only rows that ever reach this path are ones nothing
    * points at, and re-creating through `createAssetAction` restores everything
    * that was on screen. The passcode rides along: it is on the row this card
@@ -157,7 +158,7 @@ export function AssetsCard({
     setBusy(false);
 
     if (!result.ok) {
-      // The "attached to N tickets" refusal lands here — a message, not a
+      // The "attached to N repairs" refusal lands here — a message, not a
       // dialog, because the operator has done nothing wrong yet.
       toast.error(result.error);
       return;
@@ -200,7 +201,7 @@ export function AssetsCard({
           <DialogDescription>
             {easy
               ? "Saved here, the device is one tap away when you start the next repair."
-              : "Captured at intake so the next ticket starts with the device already on file."}
+              : "Captured at intake so the next repair starts with the device already on file."}
           </DialogDescription>
         </DialogHeader>
 
@@ -355,8 +356,9 @@ export function AssetsCard({
               <button
                 type="button"
                 onClick={() => setAdding(true)}
+                // Beside device tiles it stretches to their height (h-full); alone on a row it keeps the photo's 4:3 shape.
                 className={cn(
-                  "flex h-full min-h-44 w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface px-3 text-center",
+                  "flex aspect-[4/3] h-full w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border-strong bg-surface px-3 text-center",
                   "transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.98]",
                   "motion-reduce:transition-none motion-reduce:active:scale-100",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -397,7 +399,7 @@ export function AssetsCard({
             className="px-5 py-10"
             icon={ICONS.device}
             title="No devices on file"
-            hint="Devices saved here become one-tap choices when you write the next ticket."
+            hint="Devices saved here become one-tap choices when you book in the next repair."
             action={
               <Button size="sm" variant="soft" onClick={() => setAdding(true)}>
                 <ACTIONS.add />

@@ -16,11 +16,14 @@ export function BillStepper({
   statuses,
   onStep,
   label,
+  labels,
 }: {
   step: number;
   statuses: StepStatus[];
   onStep: (next: number) => void;
   label: string;
+  /** Other names for the steps (a repeat bill's last step is "How often"). */
+  labels?: string[];
 }) {
   return (
     <nav aria-label={label}>
@@ -57,7 +60,7 @@ export function BillStepper({
                 </span>
                 <span className="flex min-w-0 max-w-full flex-col">
                   <span className="truncate text-[13px] font-semibold leading-tight sm:text-[15px]">
-                    {item.label}
+                    {labels?.[index] ?? item.label}
                     {status.done && !current ? <span className="sr-only"> (done)</span> : null}
                   </span>
                   {status.text ? (

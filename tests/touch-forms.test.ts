@@ -65,11 +65,12 @@ describe("Full mode forms are plain browser forms", () => {
 
   it("only offers quick entry / step-by-step in Easy mode", () => {
     expect(documentForm(false)).not.toContain("Use step-by-step");
-    // A new document in Easy mode is the bill builder, which has its own three steps (tests/bill-builder-render.test.ts);
-    // the toggle stays on a saved document opened in Easy mode.
+    // Creating and editing in Easy mode share the bill builder's three steps.
     expect(documentForm(true)).toContain("Invoice steps");
     expect(documentForm(true)).not.toContain("Use step-by-step");
-    expect(savedDocumentForm()).toContain("Use step-by-step");
+    expect(savedDocumentForm()).toContain("Invoice steps");
+    expect(savedDocumentForm()).toContain("Save changes");
+    expect(savedDocumentForm()).not.toContain("Use step-by-step");
   });
 
   it("replaces the repair form's one-screen toggle with the check-in steps in Easy mode", () => {
@@ -86,8 +87,8 @@ describe("Full mode forms are plain browser forms", () => {
       expect(hook.calls.at(-1)).toEqual({ enabled: false, staged: false });
     }
     hook.calls.length = 0;
-    savedDocumentForm(); // a saved document opened in Easy mode opens on one-screen quick entry
-    expect(hook.calls.at(-1)).toEqual({ enabled: true, staged: false });
+    savedDocumentForm(); // Editing uses the builder's own steps and Enter handling.
+    expect(hook.calls).toEqual([]);
     // A new one is the bill builder, which has its own steps and its own Enter handling (tests/bill-builder-render.test.ts).
     hook.calls.length = 0;
     documentForm(true);

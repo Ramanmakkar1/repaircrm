@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
 
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
+
 import { WILDCARD_EVENT, type WebhookEvent } from "@/components/settings/webhook-meta";
 
 /**
@@ -248,13 +249,14 @@ export async function emitInvoiceEvent(
         createdAt: true,
         lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         payments: { select: { amountCents: true } },
+        refunds: { select: { amountCents: true, status: true } },
       },
     });
     if (!invoice) return;
 
     // Totals are never stored (see the schema note on Invoice), so they are
     // computed here with the same function the screens and the API use.
-    const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+    const totals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
 
     await emitEvent(shopId, event, {
       id: invoice.id,
@@ -272,6 +274,8 @@ export async function emitInvoiceEvent(
         taxCents: totals.taxCents,
         totalCents: totals.totalCents,
         paidCents: totals.paidCents,
+        refundedCents: totals.refundedCents,
+        netPaidCents: totals.netPaidCents,
         balanceCents: totals.balanceCents,
       },
     });

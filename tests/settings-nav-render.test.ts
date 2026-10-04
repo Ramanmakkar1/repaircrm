@@ -9,70 +9,55 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-const { Tabs } = await import("@/components/ui/tabs");
-const { SettingsPillNav } = await import("@/components/settings/settings-nav");
+const { SettingsHub } = await import("@/components/settings/settings-hub");
 const { Switch } = await import("@/components/settings/settings-switch");
 const { groupPanels, OWNER_PANELS, STAFF_PANELS } = await import(
   "@/components/settings/settings-panels"
 );
 
-const nav = (panels: typeof OWNER_PANELS, value: string) =>
+/**
+ * Settings navigation in Easy mode is the hub (components/settings/settings-hub.tsx):
+ * every area at once, as picture tiles under five headings. (It replaced the
+ * two rows of pills, whose second row only appeared after a first choice.)
+ */
+const hub = (panels: typeof OWNER_PANELS) =>
   renderToStaticMarkup(
-    React.createElement(
-      Tabs,
-      { value },
-      React.createElement(SettingsPillNav, {
-        groups: groupPanels(panels),
-        value,
-        onSelect: () => {},
-      }),
-    ),
+    React.createElement(SettingsHub, { groups: groupPanels(panels), lines: {}, me: "Dana Ortiz" }),
   );
 
-describe("SettingsPillNav (Easy mode)", () => {
-  it("shows the five areas, with the current one marked and filled", () => {
-    const html = nav(OWNER_PANELS, "messaging");
+describe("Settings hub (Easy mode navigation)", () => {
+  it("shows the five areas as headings, all at once", () => {
+    const html = hub(OWNER_PANELS);
     expect(html).toContain('aria-label="Settings areas"');
     for (const area of ["Shop", "People", "Money", "Connections", "System"]) {
-      expect(html).toContain(`>${area}</button>`);
+      expect(html).toMatch(new RegExp(`<h2[^>]*>${area}</h2>`));
     }
-    // Exactly one area is current, and it is Connections (where Messaging lives).
-    expect(html.match(/aria-current="true"/g)).toHaveLength(1);
-    expect(html).toMatch(/aria-current="true"[^>]*>Connections</);
   });
 
-  it("offers only the screens of the current area", () => {
-    const html = nav(OWNER_PANELS, "messaging");
-    for (const screen of ["Connect", "Messaging", "Check-in &amp; reviews", "Integrations", "API &amp; webhooks"]) {
-      expect(html).toContain(`>${screen}</button>`);
-    }
-    expect(html).not.toContain(">Workflow</button>");
-    expect(html).not.toContain(">Audit log</button>");
-    expect(html).toMatch(/aria-selected="true"[^>]*>Messaging</);
+  it("has one tile per screen, each a ?tab= link, so every old link still lands", () => {
+    const html = hub(OWNER_PANELS);
+    expect(html.match(/data-hub-tile="/g)).toHaveLength(OWNER_PANELS.length);
+    for (const panel of OWNER_PANELS) expect(html).toContain(`href="/settings?tab=${panel.value}"`);
   });
 
-  it("keeps a one-screen area (Money) reachable and named", () => {
-    const html = nav(OWNER_PANELS, "payments");
-    expect(html).toMatch(/aria-current="true"[^>]*>Money</);
-    expect(html).toMatch(/aria-selected="true"[^>]*>Payments</);
+  it("gives every tile a picture (initials for My profile) and a 96px-tall target", () => {
+    const html = hub(OWNER_PANELS);
+    expect(html).toContain("min-h-24");
+    expect(html.match(/<img/g)?.length).toBe(OWNER_PANELS.length - 1);
+    expect(html).toContain(">DO<");
   });
 
-  it("uses the big pill look: 44px+ targets, rounded, tokens only", () => {
-    const html = nav(OWNER_PANELS, "shop");
-    expect(html).toContain("min-h-11");
-    expect(html).toContain("rounded-xl");
-    expect(html).toContain("border-accent bg-accent text-accent-foreground");
+  it("shows staff their three screens with no headings", () => {
+    const html = hub(STAFF_PANELS);
+    expect(html).not.toContain("<h2");
+    expect(html.match(/data-hub-tile="/g)).toHaveLength(3);
+    for (const screen of ["My profile", "Saved replies", "Emails &amp; texts"]) expect(html).toContain(screen);
+  });
+
+  it("uses tokens only: white only behind the photos, no side stripes, no hex", () => {
+    const html = hub(OWNER_PANELS);
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
-    expect(html).not.toContain("bg-white");
     expect(html).not.toMatch(/border-[lr]-/);
-  });
-
-  it("shows staff one row of three screens and no area row", () => {
-    const html = nav(STAFF_PANELS, "profile");
-    expect(html).not.toContain('aria-label="Settings areas"');
-    for (const screen of ["My profile", "Canned responses", "Messaging"]) {
-      expect(html).toContain(`>${screen}</button>`);
-    }
   });
 });
 

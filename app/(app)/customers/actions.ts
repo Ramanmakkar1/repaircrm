@@ -8,6 +8,7 @@ import { deleteBlockedReason } from "@/components/customers/format";
 import { audit } from "@/lib/audit";
 import { requireRole, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { duplicateCheck, findDuplicateCustomers, type DuplicateCustomer } from "@/lib/customers/duplicates";
 import { emitCustomerEvent } from "@/lib/events";
 
 /**
@@ -31,6 +32,8 @@ export type CustomerFormState =
   | {
       error?: string;
       fieldErrors?: Record<string, string>;
+      duplicates?: DuplicateCustomer[];
+      duplicateCheck?: string;
     }
   | undefined;
 
@@ -208,6 +211,12 @@ export async function createCustomerAction(
       error: "Please fix the highlighted fields.",
       fieldErrors: fieldErrorsOf(parsed.error),
     };
+  }
+
+  const check = duplicateCheck(parsed.data.phone, parsed.data.mobile);
+  if (check && formData.get("confirmDuplicate") !== check) {
+    const duplicates = await findDuplicateCustomers(shopId, check);
+    if (duplicates.length) return { error: "This phone number already belongs to a customer.", duplicates, duplicateCheck: check };
   }
 
   const customer = await db.customer.create({
@@ -491,7 +500,7 @@ export async function deleteAssetAction(assetId: string): Promise<ActionResult> 
   if (asset._count.tickets > 0) {
     return {
       ok: false,
-      error: `This device is attached to ${asset._count.tickets} ticket${
+      error: `This device is attached to ${asset._count.tickets} repair${
         asset._count.tickets === 1 ? "" : "s"
       } and can't be deleted.`,
     };

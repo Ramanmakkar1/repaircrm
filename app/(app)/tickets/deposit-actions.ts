@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/comms";
 import { db } from "@/lib/db";
 import { formatCents, parseCents } from "@/lib/money";
+import { formatInZone } from "@/lib/shop-time";
 
 /**
  * Deposits taken at intake.
@@ -77,7 +78,7 @@ export async function takeDepositAction(input: {
     where: { id: input.ticketId, shopId: session.shopId },
     select: { id: true, number: true, customerId: true },
   });
-  if (!ticket) return { ok: false, error: "That ticket no longer exists." };
+  if (!ticket) return { ok: false, error: "That repair no longer exists." };
 
   const reference = input.reference.trim().slice(0, 200) || null;
 
@@ -106,7 +107,7 @@ export async function takeDepositAction(input: {
         shopId: session.shopId,
         customerId: ticket.customerId,
         deltaCents: amountCents,
-        reason: `Deposit on ticket #${ticket.number}`,
+        reason: `Deposit on repair #${ticket.number}`,
         userId: session.userId,
       },
     });
@@ -120,7 +121,7 @@ export async function takeDepositAction(input: {
   revalidateDeposit(ticket.id, ticket.customerId);
   return {
     ok: true,
-    message: `${formatCents(amountCents)} deposit recorded on ticket #${ticket.number}.`,
+    message: `${formatCents(amountCents)} deposit recorded on repair #${ticket.number}.`,
   };
 }
 
@@ -200,7 +201,7 @@ export async function refundDepositAction(
           shopId,
           customerId: customer.id,
           deltaCents: -deposit.amountCents,
-          reason: `Deposit refunded on ticket #${deposit.ticket.number}`,
+          reason: `Deposit refunded on repair #${deposit.ticket.number}`,
           userId,
         },
       });
@@ -256,25 +257,29 @@ export async function emailDepositReceiptAction(
     return { ok: false, error: "This customer has no email address on file." };
   }
 
+  // The day it was taken, on the shop's calendar: a deposit at 7pm in Edmonton
+  // is that day's, not tomorrow's (which is what the server's UTC date said).
+  const shop = await db.shop.findUnique({ where: { id: session.shopId }, select: { timezone: true } });
+
   const result = await sendEmail({
     shopId: session.shopId,
     customerId: deposit.customerId,
     ticketId: deposit.ticketId,
-    subject: `Deposit received — ticket #${deposit.ticket.number}`,
+    subject: `Deposit received — repair #${deposit.ticket.number}`,
     body:
       `Hi ${deposit.customer.firstName},\n\n` +
       `Thanks — we've received your ${formatCents(deposit.amountCents)} deposit for ` +
-      `ticket #${deposit.ticket.number} (${deposit.ticket.subject}).\n\n` +
+      `repair #${deposit.ticket.number} (${deposit.ticket.subject}).\n\n` +
       `It is held on your account and comes off the final bill.`,
     summary: [
-      { label: "Ticket", value: `#${deposit.ticket.number}` },
+      { label: "Repair", value: `#${deposit.ticket.number}` },
       { label: "Deposit", value: formatCents(deposit.amountCents) },
       {
         label: "Received",
-        value: deposit.createdAt.toISOString().slice(0, 10),
+        value: formatInZone(deposit.createdAt, "MMM d, yyyy", shop?.timezone),
       },
     ],
-    context: `Ticket #${deposit.ticket.number}`,
+    context: `Repair #${deposit.ticket.number}`,
     portalPath: "/portal/home",
   });
 

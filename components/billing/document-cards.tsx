@@ -146,6 +146,8 @@ export interface InvoiceCardData {
   totalCents: number;
   /** Refund-aware, from `refundAwareTotals`. */
   balanceCents: number;
+  /** Money has been handed back on it: the badge says "Refunded", not "Sent". */
+  refunded?: boolean;
 }
 
 export function InvoiceCard({ invoice, now }: { invoice: InvoiceCardData; now: number }) {
@@ -169,7 +171,7 @@ export function InvoiceCard({ invoice, now }: { invoice: InvoiceCardData; now: n
       subtitle={<Line line={line} />}
       meta={
         <>
-          <InvoiceStatusBadge status={invoice.status} size="md" />
+          <InvoiceStatusBadge status={invoice.status} size="md" refunded={invoice.refunded} />
           {overdue ? (
             <MetaChip tone="alert" icon={AlertCircle}>
               {late}

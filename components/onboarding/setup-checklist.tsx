@@ -65,18 +65,18 @@ export async function SetupChecklist() {
       hint: "So invoices total correctly from the first one.",
       done: shop.taxRateBps > 0,
       href: "/settings?tab=shop",
-      cta: "Shop settings",
+      cta: "Shop details",
     },
     {
       label: "Add a product or service",
-      hint: "Your common jobs become one-tap lines on tickets and invoices.",
+      hint: "Your common jobs become one-tap lines on repairs and invoices.",
       done: productCount > 0,
       href: "/inventory/new",
       cta: "Add an item",
     },
     {
       label: "Add your first customer",
-      hint: "Or let one arrive with a ticket — either way works.",
+      hint: "Or let one arrive with a repair — either way works.",
       done: customerCount > 0,
       href: "/customers/new",
       cta: "Add a customer",
@@ -86,23 +86,23 @@ export async function SetupChecklist() {
       hint: "Technicians get their own queue; front desk gets intake and billing.",
       done: teamCount > 1,
       href: "/settings?tab=team",
-      cta: "Team settings",
+      cta: "Team",
     },
     {
-      label: "Turn on online payments",
+      label: "Turn on card payments",
       hint: "Emailed invoices get a Pay button and mark themselves paid.",
       // Either half is enough to call this done: the shop's own connected
       // Stripe account, or a server-wide key on a single-tenant install.
       done: Boolean(shop.stripeAccountId) || Boolean(stripeSecretKey()),
       href: "/settings?tab=payments",
-      cta: "Payment settings",
+      cta: "Getting paid",
     },
     {
       label: "Set up email sending",
-      hint: "Until then, messages are printed to the server log instead of sent.",
+      hint: "Until then, emails to customers are kept in the outbox and not sent.",
       done: emailDriverName() !== "log",
       href: "/settings?tab=messaging",
-      cta: "Messaging settings",
+      cta: "Emails & texts",
     },
   ];
 
@@ -121,13 +121,13 @@ export async function SetupChecklist() {
               Set up your shop
             </h3>
             <p className="text-[13.5px] text-muted-foreground">
-              {done} of {rows.length} done — {outstanding.length} left, none of
+              {done} of {rows.length} done. {outstanding.length} left, none of
               them long.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" className="h-12 px-4" asChild>
             <Link href="/setup">
               Open the guide <ACTIONS.next />
             </Link>
@@ -138,7 +138,7 @@ export async function SetupChecklist() {
 
       <CardContent className="px-0 py-0">
         <details>
-        <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Show setup checklist</summary>
+        <summary className="flex min-h-12 cursor-pointer items-center px-5 text-[15px] font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Show what&rsquo;s left</summary>
         <ul className="divide-y divide-border">
           {rows.map((row) => (
             <li
@@ -159,13 +159,14 @@ export async function SetupChecklist() {
                 <div className="flex min-w-0 flex-col">
                   <span
                     className={cn(
-                      "text-[14.5px] font-semibold",
+                      "text-[15px] font-semibold",
                       row.done
                         ? "text-muted-foreground line-through"
                         : "text-foreground",
                     )}
                   >
                     {row.label}
+                    {row.done ? <span className="sr-only"> (done)</span> : null}
                   </span>
                   {!row.done ? (
                     <span className="text-[13px] text-muted-foreground">
@@ -175,7 +176,7 @@ export async function SetupChecklist() {
                 </div>
               </div>
               {!row.done ? (
-                <Button variant="ghost" size="sm" asChild>
+                <Button variant="outline" className="h-12 px-4" asChild>
                   <Link href={row.href}>
                     {row.cta} <ACTIONS.next />
                   </Link>

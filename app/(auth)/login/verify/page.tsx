@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { getSession } from "@/lib/auth";
 import { readPending2fa } from "@/lib/pending-2fa";
 
+import { AUTH_LINK } from "../../auth-link";
 import { VerifyForm } from "./verify-form";
 
 export const metadata: Metadata = {
@@ -42,12 +43,9 @@ export default async function VerifyPage({
 
       <VerifyForm next={target} />
 
-      <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
+      <p className="mt-4 text-center text-[15px] text-muted-foreground">
         Lost your phone? Type one of your recovery codes instead, or{" "}
-        <Link
-          href="/login"
-          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
-        >
+        <Link href="/login" className={AUTH_LINK}>
           start over
         </Link>
         .

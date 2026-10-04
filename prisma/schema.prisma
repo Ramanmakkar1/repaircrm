@@ -122,6 +122,11 @@ model Shop {
   phone                  String?
   email                  String?
   logoUrl                String?
+  logoPath               String?
+  logoStorage            String?
+  pushPublicKey          String?
+  pushPrivateKey         String?
+  pushSubscriptions      PushSubscription[]
   timezone               String                  @default("America/Edmonton")
   /// Default sales tax in basis points (825 = 8.25%)
   taxRateBps             Int                     @default(0)
@@ -193,6 +198,9 @@ model User {
   totpEnabledAt      DateTime?
   /// sha256 of each unused one-time recovery code; a code is removed once spent.
   totpRecoveryCodes  String[]             @default([])
+  pinHash            String?
+  pinVersion         String?
+  pushSubscriptions  PushSubscription[]
   lastLoginAt        DateTime?
   /// Sessions issued before this instant are refused by the (app) layout.
   passwordChangedAt  DateTime?
@@ -1608,4 +1616,19 @@ model PlatformAdmin {
   lastLoginAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+model PushSubscription {
+  id String @id @default(cuid())
+  shopId String
+  userId String
+  endpoint String @unique
+  p256dh String
+  auth String
+  lastCounts Json?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([shopId, userId])
 }

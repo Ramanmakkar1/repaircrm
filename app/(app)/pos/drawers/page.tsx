@@ -1,18 +1,28 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { Banknote } from "lucide-react";
+
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { safeTimeZone } from "@/lib/dashboard/logic";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterTabs } from "@/components/ui/filter-tabs";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
+import { IconVisual, MetaChip } from "@/components/ui/record-card";
+import { cn } from "@/components/ui/cn";
+import { DRAWER_VERDICT_META } from "@/components/pos/drawer-types";
 import {
-  DRAWER_VERDICT_META,
-  drawerVerdict,
-} from "@/components/pos/drawer-types";
+  DRAWER_VIEWS,
+  asDrawerView,
+  drawerCardWords,
+  drawerOffSentence,
+  drawerViewCounts,
+  shopClockLabel,
+} from "@/components/pos/drawer-history";
+import { getDrawerSummaryAction } from "./actions";
 
 export const metadata = { title: "Cash drawers · Repairs helper" };
 export const dynamic = "force-dynamic";
@@ -20,17 +30,30 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 40;
 
 /**
- * Drawer history — the shop's over/short record.
+ * Cash drawers: the shop's over/short record, in the register's look.
  *
  * OWNER only, and guarded by `requireRole` rather than a hidden link: a
  * technician who types the URL gets bounced, because a pattern of short
  * drawers is a management conversation, not shop-floor reading.
  *
- * Cards rather than a table. A drawer session is four numbers and a verdict,
- * and the verdict is the thing the eye should land on.
+ * Today's drawer first (open since when, what it should hold, and the one big
+ * button to count and close it at the register), then how often the till is
+ * off, then every drawer as a card that leads with the word and the amount
+ * ("Short $1.34"), with its end-of-day report one tap away. Every time is the
+ * shop's own clock (`Shop.timezone`), never the server's.
  */
-export default async function DrawersPage() {
+export default async function DrawersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string | string[] }>;
+}) {
   const { shopId } = await requireRole("OWNER");
+  const [{ view: rawView }, shop] = await Promise.all([
+    searchParams,
+    db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } }),
+  ]);
+  const zone = safeTimeZone(shop?.timezone);
+  const view = asDrawerView(rawView);
 
   const sessions = await db.cashDrawerSession.findMany({
     where: { shopId },
@@ -49,145 +72,151 @@ export default async function DrawersPage() {
     },
   });
 
-  return (
-    <div className="flex flex-col gap-6">
-      <Link
-        href="/pos"
-        className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ACTIONS.back className="size-4" />
-        Back to the register
-      </Link>
+  // The drawer that is open right now, and what it should hold (the same sum
+  // the close dialog shows: float + cash in − cash refunds).
+  const openSession = sessions.find((session) => session.closedAt === null) ?? null;
+  const openSummary = openSession ? await getDrawerSummaryAction(openSession.id) : null;
 
+  const counts = drawerViewCounts(sessions, zone);
+  const shown = view
+    ? sessions.filter((session) => drawerCardWords(session, zone).verdict === view)
+    : sessions;
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <PageHeader
         title="Cash drawers"
-        description="Every open and close, with what the till was expected to hold and what it actually held."
+        description="Every open and close: what should have been in the till, and what was counted."
       />
 
+      {/* ------------------------------------------------- today's drawer -- */}
+      <section
+        aria-label="Today's drawer"
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:flex-row sm:items-center sm:p-5"
+      >
+        <IconVisual icon={Banknote} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <p className="text-[15px] font-semibold text-muted-foreground">Today&rsquo;s drawer</p>
+          {openSession ? (
+            <>
+              <p className="text-2xl font-semibold leading-tight tracking-tight text-foreground">
+                Open since {shopClockLabel(openSession.openedAt, zone)}
+              </p>
+              <p className="text-base text-muted-foreground">
+                {openSummary?.ok
+                  ? `${formatCents(openSummary.summary.expectedCents)} should be in it now · opened by ${openSession.openedBy.name}`
+                  : `Opened by ${openSession.openedBy.name}`}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold leading-tight tracking-tight text-foreground">Not open</p>
+              <p className="text-base text-muted-foreground">Open it at the register with the float that is in the till.</p>
+            </>
+          )}
+        </div>
+        <Button asChild className="h-14 w-full px-6 text-lg sm:w-auto">
+          <Link href="/pos">
+            <ICONS.cash />
+            {openSession ? "Count and close" : "Open the drawer"}
+          </Link>
+        </Button>
+      </section>
+
       {sessions.length === 0 ? (
-        <Card>
+        <div className="rounded-2xl border border-border bg-surface">
           <EmptyState
             icon={ICONS.cash}
-            title="No drawer sessions yet"
-            hint="Open the drawer at the register and the first session will appear here."
+            title="No drawers yet"
+            hint="Open the drawer at the register at the start of the day, and count it at the end. Each day shows here."
             action={
-              <Button asChild>
-                <Link href="/pos">Go to the register</Link>
+              <Button asChild className="h-12 px-6 text-base">
+                <Link href="/pos">Open today&rsquo;s drawer</Link>
               </Button>
             }
           />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sessions.map((session) => {
-            const closed = session.closedAt !== null;
-            // A live drawer has no verdict — nothing has been counted yet.
-            const difference =
-              closed && session.countedCents !== null && session.expectedCents !== null
-                ? session.countedCents - session.expectedCents
-                : null;
-            const verdict = difference === null ? null : drawerVerdict(difference);
-            const verdictMeta = verdict === null ? null : DRAWER_VERDICT_META[verdict];
-
-            return (
-              // Only a till that did not balance is worth a stripe; a
-              // balanced or still-open drawer is a white card like any other.
-              <Card
-                key={session.id}
-                tone={
-                  verdict === "short"
-                    ? "danger"
-                    : verdict === "over"
-                      ? "active"
-                      : undefined
-                }
-                className="flex flex-col gap-4 p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-bold text-foreground">
-                      {format(session.openedAt, "EEE, MMM d")}
-                    </div>
-                    <div className="text-[13px] text-muted-foreground">
-                      {format(session.openedAt, "h:mm a")} –{" "}
-                      {session.closedAt ? format(session.closedAt, "h:mm a") : "open"}
-                    </div>
-                  </div>
-
-                  {/* The verdict is the thing the eye should land on, so it
-                      is the one pill on the card. A live session has not been
-                      counted yet and says so instead. */}
-                  {verdict && verdictMeta ? (
-                    <StatusPill
-                      className="shrink-0 tabular-nums"
-                      tone={verdictMeta.tone}
-                      label={
-                        // Balanced is the whole word on its own; over and short
-                        // carry the amount, unsigned — the word is the sign.
-                        verdict === "balanced"
-                          ? verdictMeta.label
-                          : `${verdictMeta.label} ${formatCents(Math.abs(difference ?? 0))}`
-                      }
-                    />
-                  ) : (
-                    <StatusPill className="shrink-0" tone="info" label="Open" />
-                  )}
-                </div>
-
-                <dl className="flex flex-col gap-1.5 border-t border-border pt-3.5 text-[13.5px]">
-                  <Row label="Opening float" value={formatCents(session.openingCents)} />
-                  <Row
-                    label="Expected"
-                    value={
-                      session.expectedCents === null
-                        ? "—"
-                        : formatCents(session.expectedCents)
-                    }
-                  />
-                  <Row
-                    label="Counted"
-                    value={
-                      session.countedCents === null
-                        ? "—"
-                        : formatCents(session.countedCents)
-                    }
-                  />
-                </dl>
-
-                {session.note ? (
-                  <p className="rounded-md bg-surface-hover px-3.5 py-2.5 text-[13px] leading-relaxed text-muted-foreground">
-                    {session.note}
-                  </p>
-                ) : null}
-
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3.5">
-                  <span className="min-w-0 truncate text-[12.5px] text-muted-foreground">
-                    {session.openedBy.name}
-                    {session.closedBy ? ` → ${session.closedBy.name}` : ""}
-                  </span>
-                  {closed ? (
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/print/drawers/${session.id}`}>
-                        <ACTIONS.print className="size-4" />
-                        Z-report
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              </Card>
-            );
-          })}
         </div>
-      )}
-    </div>
-  );
-}
+      ) : (
+        <>
+          <div className="flex flex-col gap-3">
+            <FilterTabs
+              aria-label="Drawer views"
+              tabs={DRAWER_VIEWS.map((option) => ({
+                label: option.label,
+                href: option.value ? `/pos/drawers?view=${option.value}` : "/pos/drawers",
+                active: view === option.value,
+                count: counts[option.value],
+              }))}
+            />
+            <p className="text-base text-muted-foreground">{drawerOffSentence(counts)}</p>
+          </div>
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-mono tabular-nums">{value}</dd>
+          {shown.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border-strong px-5 py-6 text-base text-muted-foreground">
+              No drawers in this view.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+              {shown.map((session) => {
+                const words = drawerCardWords(session, zone);
+                const meta = words.verdict === "open" ? null : DRAWER_VERDICT_META[words.verdict];
+                return (
+                  <li
+                    key={session.id}
+                    className={cn(
+                      "flex h-full flex-col gap-3 rounded-2xl border bg-surface p-4",
+                      words.verdict === "short" ? "border-status-overdue/50" : "border-border",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <p className="rf-num text-xl font-semibold leading-tight text-foreground">{words.title}</p>
+                        <p className="text-[15px] text-muted-foreground">{words.when}</p>
+                      </div>
+                      <StatusPill
+                        className="shrink-0"
+                        tone={meta?.tone ?? "info"}
+                        label={meta?.label ?? (session.closedAt ? "Closed" : "Open")}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      <MetaChip>Float {formatCents(session.openingCents)}</MetaChip>
+                      {session.expectedCents !== null ? (
+                        <MetaChip>Should be {formatCents(session.expectedCents)}</MetaChip>
+                      ) : null}
+                      {session.countedCents !== null ? (
+                        <MetaChip>Counted {formatCents(session.countedCents)}</MetaChip>
+                      ) : null}
+                    </div>
+
+                    {session.note ? (
+                      <p className="rounded-xl bg-surface-hover px-3.5 py-2.5 text-[15px] leading-relaxed text-muted-foreground">
+                        {session.note}
+                      </p>
+                    ) : null}
+
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                      <span className="min-w-0 truncate text-[14px] text-muted-foreground">
+                        {session.openedBy.name}
+                        {session.closedBy ? ` → ${session.closedBy.name}` : ""}
+                      </span>
+                      {session.closedAt ? (
+                        <Button asChild variant="outline" className="h-12 px-4 text-[15px]">
+                          <Link href={`/print/drawers/${session.id}`} target="_blank">
+                            <ACTIONS.print />
+                            End-of-day report
+                          </Link>
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

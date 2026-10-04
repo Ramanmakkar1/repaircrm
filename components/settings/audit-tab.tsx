@@ -5,9 +5,16 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { loadAuditPageAction } from "@/app/(app)/settings/audit-actions";
-import { formatDateTime } from "@/components/billing/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { InitialsVisual } from "@/components/ui/record-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
@@ -19,14 +26,18 @@ import {
   type AuditPage,
   type AuditRow,
 } from "./audit-types";
+import { groupByShopDay, shopTime } from "./shop-time";
+import { useRenderedAt, useShopZone } from "./shop-zone";
 import type { TeamMember } from "./types";
 
 /**
- * Settings → Audit log. Owner only.
+ * Settings → Activity history (the `audit` panel). Owner only.
  *
  * A list, not a table: each entry is one sentence a shop owner can read without
- * a legend — who, what, when — with the raw detail folded away behind the row
- * for the rare occasion someone needs it. Fifty at a time, newest first.
+ * a legend — who, what, when — under a heading for its day (Today, Yesterday,
+ * Friday, October 2) on the shop's own calendar, with the raw detail folded
+ * away behind the row. Two pickers (What / Who) instead of two rows of pills.
+ * Fifty at a time, newest first.
  */
 const MoreIcon = ACTIONS.more;
 const FilterIcon = ACTIONS.filter;
@@ -79,159 +90,110 @@ export function AuditTab({
   }
 
   const filtered = entity !== "" || userId !== "";
+  const zone = useShopZone();
+  const now = useRenderedAt();
+  const days = groupByShopDay(rows, now, zone);
+  const ALL = "all";
 
   return (
     <div className="flex flex-col gap-5">
-      <Card>
-        <CardHeader className="gap-3">
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-hover text-muted-foreground"
-            >
-              <ICONS.audit className="size-4" />
-            </span>
-            <h3 className="text-base font-bold tracking-tight text-foreground">
-              Activity
-            </h3>
-          </div>
-          <div className="flex flex-col gap-3">
-            <FilterRow label="Show">
-              <Pill
-                active={entity === ""}
-                onClick={() => applyFilters("", userId)}
-              >
-                Everything
-              </Pill>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex min-w-48 flex-col gap-1.5">
+          <span className="text-[14px] font-semibold text-muted-foreground">What</span>
+          <Select value={entity || ALL} onValueChange={(next) => applyFilters(next === ALL ? "" : next, userId)} disabled={busy}>
+            <SelectTrigger className="h-12 text-base" aria-label="Show what">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Everything</SelectItem>
               {AUDIT_ENTITIES.map((option) => (
-                <Pill
-                  key={option.value}
-                  active={entity === option.value}
-                  onClick={() => applyFilters(option.value, userId)}
-                >
+                <SelectItem key={option.value} value={option.value}>
                   {option.label}
-                </Pill>
+                </SelectItem>
               ))}
-            </FilterRow>
-
-            {members.length > 1 ? (
-              <FilterRow label="By">
-                <Pill
-                  active={userId === ""}
-                  onClick={() => applyFilters(entity, "")}
-                >
-                  Everyone
-                </Pill>
+            </SelectContent>
+          </Select>
+        </label>
+        {members.length > 1 ? (
+          <label className="flex min-w-48 flex-col gap-1.5">
+            <span className="text-[14px] font-semibold text-muted-foreground">Who</span>
+            <Select value={userId || ALL} onValueChange={(next) => applyFilters(entity, next === ALL ? "" : next)} disabled={busy}>
+              <SelectTrigger className="h-12 text-base" aria-label="Show who">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Everyone</SelectItem>
                 {members.map((member) => (
-                  <Pill
-                    key={member.id}
-                    active={userId === member.id}
-                    onClick={() => applyFilters(entity, member.id)}
-                  >
+                  <SelectItem key={member.id} value={member.id}>
                     {member.name}
-                  </Pill>
+                  </SelectItem>
                 ))}
-              </FilterRow>
-            ) : null}
-          </div>
-        </CardHeader>
+              </SelectContent>
+            </Select>
+          </label>
+        ) : null}
+        {filtered ? (
+          <Button variant="ghost" className="h-12" onClick={() => applyFilters("", "")} disabled={busy}>
+            <FilterIcon aria-hidden /> Show everything
+          </Button>
+        ) : null}
+      </div>
 
-        <CardContent className="px-0 py-0">
-          {rows.length === 0 ? (
-            <EmptyState
-              icon={ICONS.audit}
-              title={filtered ? "Nothing matches those filters" : "Nothing recorded yet"}
-              hint={
-                filtered
-                  ? "Try a wider filter — the log only keeps what has actually happened."
-                  : "Sign-ins, password changes, deleted tickets and voided invoices will appear here as they happen."
-              }
-              action={
-                filtered ? (
-                  <Button variant="outline" onClick={() => applyFilters("", "")}>
-                    <FilterIcon aria-hidden /> Clear filters
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <ul className="divide-y divide-border">
-              {rows.map((row) => (
-                <AuditEntry key={row.id} row={row} />
+      {rows.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={ICONS.audit}
+            title={filtered ? "Nothing matches" : "Nothing recorded yet"}
+            hint={
+              filtered
+                ? "Try showing everything, or everyone."
+                : "Sign-ins, password changes, deleted repairs and voided invoices will appear here as they happen."
+            }
+          />
+        </Card>
+      ) : (
+        days.map((day) => (
+          <section key={day.key} aria-labelledby={`day-${day.key}`} className="flex flex-col gap-2">
+            <h3 id={`day-${day.key}`} className="text-[17px] font-semibold text-foreground">
+              {day.heading}
+            </h3>
+            <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+              {day.rows.map((row) => (
+                <AuditEntry key={row.id} row={row} zone={zone} />
               ))}
             </ul>
-          )}
-        </CardContent>
-      </Card>
+          </section>
+        ))
+      )}
 
       {cursor ? (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={busy}>
+          <Button variant="outline" className="h-12 px-5" onClick={loadMore} disabled={busy}>
             {busy ? <Loader2 className="animate-spin" /> : <MoreIcon aria-hidden />}
-            {busy ? "Loading…" : "Load more"}
+            {busy ? "Loading…" : "Show older"}
           </Button>
         </div>
       ) : rows.length > 0 ? (
         <p className="text-center text-[14px] text-muted-foreground">
-          That&apos;s the whole trail.
+          That&apos;s everything.
         </p>
       ) : null}
     </div>
   );
 }
 
-function FilterRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
-
-function Pill({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-md border px-2.5 py-1 text-[14px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        active
-          ? "border-accent/30 bg-accent-soft text-accent-soft-foreground"
-          : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function AuditEntry({ row }: { row: AuditRow }) {
+function AuditEntry({ row, zone }: { row: AuditRow; zone: string }) {
   const [open, setOpen] = React.useState(false);
   const hasDetail = Boolean(row.meta || row.ip || row.entityId);
+  const who = row.actorName ?? "Repairs helper";
 
   return (
-    <li className="px-5 py-3.5">
+    <li className="flex gap-3.5 px-4 py-3.5">
+      <InitialsVisual name={who} className="size-10 text-[15px] sm:size-10 sm:text-[15px]" />
+      <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-        <span className="text-[14.5px] font-semibold text-foreground">
-          {row.actorName ?? "System"}
+        <span className="text-[15px] font-semibold text-foreground">
+          {who}
         </span>
         {/*
           No dot: a feed of fifty of these reads as one column of bullets
@@ -244,11 +206,11 @@ function AuditEntry({ row }: { row: AuditRow }) {
           label={AUDIT_ACTION_LABEL[row.action] ?? row.action}
         />
         <span className="ml-auto text-[14px] tabular-nums text-muted-foreground">
-          {formatDateTime(row.createdAt)}
+          {shopTime(row.createdAt, zone)}
         </span>
       </div>
 
-      <p className="mt-1 text-[14px] leading-snug text-muted-foreground">
+      <p className="mt-1 text-[15px] leading-snug text-muted-foreground">
         {row.summary}
       </p>
 
@@ -257,7 +219,8 @@ function AuditEntry({ row }: { row: AuditRow }) {
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
-            className="mt-1.5 inline-flex items-center gap-1 rounded-sm text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-expanded={open}
+            className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-sm text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <ChevronDown
               className={cn("size-3.5 transition-transform", open && "rotate-180")}
@@ -288,6 +251,7 @@ function AuditEntry({ row }: { row: AuditRow }) {
           ) : null}
         </>
       ) : null}
+      </div>
     </li>
   );
 }

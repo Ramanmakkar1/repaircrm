@@ -52,7 +52,7 @@ export async function POST(
   });
   if (!ticket) {
     return NextResponse.json<UploadResponse>(
-      { ok: false, error: "Ticket not found." },
+      { ok: false, error: "Repair not found." },
       { status: 404 },
     );
   }

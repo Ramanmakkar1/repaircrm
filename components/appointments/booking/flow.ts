@@ -20,6 +20,7 @@ import type {
   AppointmentFormValues,
   AppointmentPickers,
   CustomerOption,
+  CustomerSearchResult,
 } from "../appointment-state";
 import {
   DAY_END_HOUR,
@@ -50,9 +51,14 @@ export const STEPS = [
 ] as const;
 export const LAST_STEP = STEPS.length - 1;
 
-/** A new visit starts on Who. An existing one is usually being moved, so it opens on When. */
-export function initialStep(values: Pick<AppointmentFormValues, "id">): number {
-  return values.id ? 1 : 0;
+/**
+ * A new visit starts on Who. An existing one is usually being moved, so it
+ * opens on When, and so does a new one that came with its customer already
+ * chosen ("Book a visit" on a customer's page).
+ */
+export function initialStep(values: Pick<AppointmentFormValues, "id"> & { customerId?: string }): number {
+  if (values.id) return 1;
+  return values.customerId && values.customerId !== NONE ? 1 : 0;
 }
 
 /**
@@ -127,6 +133,35 @@ export function searchable(customers: CustomerOption[]): SearchCustomer[] {
     phone: customer.phone ?? null,
     email: customer.email ?? null,
   }));
+}
+
+/**
+ * The page's customers plus the ones the server search found (a shop with more
+ * than the page sends). People already on the list keep their place, the found
+ * ones follow; a found person's repairs come along so one can be linked.
+ */
+export function withFoundCustomers<T extends Pick<BookingContext, "customers" | "ticketsByCustomer">>(
+  ctx: T,
+  found: CustomerSearchResult,
+): T {
+  if (found.customers.length === 0) return ctx;
+  const known = new Set(ctx.customers.map((customer) => customer.value));
+  const extra = found.customers.filter((customer) => !known.has(customer.value));
+  if (extra.length === 0) return ctx;
+  return {
+    ...ctx,
+    customers: [...ctx.customers, ...extra],
+    ticketsByCustomer: { ...found.ticketsByCustomer, ...ctx.ticketsByCustomer },
+  };
+}
+
+/** Two server answers as one: the later one's people added after the earlier one's. */
+export function mergeFound(earlier: CustomerSearchResult, later: CustomerSearchResult): CustomerSearchResult {
+  const known = new Set(earlier.customers.map((customer) => customer.value));
+  return {
+    customers: [...earlier.customers, ...later.customers.filter((customer) => !known.has(customer.value))],
+    ticketsByCustomer: { ...later.ticketsByCustomer, ...earlier.ticketsByCustomer },
+  };
 }
 
 export function findCustomers(customers: CustomerOption[], query: string): CustomerOption[] {
@@ -211,6 +246,19 @@ export function withNewPerson(
     ...(patch.phone !== undefined ? { newCustomerPhone: patch.phone } : {}),
     ...(patch.email !== undefined ? { newCustomerEmail: patch.email } : {}),
   };
+}
+
+/**
+ * How a person reads in the picker. A customer saved with only a number is
+ * named "Customer 5125550142" (lib/intake.ts), which reads like a mistake in a
+ * list of names: such a row leads with the number and says no name is saved.
+ */
+export function pickerLines(customer: CustomerOption): { title: string; detail: string } {
+  const contact = customer.phone || customer.email || "";
+  if (/^Customer [\d\s()+.-]+$/.test(customer.label.trim())) {
+    return { title: contact || customer.label.replace(/^Customer\s+/, ""), detail: "No name saved yet" };
+  }
+  return { title: customer.label, detail: contact };
 }
 
 /** "Daniel Reed", the new person's name or number, "Saved customer" when the list lacks them, or "". */

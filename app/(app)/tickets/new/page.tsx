@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { format } from "date-fns";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -11,6 +10,7 @@ import { readSla } from "@/lib/sla";
 import { readUiPrefs } from "@/lib/prefs";
 import { activeWarrantiesByCustomer } from "@/lib/warranty";
 import { PageHeader } from "@/components/ui/page-header";
+import { shopDate } from "@/components/settings/shop-time";
 import {
   TicketForm,
   type AssetOption,
@@ -22,7 +22,7 @@ import {
   problemTypes,
 } from "@/components/tickets/ticket-meta";
 
-export const metadata: Metadata = { title: "New ticket · Repairs helper" };
+export const metadata: Metadata = { title: "New repair · Repairs helper" };
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +69,7 @@ export default async function NewTicketPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
-    db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
+    db.shop.findUnique({ where: { id: shopId }, select: { settings: true, timezone: true } }),
     readUiPrefs(),
   ]);
 
@@ -105,7 +105,8 @@ export default async function NewTicketPage({
     warrantiesByCustomer[customerId] = rows.map((row) => ({
       value: row.id,
       label: row.description,
-      hint: `Invoice #${row.invoiceNumber} · expires ${format(row.expiresAt, "MMM d, yyyy")}`,
+      // On the shop's calendar, not the server's: a warranty ends on the shop's date.
+      hint: `Invoice #${row.invoiceNumber} · expires ${shopDate(row.expiresAt, shop?.timezone ?? "UTC")}`,
     }));
   }
 
@@ -117,6 +118,7 @@ export default async function NewTicketPage({
     : undefined;
 
   const shared = {
+    timeZone: shop?.timezone ?? "UTC",
     customers: customers.map((customer) => ({
       id: customer.id,
       phone: customer.phone,
@@ -138,15 +140,15 @@ export default async function NewTicketPage({
       label: checklist.name,
     })),
     warrantiesByCustomer,
-    slaHint: `Leave blank and we'll promise ${sla.NORMAL} calendar hours at Normal priority — set per priority in Settings → Workflow.`,
+    slaHint: `Leave blank and we'll promise ${sla.NORMAL} hours (around the clock) at Normal priority — change it in Settings → Devices & repair steps.`,
   };
 
   return (
     // Easy mode is a register: choices on the left, "This repair" on the right, so it needs the width.
     <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-6xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-4"}>
       <PageHeader
-        breadcrumbs={[{ label: "Repairs", href: "/tickets" }, { label: uiPrefs.simple ? "New repair" : "New ticket" }]}
-        title={uiPrefs.simple ? "New repair" : "New ticket"}
+        breadcrumbs={[{ label: "Repairs", href: "/tickets" }, { label: "New repair" }]}
+        title="New repair"
         description={uiPrefs.simple ? undefined : "Check a device in and start the repair clock."}
       />
       {uiPrefs.simple ? (

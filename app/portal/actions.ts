@@ -56,10 +56,13 @@ export async function requestPortalLinkAction(
 ): Promise<void> {
   const parsed = emailField.safeParse(formData.get("email"));
   const next = safeNextPath(String(formData.get("next") ?? ""));
-  const done = `/portal?sent=1${next ? `&next=${encodeURIComponent(next)}` : ""}`;
+  // Display only: which shop's name the sign-in page shows. A slug, or nothing.
+  const shopSlug = String(formData.get("shop") ?? "").trim().toLowerCase();
+  const shop = /^[a-z0-9][a-z0-9-]{0,62}$/.test(shopSlug) ? `&shop=${shopSlug}` : "";
+  const done = `/portal?sent=1${next ? `&next=${encodeURIComponent(next)}` : ""}${shop}`;
 
   if (!parsed.success) {
-    redirect(`/portal?error=email${next ? `&next=${encodeURIComponent(next)}` : ""}`);
+    redirect(`/portal?error=email${next ? `&next=${encodeURIComponent(next)}` : ""}${shop}`);
   }
 
   const email = parsed.data;

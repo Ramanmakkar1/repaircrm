@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 // AlertCircle is an error state, Sparkles is the AI-assisted convert flow,
 // PhoneCall has no entry in the shared concept map; the verbs come from ACTIONS.
-import { AlertCircle, PhoneCall, Sparkles } from "lucide-react";
+import { AlertCircle, PhoneCall, Sparkles, UserPlus, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -25,6 +25,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { ConvertLeadDialog } from "./convert-dialog";
 import { LeadFields, type LeadFormValues } from "./lead-form";
@@ -43,6 +50,11 @@ export type LeadActionsLead = {
  * nothing left to do but be read, and a closed one only offers "reopen". That
  * keeps the destructive/irreversible moves off screen except where they make
  * sense.
+ *
+ * Easy mode (`easy`) says "enquiry" and offers ONE big next step: "Start a
+ * repair" (it makes them a customer and opens the repair in one go, then takes
+ * you to it). "Mark as called" sits beside it; Edit, Close and Delete wait
+ * behind "More".
  */
 export function LeadActions({
   lead,
@@ -50,19 +62,24 @@ export function LeadActions({
   problemTypes,
   defaultSubject,
   canDelete,
+  easy = false,
 }: {
   lead: LeadActionsLead;
   matches: LeadMatch[];
   problemTypes: string[];
   defaultSubject: string;
   canDelete: boolean;
+  easy?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
   const [converting, setConverting] = React.useState(false);
+  /** Easy mode's "Save as a customer only" opens the same dialog without a repair. */
+  const [withRepair, setWithRepair] = React.useState(true);
   const [deleting, setDeleting] = React.useState(false);
+  const noun = easy ? "Enquiry" : "Lead";
 
   const isOpen = lead.status === "NEW" || lead.status === "CONTACTED";
   const isClosed = lead.status === "CLOSED";
@@ -85,10 +102,95 @@ export function LeadActions({
     router.refresh();
   }
 
+  const startConvert = (repair: boolean) => {
+    setWithRepair(repair);
+    setConverting(true);
+  };
+
+  const easyRow = (
+    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+      {isOpen ? (
+        <Button size="lg" className="h-14 px-6 text-base [&_svg]:size-5" onClick={() => startConvert(true)} disabled={busy}>
+          <Wrench />
+          Start a repair
+        </Button>
+      ) : null}
+      {isClosed ? (
+        <Button
+          size="lg"
+          className="h-14 px-6 text-base [&_svg]:size-5"
+          disabled={busy}
+          onClick={() => run(() => reopenLeadAction(lead.id), "Enquiry reopened.")}
+        >
+          <ACTIONS.reopen />
+          Reopen enquiry
+        </Button>
+      ) : null}
+      <div className="flex gap-2">
+        {lead.status === "NEW" ? (
+          <Button
+            variant="outline"
+            className="h-14 flex-1 px-5 text-base [&_svg]:size-5"
+            disabled={busy}
+            onClick={() => run(() => markContactedAction(lead.id), "Marked as called.")}
+          >
+            <PhoneCall />
+            Mark as called
+          </Button>
+        ) : null}
+        {!isConverted ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-14 flex-1 px-5 text-base [&_svg]:size-5" disabled={busy} aria-label="More for this enquiry">
+                <ACTIONS.more />
+                More
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuItem className="min-h-12 text-[15px]" onSelect={() => setEditing(true)}>
+                <ACTIONS.edit className="size-4 text-muted-foreground" />
+                Edit details
+              </DropdownMenuItem>
+              {isOpen ? (
+                <DropdownMenuItem className="min-h-12 text-[15px]" onSelect={() => startConvert(false)}>
+                  <UserPlus className="size-4 text-muted-foreground" />
+                  Save as a customer only
+                </DropdownMenuItem>
+              ) : null}
+              {isOpen ? (
+                <DropdownMenuItem className="min-h-12 text-[15px]" onSelect={() => setClosing(true)}>
+                  <ACTIONS.archive className="size-4 text-muted-foreground" />
+                  Close enquiry
+                </DropdownMenuItem>
+              ) : null}
+              {canDelete ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="min-h-12 text-[15px] text-destructive focus:bg-destructive-soft"
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setDeleting(true);
+                    }}
+                  >
+                    <ACTIONS.delete className="size-4" />
+                    Delete enquiry
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+    </div>
+  );
+
   return (
     <>
+      {easy ? easyRow : null}
       {/* The lead header's action row: `sm` throughout, like every other
           object page. */}
+      {easy ? null : (
       <div className="flex flex-wrap items-center gap-2">
         {isOpen ? (
           <>
@@ -161,14 +263,19 @@ export function LeadActions({
           </Button>
         ) : null}
       </div>
+      )}
 
       <ConvertLeadDialog
+        // Remounted per opening, so "Start a repair" and "customer only" each start from their own default.
+        key={`${converting}-${withRepair}`}
         leadId={lead.id}
         open={converting}
         onOpenChange={setConverting}
         matches={matches}
         problemTypes={problemTypes}
         defaultSubject={defaultSubject}
+        easy={easy}
+        startWithRepair={withRepair}
       />
 
       <EditLeadDialog
@@ -176,14 +283,16 @@ export function LeadActions({
         values={lead.values}
         open={editing}
         onOpenChange={setEditing}
+        noun={noun}
       />
 
       <CloseLeadDialog
         open={closing}
         onOpenChange={setClosing}
         busy={busy}
+        noun={noun}
         onConfirm={(reason) =>
-          run(() => closeLeadAction(lead.id, reason), "Lead closed.", () =>
+          run(() => closeLeadAction(lead.id, reason), `${noun} closed.`, () =>
             setClosing(false),
           )
         }
@@ -192,7 +301,7 @@ export function LeadActions({
       <Dialog open={deleting} onOpenChange={setDeleting}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this lead?</DialogTitle>
+            <DialogTitle>Delete this {noun.toLowerCase()}?</DialogTitle>
             <DialogDescription>
               This is the only record of the enquiry — once it&rsquo;s gone there
               is nothing to go back to. Closing it instead keeps the history.
@@ -213,12 +322,12 @@ export function LeadActions({
                   toast.error(result.error);
                   return;
                 }
-                toast.success("Lead deleted.");
+                toast.success(`${noun} deleted.`);
                 router.push("/leads");
               }}
             >
               <ACTIONS.delete />
-              Delete lead
+              Delete {noun.toLowerCase()}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -234,11 +343,13 @@ function EditLeadDialog({
   values: initial,
   open,
   onOpenChange,
+  noun = "Lead",
 }: {
   leadId: string;
   values: LeadFormValues;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  noun?: string;
 }) {
   const router = useRouter();
   const update = updateLeadAction.bind(null, leadId);
@@ -260,18 +371,18 @@ function EditLeadDialog({
   React.useEffect(() => {
     if (state?.ok && !wasOk.current) {
       wasOk.current = true;
-      toast.success("Lead updated.");
+      toast.success(`${noun} updated.`);
       onOpenChange(false);
       router.refresh();
     }
     if (!state?.ok) wasOk.current = false;
-  }, [state, onOpenChange, router]);
+  }, [state, onOpenChange, router, noun]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit lead</DialogTitle>
+          <DialogTitle>Edit {noun.toLowerCase()}</DialogTitle>
           <DialogDescription>
             Fix a mistyped number or add what they told you on the phone.
           </DialogDescription>
@@ -319,11 +430,13 @@ function CloseLeadDialog({
   onOpenChange,
   busy,
   onConfirm,
+  noun = "Lead",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   busy: boolean;
   onConfirm: (reason: string) => void;
+  noun?: string;
 }) {
   const [reason, setReason] = React.useState("");
 
@@ -331,7 +444,7 @@ function CloseLeadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Close this lead</DialogTitle>
+          <DialogTitle>Close this {noun.toLowerCase()}</DialogTitle>
           <DialogDescription>
             Optional — whatever you write is appended to the enquiry, not
             instead of it.
@@ -352,7 +465,7 @@ function CloseLeadDialog({
           </Button>
           <Button onClick={() => onConfirm(reason)} disabled={busy}>
             <ACTIONS.archive />
-            {busy ? "Closing…" : "Close lead"}
+            {busy ? "Closing…" : `Close ${noun.toLowerCase()}`}
           </Button>
         </DialogFooter>
       </DialogContent>

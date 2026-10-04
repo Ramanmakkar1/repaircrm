@@ -32,7 +32,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: repairshop
+          POSTGRES_DB: verification
         ports:
           - 5432:5432
         options: >-
@@ -42,10 +42,11 @@ jobs:
           --health-retries 20
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/repairshop
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/verification
       # lib/preflight.ts refuses to serve a deploy that cannot sign a session,
       # so the build gets a throwaway one. It signs nothing that leaves CI.
       AUTH_SECRET: ci-only-secret-not-used-anywhere-else
+      VERIFICATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/verification
       NEXT_PUBLIC_APP_URL: http://localhost:3020
       # The in-process job timer (instrumentation.ts) must not tick during a
       # build or a test run.
@@ -95,6 +96,9 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Verify database transactions
+        run: npm run test:database
 
       - name: Build
         run: npm run build

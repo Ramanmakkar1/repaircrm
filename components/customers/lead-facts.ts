@@ -17,14 +17,17 @@ export function leadFacts({
   ticketId,
   createdAt,
   now = new Date(),
+  zone,
 }: {
   source: string | null;
   customerId: string | null;
   ticketId: string | null;
   createdAt: Date;
   now?: Date;
+  /** The shop's time zone: an old enquiry's date is the shop's calendar day. */
+  zone?: string;
 }): string[] {
-  const facts = [`Received ${leadAge(createdAt, now)}`];
+  const facts = [`Received ${leadAge(createdAt, now, zone)}`];
 
   const from = sourceLabel(source);
   if (from) facts.push(from);

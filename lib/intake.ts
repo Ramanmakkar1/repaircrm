@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { addDaysToKey, dayKeyIn, parseWallDateTime } from "@/lib/dashboard/zone";
 
 /** A name OR a phone number is enough — customers often only give their number. */
 export const newCustomerSchema = z.object({
@@ -74,11 +75,12 @@ export const DEVICE_MODELS: Record<string, string[]> = {
 };
 
 /**
- * "Today" / "Tomorrow" / "In 3 days" / "Next week" in the browser's own time:
+ * "Today" / "Tomorrow" / "In 3 days" / "Next week" on the shop's clock:
  * 5 pm that many days from now, as the `datetime-local` value the pickup field
  * holds (no zone; the zone is added by promisedIso).
  */
-export function quickPromisedLocal(days: number, from: Date = new Date()): string {
+export function quickPromisedLocal(days: number, from: Date = new Date(), zone?: string): string {
+  if (zone) return `${addDaysToKey(dayKeyIn(from.getTime(), zone), days)}T17:00`;
   const d = new Date(from);
   d.setDate(d.getDate() + days);
   d.setHours(17, 0, 0, 0);
@@ -86,7 +88,12 @@ export function quickPromisedLocal(days: number, from: Date = new Date()): strin
 }
 
 /** A `datetime-local` value as the ISO instant the server reads (see promisedDate), or "" when blank or not a date. */
-export function promisedIso(local: string): string {
+export function promisedIso(local: string, zone?: string): string {
+  if (zone) {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local)) return "";
+    const instant = parseWallDateTime(local, zone);
+    return instant === null ? "" : new Date(instant).toISOString();
+  }
   const parsed = local ? new Date(local) : null;
   return parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : "";
 }

@@ -1,25 +1,31 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * This one is worth a skeleton in its own right: the form cannot render until
- * the whole active catalogue has been read for the line picker.
+ * Worth a skeleton in its own right: the screen cannot draw until the whole
+ * active catalogue has been read for the picture tiles. The shape of New order:
+ * title, the three step boxes, the supplier tiles, and the order panel beside them.
  */
 export default function NewPurchaseOrderLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-36" />
-        {/* The header's 44px icon tile sits beside the title from `sm` up. */}
-        <div className="flex items-center gap-3.5">
-          <Skeleton className="hidden size-11 shrink-0 rounded-lg sm:block" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-5 w-96" />
-          </div>
+    <div className="mx-auto grid w-full max-w-7xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-5 w-full max-w-96" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Skeleton key={index} className="h-14 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-8 w-72" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton key={index} className="h-36 rounded-2xl" />
+          ))}
         </div>
       </div>
-      <Skeleton className="h-40 rounded-lg" />
-      <Skeleton className="h-80 rounded-lg" />
+      <Skeleton className="hidden h-[28rem] rounded-2xl lg:block" />
     </div>
   );
 }

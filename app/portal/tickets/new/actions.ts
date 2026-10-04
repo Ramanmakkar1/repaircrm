@@ -28,7 +28,7 @@ const NEW_DEVICE = "new";
 
 const schema = z.object({
   deviceType: z.string().trim().min(1, "Tell us what the device is.").max(60),
-  problemType: z.string().trim().min(1, "Pick what sort of job this is.").max(60),
+  problemType: z.string().trim().min(1, "Tap what is wrong.").max(60),
   description: z
     .string()
     .trim()

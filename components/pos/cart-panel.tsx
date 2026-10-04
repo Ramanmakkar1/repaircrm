@@ -31,6 +31,7 @@ export const WALK_IN_VALUE = "__walk_in__";
 const TENDER_BUTTONS: { method: TenderMethod; icon: React.ComponentType<{ className?: string }> }[] = [
   { method: "CASH", icon: ICONS.cash },
   { method: "CARD", icon: ICONS.payment },
+  { method: "SPLIT", icon: ICONS.payment },
   // No glyph in the map means a cheque or a gift card, so the local imports
   // stay: ScrollText is the written slip, Wallet is everything else.
   { method: "CHECK", icon: ScrollText },

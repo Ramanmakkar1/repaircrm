@@ -11,22 +11,19 @@ import {
 const render = (simple: boolean) =>
   renderToStaticMarkup(React.createElement(SettingsSkeleton, { simple }));
 
-/** Counts the pill-sized blocks (48px tall, rounded-xl) in a markup string. */
-const pills = (html: string) => html.match(/class="[^"]*\bh-12\b[^"]*rounded-xl[^"]*"/g) ?? [];
+/** Counts the hub tile blocks in a markup string. */
+const tiles = (html: string) => html.match(/data-hub-tile-skeleton=""/g) ?? [];
 
 describe("SettingsSkeleton (loading state)", () => {
-  it("Easy mode draws the centred column with the two rows of pills", () => {
+  it("Easy mode draws the centred column with the hub: five areas, one tile per screen", () => {
     const html = render(true);
     // Same wrapper the page uses in Easy mode.
     expect(html).toContain("mx-auto flex w-full max-w-5xl flex-col gap-5");
-    // Same row box as the live pills in settings-nav.tsx.
-    expect(html.match(/-mx-1 flex items-center gap-2 overflow-hidden px-1 py-1/g)).toHaveLength(2);
-
-    // One pill per area, then one per screen of the first area (Shop).
+    // Same grid as the live hub (settings-hub.tsx), one grey tile per real tile.
     const groups = groupPanels(OWNER_PANELS);
-    expect(pills(html)).toHaveLength(groups.length + groups[0].items.length);
     expect(groups.length).toBe(5);
-    expect(groups[0].items.length).toBe(4);
+    expect(html.match(/grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3/g)).toHaveLength(groups.length);
+    expect(tiles(html)).toHaveLength(OWNER_PANELS.length);
   });
 
   it("draws the header without an icon tile, like the real PageHeader", () => {
@@ -43,19 +40,17 @@ describe("SettingsSkeleton (loading state)", () => {
     expect(html).not.toContain("lg:flex-row");
   });
 
-  it("Easy mode keeps one line of text and two card blocks under the pills", () => {
+  it("Easy mode tiles are the live tile's height and shape", () => {
     const html = render(true);
-    expect(html).toContain("-mt-2");
-    expect(html).toContain("h-[214px] rounded-lg");
-    expect(html).toContain("h-72 rounded-lg");
+    expect(html).toContain("h-24 rounded-2xl");
   });
 
-  it("Full mode keeps the side rail and has no pill rows", () => {
+  it("Full mode keeps the side rail and has no hub tiles", () => {
     const html = render(false);
     expect(html).toContain("lg:w-52");
     expect(html).toContain("lg:flex-row");
     expect(html).not.toContain("max-w-5xl");
-    expect(pills(html)).toHaveLength(0);
+    expect(tiles(html)).toHaveLength(0);
     // One rail row per section: 4 + 2 + 1 + 5 + 2.
     expect(html.match(/h-8 w-28 rounded-md lg:w-full/g)).toHaveLength(OWNER_PANELS.length);
   });

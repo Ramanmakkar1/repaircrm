@@ -292,6 +292,7 @@ export function ManualEntry({
           onChange={(event) => setValue(event.target.value)}
           autoComplete="off"
           spellCheck={false}
+          enterKeyHint="go"
           placeholder="Enter the code by hand"
           className={cn(
             "font-mono",

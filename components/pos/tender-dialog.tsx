@@ -27,14 +27,13 @@ import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents, parseCents } from "@/lib/money";
 import type { CardFlow } from "@/lib/payments/card-machine";
+import { CashTender, cashChange } from "./tender-pieces";
 import { METHOD_LABELS, type TenderMethod } from "./types";
-
-/** Bills a counter actually gets handed. */
-const QUICK_BILLS = [2000, 5000, 10000];
 
 export type TenderConfirm = {
   reference: string | null;
   tenderedCents: number | null;
+  cashAmountCents?: number | null;
 };
 
 /**
@@ -167,7 +166,11 @@ function TenderForm({
   onClose: () => void;
   onConfirm: (input: TenderConfirm) => void;
 }) {
+  const isSplit = method === "SPLIT";
   const isCash = method === "CASH";
+  const [cashAmount, setCashAmount] = React.useState(() => (Math.floor(totalCents / 2) / 100).toFixed(2));
+  const cashPart = parseCents(cashAmount);
+  const cardPart = totalCents - cashPart;
   // A card can be keyed in (the cashier ran it on a separate machine and types
   // the auth code) or taken on a machine wired to this shop's Stripe account.
   // Only the second one moves money from in here, so the two are separate
@@ -189,22 +192,24 @@ function TenderForm({
   // Opening on the exact amount makes the overwhelmingly common "card, done"
   // and "exact change" paths a single click.
   const [received, setReceived] = React.useState(() =>
-    (Math.max(totalCents, 0) / 100).toFixed(2),
+    (Math.max(isSplit ? Math.floor(totalCents / 2) : totalCents, 0) / 100).toFixed(2),
   );
   const [reference, setReference] = React.useState("");
 
-  const receivedCents = isCash ? parseCents(received) : 0;
-  const changeDueCents = receivedCents - totalCents;
-  const short = isCash && changeDueCents < 0;
+  // The same change maths as Take payment on an invoice (./tender-pieces.ts).
+  const cash = cashChange(isCash || isSplit ? received : 0, isSplit ? cashPart : totalCents);
+  const receivedCents = isCash || isSplit ? cash.receivedCents : 0;
+  const short = (isCash || isSplit) && cash.short;
   const creditShort = method === "CREDIT" && customerCredit < totalCents;
-  const blocked = pending || short || creditShort;
+  const blocked = pending || short || creditShort || (isSplit && (cashPart <= 0 || cardPart <= 0));
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (blocked) return;
     onConfirm({
       reference: reference.trim() || null,
-      tenderedCents: isCash ? receivedCents : null,
+      tenderedCents: isCash || isSplit ? receivedCents : null,
+      cashAmountCents: isSplit ? cashPart : null,
     });
   };
 
@@ -252,6 +257,7 @@ function TenderForm({
         />
       ) : null}
 
+      {isSplit ? <div className="flex flex-col gap-3"><Label htmlFor="cash-part">Cash part</Label><Input id="cash-part" inputMode="decimal" value={cashAmount} onChange={e => setCashAmount(e.target.value)} className="h-12" /><CashTender dueCents={Math.max(0, cashPart)} received={received} onReceived={setReceived} /><p className="rounded-xl bg-surface-hover p-4 text-base">Key <strong>{formatCents(Math.max(0, cardPart))}</strong> into your card machine. Record both parts after the card is approved.</p></div> : null}
       {isCard ? (
         <div className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-surface-hover px-5 py-6 text-center">
           <span className="text-[13.5px] font-semibold text-muted-foreground">
@@ -267,51 +273,7 @@ function TenderForm({
       ) : null}
 
       {isCash ? (
-        <>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="received">Amount received</Label>
-            <Input
-              id="received"
-              value={received}
-              onChange={(event) => setReceived(event.target.value)}
-              inputMode="decimal"
-              autoFocus
-              className="h-16 text-right text-3xl font-bold tabular-nums"
-            />
-          </div>
-
-          <div className="grid grid-cols-4 gap-2">
-            <QuickAmount
-              label="Exact"
-              onClick={() => setReceived((totalCents / 100).toFixed(2))}
-            />
-            {QUICK_BILLS.map((cents) => (
-              <QuickAmount
-                key={cents}
-                label={formatCents(cents).replace(".00", "")}
-                // A bill smaller than the total cannot settle it on its own.
-                disabled={cents < totalCents}
-                onClick={() => setReceived((cents / 100).toFixed(2))}
-              />
-            ))}
-          </div>
-
-          <div
-            className={cn(
-              "flex items-baseline justify-between gap-4 rounded-lg px-5 py-4",
-              short
-                ? "bg-destructive-soft text-destructive"
-                : "bg-status-resolved-bg text-status-resolved-fg",
-            )}
-          >
-            <span className="text-[15px] font-bold">
-              {short ? "Still owing" : "Change due"}
-            </span>
-            <span className="text-4xl font-bold tabular-nums tracking-tight">
-              {formatCents(Math.abs(changeDueCents))}
-            </span>
-          </div>
-        </>
+        <CashTender dueCents={totalCents} received={received} onReceived={setReceived} />
       ) : method === "CREDIT" ? (
         <p
           className={cn(
@@ -381,6 +343,8 @@ function TenderForm({
               <Loader2 className="animate-spin" />
               Finishing…
             </>
+          ) : isSplit ? (
+            `Card approved — record cash + card`
           ) : isCard ? (
             `Approved — finish ${formatCents(totalCents)}`
           ) : (
@@ -453,32 +417,6 @@ function MachineTroubleNote({ onManual }: { onManual: () => void }) {
         Record it manually
       </Button>
     </div>
-  );
-}
-
-function QuickAmount({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "h-12 rounded-md border border-border-strong bg-surface text-[14px] font-bold tabular-nums text-foreground transition-colors",
-        "hover:border-accent/40 hover:bg-surface-hover",
-        "disabled:pointer-events-none disabled:opacity-40",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-      )}
-    >
-      {label}
-    </button>
   );
 }
 

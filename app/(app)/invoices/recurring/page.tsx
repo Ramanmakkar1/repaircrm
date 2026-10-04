@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
+import { loadShopZone } from "@/components/billing/print-queries";
+import { shopNow } from "@/components/billing/shop-clock";
 import { readUiPrefs } from "@/lib/prefs";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +36,7 @@ import {
   ScheduleActiveSwitch,
 } from "@/components/recurring/schedule-controls";
 
-export const metadata = { title: "Recurring billing · Repairs helper" };
+export const metadata = { title: "Repeat bills · Repairs helper" };
 
 /**
  * The saved views. Every schedule is already in memory — this list is small by
@@ -80,7 +82,10 @@ export default async function RecurringSchedulesPage({
     },
   });
 
-  const now = requestNow();
+  // A run date is a calendar day: "due" and every date on the cards are read
+  // on the shop's own clock, not the server's.
+  const zone = await loadShopZone(shopId);
+  const now = shopNow(requestNow(), zone);
   const due = schedules.filter((s) => isDue(s.nextRunAt, s.active, now));
   const dueCount = due.length;
 
@@ -107,14 +112,14 @@ export default async function RecurringSchedulesPage({
       icon={ICONS.recurring}
       title={
         schedules.length === 0
-          ? "No recurring schedules yet"
+          ? "No repeat bills yet"
           : q
-            ? "No schedules match that search"
+            ? "No repeat bills match that search"
             : "Nothing in this view"
       }
       hint={
         schedules.length === 0
-          ? "Set one up for a managed-service retainer or a monthly support contract, and Repairs helper will draft the invoice for you."
+          ? "Set one up for a monthly support plan or a regular service, and a draft invoice is made for you each time."
           : q
             ? "Try a different name, or clear the search."
             : "Every schedule is on one of the other tabs."
@@ -123,12 +128,12 @@ export default async function RecurringSchedulesPage({
         schedules.length === 0 ? (
           <Button asChild className={cn(easy && "px-6 text-base")}>
             <Link href="/invoices/recurring/new">
-              <ACTIONS.add /> New schedule
+              <ACTIONS.add /> New repeat bill
             </Link>
           </Button>
         ) : (
           <Button variant="outline" asChild className={cn(easy && "px-6 text-base")}>
-            <Link href="/invoices/recurring">Show all schedules</Link>
+            <Link href="/invoices/recurring">Show all repeat bills</Link>
           </Button>
         )
       }
@@ -137,24 +142,23 @@ export default async function RecurringSchedulesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/invoices"
-        data-touch-control
-        className={cn(
-          "flex w-fit items-center gap-1.5 font-semibold text-muted-foreground transition-colors hover:text-foreground",
-          easy ? "min-h-12 text-base" : "text-[13.5px]",
-        )}
-      >
-        <ACTIONS.back className="size-4" />
-        All invoices
-      </Link>
+      {/* Easy mode keeps one Back: the shell's. */}
+      {easy ? null : (
+        <Link
+          href="/invoices"
+          className="flex w-fit items-center gap-1.5 text-[13.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ACTIONS.back className="size-4" />
+          All invoices
+        </Link>
+      )}
 
       <PageHeader
-        title="Recurring billing"
+        title="Repeat bills"
         description={
           easy
-            ? "Bills that raise themselves on a schedule, like a monthly support plan."
-            : "Contracts and retainers that stamp out a draft invoice on a cadence."
+            ? "Bills that make themselves on a schedule, like a monthly support plan."
+            : "Contracts and retainers that make a draft invoice on a schedule."
         }
         actions={
           <div
@@ -167,7 +171,7 @@ export default async function RecurringSchedulesPage({
             {dueCount > 0 ? <GenerateDueButton dueCount={dueCount} /> : null}
             <Button variant={dueCount > 0 ? "outline" : "default"} asChild className={cn(easy && "px-5 text-base")}>
               <Link href="/invoices/recurring/new">
-                <ACTIONS.add /> New schedule
+                <ACTIONS.add /> New repeat bill
               </Link>
             </Button>
           </div>
@@ -242,9 +246,9 @@ export default async function RecurringSchedulesPage({
                     <Th>Customer</Th>
                     <Th>Status</Th>
                     <Th>Every</Th>
-                    <Th>Next run</Th>
+                    <Th>Next bill</Th>
                     <Th className="text-right">Invoices</Th>
-                    <Th className="text-right">Each run</Th>
+                    <Th className="text-right">Each bill</Th>
                     <Th className="text-right">Live</Th>
                   </Tr>
                 </THead>

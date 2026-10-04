@@ -108,7 +108,7 @@ describe("TodayShifts", () => {
           { id: "e2", clockInAt: new Date(2026, 9, 3, 13, 0), clockOutAt: null, note: null },
         ],
         now: NOW,
-        weekLabel: "12h 0m logged this week",
+        caption: "6h 0m worked today",
       }),
     );
     expect(html).toContain("8:00 AM – 12:00 PM");
@@ -117,12 +117,13 @@ describe("TodayShifts", () => {
     expect(html).toContain("1:00 PM – now");
     expect(html).toContain("2h 0m");
     expect(html).toContain("Running");
-    expect(html).toContain("12h 0m logged this week");
+    // The line under "Today" is about today, not the week.
+    expect(html).toContain("6h 0m worked today");
   });
 
   it("names the next action when nothing is logged", () => {
     const html = renderToStaticMarkup(
-      React.createElement(TodayShifts, { entries: [], now: NOW, weekLabel: "0m logged this week" }),
+      React.createElement(TodayShifts, { entries: [], now: NOW, caption: "0m this week" }),
     );
     expect(html).toContain("Nothing logged today");
     expect(html).toContain("Clock in");
@@ -170,12 +171,14 @@ describe("TeamWeek", () => {
     expect(html).toContain("This week");
     expect(html).toContain("Next week");
     expect(html).toContain('href="/time-clock/export?week=2026-09-28"');
-    expect(html).toContain("Export CSV");
+    expect(html).toContain("Download timesheet");
     expect(html).toContain("Marcus Webb");
     expect(html).toContain("Tue Sep 29");
     expect(html).toContain("9:00 AM – 5:00 PM");
-    expect(html).toContain("Edit Marcus Webb&#x27;s entry");
-    expect(html).toContain("Delete Marcus Webb&#x27;s entry");
+    // One worded button per shift (Delete lives inside its dialog), never a bare pencil and a red bin.
+    expect(html).toContain("Fix this shift");
+    expect(html).toContain("Fix Marcus Webb&#x27;s shift");
+    expect(html).not.toContain("Delete Marcus Webb&#x27;s entry");
   });
 
   it("drops 'This week' when already on this week, and says so when nobody clocked in", () => {

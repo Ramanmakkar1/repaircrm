@@ -41,15 +41,16 @@ export const PO_STATUS_META: Record<
   DRAFT: {
     label: "Draft",
     tone: "neutral",
-    hint: "Not sent to the vendor yet.",
+    hint: "Not sent to the supplier yet.",
   },
   ORDERED: {
     label: "Ordered",
     tone: "info",
-    hint: "Placed with the vendor, nothing received.",
+    hint: "Ordered from the supplier, nothing has arrived yet.",
   },
+  // "Part arrived", not "Partial": the word a shop uses for half a delivery.
   PARTIAL: {
-    label: "Partial",
+    label: "Part arrived",
     tone: "active",
     hint: "Some of it has arrived.",
   },
@@ -76,7 +77,12 @@ export const RECEIVABLE_PO_STATUSES: readonly PoStatus[] = [
 /** Statuses a PO can still be canceled from. */
 export const CANCELABLE_PO_STATUSES: readonly PoStatus[] = ["DRAFT", "ORDERED"];
 
-/** The list-page filter pills. "open" is the view a buyer lives in. */
+/**
+ * Every view the list URL accepts (`?status=`). "open" is the default: anything
+ * not finished or called off. "onway" is ordered or part-arrived, the Easy-mode
+ * "On the way" tab. The old status keys keep working, so a bookmarked
+ * `?status=PARTIAL` still opens.
+ */
 export const PO_FILTERS = [
   "open",
   "all",
@@ -85,19 +91,42 @@ export const PO_FILTERS = [
   "PARTIAL",
   "RECEIVED",
   "CANCELED",
+  "onway",
 ] as const;
 
 export type PoFilter = (typeof PO_FILTERS)[number];
+
+/** The dense (Full mode) pill row, exactly as it was. */
+export const PO_FULL_FILTERS: readonly PoFilter[] = ["open", "all", "DRAFT", "ORDERED", "PARTIAL", "RECEIVED", "CANCELED"];
 
 export const PO_FILTER_LABELS: Record<PoFilter, string> = {
   open: "Open",
   all: "All",
   DRAFT: "Draft",
   ORDERED: "Ordered",
-  PARTIAL: "Partial",
+  PARTIAL: "Part arrived",
   RECEIVED: "Received",
   CANCELED: "Canceled",
+  onway: "On the way",
 };
+
+/**
+ * Easy mode's three tabs, in the order a buyer works: what still has to be
+ * ordered, what is on its way, what has arrived. "All" sits behind a small link.
+ */
+export const PO_EASY_TABS: readonly { key: PoFilter; label: string }[] = [
+  { key: "DRAFT", label: "To order" },
+  { key: "onway", label: "On the way" },
+  { key: "RECEIVED", label: "Arrived" },
+];
+
+/** The statuses a list view shows, or null for every status. */
+export function poFilterStatuses(filter: PoFilter): PoStatus[] | null {
+  if (filter === "all") return null;
+  if (filter === "open") return ["DRAFT", "ORDERED", "PARTIAL"];
+  if (filter === "onway") return ["ORDERED", "PARTIAL"];
+  return [filter];
+}
 
 export function asPoFilter(value: string | undefined): PoFilter {
   return (PO_FILTERS as readonly string[]).includes(value ?? "")

@@ -49,7 +49,7 @@ const schema = z.object({
   model: z.string().trim().max(60).optional(),
   serial: z.string().trim().max(80).optional(),
   unlockCode: z.string().trim().max(60).optional(),
-  problemType: z.string().trim().min(1, "Pick what sort of job this is.").max(60),
+  problemType: z.string().trim().min(1, "Tap what is wrong with the device.").max(60),
   description: z
     .string()
     .trim()
@@ -117,7 +117,7 @@ export async function submitCheckinAction(
   }
 
   const signature = readSignature(formData);
-  if (!signature) return { ok: false, error: "Please sign in the box above." };
+  if (!signature) return { ok: false, error: "Please sign in the box." };
 
   const recent = await db.ticket.count({
     where: {
@@ -220,7 +220,7 @@ export async function submitCheckinAction(
   const portalPath = `/portal/tickets/${created.id}`;
   const body = [
     `Hi ${firstName}, thanks for dropping in.`,
-    `We've booked your ${input.deviceType} in as ticket #${created.number}. You can follow it here:`,
+    `We've booked your ${input.deviceType} in as repair #${created.number}. You can follow it here:`,
     portalUrl(portalPath),
   ].join("\n\n");
 
@@ -228,9 +228,9 @@ export async function submitCheckinAction(
     shopId: shop.id,
     customerId: created.customerId,
     ticketId: created.id,
-    subject: `Checked in — ticket #${created.number}`,
+    subject: `Checked in: repair #${created.number}`,
     body,
-    context: `Ticket #${created.number} · ${shop.name}`,
+    context: `Repair #${created.number} · ${shop.name}`,
     portalPath,
   });
 
@@ -238,7 +238,7 @@ export async function submitCheckinAction(
     shopId: shop.id,
     customerId: created.customerId,
     ticketId: created.id,
-    body: `Checked in at ${shop.name} — ticket #${created.number}.`,
+    body: `Checked in at ${shop.name}, repair #${created.number}.`,
     portalPath,
   });
 

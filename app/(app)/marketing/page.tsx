@@ -27,6 +27,7 @@ import {
   sendBucket,
 } from "@/components/marketing/meta";
 import { readUiPrefs } from "@/lib/prefs";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
 import { countDueSends } from "./engine";
 
 export const metadata = { title: "Marketing · Repairs helper" };
@@ -55,7 +56,7 @@ export default async function MarketingPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shopId } = await requireUser();
-  const [query, { simple }] = await Promise.all([searchParams, readUiPrefs()]);
+  const [query, { simple }, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   const view = asView(query.view);
 
   const [campaigns, sendCounts, dueCount] = await Promise.all([
@@ -178,7 +179,7 @@ export default async function MarketingPage({
                   Messages go out on their own every fifteen minutes. Nothing is
                   waiting right now.
                 </p>
-                <SyncAndSendButton dueCount={0} />
+                <SyncAndSendButton dueCount={0} plain />
               </div>
             ) : null}
 
@@ -278,7 +279,7 @@ export default async function MarketingPage({
                             {counted.sent}
                           </Td>
                           <Td className="text-muted-foreground">
-                            {formatDate(campaign.createdAt)}
+                            {formatDate(campaign.createdAt, zone)}
                           </Td>
                           <Td className="w-px text-right">
                             <CampaignActiveSwitch

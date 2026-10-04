@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { prefersFinePointer } from "@/components/ui/auto-focus";
 import { cn } from "@/components/ui/cn";
 import {
   Dialog,
@@ -107,11 +108,13 @@ export function AssistantLauncher({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  // At the register the wide dock would sit on the cart, so it is always the
-  // small button there — without touching the remembered preference.
+  // At the register the button sits above the pinned total and pay buttons.
   const atRegister = pathname === "/pos";
-  // Keep entry forms clear while retaining one-tap AI and voice access.
-  const atEntryForm = /\/(?:new|edit)$/.test(pathname);
+  // The wide "Ask anything" bar lives only on Home and its hub screens, where
+  // there is room for it. Everywhere else it is one round button in the
+  // corner, so it never sits on a total, a Save button or the last row.
+  const roomy = pathname === "/counter" || pathname.startsWith("/counter/");
+  const busy = useBusyScreen();
   const [open, setOpen] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [pending, startTransition] = React.useTransition();
@@ -121,6 +124,7 @@ export function AssistantLauncher({
   const [collapsed, setCollapsed] = React.useState(false);
   const nextId = React.useRef(1);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const titleRef = React.useRef<HTMLElement>(null);
   const voiceButtonRef = React.useRef<HTMLButtonElement>(null);
   const launchButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const openedWithVoice = React.useRef(false);
@@ -306,12 +310,12 @@ export function AssistantLauncher({
 
   return (
     <>
-      {collapsed || atRegister || atEntryForm ? (
+      {collapsed || !roomy || busy ? (
         <button
           type="button"
           onClick={(event) => launch(event, false)}
-          aria-label="Open the shop assistant"
-          title="Ask Repairs helper"
+          aria-label="Ask: type or talk to the shop assistant"
+          title="Ask"
           aria-haspopup="dialog"
           aria-expanded={open}
           className={cn(
@@ -327,43 +331,40 @@ export function AssistantLauncher({
       ) : (
         <div
           role="group"
-          aria-label="Shop assistant"
-          className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden w-[calc(100%-2rem)] sm:flex max-w-[460px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 sm:p-2.5 print:hidden"
+          aria-label="Ask the shop assistant"
+          className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden w-[calc(100%-2rem)] sm:flex max-w-[420px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 print:hidden"
         >
+          {/* No aria-label: the words on the button are its name, so what a person sees is what a screen reader says. */}
           <button
             type="button"
             onClick={(event) => launch(event, false)}
-            aria-label="Type to assistant"
-            title="Type to assistant"
+            title="Type a question"
             aria-haspopup="dialog"
             aria-expanded={open}
-            className="rf-assistant-prompt flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-full pl-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3"
+            className="rf-assistant-prompt flex h-12 min-w-0 flex-1 items-center gap-2.5 rounded-full pl-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <RepairPilotMark className="size-10 shrink-0 rounded-full sm:size-11" />
-            <span className="truncate text-sm font-medium sm:text-lg">
-              Ask Repairs helper<span className="hidden min-[400px]:inline"> anything</span>
-            </span>
+            <RepairPilotMark className="size-10 shrink-0 rounded-full" />
+            <span className="truncate text-base font-medium">Ask anything</span>
           </button>
           <button
             type="button"
             onClick={() => setDock(true)}
-            aria-label="Shrink the assistant to a button"
-            title="Shrink — it stays one tap away"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Make Ask smaller"
+            title="Make it a round button. It stays one tap away."
+            className="flex size-12 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronDown className="size-5" aria-hidden />
           </button>
           <button
             type="button"
             onClick={(event) => launch(event, true)}
-            aria-label="Speak to assistant"
-            title="Speak to assistant from any screen"
+            title="Talk: ask out loud"
             aria-haspopup="dialog"
             aria-expanded={open}
-            className="rf-assistant-talk flex h-12 shrink-0 items-center gap-2 rounded-full px-4 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-5"
+            className="rf-assistant-talk flex h-12 shrink-0 items-center gap-2 rounded-full px-5 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <AudioLines className="size-5" aria-hidden />
-            <span className="text-base font-medium sm:text-lg">Talk</span>
+            <span className="text-base font-semibold">Talk</span>
           </button>
         </div>
       )}
@@ -374,14 +375,17 @@ export function AssistantLauncher({
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             if (openedWithVoice.current) voiceButtonRef.current?.focus();
-            else inputRef.current?.focus();
+            // A finger gets the starter boxes first: focusing the field would open the
+            // on-screen keyboard over them. A prefilled request still goes to the field.
+            else if (prefersFinePointer() || input.trim()) inputRef.current?.focus();
+            else titleRef.current?.focus();
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             launchButtonRef.current?.focus();
           }}
         >
-          <header className="rf-assistant-hero flex items-center gap-3.5 px-5 py-5 pr-14 sm:px-6">
+          <header ref={titleRef} tabIndex={-1} className="rf-assistant-hero flex items-center gap-3.5 px-5 py-5 pr-14 outline-none sm:px-6">
             <RepairPilotMark className="size-12 shrink-0 rounded-full shadow-sm" />
             <div className="min-w-0">
               <DialogTitle className="text-[19px] font-bold leading-tight tracking-tight">
@@ -478,16 +482,16 @@ export function AssistantLauncher({
             {suggestions.length > 0 && !pending && dictation.state === "idle" ? (
               <div aria-label="Suggested requests" className="mb-3 grid gap-1">
                 {suggestions.map((suggestion, index) => <button key={`${suggestion.command}-${index}`} type="button"
-                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => { setInput(suggestion.command); setHint("Ready to send — you can edit this first."); inputRef.current?.focus(); }}>
                   <span className="truncate font-medium">{suggestion.label}</span><span className="shrink-0 text-xs text-muted-foreground">{suggestion.detail}</span>
                 </button>)}
               </div>
             ) : null}
             {listening ? <div role="status" className="mb-3 flex items-center gap-3 text-sm">
-              <span className="size-2 rounded-full bg-red-600" /><span>Listening · {dictation.seconds}s</span>
+              <span className="size-2 rounded-full bg-destructive" /><span>Listening · {dictation.seconds}s</span>
               {dictation.engine === "cloud" ? <meter aria-label="Microphone level" min={0} max={1} value={dictation.level} className="h-2 min-w-0 flex-1" /> : <span className="flex-1" />}
-              <button type="button" className="underline" onClick={dictation.cancel}>Cancel</button>
+              <button type="button" className="min-h-12 px-2 font-semibold underline" onClick={dictation.cancel}>Cancel</button>
             </div> : null}
             {listening && dictation.engine === "browser" ? <p aria-label="Live transcript" className="mb-3 max-h-32 overflow-y-auto rounded-lg bg-surface px-3 py-2 text-base">{dictation.transcript || "Start speaking…"}</p> : null}
             <form
@@ -501,6 +505,7 @@ export function AssistantLauncher({
                 ref={inputRef}
                 value={listening && dictation.engine === "browser" ? dictation.transcript : input}
                 aria-label="Message to the assistant"
+                enterKeyHint="send"
                 maxLength={1500}
                 onChange={(event) => setInput(event.target.value)}
                 placeholder={continuation ? "Your answer…" : "Ask or tell me anything about the shop…"}
@@ -517,8 +522,8 @@ export function AssistantLauncher({
                 title={!dictation.supported ? "Voice isn't available in this browser. You can type instead." : "Tap and talk"}
                 onClick={listening ? dictation.stop : dictation.start}
                 className={cn(
-                  "flex size-13 shrink-0 items-center justify-center rounded-full text-white transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-40",
-                  listening ? "rf-assistant-listening bg-destructive" : "rf-assistant-talk hover:brightness-110",
+                  "flex size-13 shrink-0 items-center justify-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-40",
+                  listening ? "rf-assistant-listening bg-destructive text-destructive-foreground" : "rf-assistant-talk hover:brightness-110",
                 )}
               >
                 {transcribing ? (
@@ -545,9 +550,9 @@ export function AssistantLauncher({
                 <button
                   type="button"
                   onClick={() => setDock(false)}
-                  className="shrink-0 font-semibold underline underline-offset-2 hover:text-foreground"
+                  className="min-h-12 shrink-0 font-semibold underline underline-offset-2 hover:text-foreground"
                 >
-                  Show the full bar
+                  Show the Ask bar on Home
                 </button>
               ) : null}
             </div>
@@ -650,14 +655,14 @@ function AssistantBubble({
 
         {outcome.kind === "confirm" && !turn.settled ? (
           <div className="flex flex-wrap items-center justify-end gap-2 pt-0.5">
-            <Button type="button" variant="outline" size="sm" className="h-10" disabled={pending} onClick={onCancel}>
+            <Button type="button" variant="outline" size="lg" className="min-h-12" disabled={pending} onClick={onCancel}>
               Cancel
             </Button>
             <Button
               type="button"
               variant={"pending" in outcome ? "default" : "destructive"}
-              size="sm"
-              className="h-10"
+              size="lg"
+              className="min-h-12"
               disabled={pending}
               onClick={onConfirm}
             >
@@ -669,4 +674,48 @@ function AssistantBubble({
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+
+/** A field someone is typing in: the on-screen keyboard is (or is about to be) up. */
+function isTypingField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return target instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit", "reset", "range", "color", "file", "hidden"].includes(target.type);
+}
+
+/**
+ * True while a dialog, sheet or menu is open, or someone is typing in a field:
+ * the moments the wide Ask bar would sit on the thing the person is doing, so
+ * it steps back to the round button until they finish.
+ */
+export function useBusyScreen(): boolean {
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [typing, setTyping] = React.useState(false);
+
+  React.useEffect(() => {
+    let frame = 0;
+    const check = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        setDialogOpen(Boolean(document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"], [role="listbox"][data-state="open"]')));
+      });
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-state"] });
+    check();
+    const onFocusIn = (event: FocusEvent) => setTyping(isTypingField(event.target));
+    const onFocusOut = () => setTyping(false);
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, []);
+
+  return dialogOpen || typing;
 }

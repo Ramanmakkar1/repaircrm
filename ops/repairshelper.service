@@ -8,6 +8,10 @@ User=repairshelper
 Group=repairshelper
 WorkingDirectory=/srv/repairshelper/current
 EnvironmentFile=/etc/repairshelper/app.env
+# Every live shop is in America/Edmonton; server-rendered dates follow the process time zone
+# until all server code formats in each shop's own zone. On the VPS this line lives in
+# /etc/systemd/system/repairshelper.service.d/timezone.conf.
+Environment=TZ=America/Edmonton
 ExecStart=/usr/local/bin/node server.js
 Restart=on-failure
 RestartSec=5

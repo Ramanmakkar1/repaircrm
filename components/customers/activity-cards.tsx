@@ -1,12 +1,13 @@
 import * as React from "react";
 import Link from "next/link";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronRight } from "lucide-react";
 
 import { IconChip } from "@/components/ui/chip";
 import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { TBody, THead, Table, Td, Th } from "@/components/ui/table";
-import { calcTotals, formatCents, invoiceTotals } from "@/lib/money";
+import { refundAwareTotals, type RefundLike } from "@/components/billing/refund-math";
+import { calcTotals, formatCents } from "@/lib/money";
 import { EM_DASH, formatDate, formatDateTime, humanizeEnum, preview } from "./format";
 import { RowLink } from "@/components/list/row-link";
 import { SectionCard } from "./section-card";
@@ -54,21 +55,22 @@ export function TicketsCard({
   customerId,
   tickets,
   total,
-  easy = false,
+  timeZone,
 }: {
   customerId: string;
   tickets: TicketRow[];
   total: number;
-  /** Easy mode speaks of "repairs", never "tickets". */
-  easy?: boolean;
+  /** The shop's time zone (Shop.timezone): "Opened" is the shop's calendar day. */
+  timeZone?: string | null;
 }) {
+  // A repair is a repair in both modes: the shop's word, never "ticket".
   return (
     <SectionCard
       icon={ICONS.ticket}
-      title={easy ? "Repairs" : "Tickets"}
+      title="Repairs"
       count={total}
       viewAllHref={`/tickets?customerId=${customerId}`}
-      empty={easy ? "No repairs for this customer yet." : "No tickets for this customer yet."}
+      empty="No repairs for this customer yet."
     >
       {tickets.length > 0 ? (
         <TableFrame>
@@ -102,7 +104,7 @@ export function TicketsCard({
                     <TicketStatus status={ticket.status} />
                   </Td>
                   <Td className="hidden text-right text-muted-foreground sm:table-cell">
-                    {formatDate(ticket.createdAt)}
+                    {formatDate(ticket.createdAt, timeZone)}
                   </Td>
                 </RowLink>
               ))}
@@ -126,16 +128,20 @@ export type InvoiceRow = {
   createdAt: Date;
   lines: Line[];
   payments: { amountCents: number }[];
+  refunds?: RefundLike[];
 };
 
 export function InvoicesCard({
   customerId,
   invoices,
   total,
+  timeZone,
 }: {
   customerId: string;
   invoices: InvoiceRow[];
   total: number;
+  /** The shop's time zone (Shop.timezone), for the date column. */
+  timeZone?: string | null;
 }) {
   return (
     <SectionCard
@@ -159,10 +165,11 @@ export function InvoicesCard({
             </THead>
             <TBody>
               {invoices.map((invoice) => {
-                const { totalCents, balanceCents } = invoiceTotals(
+                const { totalCents, balanceCents } = refundAwareTotals(
                   invoice.lines,
                   invoice.taxRateBps,
                   invoice.payments,
+                  invoice.refunds,
                 );
                 const owing = invoice.status !== "VOID" && balanceCents > 0;
 
@@ -191,7 +198,7 @@ export function InvoicesCard({
                       {owing ? formatCents(balanceCents) : EM_DASH}
                     </Td>
                     <Td className="hidden text-right text-muted-foreground sm:table-cell">
-                      {formatDate(invoice.createdAt)}
+                      {formatDate(invoice.createdAt, timeZone)}
                     </Td>
                   </RowLink>
                 );
@@ -221,10 +228,13 @@ export function EstimatesCard({
   customerId,
   estimates,
   total,
+  timeZone,
 }: {
   customerId: string;
   estimates: EstimateRow[];
   total: number;
+  /** The shop's time zone (Shop.timezone), for the date column. */
+  timeZone?: string | null;
 }) {
   return (
     <SectionCard
@@ -265,7 +275,7 @@ export function EstimatesCard({
                       {formatCents(totalCents)}
                     </Td>
                     <Td className="hidden text-right text-muted-foreground sm:table-cell">
-                      {formatDate(estimate.createdAt)}
+                      {formatDate(estimate.createdAt, timeZone)}
                     </Td>
                   </RowLink>
                 );
@@ -294,9 +304,18 @@ export type PaymentRow = {
 export function PaymentsCard({
   payments,
   total,
+  easy = false,
+  timeZone,
 }: {
   payments: PaymentRow[];
   total: number;
+  /**
+   * Easy mode: each payment is one big row (48px and up) that opens its invoice,
+   * instead of a table whose only link was the 20px "#1012".
+   */
+  easy?: boolean;
+  /** The shop's time zone (Shop.timezone): the day a payment was taken, on the shop's calendar. */
+  timeZone?: string | null;
 }) {
   return (
     <SectionCard
@@ -305,7 +324,34 @@ export function PaymentsCard({
       count={total}
       empty="No payments taken yet."
     >
-      {payments.length > 0 ? (
+      {payments.length > 0 && easy ? (
+        <ul className="divide-y divide-border">
+          {payments.map((payment) => (
+            <li key={payment.id}>
+              <BigRowLink
+                href={`/invoices/${payment.invoice.id}`}
+                title={
+                  <>
+                    {humanizeEnum(payment.method)}
+                    <span className="font-normal text-muted-foreground"> · Invoice #{payment.invoice.number}</span>
+                  </>
+                }
+                detail={
+                  <>
+                    {formatDate(payment.createdAt, timeZone)}
+                    {payment.reference ? <span className="break-all"> · {payment.reference}</span> : null}
+                  </>
+                }
+                trailing={
+                  <span className="rf-num shrink-0 text-base font-bold tabular-nums text-status-resolved-fg">
+                    {formatCents(payment.amountCents)}
+                  </span>
+                }
+              />
+            </li>
+          ))}
+        </ul>
+      ) : payments.length > 0 ? (
         <TableFrame>
           <Table>
             <THead>
@@ -326,7 +372,7 @@ export function PaymentsCard({
                       that fits and is the difference between a hub that fits a
                       phone and one that does not. */}
                   <Td className="whitespace-normal text-muted-foreground">
-                    {formatDate(payment.createdAt)}
+                    {formatDate(payment.createdAt, timeZone)}
                   </Td>
                   <Td className="whitespace-normal font-medium text-foreground">
                     {humanizeEnum(payment.method)}
@@ -380,9 +426,12 @@ export type CommunicationRow = {
 export function CommunicationsCard({
   entries,
   total,
+  timeZone,
 }: {
   entries: CommunicationRow[];
   total: number;
+  /** The shop's time zone (Shop.timezone), for when each message went. */
+  timeZone?: string | null;
 }) {
   return (
     <SectionCard
@@ -433,7 +482,7 @@ export function CommunicationsCard({
                     {preview(entry.body, 160)}
                   </p>
                   <span className="text-[13px] text-faint-foreground">
-                    {formatDateTime(entry.createdAt)}
+                    {formatDateTime(entry.createdAt, timeZone)}
                   </span>
                 </div>
               </li>
@@ -442,5 +491,42 @@ export function CommunicationsCard({
         </ul>
       ) : undefined}
     </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One big row that opens a record (Easy mode)
+// ---------------------------------------------------------------------------
+
+/**
+ * A whole row as one link, at least 56px tall: a bold first line, a quiet
+ * second line, the figure or status on the right and a chevron. Used where a
+ * table's only way in was a small "#1012" link (Payments, Warranties).
+ */
+export function BigRowLink({
+  href,
+  title,
+  detail,
+  trailing,
+}: {
+  href: string;
+  title: React.ReactNode;
+  detail?: React.ReactNode;
+  /** The figure or status on the right, drawn as given (give it `shrink-0`). */
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      data-touch-control
+      className="flex min-h-14 items-center gap-3 px-5 py-3 transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="break-words text-base font-semibold text-foreground">{title}</span>
+        {detail ? <span className="break-words text-sm text-muted-foreground">{detail}</span> : null}
+      </span>
+      {trailing}
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-faint-foreground" />
+    </Link>
   );
 }

@@ -3,17 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileSpreadsheet, Loader2, TriangleAlert } from "lucide-react";
+import { Check, CheckCircle2, ClipboardPaste, Download, FileSpreadsheet, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
 import { ACTIONS } from "@/components/ui/icons";
 import { Label } from "@/components/ui/label";
@@ -26,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { fieldsFor, GENERATE_SKU, type ImportKind, type Mapping } from "./fields";
 import type { DuplicateMode, ImportPreview, ImportSummary } from "./commit";
 
@@ -57,10 +49,21 @@ export type CommitResult =
 const SKIP = "__skip__";
 const AUTO_SKU = "__generate__";
 
-const STEPS = ["Upload", "Map columns", "Review", "Done"] as const;
+const STEPS = ["Your file", "Columns", "Check", "Done"] as const;
 
 /**
- * The four-step CSV importer, shared by customers and products.
+ * The importer, shared by customers and products, built like the other step
+ * flows: one decision per step, the file's summary always in view, plain words
+ * and one big button.
+ *
+ *   1  Your file   three big boxes: upload a file, paste from Google Sheets, or
+ *                  download the example sheet.
+ *   2  Columns     "We matched these for you": each field with a tick and the
+ *                  column it comes from, "Change" when it is wrong; the rarely
+ *                  needed choices (worksheet, heading row) tucked away.
+ *   3  Check       three big numbers, what to do with ones you already have,
+ *                  a few rows as cards, and "Add 120 products".
+ *   4  Done        what happened, in words.
  *
  * ---------------------------------------------------------------------------
  * WHY THE FILE IS UPLOADED SEPARATELY
@@ -71,8 +74,8 @@ const STEPS = ["Upload", "Map columns", "Review", "Done"] as const;
  * a 5,000-row file crosses the wire exactly once, and the rows the server is
  * about to trust never round-trip through the browser.
  *
- * Nothing is written until the last step. Mapping and preview are read-only, so
- * backing up and trying a different column costs nothing.
+ * Nothing is written until the last step. Matching and checking are read-only,
+ * so going back and trying a different column costs nothing.
  */
 export function ImportWizard({
   kind,
@@ -99,6 +102,7 @@ export function ImportWizard({
 }) {
   const router = useRouter();
   const fields = React.useMemo(() => fieldsFor(kind), [kind]);
+  const noun = kind === "products" ? "products" : "customers";
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
@@ -114,9 +118,11 @@ export function ImportWizard({
 
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const sourceFile = React.useRef<File | null>(null);
+  const [pasteOpen, setPasteOpen] = React.useState(false);
   const [pasted, setPasted] = React.useState("");
   const [headerRow, setHeaderRow] = React.useState("1");
   const [aiNotes, setAiNotes] = React.useState<string[]>([]);
+  const [changing, setChanging] = React.useState<string | null>(null);
 
   // ------------------------------------------------------------------ step 1
   const send = async (file: File, sheetName?: string, selectedHeaderRow?: string) => {
@@ -138,9 +144,10 @@ export function ImportWizard({
       setHeaderRow(String(result.headerRow));
       setAiNotes([]);
       setMapping(result.mapping);
+      setChanging(null);
       setStep(1);
     } catch {
-      setError("That upload didn't arrive in one piece — try again.");
+      setError("That file didn't arrive in one piece. Try again.");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -155,8 +162,8 @@ export function ImportWizard({
       const result = await onSuggest(upload.batchId);
       if (!result.ok) { setError(result.error); return; }
       setMapping((current) => ({ ...current, ...result.mapping }));
-      setAiNotes(result.notes.length ? result.notes : ["AI matched the columns. Check the examples and preview before importing."]);
-    } catch { setError("AI matching is unavailable. You can still match the columns yourself."); }
+      setAiNotes(result.notes.length ? result.notes : ["The assistant matched the columns. Check the examples before you go on."]);
+    } catch { setError("The assistant can't match columns right now. You can still choose them yourself."); }
     finally { setBusy(false); }
   };
 
@@ -191,104 +198,139 @@ export function ImportWizard({
     router.refresh();
   };
 
-  const missingRequired = fields.filter(
-    (field) => field.required && (mapping[field.key] ?? -1) < 0 && !(kind === "products" && field.key === "sku" && mapping.sku === GENERATE_SKU),
-  );
+  const isMatched = (key: string) => (mapping[key] ?? -1) >= 0 || (kind === "products" && key === "sku" && mapping.sku === GENERATE_SKU);
+  const missingRequired = fields.filter((field) => field.required && !isMatched(field.key));
 
   const coreKeys = kind === "products" ? ["name", "sku", "priceCents", "stockQty"] : ["firstName", "lastName", "email", "phone", "mobile"];
-  const extraFields = fields.filter(field => !coreKeys.includes(field.key));
-  const matchedExtras = extraFields.filter(field => (mapping[field.key] ?? -1) >= 0).length;
-  function columnField(field: (typeof fields)[number]) {
+  const coreFields = fields.filter((field) => coreKeys.includes(field.key));
+  const extraFields = fields.filter((field) => !coreKeys.includes(field.key));
+  const matchedExtras = extraFields.filter((field) => isMatched(field.key)).length;
+  const matchedCount = fields.filter((field) => isMatched(field.key)).length;
+
+  function columnRow(field: (typeof fields)[number]) {
     const value = mapping[field.key] ?? -1;
+    const generated = field.key === "sku" && value === GENERATE_SKU;
+    const matched = isMatched(field.key);
+    const open = changing === field.key || (field.required && !matched);
+    const column = generated ? "Made up for you" : value >= 0 ? upload!.headers[value] : null;
     return (
-      <div key={field.key} className="flex flex-col gap-2">
-        <Label htmlFor={`map-${field.key}`}>
-          {field.label}
-          {field.required ? (
-            <span className="ml-0.5 text-destructive">*</span>
+      <li key={field.key} className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            aria-hidden
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-full",
+              matched ? "bg-accent text-accent-foreground" : field.required ? "bg-destructive-soft text-destructive" : "bg-surface-hover text-muted-foreground",
+            )}
+          >
+            {matched ? <Check className="size-4" strokeWidth={3} /> : field.required ? <TriangleAlert className="size-4" /> : <span className="text-sm">–</span>}
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-base font-semibold">
+              {field.label}
+              {field.required ? <span className="font-normal text-muted-foreground"> (needed)</span> : null}
+            </span>
+            <span className="text-[15px] text-muted-foreground [overflow-wrap:anywhere]">
+              {column ? <>From the column <span className="font-semibold text-foreground">“{column}”</span></> : field.required ? "Choose the column it is in" : "Not brought in"}
+            </span>
+          </span>
+          {!open ? (
+            <Button type="button" variant="outline" className="h-12 px-4 text-[15px]" disabled={busy} onClick={() => setChanging(field.key)}>
+              Change
+            </Button>
           ) : null}
-        </Label>
-        <Select
-          value={field.key === "sku" && value === GENERATE_SKU ? AUTO_SKU : value < 0 ? SKIP : String(value)}
-          disabled={busy}
-          onValueChange={(next) =>
-            setMapping((current) => ({
-              ...current,
-              [field.key]: next === SKIP ? -1 : next === AUTO_SKU ? GENERATE_SKU : Number(next),
-            }))
-          }
-        >
-          <SelectTrigger id={`map-${field.key}`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="max-h-64">
-            <SelectItem value={SKIP}>Don&rsquo;t import</SelectItem>
-            {kind === "products" && field.key === "sku" ? <SelectItem value={AUTO_SKU}>Generate product codes</SelectItem> : null}
-            {upload!.headers.map((header, index) => (
-              <SelectItem key={header} value={String(index)}>
-                {header}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {field.key === "sku" && value === GENERATE_SKU ? <p className="text-xs text-muted-foreground">Codes use the item name and barcode so importing the same sheet again finds the same items. Use distinct names for different variants.</p> : null}
-        {value >= 0 ? <p className="break-words text-xs text-muted-foreground">Example: {upload!.sample.map((row) => row[value] || "(blank)").join(" · ")}</p> : null}
-        {field.hint ? (
-          <p className="text-[13px] text-muted-foreground">{field.hint}</p>
+        </div>
+        {value >= 0 ? (
+          <p className="text-[14px] text-muted-foreground [overflow-wrap:anywhere]">
+            For example: {upload!.sample.map((row) => row[value] || "(blank)").join(" · ")}
+          </p>
         ) : null}
-      </div>
+        {generated ? (
+          <p className="text-[14px] text-muted-foreground">
+            Codes are made from the name and barcode, so bringing the same sheet in again finds the same items. Give different variants different names.
+          </p>
+        ) : null}
+        {open ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`map-${field.key}`} className="text-[15px]">
+              Which column has the {field.label.toLowerCase()}?
+            </Label>
+            <Select
+              value={generated ? AUTO_SKU : value < 0 ? SKIP : String(value)}
+              disabled={busy}
+              onValueChange={(next) => {
+                setMapping((current) => ({
+                  ...current,
+                  [field.key]: next === SKIP ? -1 : next === AUTO_SKU ? GENERATE_SKU : Number(next),
+                }));
+                setChanging(null);
+              }}
+            >
+              <SelectTrigger id={`map-${field.key}`} className="h-12 text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                <SelectItem value={SKIP}>Don&rsquo;t bring it in</SelectItem>
+                {kind === "products" && field.key === "sku" ? <SelectItem value={AUTO_SKU}>Make up codes for me</SelectItem> : null}
+                {upload!.headers.map((header, index) => (
+                  <SelectItem key={`${header}-${index}`} value={String(index)}>
+                    {header}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {field.hint ? <p className="text-[14px] text-muted-foreground">{field.hint}</p> : null}
+          </div>
+        ) : null}
+      </li>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    // Bottom room so the last button never sits under the floating assistant.
+    <div className="flex flex-col gap-5 pb-28">
       <Steps current={step} />
 
+      {upload && step > 0 && step < 3 ? (
+        // The live summary: which file, how big, how much is matched.
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-border bg-surface px-4 py-3 text-[15px]">
+          <span className="flex min-w-0 items-center gap-2 font-semibold">
+            <FileSpreadsheet aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{upload.fileName === "pasted-sheet.tsv" ? "Pasted sheet" : upload.fileName}</span>
+          </span>
+          <span className="text-muted-foreground">
+            {upload.rowCount.toLocaleString()} {upload.rowCount === 1 ? "row" : "rows"} · {matchedCount} of {fields.length} details matched
+          </span>
+        </div>
+      ) : null}
+
       {error ? (
-        <div
-          role="alert"
-          className="flex items-start gap-2.5 rounded-md border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
-        >
+        <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-destructive/40 bg-destructive-soft px-4 py-3 text-[15px] font-medium text-destructive">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <span>{error}</span>
         </div>
       ) : null}
 
       {step === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Choose a file</CardTitle>
-            <CardDescription>
-              Excel (.xlsx or .xls), OpenDocument (.ods), CSV, or TSV — up to 5 MB and 5,000 rows.
-              Keep your existing column names; we help match them next.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {/* The input itself is visually hidden, so the focus ring has to
-                live on the label — otherwise tabbing to the file picker shows
-                nothing at all. */}
+        <section aria-labelledby="import-step" className="flex flex-col gap-4">
+          <div>
+            <h2 id="import-step" className="text-2xl font-semibold tracking-tight">Where is your list?</h2>
+            <p className="text-base text-muted-foreground">
+              Excel, Numbers, Google Sheets or a CSV file. Keep your own column names: we match them next. Nothing is saved until you say so.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {/* The input is visually hidden, so the focus ring lives on the label box. */}
             <label
               className={cn(
-                "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border-strong bg-surface-hover/50 px-6 py-12 text-center transition-colors",
-                "hover:border-accent/50 hover:bg-surface-hover",
-                "focus-within:border-accent focus-within:ring-2 focus-within:ring-ring/50",
+                "flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border-strong bg-surface p-5 text-center transition-colors",
+                "hover:border-ring focus-within:border-accent focus-within:ring-2 focus-within:ring-ring/50",
+                busy && "pointer-events-none opacity-70",
               )}
             >
-              <span className="flex size-14 items-center justify-center rounded-xl bg-accent-soft text-accent-soft-foreground">
-                {busy ? (
-                  <Loader2 className="size-6 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="size-6" />
-                )}
-              </span>
-              <span className="flex flex-col gap-1">
-                <span className="text-[15px] font-bold text-foreground">
-                  {busy ? "Reading the file…" : "Choose your spreadsheet"}
-                </span>
-                <span className="text-[13.5px] text-muted-foreground">
-                  Nothing is saved until you have seen the preview.
-                </span>
-              </span>
+              {busy ? <Loader2 aria-hidden className="size-9 animate-spin" /> : <FileSpreadsheet aria-hidden className="size-9" strokeWidth={1.6} />}
+              <span className="text-lg font-semibold">{busy ? "Reading the file…" : "Upload a file"}</span>
+              <span className="text-[14px] text-muted-foreground">Up to 5 MB</span>
               <input
                 ref={fileRef}
                 type="file"
@@ -301,239 +343,226 @@ export function ImportWizard({
                 }}
               />
             </label>
+            <button
+              type="button"
+              aria-expanded={pasteOpen}
+              onClick={() => setPasteOpen((value) => !value)}
+              className={cn(
+                "flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl border bg-surface p-5 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                pasteOpen ? "border-accent ring-1 ring-accent" : "border-border hover:border-ring",
+              )}
+            >
+              <ClipboardPaste aria-hidden className="size-9" strokeWidth={1.6} />
+              <span className="text-lg font-semibold">Paste from Google Sheets</span>
+              <span className="text-[14px] text-muted-foreground">Or from Excel: copy, then paste</span>
+            </button>
+            <a
+              href={sampleUrl}
+              download
+              className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-5 text-center transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Download aria-hidden className="size-9" strokeWidth={1.6} />
+              <span className="text-lg font-semibold">Download the example</span>
+              <span className="text-[14px] text-muted-foreground">A sheet with the columns we know</span>
+            </a>
+          </div>
 
-            <details className="rounded-lg border border-border p-4">
-              <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold">Paste from Google Sheets or Excel</summary>
-              <div className="mt-3 flex flex-col gap-3">
-                <Label htmlFor="pasted-sheet">Copy the header row and inventory rows, then paste here</Label>
-                <Textarea id="pasted-sheet" rows={6} value={pasted} onChange={(event) => setPasted(event.target.value)} placeholder={"Item\tSKU\tPrice\tQty\nScreen assembly\tSCR-01\t99.00\t5"} />
-                <p className="text-sm text-muted-foreground">Works with private Google Sheets. You do not need to change sharing or give us your Google password.</p>
-                <Button type="button" disabled={busy || !pasted.trim()} onClick={() => void send(new File([pasted], "pasted-sheet.tsv", { type: "text/tab-separated-values" }))}>Read pasted sheet</Button>
-              </div>
-            </details>
-
-            <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-              <p className="text-[13.5px] text-muted-foreground">
-                Not sure what the columns should be called?
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <a href={sampleUrl} download>
-                  <ACTIONS.download className="size-4" />
-                  Sample CSV
-                </a>
+          {pasteOpen ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+              <Label htmlFor="pasted-sheet" className="text-base font-semibold">
+                Copy the heading row and the rows under it, then paste here
+              </Label>
+              <Textarea
+                id="pasted-sheet"
+                rows={6}
+                value={pasted}
+                autoFocus
+                onChange={(event) => setPasted(event.target.value)}
+                placeholder={kind === "products" ? "Item\tSKU\tPrice\tQty\nScreen assembly\tSCR-01\t99.00\t5" : "First name\tLast name\tPhone\nAna\tLopez\t555 0100"}
+                className="text-base"
+              />
+              <p className="text-[14px] text-muted-foreground">Works with private Google Sheets: no sharing settings, no Google password.</p>
+              <Button
+                type="button"
+                className="h-12 self-start px-6 text-base"
+                disabled={busy || !pasted.trim()}
+                onClick={() => void send(new File([pasted], "pasted-sheet.tsv", { type: "text/tab-separated-values" }))}
+              >
+                {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                Use this
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          ) : null}
+        </section>
       ) : null}
 
       {step === 1 && upload ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Match the columns</CardTitle>
-            <CardDescription>
-              {upload.fileName} · {upload.rowCount.toLocaleString()} row
-              {upload.rowCount === 1 ? "" : "s"}. We guessed from the header row —
-              fix anything that looks wrong.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <div className="flex flex-wrap items-end gap-3">
-              {upload.sheets.length > 1 ? <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="import-sheet">Worksheet</Label><Select value={upload.sheetName} disabled={busy} onValueChange={(name) => { if (sourceFile.current) void send(sourceFile.current, name); }}><SelectTrigger id="import-sheet"><SelectValue /></SelectTrigger><SelectContent>{upload.sheets.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select></div> : null}
-              <div className="w-28 space-y-2"><Label htmlFor="header-row">Header row</Label><Input id="header-row" type="number" min="1" max="25" value={headerRow} disabled={busy} onChange={(event) => setHeaderRow(event.target.value)} /></div>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => { if (sourceFile.current) void send(sourceFile.current, upload.sheetName, headerRow); }}>Read this row</Button>
-            </div>
-            {onSuggest ? <div className="space-y-3 border-y border-border py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-lg text-sm text-muted-foreground">AI can match unfamiliar column names and flag unclear values. It uses the headers and first three rows with your configured AI provider.</p><Button type="button" variant="outline" disabled={busy} onClick={() => void suggest()}>{busy ? "Working…" : "AI match columns"}</Button></div>
-              {aiNotes.length ? <ul className="list-disc space-y-1 pl-5 text-sm">{aiNotes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}
-            </div> : null}
-            <div className="grid gap-4 sm:grid-cols-2">{fields.filter(field => coreKeys.includes(field.key)).map(columnField)}</div>
-            <details className="rounded-lg border border-border px-4">
-              <summary className="flex min-h-12 cursor-pointer items-center text-sm font-semibold">More columns · {matchedExtras} matched</summary>
-              <p className="pb-3 text-xs text-muted-foreground">Matched columns below are included. Open to review or change them.</p>
-              <div className="grid gap-4 pb-4 sm:grid-cols-2">{extraFields.map(columnField)}</div>
-            </details>
+        <section aria-labelledby="import-step" className="flex flex-col gap-4">
+          <div>
+            <h2 id="import-step" className="text-2xl font-semibold tracking-tight">We matched these for you</h2>
+            <p className="text-base text-muted-foreground">Check each one against the examples. Tap Change if a column is wrong.</p>
+          </div>
 
-            {missingRequired.length > 0 ? (
-              <p className="text-[13px] font-medium text-destructive">
-                Still needed: {missingRequired.map((f) => f.label).join(", ")}.
-              </p>
-            ) : null}
-            {kind === "products" ? <p className="text-sm text-muted-foreground">Unmapped prices, costs and stock use the app defaults. Review these before importing. Prices use a decimal point, and stock must be a whole number.</p> : null}
-          </CardContent>
-        </Card>
+          {onSuggest ? (
+            <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="max-w-lg text-[15px] text-muted-foreground">
+                  Odd column names? The assistant can read the headings and the first three rows and match them for you.
+                </p>
+                <Button type="button" variant="outline" className="h-12 px-4 text-[15px]" disabled={busy} onClick={() => void suggest()}>
+                  <Sparkles aria-hidden />
+                  {busy ? "Working…" : "Let the assistant match them"}
+                </Button>
+              </div>
+              {aiNotes.length ? <ul className="list-disc space-y-1 pl-5 text-[15px]">{aiNotes.map((note, index) => <li key={index}>{note}</li>)}</ul> : null}
+            </div>
+          ) : null}
+
+          <ul className="grid gap-3 lg:grid-cols-2">{coreFields.map(columnRow)}</ul>
+
+          <details className="group rounded-2xl border border-border bg-surface">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 text-base font-semibold [&::-webkit-details-marker]:hidden">
+              More details · {matchedExtras} of {extraFields.length} matched
+              <span className="text-[14px] font-normal text-muted-foreground group-open:hidden">Show</span>
+            </summary>
+            <ul className="grid gap-3 border-t border-border p-3 lg:grid-cols-2">{extraFields.map(columnRow)}</ul>
+          </details>
+
+          <details className="rounded-2xl border border-border bg-surface">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center px-4 text-base font-semibold [&::-webkit-details-marker]:hidden">
+              Wrong sheet, or the headings are not on the first row?
+            </summary>
+            <div className="flex flex-wrap items-end gap-3 border-t border-border p-4">
+              {upload.sheets.length > 1 ? (
+                <div className="flex min-w-48 flex-1 flex-col gap-2">
+                  <Label htmlFor="import-sheet" className="text-[15px]">Sheet</Label>
+                  <Select value={upload.sheetName} disabled={busy} onValueChange={(name) => { if (sourceFile.current) void send(sourceFile.current, name); }}>
+                    <SelectTrigger id="import-sheet" className="h-12 text-base"><SelectValue /></SelectTrigger>
+                    <SelectContent>{upload.sheets.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="flex w-40 flex-col gap-2">
+                <Label htmlFor="header-row" className="text-[15px]">Headings are on row</Label>
+                <Input id="header-row" inputMode="numeric" value={headerRow} disabled={busy} onChange={(event) => setHeaderRow(event.target.value.replace(/[^0-9]/g, "").slice(0, 2))} className="h-12 text-base" />
+              </div>
+              <Button type="button" variant="outline" className="h-12 px-4 text-[15px]" disabled={busy} onClick={() => { if (sourceFile.current) void send(sourceFile.current, upload.sheetName, headerRow); }}>
+                Read it again
+              </Button>
+            </div>
+          </details>
+
+          {missingRequired.length > 0 ? (
+            <p role="alert" className="text-[15px] font-medium text-destructive">
+              Still needed: {missingRequired.map((f) => f.label).join(", ")}.
+            </p>
+          ) : null}
+          {kind === "products" ? <p className="text-[14px] text-muted-foreground">Details you don&rsquo;t bring in start empty or at zero. Prices use a decimal point; stock must be a whole number.</p> : null}
+        </section>
       ) : null}
 
       {step === 2 && preview ? (
-        <div className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Tile label="Rows" value={preview.total} />
-            <Tile label="Ready" value={preview.valid} tone="good" />
-            <Tile label="With problems" value={preview.invalid} tone="bad" />
-            <Tile label="Already on file" value={preview.duplicates} tone="warn" />
+        <section aria-labelledby="import-step" className="flex flex-col gap-4">
+          <div>
+            <h2 id="import-step" className="text-2xl font-semibold tracking-tight">Check before anything is saved</h2>
+            <p className="text-base text-muted-foreground">Rows with a problem are left out and listed afterwards. Everything else goes in.</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <BigNumber label="Ready" value={preview.valid} />
+            <BigNumber label="Need fixing" value={preview.invalid} />
+            <BigNumber label="Already here" value={preview.duplicates} />
           </div>
 
           {preview.duplicates > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>What about the ones already on file?</CardTitle>
-                <CardDescription>
-                  {preview.duplicates} row
-                  {preview.duplicates === 1 ? " matches" : "s match"} something
-                  that already exists.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                <ModeCard
-                  active={mode === "skip"}
-                  title="Skip duplicates"
-                  hint="Leave the existing record exactly as it is."
-                  onClick={() => setMode("skip")}
-                />
-                <ModeCard
-                  active={mode === "update"}
-                  title="Update existing"
-                  hint="Fill in the blanks from the file. Empty cells never overwrite."
-                  onClick={() => setMode("update")}
-                />
-              </CardContent>
-            </Card>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-lg font-semibold">
+                {preview.duplicates} {preview.duplicates === 1 ? "row matches" : "rows match"} {noun} you already have
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ModeCard active={mode === "skip"} title={`Skip ${noun} I already have`} hint="Leave them exactly as they are." onClick={() => setMode("skip")} />
+                <ModeCard active={mode === "update"} title="Fill in their blanks" hint="Only empty details are filled; nothing you have is overwritten." onClick={() => setMode("update")} />
+              </div>
+            </fieldset>
           ) : null}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>First {preview.rows.length} rows</CardTitle>
-              <CardDescription>
-                A sample of what will be written. Rows with problems are skipped
-                and listed by number afterwards.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-0 py-0">
-              <Table>
-                <THead>
-                  <Tr>
-                    <Th className="w-16">Row</Th>
-                    {fields
-                      .filter((field) => (mapping[field.key] ?? -1) >= 0 || (field.key === "sku" && mapping.sku === GENERATE_SKU))
-                      .slice(0, 5)
-                      .map((field) => (
-                        <Th key={field.key}>{field.label}</Th>
-                      ))}
-                    <Th>Status</Th>
-                  </Tr>
-                </THead>
-                <TBody>
-                  {preview.rows.map((row) => (
-                    <Tr key={row.row}>
-                      <Td className="tabular-nums text-muted-foreground">{row.row}</Td>
-                      {fields
-                        .filter((field) => (mapping[field.key] ?? -1) >= 0 || (field.key === "sku" && mapping.sku === GENERATE_SKU))
-                        .slice(0, 5)
-                        .map((field) => (
-                          <Td
-                            key={field.key}
-                            className="max-w-[14rem] truncate text-foreground"
-                            title={row.values[field.key] || undefined}
-                          >
-                            {row.values[field.key] || "—"}
-                          </Td>
-                        ))}
-                      {/* What this row will do when Import is pressed, in the
-                          app's own status language: red it will not go, amber
-                          it lands on something already on file, green it is a
-                          new record. */}
-                      <Td>
-                        {row.errors.length > 0 ? (
-                          <StatusPill
-                            tone="danger"
-                            label={row.errors[0]!}
-                            size="sm"
-                            title={row.errors.join(" · ")}
-                          />
-                        ) : row.duplicate ? (
-                          <StatusPill
-                            tone="active"
-                            label={`${mode === "skip" ? "Skip" : "Update"} — ${row.duplicate}`}
-                            size="sm"
-                          />
-                        ) : (
-                          <StatusPill tone="success" label="New" size="sm" />
-                        )}
-                      </Td>
-                    </Tr>
-                  ))}
-                </TBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="flex flex-col gap-2">
+            <h3 className="text-lg font-semibold">The first {preview.rows.length} rows</h3>
+            <ul className="grid gap-2 lg:grid-cols-2">
+              {preview.rows.map((row) => {
+                const shown = fields.filter((field) => isMatched(field.key)).slice(0, 4);
+                const [first, ...rest] = shown;
+                return (
+                  <li key={row.row} className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 text-base font-semibold [overflow-wrap:anywhere]">
+                        {first ? row.values[first.key] || "(blank)" : `Row ${row.row}`}
+                      </span>
+                      {row.errors.length > 0 ? (
+                        <StatusPill tone="danger" label="Needs fixing" />
+                      ) : row.duplicate ? (
+                        <StatusPill tone="active" label={mode === "skip" ? "Skipped" : "Fills blanks"} />
+                      ) : (
+                        <StatusPill tone="success" label="New" />
+                      )}
+                    </div>
+                    <span className="text-[14px] text-muted-foreground [overflow-wrap:anywhere]">
+                      Row {row.row}
+                      {rest.map((field) => ` · ${field.label}: ${row.values[field.key] || "—"}`).join("")}
+                    </span>
+                    {row.errors.length > 0 ? <span className="text-[14px] font-medium text-destructive">{row.errors.join(" · ")}</span> : null}
+                    {row.duplicate && row.errors.length === 0 ? <span className="text-[14px] text-muted-foreground">Matches {row.duplicate}</span> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </section>
       ) : null}
 
       {step === 3 && summary ? (
-        <Card>
-          <CardContent className="flex flex-col gap-6 py-8">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <span className="flex size-16 items-center justify-center rounded-xl bg-status-resolved-bg text-status-resolved-fg">
-                <CheckCircle2 className="size-7" />
-              </span>
-              <div className="flex flex-col gap-1">
-                <p className="text-lg font-bold tracking-tight text-foreground">
-                  Import finished
-                </p>
-                <p className="text-[14.5px] text-muted-foreground">
-                  The file has been processed and the scratch copy deleted.
-                </p>
-              </div>
-            </div>
+        <section aria-labelledby="import-step" className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5 sm:p-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <CheckCircle2 aria-hidden className="size-12" strokeWidth={1.75} />
+            <h2 id="import-step" className="text-2xl font-semibold tracking-tight">All done</h2>
+            <p className="text-base text-muted-foreground">Your list is in. The copy of the file has been deleted.</p>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Tile label="Created" value={summary.created} tone="good" />
-              <Tile label="Updated" value={summary.updated} />
-              <Tile label="Skipped" value={summary.skipped} tone="warn" />
-              <Tile
-                label="Errors"
-                value={summary.errors.length}
-                tone={summary.errors.length > 0 ? "bad" : undefined}
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <BigNumber label="Added" value={summary.created} />
+            <BigNumber label="Filled in" value={summary.updated} />
+            <BigNumber label="Skipped" value={summary.skipped} />
+            <BigNumber label="Left out" value={summary.errors.length} />
+          </div>
 
-            {summary.errors.length > 0 ? (
-              <div className="flex flex-col gap-2 rounded-md border border-border bg-surface-hover/60 px-4 py-3">
-                <span className="text-[13px] font-semibold text-muted-foreground">
-                  Rows that didn&rsquo;t make it
-                </span>
-                <ul className="flex flex-col gap-1 text-[13.5px] text-foreground">
-                  {summary.errors.slice(0, 15).map((row) => (
-                    <li key={row.row}>
-                      <span className="font-semibold tabular-nums">Row {row.row}</span>{" "}
-                      — {row.message}
-                    </li>
-                  ))}
-                </ul>
-                {summary.errors.length > 15 ? (
-                  <span className="text-[13px] text-muted-foreground">
-                    …and {summary.errors.length - 15} more.
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="flex justify-center">
-              <Button asChild>
-                <Link href={doneHref}>
-                  {doneLabel}
-                  <ACTIONS.next />
-                </Link>
-              </Button>
+          {summary.errors.length > 0 ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-border px-4 py-3">
+              <span className="text-base font-semibold">Rows that were left out</span>
+              <ul className="flex flex-col gap-1 text-[15px]">
+                {summary.errors.slice(0, 15).map((row) => (
+                  <li key={row.row}>
+                    <span className="font-semibold tabular-nums">Row {row.row}</span>: {row.message}
+                  </li>
+                ))}
+              </ul>
+              {summary.errors.length > 15 ? <span className="text-[14px] text-muted-foreground">…and {summary.errors.length - 15} more.</span> : null}
             </div>
-          </CardContent>
-        </Card>
+          ) : null}
+
+          <Button asChild className="h-14 self-center px-8 text-base">
+            <Link href={doneHref}>
+              {doneLabel}
+              <ACTIONS.next />
+            </Link>
+          </Button>
+        </section>
       ) : null}
 
       {step > 0 && step < 3 ? (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <Button
-            variant="ghost"
+            variant="outline"
+            className="h-12 px-5 text-base"
             disabled={busy}
             onClick={() => {
               setError(null);
@@ -545,21 +574,15 @@ export function ImportWizard({
           </Button>
 
           {step === 1 ? (
-            <Button
-              disabled={busy || missingRequired.length > 0}
-              onClick={() => void runPreview()}
-            >
+            <Button className="h-14 px-8 text-base" disabled={busy || missingRequired.length > 0} onClick={() => void runPreview()}>
               {busy ? <Loader2 className="animate-spin" /> : null}
-              {busy ? "Checking…" : "Preview"}
+              {busy ? "Checking…" : "Looks right"}
               {busy ? null : <ACTIONS.next />}
             </Button>
           ) : (
-            <Button
-              disabled={busy || (preview?.valid ?? 0) === 0}
-              onClick={() => void runCommit()}
-            >
+            <Button className="h-14 px-8 text-base" disabled={busy || (preview?.valid ?? 0) === 0} onClick={() => void runCommit()}>
               {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.upload />}
-              {busy ? "Importing…" : `Import ${preview?.valid ?? 0} rows`}
+              {busy ? "Adding…" : commitLabel(kind, preview, mode)}
             </Button>
           )}
         </div>
@@ -570,61 +593,61 @@ export function ImportWizard({
 
 // ---------------------------------------------------------------------------
 
+/**
+ * "Add 120 products". When some rows match ones already on file the exact split
+ * is only known while saving (a matching row can also have a problem), so the
+ * button says what it will do instead of guessing a number.
+ */
+function commitLabel(kind: ImportKind, preview: ImportPreview | null, mode: DuplicateMode): string {
+  const noun = kind === "products" ? "product" : "customer";
+  if (!preview) return "Add";
+  if (preview.duplicates > 0) return mode === "update" ? `Add and fill in ${preview.valid} rows` : `Add the new ${noun}s`;
+  return `Add ${preview.valid} ${preview.valid === 1 ? noun : `${noun}s`}`;
+}
+
+/** 1 Your file, 2 Columns, 3 Check, 4 Done: where you are, in words, never a button. */
 function Steps({ current }: { current: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-2">
-      {STEPS.map((label, index) => (
-        <li key={label} className="flex items-center gap-2">
-          <span
-            aria-current={index === current ? "step" : undefined}
+    <ol className="grid grid-cols-4 gap-2" aria-label="Import steps">
+      {STEPS.map((label, index) => {
+        const done = index < current;
+        const here = index === current;
+        return (
+          <li
+            key={label}
+            aria-current={here ? "step" : undefined}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
-              index === current
-                ? "border-transparent bg-accent text-accent-foreground shadow-sm"
-                : index < current
-                  ? "border-transparent bg-status-resolved-bg text-status-resolved-fg"
-                  : "border-border-strong bg-surface text-muted-foreground",
+              "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-center sm:flex-row sm:justify-start sm:gap-2 sm:px-3 sm:text-left",
+              here ? "border-accent bg-accent text-accent-foreground" : "border-border bg-surface text-foreground",
             )}
           >
-            <span className="tabular-nums opacity-70">{index + 1}</span>
-            {label}
-          </span>
-          {index < STEPS.length - 1 ? (
-            <span className="h-px w-4 bg-border-strong" aria-hidden />
-          ) : null}
-        </li>
-      ))}
+            <span
+              aria-hidden
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                here ? "bg-accent-foreground text-accent" : done ? "bg-accent-soft text-accent-soft-foreground" : "bg-surface-hover text-muted-foreground",
+              )}
+            >
+              {done ? <Check className="size-4" strokeWidth={3} /> : index + 1}
+            </span>
+            <span className="truncate text-[13px] font-semibold sm:text-[15px]">
+              {label}
+              {done ? <span className="sr-only"> (done)</span> : null}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
-function Tile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "good" | "bad" | "warn";
-}) {
+/** A big count with its word under it. Words carry the meaning, not colour. */
+function BigNumber({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="flex flex-col gap-1 px-4 py-4">
-      <span
-        className={cn(
-          "text-[26px] font-bold leading-none tabular-nums tracking-tight",
-          tone === "good"
-            ? "text-status-resolved-fg"
-            : tone === "bad"
-              ? "text-status-overdue-fg"
-              : tone === "warn"
-                ? "text-status-in-progress-fg"
-                : "text-foreground",
-        )}
-      >
-        {value.toLocaleString()}
-      </span>
-      <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
-    </Card>
+    <div className="flex flex-col gap-1 rounded-2xl border border-border bg-surface px-4 py-4">
+      <span className="rf-num text-[32px] font-semibold leading-none tabular-nums tracking-tight">{value.toLocaleString()}</span>
+      <span className="text-[15px] text-muted-foreground">{label}</span>
+    </div>
   );
 }
 
@@ -645,22 +668,18 @@ function ModeCard({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex flex-col gap-1 rounded-md border px-4 py-3.5 text-left transition-colors",
+        "relative flex min-h-16 flex-col gap-1 rounded-2xl border px-4 py-3.5 pr-12 text-left transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        active
-          ? "border-accent bg-accent-soft"
-          : "border-border-strong bg-surface hover:bg-surface-hover",
+        active ? "border-accent ring-1 ring-accent" : "border-border-strong bg-surface hover:bg-surface-hover",
       )}
     >
-      <span
-        className={cn(
-          "text-[14.5px] font-bold",
-          active ? "text-accent-soft-foreground" : "text-foreground",
-        )}
-      >
-        {title}
-      </span>
-      <span className="text-[13px] text-muted-foreground">{hint}</span>
+      <span className="text-base font-semibold">{title}</span>
+      <span className="text-[14px] text-muted-foreground">{hint}</span>
+      {active ? (
+        <span aria-hidden className="absolute right-3 top-3 flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground">
+          <Check className="size-4" strokeWidth={3} />
+        </span>
+      ) : null}
     </button>
   );
 }

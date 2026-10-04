@@ -530,9 +530,9 @@ describe("the More tile", () => {
 describe("the payment method tiles", () => {
   const out = html(createElement(MethodTiles, { value: "CASH", onChange: vi.fn() }));
 
-  it("offers the same five methods as the drop-down did, in words", () => {
+  it("offers five single methods and cash + card, in words", () => {
     for (const word of ["Card", "Cash", "Check", "Store credit", "Other"]) expect(out).toContain(`>${word}<`);
-    expect(out.match(/role="radio"/g)).toHaveLength(5);
+    expect(out.match(/role="radio"/g)).toHaveLength(6);
     expect(out).toContain('role="radiogroup"');
   });
 
@@ -542,9 +542,9 @@ describe("the payment method tiles", () => {
 
   it("marks only the chosen tile, filled, and keeps every tile 56px or taller", () => {
     expect(out.match(/aria-checked="true"/g)).toHaveLength(1);
-    expect(out.match(/aria-checked="false"/g)).toHaveLength(4);
+    expect(out.match(/aria-checked="false"/g)).toHaveLength(5);
     expect(out).toContain("bg-accent");
-    expect(out.match(/min-h-14/g)).toHaveLength(5);
+    expect(out.match(/min-h-14/g)).toHaveLength(6);
     expectCalm(out);
   });
 });

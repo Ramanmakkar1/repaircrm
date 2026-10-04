@@ -1,0 +1,25 @@
+import {beforeEach, describe, expect, it, vi} from "vitest";
+import {callsTo, dataOf, handlers, resetDb, whereOf} from "./helpers/db-mock";
+vi.mock("@/lib/db", async () => ({db: (await import("./helpers/db-mock")).fakeClient}));
+vi.mock("next/cache", () => ({revalidatePath: vi.fn()}));
+vi.mock("next/navigation", () => ({redirect: (url: string) => {throw new Error(`REDIRECT:${url}`);}}));
+vi.mock("@/lib/auth", () => ({requireUser: async () => ({shopId: "s1", userId: "current"}), sessionFor: (u: {id: string; shopId: string; role: string}) => ({userId: u.id, shopId: u.shopId, role: u.role}), hashPassword: vi.fn(async () => "bcrypt-hash"), verifyPassword: vi.fn(async () => true)}));
+vi.mock("@/lib/session", () => ({setSessionCookie: vi.fn(async () => {})}));
+vi.mock("@/lib/audit", () => ({audit: vi.fn(async () => {})}));
+vi.mock("@/lib/push/device", () => ({clearPushDevice: vi.fn(async () => {})}));
+import {verifyPassword} from "@/lib/auth";
+import {setSessionCookie} from "@/lib/session";
+import {clearRateLimit} from "@/lib/rate-limit";
+import {saveStaffPinAction, switchStaffAction} from "@/app/(app)/staff-switch/actions";
+const form = (v: Record<string,string>) => {const f = new FormData(); for (const [k,s] of Object.entries(v)) f.set(k,s); return f;};
+beforeEach(() => {resetDb(); vi.clearAllMocks(); vi.mocked(verifyPassword).mockResolvedValue(true); for (const key of ["pin-settings:current", "pin:s1:target", "pin-shop:s1"]) clearRateLimit(key); handlers["user.findFirst"] = () => ({id: "target", shopId: "s1", role: "TECH", pinHash: "hash", pinVersion: "v1", passwordHash: "password", totpEnabledAt: null, mustChangePassword: false}); handlers["user.updateMany"] = () => ({count: 1});});
+describe("staff PINs", () => {
+ it("hashes a six-digit PIN, rotates its version, and updates only the signed-in account", async () => {expect(await saveStaffPinAction({}, form({pin: "123456", confirm: "123456", password: "correct"}))).toHaveProperty("message"); expect(whereOf("user.updateMany")).toEqual({id: "current", shopId: "s1", active: true}); expect(dataOf("user.updateMany")).toMatchObject({pinHash: "bcrypt-hash", pinVersion: expect.any(String)});});
+ it.each(["1234", "12345a", "1234567", ""])('refuses malformed PIN %s', async pin => {expect(await saveStaffPinAction({}, form({pin, confirm: pin, password: "correct"}))).toHaveProperty("error"); expect(callsTo("user.updateMany")).toHaveLength(0);});
+ it("requires the current password and matching confirmation", async () => {vi.mocked(verifyPassword).mockResolvedValue(false); expect(await saveStaffPinAction({}, form({pin: "123456", confirm: "123456", password: "wrong"}))).toHaveProperty("error"); expect(callsTo("user.updateMany")).toHaveLength(0);});
+ it("cannot enable a PIN for an account requiring a second factor", async () => {handlers["user.findFirst"] = () => ({passwordHash: "hash", totpEnabledAt: new Date()}); expect(await saveStaffPinAction({}, form({pin: "123456", confirm: "123456", password: "correct"}))).toHaveProperty("error"); expect(callsTo("user.updateMany")).toHaveLength(0);});
+ it("removes a PIN and rotates the version even without a new PIN", async () => {expect(await saveStaffPinAction({}, form({remove: "yes", password: "correct"}))).toHaveProperty("message"); expect(dataOf("user.updateMany").pinHash).toBeNull();});
+ it("switches only to active same-shop PIN accounts and issues an eight-hour session", async () => {await expect(switchStaffAction({}, form({userId: "target", pin: "123456"}))).rejects.toThrow("REDIRECT:/"); expect(whereOf("user.findFirst")).toMatchObject({id: "target", shopId: "s1", active: true, mustChangePassword: false, totpEnabledAt: null}); expect(setSessionCookie).toHaveBeenCalledWith({userId: "target", shopId: "s1", role: "TECH", pinv: "v1"}, 28800);});
+ it("issues no session for a missing account or wrong PIN", async () => {handlers["user.findFirst"] = () => null; expect(await switchStaffAction({}, form({userId: "target", pin: "123456"}))).toHaveProperty("error"); expect(setSessionCookie).not.toHaveBeenCalled();});
+ it("locks PIN guesses after five tries, even on an authenticated tablet", async () => {vi.mocked(verifyPassword).mockResolvedValue(false); for (let i=0;i<5;i++) await switchStaffAction({}, form({userId: "target", pin: "000000"})); expect(await switchStaffAction({}, form({userId: "target", pin: "123456"}))).toMatchObject({error: expect.stringContaining("Too many")}); expect(callsTo("user.findFirst")).toHaveLength(5);});
+});

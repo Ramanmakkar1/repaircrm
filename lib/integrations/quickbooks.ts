@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { calcTotals } from "@/lib/money";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { dayKeyIn } from "@/lib/dashboard/zone";
 
 import {
   QBO_MINOR_VERSION,
@@ -319,11 +321,12 @@ export async function syncQuickBooks(
   watermark: Date | null,
 ): Promise<void> {
   const settings: ConnectionSettings = { ...connection.settings };
+  const zone = await loadShopZone(connection.shopId);
 
   await syncCustomers(connection, result, watermark);
   await syncProducts(connection, settings, result, watermark);
-  await syncInvoices(connection, settings, result, watermark);
-  await syncPayments(connection, result);
+  await syncInvoices(connection, settings, result, watermark, zone);
+  await syncPayments(connection, result, zone);
 }
 
 // --- Customers -------------------------------------------------------------
@@ -659,6 +662,7 @@ async function syncInvoices(
   settings: ConnectionSettings,
   result: SyncResult,
   watermark: Date | null,
+  zone: string,
 ): Promise<void> {
   const [invoiceLinks, customerLinks, productLinks] = await Promise.all([
     loadLinks(connection.shopId, "quickbooks", "invoice"),
@@ -717,7 +721,7 @@ async function syncInvoices(
     }
 
     try {
-      await createInvoice(connection, row, customerLink, productLinks, fallback);
+      await createInvoice(connection, row, customerLink, productLinks, fallback, zone);
       bucket.created += 1;
     } catch (error) {
       rethrowFatal(error);
@@ -739,6 +743,7 @@ async function createInvoice(
   customerLink: Link,
   productLinks: Map<string, Link>,
   fallback: Ref,
+  zone: string,
 ): Promise<void> {
   const totals = calcTotals(row.lines, row.taxRateBps);
 
@@ -765,7 +770,7 @@ async function createInvoice(
   const body: Json = {
     CustomerRef: { value: customerLink.remoteId },
     DocNumber: String(row.number),
-    TxnDate: day(row.createdAt),
+    TxnDate: dayKeyIn(row.createdAt.getTime(), zone),
     Line,
   };
   if (row.dueDate) body.DueDate = day(row.dueDate);
@@ -838,6 +843,7 @@ async function voidInvoice(
 async function syncPayments(
   connection: LiveConnection,
   result: SyncResult,
+  zone: string,
 ): Promise<void> {
   const [paymentLinks, invoiceLinks, customerLinks] = await Promise.all([
     loadLinks(connection.shopId, "quickbooks", "payment"),
@@ -875,7 +881,7 @@ async function syncPayments(
         body: {
           CustomerRef: { value: customerLink.remoteId },
           TotalAmt: money(row.amountCents),
-          TxnDate: day(row.createdAt),
+          TxnDate: dayKeyIn(row.createdAt.getTime(), zone),
           PrivateNote: row.reference
             ? `${row.method} · ${row.reference}`.slice(0, 1000)
             : row.method,

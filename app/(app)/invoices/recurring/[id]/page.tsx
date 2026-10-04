@@ -5,6 +5,16 @@ import { TriangleAlert } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
+import { readUiPrefs } from "@/lib/prefs";
+import { safeTimeZone } from "@/lib/dashboard/logic";
+import { taxLabel } from "@/lib/tax";
+import { primaryPhone } from "@/components/customers/customer-facts";
+import { BillSummary } from "@/components/billing/bill-hero";
+import { EmptyLines, LineList, Section, TotalsBlock, type TotalRow as BillTotalRow } from "@/components/billing/bill-lines";
+import { DocumentGrid, InvoiceCard } from "@/components/billing/document-cards";
+import { shopNow, shopWall } from "@/components/billing/shop-clock";
+import { BIG_BUTTON_SLOT, TILE_CLASS } from "@/components/billing/tile-style";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -57,11 +67,13 @@ export default async function ScheduleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { id } = await params;
+  const [{ id }, { simple }] = await Promise.all([params, readUiPrefs()]);
 
   const schedule = await db.recurringInvoice.findFirst({
     where: { id, shopId },
     include: {
+      shop: { select: { timezone: true } },
+      taxRate: { select: { name: true } },
       customer: true,
       lines: { orderBy: { sortOrder: "asc" } },
       invoices: {
@@ -81,7 +93,10 @@ export default async function ScheduleDetailPage({
 
   const totals = calcTotals(schedule.lines, schedule.taxRateBps);
   const frequency = asFrequency(schedule.frequency);
-  const due = isDue(schedule.nextRunAt, schedule.active);
+  // The run date is a calendar day; "is it due?" is asked on the shop's own clock.
+  const zone = safeTimeZone(schedule.shop.timezone);
+  const wallNow = shopNow(requestNow(), zone);
+  const due = isDue(schedule.nextRunAt, schedule.active, wallNow);
   const state = SCHEDULE_STATE_META[scheduleState(schedule.active, due)];
   const name = customerLabel(schedule.customer);
   const generatedCount = schedule.invoices.length;
@@ -90,9 +105,179 @@ export default async function ScheduleDetailPage({
   // The two chips the header used to carry, as one column. "Manual" rather
   // than an empty cell: a schedule nobody automated is a fact, not a blank.
   const automation = [
-    schedule.autoSend ? "Auto-send" : null,
-    schedule.autoCharge ? "Auto-charge" : null,
+    schedule.autoSend ? "Emails each bill" : null,
+    schedule.autoCharge ? "Charges the card" : null,
   ].filter((label): label is string => label !== null);
+  const terms = schedule.dueInDays === 0 ? "Due on receipt" : `Pay within ${schedule.dueInDays} days`;
+
+  // ============================================================== Easy
+  // The same till as an invoice: what goes on each bill on the left, and on
+  // the right who, how much and how often, one big "Bill now" and a few tiles.
+  if (simple) {
+    const phone = primaryPhone(schedule.customer).value || null;
+    const nextDay = formatDate(schedule.nextRunAt);
+    const after = formatDate(advanceRunDate(schedule.nextRunAt, frequency, schedule.anchorDay));
+    const whatHappens = [
+      "A draft invoice for this period is made now",
+      schedule.autoSend ? ", emailed to them" : "",
+      schedule.autoCharge ? ", and charged to their card" : "",
+      `. The next one after it is due on ${after}.`,
+    ].join("");
+    const totalRows: BillTotalRow[] = [
+      { label: "Subtotal", value: formatCents(totals.subtotalCents) },
+      {
+        label: schedule.taxRateBps > 0 ? taxLabel(schedule.taxRate?.name, schedule.taxRateBps) : "No tax",
+        value: formatCents(totals.taxCents),
+      },
+      { label: "Each bill", value: formatCents(totals.totalCents), size: "large", divider: true },
+    ];
+
+    const tiles = [
+      <Link key="edit" href={`/invoices/recurring/${schedule.id}/edit`} data-touch-control className={TILE_CLASS}>
+        <ACTIONS.edit aria-hidden />
+        Change
+      </Link>,
+      <ScheduleActiveButton
+        key="pause"
+        scheduleId={schedule.id}
+        active={schedule.active}
+        scheduleName={schedule.name}
+        tileClassName={TILE_CLASS}
+      />,
+      <Link key="list" href="/invoices/recurring" data-touch-control className={TILE_CLASS}>
+        <ICONS.recurring aria-hidden />
+        All repeat bills
+      </Link>,
+    ];
+
+    return (
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+        {schedule.lastChargeError ? (
+          <p role="alert" className="flex items-start gap-2.5 rounded-2xl bg-destructive-soft px-4 py-3 text-base font-medium leading-relaxed text-destructive">
+            <TriangleAlert aria-hidden className="mt-1 size-5 shrink-0" />
+            <span>
+              The last card charge did not go through: {schedule.lastChargeError} The
+              invoice was still made. This message goes once a charge works.
+            </span>
+          </p>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+          <BillSummary
+            className="lg:col-start-2 lg:row-start-1"
+            title={schedule.name}
+            status={<StatusPill tone={state.tone} label={state.label} />}
+            customer={{ name, href: `/customers/${schedule.customer.id}`, phone }}
+            hero={
+              <div className="flex flex-col gap-1.5 rounded-2xl border border-border bg-surface-hover p-4">
+                <p className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="rf-num text-[40px] font-bold leading-none tracking-tight text-foreground">
+                    {formatCents(totals.totalCents)}
+                  </span>
+                  <span className="text-lg font-semibold text-muted-foreground">{FREQUENCY_CADENCE[frequency]}</span>
+                </p>
+                <p className={cn("text-base font-semibold leading-snug", due ? "text-status-overdue-fg" : "text-foreground")}>
+                  {!schedule.active ? "Paused: no bills are being made" : due ? `Next bill was due ${nextDay}` : `Next bill ${nextDay}`}
+                </p>
+                <p className="text-[15px] text-muted-foreground">
+                  {terms}
+                  {automation.length > 0 ? ` · ${automation.join(" and ").toLowerCase()}` : " · you send each one"}
+                </p>
+              </div>
+            }
+            primary={
+              schedule.lines.length > 0 ? (
+                <div className={BIG_BUTTON_SLOT}>
+                  <RunNowButton scheduleId={schedule.id} label="Bill now" confirm={whatHappens} className="h-14 w-full text-lg" />
+                </div>
+              ) : null
+            }
+            tiles={tiles}
+            tileCount={tiles.length}
+            hint={`${invoicesSoFarWords(generatedCount)}. A draft is made on its day without you; Bill now makes this one early.`}
+          />
+
+          <div className="flex min-w-0 flex-col gap-5 lg:col-start-1 lg:row-start-1">
+            <Section title="What goes on each bill">
+              {schedule.lines.length === 0 ? (
+                <EmptyLines
+                  title="Nothing on it yet"
+                  hint="Add what to bill each time. No bills are made until there is something on it."
+                  action={
+                    <Button asChild className="h-12 px-6 text-base">
+                      <Link href={`/invoices/recurring/${schedule.id}/edit`}>
+                        <ACTIONS.add /> Add items
+                      </Link>
+                    </Button>
+                  }
+                />
+              ) : (
+                <LineList lines={schedule.lines} />
+              )}
+            </Section>
+            {schedule.lines.length > 0 ? <TotalsBlock rows={totalRows} /> : null}
+
+            <Section title="Bills made so far">
+              {schedule.invoices.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-border-strong px-5 py-6 text-base text-muted-foreground">
+                  None yet. The first one is made on {nextDay}.
+                </p>
+              ) : (
+                <DocumentGrid>
+                  {schedule.invoices.map((invoice) => {
+                    const invTotals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
+                    return (
+                      <li key={invoice.id}>
+                        <InvoiceCard
+                          now={wallNow}
+                          invoice={{
+                            id: invoice.id,
+                            number: invoice.number,
+                            customerName: name,
+                            status: invoice.status,
+                            createdAt: shopWall(invoice.createdAt, zone) ?? invoice.createdAt,
+                            dueDate: invoice.dueDate,
+                            paidAt: shopWall(invoice.paidAt, zone),
+                            totalCents: invTotals.totalCents,
+                            balanceCents: invTotals.balanceCents,
+                          }}
+                        />
+                      </li>
+                    );
+                  })}
+                </DocumentGrid>
+              )}
+            </Section>
+
+            {role === "OWNER" ? (
+              <Section title="Remove it">
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
+                  <p className="text-base leading-snug text-muted-foreground">
+                    {canDelete
+                      ? "Deleting removes this repeat bill for good. No invoice is touched."
+                      : `It has made ${invoicesSoFarWords(generatedCount).toLowerCase()}, so it can't be deleted: pause it instead and the history stays.`}
+                  </p>
+                  {canDelete ? (
+                    <div className="w-fit [&_[data-slot=button]]:h-12 [&_[data-slot=button]]:px-5 [&_[data-slot=button]]:text-base">
+                      <ConfirmActionDialog
+                        action={deleteScheduleAction}
+                        fields={{ id: schedule.id }}
+                        triggerLabel="Delete repeat bill"
+                        triggerIcon={<ACTIONS.delete />}
+                        title={`Delete ${schedule.name}?`}
+                        description="The repeat bill and its items go for good. This can't be undone."
+                        confirmLabel="Delete repeat bill"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </Section>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -108,10 +293,10 @@ export default async function ScheduleDetailPage({
         raised lives in the generated-invoices table below.
       */}
       <ObjectHeader
-        back={{ label: "Recurring", href: "/invoices/recurring" }}
+        back={{ label: "Repeat bills", href: "/invoices/recurring" }}
         value={formatCents(totals.totalCents)}
         title={schedule.name}
-        subtitle={`Per-run total — bills ${FREQUENCY_CADENCE[frequency]}`}
+        subtitle={`Each bill — bills ${FREQUENCY_CADENCE[frequency]}`}
         status={<StatusPill tone={state.tone} label={state.label} />}
         meta={[
           {
@@ -134,15 +319,9 @@ export default async function ScheduleDetailPage({
               </span>
             ),
           },
+          { label: "Terms", value: terms },
           {
-            label: "Terms",
-            value:
-              schedule.dueInDays === 0
-                ? "Due on receipt"
-                : `Net ${schedule.dueInDays} days`,
-          },
-          {
-            label: "Raised",
+            label: "Made so far",
             value: (
               <span className="rf-num">
                 {generatedCount} invoice{generatedCount === 1 ? "" : "s"}
@@ -151,7 +330,7 @@ export default async function ScheduleDetailPage({
           },
           {
             label: "Automation",
-            value: automation.length > 0 ? automation.join(" · ") : "Manual",
+            value: automation.length > 0 ? automation.join(" · ") : "You send each one",
           },
         ]}
         actions={
@@ -188,7 +367,7 @@ export default async function ScheduleDetailPage({
               />
             ) : null}
             {/* Primary last, the way the invoice and PO headers order theirs. */}
-            <RunNowButton size="sm" scheduleId={schedule.id} />
+            <RunNowButton size="sm" scheduleId={schedule.id} label="Bill now" />
           </>
         }
       />
@@ -211,7 +390,7 @@ export default async function ScheduleDetailPage({
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         {/* --------------------------------------------------------- lines */}
         <Card>
-          <CardHeader icon={ICONS.checklist} title="What gets billed each run" />
+          <CardHeader icon={ICONS.checklist} title="What goes on each bill" />
           <CardContent className="px-0 py-0">
             {schedule.lines.length === 0 ? (
               <EmptyState
@@ -265,11 +444,11 @@ export default async function ScheduleDetailPage({
 
         {/* -------------------------------------------------------- totals */}
         <Card>
-          <CardHeader icon={ICONS.cash} title="Per-run total" />
+          <CardHeader icon={ICONS.cash} title="Each bill" />
           <CardContent className="flex flex-col gap-3">
             <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
             <TotalRow
-              label={`Tax (${formatBps(schedule.taxRateBps)})`}
+              label={schedule.taxRateBps > 0 ? `Tax (${formatBps(schedule.taxRateBps)})` : "No tax"}
               value={formatCents(totals.taxCents)}
             />
             <div className="flex items-baseline justify-between gap-3 border-t border-border-strong pt-3">
@@ -281,12 +460,12 @@ export default async function ScheduleDetailPage({
               </span>
             </div>
             <p className="border-t border-border pt-3 text-[13.5px] leading-relaxed text-muted-foreground">
-              Runs {FREQUENCY_CADENCE[frequency]}. After the{" "}
-              {formatDate(schedule.nextRunAt)} run the next one lands on{" "}
+              Bills {FREQUENCY_CADENCE[frequency]}. After the{" "}
+              {formatDate(schedule.nextRunAt)} bill the next one is due on{" "}
               <span className="font-semibold text-foreground">
                 {formatDate(advanceRunDate(schedule.nextRunAt, frequency, schedule.anchorDay))}
               </span>
-              , whenever you actually press run.
+              . A draft is made on its day without you.
             </p>
           </CardContent>
         </Card>
@@ -294,13 +473,13 @@ export default async function ScheduleDetailPage({
 
       {/* --------------------------------------------------- generated list */}
       <Card>
-        <CardHeader icon={ICONS.invoice} title="Generated invoices" />
+        <CardHeader icon={ICONS.invoice} title="Bills made so far" />
         <CardContent className="px-0 py-0">
           {schedule.invoices.length === 0 ? (
             <EmptyState
               icon={ICONS.invoice}
               title="Nothing raised yet"
-              hint={`The first draft appears here on ${formatDate(schedule.nextRunAt)} — or press "Run now" to bill this period early.`}
+              hint={`The first draft appears here on ${formatDate(schedule.nextRunAt)} — or press "Bill now" to bill this period early.`}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -337,7 +516,7 @@ export default async function ScheduleDetailPage({
                           </Link>
                         </Td>
                         <Td className="tabular-nums text-muted-foreground">
-                          {formatDate(invoice.createdAt)}
+                          {formatDate(invoice.createdAt, zone)}
                         </Td>
                         <Td>
                           <InvoiceStatusBadge status={invoice.status} />
@@ -371,6 +550,12 @@ export default async function ScheduleDetailPage({
       </Card>
     </div>
   );
+}
+
+/** "3 invoices so far" in a sentence: "No invoices yet", "1 invoice", "3 invoices". */
+function invoicesSoFarWords(count: number): string {
+  if (count === 0) return "No invoices yet";
+  return `${count} invoice${count === 1 ? "" : "s"} so far`;
 }
 
 function TotalRow({ label, value }: { label: string; value: string }) {

@@ -11,7 +11,8 @@
 import type { Prisma } from "@prisma/client";
 
 import { formatDate } from "@/components/billing/format";
-import { stockStatus, type StockLevel } from "./format";
+import { dayKeyOf, formatDay, formatInstantDay } from "@/lib/inventory/dates";
+import { stockStatus, type InventoryFilter, type StockLevel } from "./format";
 import type { PoStatus } from "./purchasing";
 
 // ---------------------------------------------------------------------------
@@ -51,16 +52,22 @@ export function groupDetail(quantity: number, itemCount: number): string {
  * gone anywhere yet, an open order is waiting on a delivery date, a finished
  * order is history.
  */
-export function poDateLabel(order: {
-  status: PoStatus;
-  expectedAt: Date | null;
-  receivedAt?: Date | null;
-}): string {
+export function poDateLabel(
+  order: {
+    status: PoStatus;
+    expectedAt: Date | null;
+    receivedAt?: Date | null;
+  },
+  /** The shop's zone: when the delivery came in is a moment, read on the shop's clock. */
+  zone?: string,
+): string {
   if (order.status === "RECEIVED") {
-    return order.receivedAt ? `Received ${formatDate(order.receivedAt)}` : "Received";
+    if (!order.receivedAt) return "Received";
+    return `Received ${zone ? formatInstantDay(order.receivedAt, zone) : formatDate(order.receivedAt)}`;
   }
   if (order.status === "CANCELED") return "Canceled";
-  if (order.expectedAt) return `Expected ${formatDate(order.expectedAt)}`;
+  // A delivery date is a calendar day, stored as UTC midnight: no zone applies.
+  if (order.expectedAt) return `Expected ${formatDay(order.expectedAt)}`;
   return order.status === "DRAFT" ? "Not ordered yet" : "No delivery date";
 }
 
@@ -97,14 +104,95 @@ export function nextPoAction(status: PoStatus, hasOpenLines: boolean): "order" |
  * page), so it is the sum of the three states that are still in play.
  */
 export function poFilterCounts(rows: { status: string; count: number }[]): Record<string, number> {
-  const counts: Record<string, number> = { open: 0, all: 0, DRAFT: 0, ORDERED: 0, PARTIAL: 0, RECEIVED: 0, CANCELED: 0 };
+  const counts: Record<string, number> = { open: 0, all: 0, DRAFT: 0, ORDERED: 0, PARTIAL: 0, RECEIVED: 0, CANCELED: 0, onway: 0 };
   for (const row of rows) {
-    if (!(row.status in counts)) continue;
+    if (!(row.status in counts) || row.status === "open" || row.status === "all" || row.status === "onway") continue;
     counts[row.status] += row.count;
     counts.all += row.count;
     if (row.status === "DRAFT" || row.status === "ORDERED" || row.status === "PARTIAL") counts.open += row.count;
+    // "On the way": out with the supplier, whether or not part of it has landed.
+    if (row.status === "ORDERED" || row.status === "PARTIAL") counts.onway += row.count;
   }
   return counts;
+}
+
+/**
+ * The one line under a purchase order's title that says where it is:
+ * "0 of 7 arrived · due Oct 4", "Late: 2 of 7 arrived, was due Oct 2",
+ * "All 7 arrived", "7 items · not ordered yet". `todayKey` is today on the
+ * shop's own calendar and `zone` the shop's zone (lib/inventory/dates.ts), so
+ * "late" flips at the shop's midnight, not the server's.
+ */
+export function poProgressLine(
+  order: { status: PoStatus; expectedAt: Date | null; receivedAt?: Date | null },
+  totals: { orderedQty: number; receivedQty: number },
+  todayKey: string,
+  zone: string,
+): { text: string; late: boolean } {
+  const { orderedQty, receivedQty } = totals;
+  const items = `${orderedQty} ${orderedQty === 1 ? "item" : "items"}`;
+  const due = dayKeyOf(order.expectedAt);
+  const dueText = order.expectedAt ? formatDay(order.expectedAt, { year: false }) : null;
+  if (order.status === "CANCELED") return { text: `Canceled · ${items}`, late: false };
+  if (order.status === "DRAFT") {
+    return { text: `${items} · not ordered yet${dueText ? ` · wanted by ${dueText}` : ""}`, late: false };
+  }
+  if (order.status === "RECEIVED" || (orderedQty > 0 && receivedQty >= orderedQty)) {
+    return { text: `All ${orderedQty} arrived${order.receivedAt ? ` · ${formatInstantDay(order.receivedAt, zone)}` : ""}`, late: false };
+  }
+  const arrived = `${receivedQty} of ${orderedQty} arrived`;
+  if (due && due < todayKey) return { text: `Late · ${arrived} · was due ${dueText}`, late: true };
+  if (due && due === todayKey) return { text: `${arrived} · due today`, late: false };
+  return { text: dueText ? `${arrived} · due ${dueText}` : `${arrived} · no delivery date`, late: false };
+}
+
+/**
+ * One line of an order in words: "ordered 2 · arrived 0" and a status WORD, so
+ * how much of a line is in never depends on the colour of a number.
+ */
+export function lineArrival(quantity: number, receivedQty: number): { text: string; word: "Waiting" | "Part arrived" | "All here" } {
+  const word = receivedQty >= quantity && quantity > 0 ? "All here" : receivedQty > 0 ? "Part arrived" : "Waiting";
+  return { text: `ordered ${quantity} · arrived ${receivedQty}`, word };
+}
+
+/**
+ * What an empty Stock list says. A view with nothing in it is not always a
+ * failed search: an empty "Low stock" or "Out of stock" view is good news and
+ * says so, with a way back to everything. Only a search or a category that
+ * finds nothing is "nothing matches".
+ *
+ * `action`: "clear" drops every filter, "all" opens all stock, "everyShelf"
+ * keeps the view (Low / Out) but looks on every shelf, "add" adds a product.
+ */
+export function stockEmptyState(view: {
+  filter: InventoryFilter;
+  query: string;
+  category: string;
+  group: string;
+}): { title: string; hint: string; action: "clear" | "all" | "everyShelf" | "add" } {
+  const shelf = view.group !== "" && view.group !== "all";
+  if (view.query !== "" || view.category !== "") {
+    return {
+      title: "Nothing matches those filters",
+      hint: view.query ? "Try a shorter search, or clear it to see all your stock." : "Clear the filters to see all your stock.",
+      action: "clear",
+    };
+  }
+  if (view.filter === "low") {
+    return shelf
+      ? { title: "Nothing on this shelf is running low", hint: "Everything here is above its reorder point.", action: "everyShelf" }
+      : { title: "Nothing is running low", hint: "Every item you count is above its reorder point.", action: "all" };
+  }
+  if (view.filter === "out") {
+    return shelf
+      ? { title: "Nothing on this shelf is out of stock", hint: "Everything here has at least one left.", action: "everyShelf" }
+      : { title: "Nothing is out of stock", hint: "Everything you count has at least one on the shelf.", action: "all" };
+  }
+  if (view.filter === "inactive") {
+    return { title: "No hidden products", hint: "Products you stop selling are kept here, out of the way.", action: "all" };
+  }
+  if (shelf) return { title: "This shelf is empty", hint: "Choose another group, or see all your stock.", action: "clear" };
+  return { title: "No products yet", hint: "Add the parts and services you sell, so they are one tap away on repairs and sales.", action: "add" };
 }
 
 /**

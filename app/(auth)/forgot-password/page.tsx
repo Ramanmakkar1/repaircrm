@@ -4,6 +4,9 @@ import type { Metadata } from "next";
 
 import { getSession } from "@/lib/auth";
 
+import { Button } from "@/components/ui/button";
+
+import { AUTH_LINK } from "../auth-link";
 import { ForgotForm } from "./forgot-form";
 
 export const metadata: Metadata = {
@@ -26,14 +29,13 @@ export default async function ForgotPasswordPage() {
       </div>
 
       <ForgotForm />
-      <Link href="/email-code?purpose=reset" className="mt-4 flex min-h-11 items-center justify-center rounded-md border border-border text-sm font-semibold hover:bg-surface-hover">Use a 6-digit email code instead</Link>
+      <Button asChild size="lg" variant="outline" className="mt-3 h-12 min-h-12 w-full text-[15px]">
+        <Link href="/email-code?purpose=reset">Use a 6-digit email code instead</Link>
+      </Button>
 
-      <p className="mt-7 text-center text-[14.5px] text-muted-foreground">
+      <p className="mt-4 text-center text-[15px] text-muted-foreground">
         Remembered it?{" "}
-        <Link
-          href="/login"
-          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
-        >
+        <Link href="/login" className={AUTH_LINK}>
           Back to sign in
         </Link>
       </p>

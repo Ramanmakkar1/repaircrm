@@ -27,11 +27,15 @@ export async function reportScope(
   shopId: string,
 ): Promise<ReportExportScope> {
   const url = new URL(request.url);
+  const shop = await db.shop.findUnique({
+    where: { id: shopId },
+    select: { timezone: true },
+  });
   const period = resolveReportPeriod({
     period: url.searchParams.get("period"),
     from: url.searchParams.get("from"),
     to: url.searchParams.get("to"),
-  });
+  }, new Date(), shop?.timezone ?? "UTC");
 
   const requested = url.searchParams.get("location");
   // Re-read against this shop: an id from another tenant simply does not come

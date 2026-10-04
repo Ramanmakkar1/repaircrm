@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parseZonedDateInput } from "@/lib/shop-time";
 import type { ActionState } from "@/components/tickets/action-state";
 import {
   PRIORITIES,
@@ -86,7 +87,12 @@ export async function setTicketFieldAction(
         data = { dueDate: null };
         break;
       }
-      const due = parseDateInput(next);
+      if (!parseDateInput(next)) return { error: "That is not a date. Use YYYY-MM-DD." };
+      // The day the person picked, starting at midnight in the SHOP's time zone
+      // (Shop.timezone), so it reads back as the same day on every screen
+      // whatever zone the server runs in.
+      const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
+      const due = parseZonedDateInput(next, shop?.timezone);
       if (!due) return { error: "That is not a date. Use YYYY-MM-DD." };
       data = { dueDate: due };
       break;
@@ -143,7 +149,7 @@ export async function setTicketFieldAction(
     where: { id: ticketId, shopId },
     data,
   });
-  if (count === 0) return { error: "Ticket not found." };
+  if (count === 0) return { error: "Repair not found." };
 
   // The record first, so the optimistic value in the header has something to
   // reconcile against; the list too, because due date, assignee and priority

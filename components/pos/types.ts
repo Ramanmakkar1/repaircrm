@@ -3,10 +3,11 @@
  *
  * Nothing here may import Prisma — the register is a Client Component and this
  * module travels with it. Payment methods are a plain string union that mirrors
- * the `PaymentMethod` enum in schema.prisma.
+ * the `PaymentMethod` enum in schema.prisma, plus a UI-only SPLIT choice.
+ * Split saves separate CASH and CARD rows; it never adds a database method.
  */
 
-export type TenderMethod = "CASH" | "CARD" | "CHECK" | "OTHER" | "CREDIT";
+export type TenderMethod = "CASH" | "CARD" | "CHECK" | "OTHER" | "CREDIT" | "SPLIT";
 
 export const TENDER_METHODS: readonly TenderMethod[] = [
   "CASH",
@@ -22,6 +23,7 @@ export const METHOD_LABELS: Record<TenderMethod, string> = {
   CHECK: "Check",
   OTHER: "Other",
   CREDIT: "Store credit",
+  SPLIT: "Cash + card",
 };
 
 /** A sellable product, as the register grid needs it. */
@@ -182,6 +184,7 @@ export type CheckoutInput = {
   reference: string | null;
   /** Cash only: what the customer handed over, in cents. */
   tenderedCents: number | null;
+  cashAmountCents?: number | null;
   /**
    * Set when the card was taken on a Stripe Terminal reader before the sale was
    * rung up. The server retrieves that intent from Stripe and refuses the sale

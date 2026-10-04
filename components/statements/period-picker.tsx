@@ -22,11 +22,14 @@ export function StatementPeriodPicker({
   fromValue,
   toValue,
   presetDays,
+  todayValue,
 }: {
   basePath: string;
   fromValue: string;
   toValue: string;
   presetDays: number | null;
+  /** Today on the shop's calendar (`yyyy-mm-dd`), so presets end on the shop's day. */
+  todayValue?: string;
 }) {
   const router = useRouter();
   const fromRef = React.useRef<HTMLInputElement>(null);
@@ -51,7 +54,10 @@ export function StatementPeriodPicker({
               type="button"
               aria-pressed={active}
               onClick={() => {
-                const range = presetRange(preset.days);
+                const range = presetRange(
+                  preset.days,
+                  todayValue ? new Date(`${todayValue}T00:00:00.000Z`) : undefined,
+                );
                 navigate(range.from, range.to);
               }}
               className={cn(

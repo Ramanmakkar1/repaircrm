@@ -30,9 +30,12 @@ import { quickCommand } from "@/lib/ai/quick-commands";
 import { possibleProductMatch, productCandidateTokens } from "@/lib/ai/product-matching";
 import { rateLimit } from "@/lib/rate-limit";
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { addDaysToKey, dayKeyIn, dayWindow, mondayOfKey, parseDayKey, startOfZonedDay, timeLabelIn } from "@/lib/dashboard/zone";
 import { emitCustomerEvent } from "@/lib/events";
 import { customerIdsByPhone, samePhoneClause } from "@/lib/customers/phone-search";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { refundAwareTotals } from "@/components/billing/refund-math";
+import { formatCents } from "@/lib/money";
 import {
   interpretCommand,
   type AssistantContext,
@@ -818,11 +821,13 @@ async function findInvoices(
   const where: Prisma.InvoiceWhereInput = { shopId };
   if (intent.number) where.number = intent.number;
   if (intent.customer) where.customer = customerNameWhere(intent.customer);
-  if (intent.unpaid) where.status = { in: ["SENT", "PARTIAL"] };
+  if (intent.unpaid) where.status = { in: ["SENT", "PARTIAL", "PAID"] };
 
   const invoices = await db.invoice.findMany({
     where,
-    take: 10,
+    // Filter on the refund-aware balance before limiting the result links.
+    // Ten recently settled invoices must not hide an older unpaid one.
+    take: intent.unpaid ? undefined : 10,
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -831,6 +836,7 @@ async function findInvoices(
       taxRateBps: true,
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
       customer: { select: { firstName: true, lastName: true, businessName: true } },
     },
   });
@@ -844,7 +850,7 @@ async function findInvoices(
   const rows = invoices
     .map((invoice) => ({
       invoice,
-      totals: invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments),
+      totals: refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds),
     }))
     // Status says "sent"; the arithmetic is what says "owes". An invoice that
     // was settled without its status catching up is not a debt to chase.
@@ -859,7 +865,7 @@ async function findInvoices(
     message: intent.unpaid
       ? `${rows.length} unpaid invoice${rows.length === 1 ? "" : "s"} — ${formatCents(owed)} owing:`
       : `${rows.length} invoice${rows.length === 1 ? "" : "s"}:`,
-    links: rows.map(({ invoice, totals }) => ({
+    links: rows.slice(0, 10).map(({ invoice, totals }) => ({
       label: `Invoice #${invoice.number} · ${personName(invoice.customer)}`,
       href: `/invoices/${invoice.id}`,
       detail:
@@ -879,27 +885,22 @@ const PERIOD_LABEL: Record<SummaryPeriod, string> = {
   this_month: "This month",
 };
 
-function periodRange(period: SummaryPeriod): { from: Date; to: Date } {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const to = new Date();
+function periodRange(period: SummaryPeriod, now: Date, zone: string): { from: Date; to: Date } {
+  const today = dayKeyIn(now.getTime(), zone);
   if (period === "yesterday") {
-    const from = new Date(start);
-    from.setDate(from.getDate() - 1);
-    return { from, to: start };
+    const range = dayWindow(addDaysToKey(today, -1), zone);
+    return { from: new Date(range.from), to: new Date(range.toExclusive) };
   }
-  if (period === "this_week") {
-    // Monday-based, which is how a shop talks about "this week".
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  } else if (period === "this_month") {
-    start.setDate(1);
-  }
-  return { from: start, to };
+  const key = period === "this_week" ? mondayOfKey(today)
+    : period === "this_month" ? `${today.slice(0, 7)}-01` : today;
+  const { year, month, day } = parseDayKey(key)!;
+  return { from: new Date(startOfZonedDay(year, month, day, zone)), to: now };
 }
 
 /** Money in, refunds out, repairs opened and finished — the counter's scoreboard. */
 async function salesSummary(shopId: string, period: SummaryPeriod): Promise<AssistantOutcome> {
-  const { from, to } = periodRange(period);
+  const zone = await loadShopZone(shopId);
+  const { from, to } = periodRange(period, new Date(), zone);
   const window = { gte: from, lt: to };
 
   const [payments, refunds, opened, finished] = await Promise.all([
@@ -908,7 +909,7 @@ async function salesSummary(shopId: string, period: SummaryPeriod): Promise<Assi
       _sum: { amountCents: true },
       _count: { _all: true },
     }),
-    db.refund.aggregate({ where: { shopId, createdAt: window }, _sum: { amountCents: true } }),
+    db.refund.aggregate({ where: { shopId, createdAt: window, status: { not: "failed" } }, _sum: { amountCents: true } }),
     db.ticket.count({ where: { shopId, createdAt: window } }),
     db.ticket.count({ where: { shopId, resolvedAt: window } }),
   ]);
@@ -931,11 +932,11 @@ async function listAppointments(
   shopId: string,
   day: "today" | "tomorrow",
 ): Promise<AssistantOutcome> {
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  if (day === "tomorrow") from.setDate(from.getDate() + 1);
-  const to = new Date(from);
-  to.setDate(to.getDate() + 1);
+  const zone = await loadShopZone(shopId);
+  const today = dayKeyIn(Date.now(), zone);
+  const range = dayWindow(day === "tomorrow" ? addDaysToKey(today, 1) : today, zone);
+  const from = new Date(range.from);
+  const to = new Date(range.toExclusive);
 
   const rows = await db.appointment.findMany({
     where: { shopId, startsAt: { gte: from, lt: to }, status: { not: "CANCELED" } },
@@ -959,7 +960,7 @@ async function listAppointments(
     kind: "info",
     message: `${rows.length} booked ${day}:`,
     links: rows.map((row) => ({
-      label: `${row.startsAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} · ${row.customer ? personName(row.customer) : row.title}`,
+      label: `${timeLabelIn(row.startsAt.getTime(), zone)} · ${row.customer ? personName(row.customer) : row.title}`,
       href: "/appointments",
       detail: row.title,
     })),

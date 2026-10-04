@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import { appUrl } from "@/lib/comms/config";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 import { settleGatewayPayment } from "../settle-gateway";
 import { squareRequest } from "./api";
 import { withSquareConnection } from "./connect";
@@ -32,10 +32,11 @@ export async function createSquareInvoicePaymentLink(input: {
       shop: { select: { currency: true } },
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
     },
   });
   if (!invoice || invoice.status === "VOID") return { ok: false, reason: "That invoice cannot be paid." };
-  const amountCents = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments).balanceCents;
+  const amountCents = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds).balanceCents;
   if (amountCents <= 0) return { ok: false, reason: "That invoice is already paid." };
 
   try {

@@ -79,7 +79,9 @@ describe("balanceBlock (the hero of the invoice screen)", () => {
       { ...sent, status: "PARTIAL", totalCents: 5410, paidCents: 5410, refundedCents: 2705, balanceCents: 2705, dueDate: null },
       NOW,
     );
-    expect(block.headline).toBe("$27.05 due");
+    // The refund is why it owes: said in words, not left to look like an unpaid bill.
+    expect(block.headline).toBe("$27.05 owing again");
+    expect(block.word).toBe("owing again");
     expect(block.collected).toBe("Collected $54.10, refunded $27.05");
   });
 
@@ -182,13 +184,14 @@ describe("the one big button, by state", () => {
       estimatePrimaryLabel(estimatePrimaryAction({ status, canConvert, hasInvoice: invoiceNumber !== null }), {
         alreadySent: status !== "DRAFT",
         invoiceNumber,
+        declined: status === "DECLINED",
       });
     expect(label("DRAFT", true)).toBe("Send");
-    expect(label("SENT", true)).toBe("Send again");
+    expect(label("SENT", true)).toBe("Customer said yes");
     expect(label("APPROVED", true)).toBe("Convert to invoice");
     expect(label("CONVERTED", false, 1001)).toBe("Open invoice #1001");
     expect(label("CONVERTED", false)).toBeNull();
-    expect(label("DECLINED", false)).toBeNull();
+    expect(label("DECLINED", false)).toBe("They said yes after all");
   });
 });
 
@@ -198,9 +201,12 @@ describe("the quick tiles", () => {
     expect(due).toEqual(["send", "message", "print", "copy", "more"]);
     const draft = invoiceTiles({ primary: "send", voided: false, receiptable: false });
     expect(draft).toEqual(["edit", "print", "copy", "more"]);
+    // Paid with money taken: the big button prints the counter slip, so the
+    // letter invoice is its own "Print invoice" tile beside "Send receipt".
     const paid = invoiceTiles({ primary: "print", voided: false, receiptable: true });
-    expect(paid).toEqual(["receipt", "send", "message", "copy", "more"]);
-    expect(paid).not.toContain("print");
+    expect(paid).toEqual(["receipt", "print", "send", "message", "copy", "more"]);
+    // Paid with nothing taken: the big button IS the letter print, never repeated.
+    expect(invoiceTiles({ primary: "print", voided: false, receiptable: false })).not.toContain("print");
   });
 
   it("offers no receipt tile when there is nothing to receipt, and nothing to share on a voided bill", () => {
@@ -220,6 +226,13 @@ describe("the quick tiles", () => {
 
   it("freezes a converted quote: no send, no edit", () => {
     expect(estimateTiles({ primary: "invoice", status: "CONVERTED" })).toEqual(["print", "copy", "more"]);
+  });
+
+  it("puts what makes sense now in front: sign for a sent quote, never send again for a declined or approved one", () => {
+    expect(estimateTiles({ primary: "approve", status: "SENT" })).toEqual(["sign", "send", "message", "print", "copy", "more"]);
+    expect(estimateTiles({ primary: "approve", status: "DECLINED" })).toEqual(["edit", "print", "copy", "more"]);
+    expect(estimateTiles({ primary: "convert", status: "APPROVED" })).not.toContain("send");
+    expect(estimateTiles({ primary: "convert", status: "APPROVED" })).not.toContain("message");
   });
 
   it("lays four tiles out as a square and any other number as wrapping rows", () => {

@@ -183,9 +183,24 @@ export function JobActionsProvider({
 
       {/* A status move: the note (optional) and the message to the customer (optional) ride along. */}
       <Dialog open={sheet === "status"} onOpenChange={(open) => !open && close()}>
-        <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto">
+        <DialogContent
+          className="max-h-[90dvh] max-w-lg overflow-y-auto"
+          // Focus starts on the sheet's title, not on its first button: that is the
+          // "Mark ready and tell Owen" shortcut, which a stray Enter (or a barcode
+          // scanner's Enter) would otherwise press, texting the customer. The title
+          // also does not pop the on-screen keyboard over the sheet the way the
+          // note field would; one Tab reaches the buttons and the note.
+          onOpenAutoFocus={(event) => {
+            const title = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>("[data-sheet-title]");
+            if (!title) return;
+            event.preventDefault();
+            title.focus();
+          }}
+        >
           <DialogHeader>
-            <DialogTitle className="text-xl">Move to {target}?</DialogTitle>
+            <DialogTitle data-sheet-title tabIndex={-1} className="text-xl outline-none">
+              Move to {target}?
+            </DialogTitle>
             <DialogDescription className="text-sm">
               Add a note if you like. It is saved in Updates with the move.
             </DialogDescription>

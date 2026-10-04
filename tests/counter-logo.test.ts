@@ -1,0 +1,30 @@
+import {beforeEach, describe, expect, it, vi} from "vitest";
+import sharp from "sharp";
+import {callsTo, dataOf, handlers, resetDb} from "./helpers/db-mock";
+vi.mock("@/lib/db", async () => ({db: (await import("./helpers/db-mock")).fakeClient}));
+vi.mock("@/lib/auth", () => ({requireRole: vi.fn(async () => ({shopId: "s1"}))}));
+vi.mock("next/cache", () => ({revalidatePath: vi.fn()}));
+const driver = vi.hoisted(() => ({name: "local", put: vi.fn(async () => "/uploads/s1/new.png")}));
+vi.mock("@/lib/storage", () => ({activeDriver: () => driver, removeUpload: vi.fn(async () => {}), readUpload: vi.fn(async () => ({body: Buffer.from("png"), contentType: "image/png"}))}));
+import {requireRole} from "@/lib/auth";
+import {removeUpload} from "@/lib/storage";
+import {POST, DELETE} from "@/app/api/settings/logo/route";
+const upload = (file: File) => {const form = new FormData(); form.set("logo", file); return new Request("http://local/api/settings/logo", {method: "POST", body: form});};
+beforeEach(() => {resetDb(); vi.clearAllMocks(); driver.put.mockResolvedValue("/uploads/s1/new.png"); handlers["shop.findUnique"] = () => ({logoPath: "/uploads/s1/old.png", logoStorage: "local"}); handlers["shop.update"] = () => ({}); handlers["shop.updateMany"] = () => ({count: 1});});
+describe("shop logo upload", () => {
+ it("requires the owner, normalizes a real image to PNG, and stores only a shop-scoped generated path", async () => {
+  const body = await sharp({create: {width: 1000, height: 400, channels: 4, background: "#123456"}}).jpeg().toBuffer();
+  const result = await POST(upload(new File([new Uint8Array(body)], "../../logo.jpg", {type: "image/jpeg"})));
+  expect(result.status).toBe(200); expect(requireRole).toHaveBeenCalledWith("OWNER");
+  const args = driver.put.mock.calls[0] as unknown as [{key: string; body: Buffer; contentType: string}];
+  expect(args[0].key).toMatch(/^s1\/[a-f0-9]{32}\.png$/); expect(args[0].contentType).toBe("image/png");
+  expect(await sharp(args[0].body).metadata()).toMatchObject({format: "png", width: 512});
+  expect(dataOf("shop.update")).toMatchObject({logoUrl: "/shop-logo/s1", logoStorage: "local", logoPath: "/uploads/s1/new.png"});
+  expect(removeUpload).toHaveBeenCalledWith("local", "/uploads/s1/old.png");
+ });
+ it("rejects executable SVG or renamed text before storing any bytes", async () => {expect((await POST(upload(new File(["<svg><script>alert(1)</script></svg>"], "fake.png", {type: "image/png"})))).status).toBe(400); expect(driver.put).not.toHaveBeenCalled();});
+ it("enforces the 2 MB limit", async () => {expect((await POST(upload(new File([new Uint8Array(2 * 1024 * 1024 + 1)], "big.png")))).status).toBe(400); expect(driver.put).not.toHaveBeenCalled();});
+ it("keeps the old logo on failed storage", async () => {driver.put.mockRejectedValue(new Error("offline")); const body=await sharp({create:{width:1,height:1,channels:4,background:"#fff"}}).png().toBuffer(); expect((await POST(upload(new File([new Uint8Array(body)], "logo.png")))).status).toBe(503); expect(callsTo("shop.update")).toHaveLength(0); expect(removeUpload).not.toHaveBeenCalled();});
+ it("cleans up the new object if its database write fails", async () => {handlers["shop.update"] = () => {throw new Error("failed save");}; const body=await sharp({create:{width:1,height:1,channels:4,background:"#fff"}}).png().toBuffer(); expect((await POST(upload(new File([new Uint8Array(body)], "logo.png")))).status).toBe(503); expect(removeUpload).toHaveBeenCalledWith("local", "/uploads/s1/new.png"); expect(removeUpload).not.toHaveBeenCalledWith("local", "/uploads/s1/old.png");});
+ it("removes the saved logo with a conditional same-shop write", async () => {expect((await DELETE()).status).toBe(200); expect(callsTo("shop.updateMany")[0].args.where).toEqual({id: "s1", logoPath: "/uploads/s1/old.png"}); expect(dataOf("shop.updateMany")).toMatchObject({logoUrl: null, logoPath: null});});
+});

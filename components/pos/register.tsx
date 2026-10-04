@@ -420,6 +420,7 @@ export function Register({
       extra: {
         reference: string | null;
         tenderedCents: number | null;
+        cashAmountCents?: number | null;
         terminalPaymentIntentId?: string | null;
         squareTerminalCheckoutId?: string | null;
       },
@@ -428,6 +429,7 @@ export function Register({
         ...cartPayload(method),
         reference: extra.reference,
         tenderedCents: extra.tenderedCents,
+        cashAmountCents: extra.cashAmountCents ?? null,
         terminalPaymentIntentId: extra.terminalPaymentIntentId ?? null,
         squareTerminalCheckoutId: extra.squareTerminalCheckoutId ?? null,
       });
@@ -461,14 +463,16 @@ export function Register({
   const confirmTender = ({
     reference,
     tenderedCents,
+    cashAmountCents,
   }: {
     reference: string | null;
     tenderedCents: number | null;
+    cashAmountCents?: number | null;
   }) => {
     if (!tender) return;
     setError(null);
     startTransition(async () => {
-      await runCheckout(tender, { reference, tenderedCents });
+      await runCheckout(tender, { reference, tenderedCents, cashAmountCents });
     });
   };
 

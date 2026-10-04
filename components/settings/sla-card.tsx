@@ -1,148 +1,119 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Check } from "lucide-react";
 
-import { updateSlaAction } from "@/app/(app)/settings/sla-actions";
-import { StatusPill } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card";
+import { ICONS } from "@/components/ui/icons";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/components/ui/cn";
 import { MAX_SLA_HOURS, MIN_SLA_HOURS, type SlaHours } from "@/lib/sla";
 import { PRIORITIES, PRIORITY_META } from "@/components/tickets/ticket-meta";
 
 /**
- * Response targets: how long each priority may sit before the job counts as
- * late.
+ * How long each kind of repair may take before it counts as late.
  *
- * A new ticket with no due date typed in gets one computed from this, and the
- * SLA job stamps and emails about anything that runs past it. The hours are
- * calendar hours — a customer waiting overnight is still waiting — and the
- * card says so rather than letting anyone assume business hours.
+ * A new repair with no due date typed in gets one this far ahead, and anything
+ * that runs past it is flagged as overdue. The hours run around the clock — a
+ * customer waiting overnight is still waiting — and the card says so in plain
+ * words rather than letting anyone assume opening hours.
+ *
+ * Controlled: the Devices & repair steps panel owns the values and saves them
+ * with its one pinned Save, together with the repair steps.
  */
-const SaveIcon = ACTIONS.save;
+export const SLA_CHOICES: readonly { hours: number; label: string }[] = [
+  { hours: 4, label: "4 hours" },
+  { hours: 24, label: "1 day" },
+  { hours: 48, label: "2 days" },
+  { hours: 72, label: "3 days" },
+  { hours: 168, label: "1 week" },
+];
 
-export function SlaCard({ sla }: { sla: SlaHours }) {
-  const router = useRouter();
-  const [values, setValues] = React.useState<Record<string, string>>(() =>
-    Object.fromEntries(PRIORITIES.map((p) => [p, String(sla[p])])),
-  );
-  const [busy, setBusy] = React.useState(false);
+export type SlaDraft = Record<string, string>;
 
-  const dirty = PRIORITIES.some((p) => values[p] !== String(sla[p]));
+export function slaDraft(sla: SlaHours): SlaDraft {
+  return Object.fromEntries(PRIORITIES.map((p) => [p, String(sla[p])]));
+}
 
-  const invalid = PRIORITIES.some((p) => {
-    const hours = Number.parseInt(values[p], 10);
-    return !Number.isFinite(hours) || hours < MIN_SLA_HOURS || hours > MAX_SLA_HOURS;
-  });
-
-  async function save() {
-    setBusy(true);
-    const result = await updateSlaAction(
-      Object.fromEntries(
-        PRIORITIES.map((p) => [p, Number.parseInt(values[p], 10)]),
-      ) as Partial<SlaHours>,
-    );
-    setBusy(false);
-
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Response targets saved.");
-    router.refresh();
+/** The hours in a draft, or null for any box that is not a whole number in range. */
+export function slaFromDraft(draft: SlaDraft): Partial<SlaHours> | null {
+  const out: Record<string, number> = {};
+  for (const p of PRIORITIES) {
+    const hours = Number.parseInt(draft[p] ?? "", 10);
+    if (!Number.isFinite(hours) || hours < MIN_SLA_HOURS || hours > MAX_SLA_HOURS) return null;
+    out[p] = hours;
   }
+  return out as Partial<SlaHours>;
+}
 
+export function SlaCard({
+  values,
+  onChange,
+}: {
+  values: SlaDraft;
+  onChange: (next: SlaDraft) => void;
+}) {
   return (
     <Card>
       <CardHeader
         icon={ICONS.dueDate}
-        title="Response targets"
-        description="How long a job of each priority may take. A new ticket with no due date of its own gets one this far ahead, and anything that runs past it is flagged as overdue."
+        title="How long each repair may take"
+        description="A new repair without a due date gets one this far ahead, and is marked late after that. Counted around the clock, nights and weekends included."
       />
 
-      <CardContent className="flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PRIORITIES.map((priority) => (
+      <CardContent className="flex flex-col gap-5">
+        {PRIORITIES.map((priority) => {
+          const current = Number.parseInt(values[priority] ?? "", 10);
+          const id = `sla-${priority}`;
+          return (
             <div key={priority} className="flex flex-col gap-2">
-              <Label htmlFor={`sla-${priority}`}>
-                {PRIORITY_META[priority].label}
-              </Label>
-              <div className="relative">
-                <Input
-                  id={`sla-${priority}`}
-                  type="number"
-                  min={MIN_SLA_HOURS}
-                  max={MAX_SLA_HOURS}
-                  step={1}
-                  inputMode="numeric"
-                  className="pr-16 tabular-nums"
-                  value={values[priority]}
-                  onChange={(event) =>
-                    setValues((prev) => ({
-                      ...prev,
-                      [priority]: event.target.value,
-                    }))
-                  }
-                />
-                <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-faint-foreground">
+              <span id={`${id}-label`} className="text-[15px] font-semibold">
+                {PRIORITY_META[priority].label} priority
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div role="radiogroup" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-2">
+                  {SLA_CHOICES.map((choice) => {
+                    const chosen = current === choice.hours;
+                    return (
+                      <button
+                        key={choice.hours}
+                        type="button"
+                        role="radio"
+                        aria-checked={chosen}
+                        onClick={() => onChange({ ...values, [priority]: String(choice.hours) })}
+                        className={cn(
+                          "inline-flex min-h-12 items-center gap-1.5 rounded-xl border px-3.5 text-[15px] font-semibold transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          chosen ? "border-accent bg-accent text-accent-foreground" : "border-border bg-surface text-foreground hover:border-ring",
+                        )}
+                      >
+                        {chosen ? <Check aria-hidden className="size-4" strokeWidth={3} /> : null}
+                        {choice.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label htmlFor={id} className="flex items-center gap-2 text-[15px] text-muted-foreground">
+                  or
+                  <Input
+                    id={id}
+                    type="number"
+                    min={MIN_SLA_HOURS}
+                    max={MAX_SLA_HOURS}
+                    step={1}
+                    inputMode="numeric"
+                    aria-label={`${PRIORITY_META[priority].label} priority, in hours`}
+                    className="h-12 w-24 text-right text-base tabular-nums"
+                    value={values[priority] ?? ""}
+                    onChange={(event) => onChange({ ...values, [priority]: event.target.value })}
+                  />
                   hours
-                </span>
+                </label>
               </div>
             </div>
-          ))}
-        </div>
-
-        <p className="text-[14px] leading-relaxed text-muted-foreground">
-          Calendar hours, not opening hours — a customer waiting overnight is
-          still waiting.
-        </p>
+          );
+        })}
       </CardContent>
-
-      <CardFooter className="flex-wrap justify-end gap-3">
-        {/*
-          The state of the form is a status, so it is said with the app's one
-          status renderer rather than by quietly relabelling the button "Saved"
-          — a disabled button that says "Saved" cannot also say "these hours are
-          out of range", which is the case an operator actually gets stuck on.
-        */}
-        {invalid ? (
-          <StatusPill
-            tone="danger"
-            label={`Hours must be ${MIN_SLA_HOURS}–${MAX_SLA_HOURS}`}
-            className="mr-auto"
-          />
-        ) : dirty ? (
-          <StatusPill tone="active" label="Unsaved changes" className="mr-auto" />
-        ) : null}
-
-        {dirty ? (
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() =>
-              setValues(
-                Object.fromEntries(PRIORITIES.map((p) => [p, String(sla[p])])),
-              )
-            }
-          >
-            Discard changes
-          </Button>
-        ) : null}
-        <Button disabled={busy || !dirty || invalid} onClick={save}>
-          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
-          {busy ? "Saving…" : "Save targets"}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

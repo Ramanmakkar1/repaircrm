@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
 
 import { setTicketFieldAction } from "@/app/(app)/tickets/field-actions";
 import { PriorityBadge } from "@/components/tickets/priority-badge";
@@ -13,6 +12,7 @@ import {
 import { cn } from "@/components/ui/cn";
 import { InlineEdit } from "@/components/ui/inline-edit";
 import { DUE_TONE_CLASS, dueChip } from "@/lib/sla";
+import { formatInZone, parseZonedDateInput } from "@/lib/shop-time";
 
 /**
  * The four ticket facts a header cell may change in place: due date, assignee,
@@ -57,9 +57,10 @@ export function TicketDueDate({
   resolved,
   nowMs,
   exactDue,
+  timeZone,
 }: {
   ticketId: string;
-  /** yyyy-mm-dd, or "" when the ticket has no promised date. */
+  /** yyyy-mm-dd on the shop's calendar, or "" when the ticket has no promised date. */
   value: string;
   /** A finished job gets no chip — see `dueChip`. */
   resolved: boolean;
@@ -77,6 +78,13 @@ export function TicketDueDate({
    * measure from the exact time too, for as long as the day has not been edited.
    */
   exactDue?: string | null;
+  /**
+   * The shop's time zone (Shop.timezone). A typed day is read as that day in the
+   * shop, as the server stores it, and the date is printed on the shop's
+   * calendar, so the server render and the browser agree whatever zone either
+   * runs in.
+   */
+  timeZone?: string | null;
 }) {
   return (
     <InlineEdit
@@ -85,7 +93,8 @@ export function TicketDueDate({
       value={value}
       onSave={(next) => save(ticketId, "dueDate", next)}
       format={(raw) => {
-        const due = parseDateInput(raw);
+        // Validated as a real calendar day first (2026-02-31 is refused), then placed in the shop's zone.
+        const due = parseDateInput(raw) ? parseZonedDateInput(raw, timeZone) : null;
         if (!due) return raw;
 
         const chip = dueChip(exactDue && raw === value ? exactDue : due, resolved, nowMs);
@@ -101,7 +110,7 @@ export function TicketDueDate({
             {chip.label}
           </span>
         ) : (
-          format(due, "MMM d, yyyy")
+          formatInZone(due, "MMM d, yyyy", timeZone)
         );
       }}
     />

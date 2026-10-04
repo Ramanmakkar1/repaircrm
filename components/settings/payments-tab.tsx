@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
-import { formatDate, formatDateTime } from "@/components/billing/format";
 import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/components/ui/cn";
@@ -43,6 +42,10 @@ import { attentionBorder } from "@/components/settings/card-attention";
 import { CardMachineModeCard } from "@/components/settings/card-machine-mode-card";
 import { DeviceAccessCard } from "@/components/settings/device-access-card";
 import type { CardMachineSetting } from "@/lib/payments/card-machine";
+import { StatusTile } from "./status-tile";
+import { TechnicalDetails } from "./technical-details";
+import { shopDate, shopDateTime } from "./shop-time";
+import { useShopZone } from "./shop-zone";
 import type { CheckLine, PaymentsHealth } from "@/lib/payments";
 import type {
   PaymentsTabConfig,
@@ -186,8 +189,17 @@ export function PaymentsTab({
       (!squareAccountCountry || squareAccountCountry === shopCountry),
   );
 
+  const canConnectStripe = config.connectConfigured && !config.connected;
+  const canConnectSquare =
+    squareMarketSupported && config.square.configured && !config.square.connected;
+
   return (
     <div className="flex flex-col gap-5">
+      <PaymentsSummary
+        config={config}
+        canConnectStripe={canConnectStripe}
+        canConnectSquare={canConnectSquare}
+      />
       <CardMachineModeCard
         setting={config.cardMachine}
         machines={{
@@ -199,6 +211,7 @@ export function PaymentsTab({
       <ProviderCatalogCard
         config={config}
         disconnectSquareAction={disconnectSquareAction}
+        availableOnly
       />
       {config.square.connected && squareMarketSupported ? (
         <SquareTerminalCard
@@ -209,9 +222,7 @@ export function PaymentsTab({
           action={createSquareDeviceCodeAction}
         />
       ) : null}
-      {!config.connectConfigured ? (
-        <NotConfiguredCard env={config.env} />
-      ) : (
+      {config.connectConfigured ? (
         <>
           <ConnectionCard config={config} disconnectAction={disconnectAction} />
           <GettingPaidCard config={config} retrySetupAction={retrySetupAction} />
@@ -224,10 +235,102 @@ export function PaymentsTab({
             forgetReaderAction={forgetReaderAction}
           />
           <HealthCard testPaymentsAction={testPaymentsAction} />
-          <ServerCard config={config} />
         </>
-      )}
-      <DeviceAccessCard />
+      ) : null}
+      {/*
+        Everything addressed to whoever runs the server: variable names, the
+        web address Stripe confirms payments to, providers that are planned but
+        not usable yet, and the browser's USB / Bluetooth device permissions.
+      */}
+      <TechnicalDetails>
+        {!config.connectConfigured ? (
+          <NotConfiguredCard env={config.env} />
+        ) : (
+          <ServerCard config={config} />
+        )}
+        <ProviderCatalogCard
+          config={config}
+          disconnectSquareAction={disconnectSquareAction}
+          plannedOnly
+        />
+        <DeviceAccessCard />
+      </TechnicalDetails>
+    </div>
+  );
+}
+
+/**
+ * The owner's three questions, answered first: can customers pay by card, is
+ * there a card machine at the counter, and does cash work. Each answer is a
+ * word, a line, and (when there is one) the button that moves it forward.
+ */
+function PaymentsSummary({
+  config,
+  canConnectStripe,
+  canConnectSquare,
+}: {
+  config: PaymentsTabConfig;
+  canConnectStripe: boolean;
+  canConnectSquare: boolean;
+}) {
+  const cardsOn = config.connected || config.square.connected;
+  const blocked = config.connected && config.account !== null && !config.account.chargesEnabled;
+  const machines = config.readers.length + config.square.devices.length;
+  const online = config.readers.filter((reader) => reader.status === "online").length;
+  const canSetUp = canConnectStripe || canConnectSquare;
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-3">
+      <StatusTile
+        photo="/images/products/phone.webp"
+        title="Card payments"
+        state={blocked ? "Needs your details" : cardsOn ? "On" : "Not set up yet"}
+        tone={blocked ? "danger" : cardsOn ? "success" : "neutral"}
+        detail={
+          blocked
+            ? "Your card account is connected, but it is not allowed to take payments until you answer its questions. Sign in to Stripe and finish them."
+            : cardsOn
+              ? "Customers can pay invoices by card, online or at the counter."
+              : canSetUp
+                ? "Connect a card account and customers can pay invoices by card. It takes a few minutes."
+                : "Card payments are not switched on for your shop yet. Ask your installer to turn them on."
+        }
+        className="lg:col-span-3"
+      >
+        {canConnectStripe ? (
+          <Button asChild className="h-12 px-5 text-base">
+            <a href="/api/payments/stripe/connect">
+              <ConnectIcon aria-hidden /> Connect with Stripe
+            </a>
+          </Button>
+        ) : null}
+        {canConnectSquare ? (
+          <Button asChild variant={canConnectStripe ? "outline" : "default"} className="h-12 px-5 text-base">
+            <a href="/api/payments/square/connect">
+              <ConnectIcon aria-hidden /> {config.square.hasError ? "Reconnect Square" : "Connect with Square"}
+            </a>
+          </Button>
+        ) : null}
+      </StatusTile>
+      <StatusTile
+        photo="/images/home/card-terminal.webp"
+        title="Card machine"
+        state={machines === 0 ? "None connected" : online > 0 ? `${online} switched on` : `${machines} connected`}
+        tone={machines === 0 ? "neutral" : "success"}
+        detail={
+          machines === 0
+            ? "Any card machine works: choose below whether the amount is sent to it or typed in."
+            : "The amount goes to the machine and the sale marks itself paid."
+        }
+        className="lg:col-span-2"
+      />
+      <StatusTile
+        photo="/images/home/cash-register.webp"
+        title="Cash and cheque"
+        state="Ready"
+        tone="success"
+        detail="Works today. Nothing to set up."
+      />
     </div>
   );
 }
@@ -258,9 +361,15 @@ function targetCountry(country: string): TargetCountry | null {
 function ProviderCatalogCard({
   config,
   disconnectSquareAction,
+  availableOnly = false,
+  plannedOnly = false,
 }: {
   config: PaymentsTabConfig;
   disconnectSquareAction: () => Promise<SimpleResult>;
+  /** The owner's card: only providers that can actually be connected today. */
+  availableOnly?: boolean;
+  /** The installer's card: the planned ones, so nobody wonders where they went. */
+  plannedOnly?: boolean;
 }) {
   const country = targetCountry(config.country);
   const providers = country
@@ -269,16 +378,24 @@ function ProviderCatalogCard({
         ["stripe", "square"].includes(provider.id),
       );
   const square = PAYMENT_PROVIDERS.find((provider) => provider.id === "square");
-  const visibleProviders = square && !providers.some((item) => item.id === "square")
+  const allProviders = square && !providers.some((item) => item.id === "square")
     ? [...providers, square]
     : providers;
+  const visibleProviders = allProviders.filter((provider) =>
+    availableOnly ? provider.availableNow : plannedOnly ? !provider.availableNow : true,
+  );
+  if (visibleProviders.length === 0) return null;
 
   return (
     <Card>
       <CardHeader
         icon={CardIcon}
-        title="Payment providers"
-        description="See what works in your shop’s country and connect a supported account."
+        title={plannedOnly ? "Card providers coming later" : "Card payment providers"}
+        description={
+          plannedOnly
+            ? "Planned for your country, but not usable in Repairs helper yet."
+            : "The card accounts that work in your shop’s country. Connect one."
+        }
       />
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Payment region and currency">
@@ -302,7 +419,7 @@ function ProviderCatalogCard({
           ))}
         </div>
 
-        <details className="rounded-lg border border-border bg-surface-hover px-4">
+        {availableOnly ? null : <details className="rounded-lg border border-border bg-surface-hover px-4">
           <summary className="cursor-pointer py-3.5 text-[14px] font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
             Manual and API-key gateways
           </summary>
@@ -316,7 +433,7 @@ function ProviderCatalogCard({
                 : "No API-key payment gateway is enabled for this shop yet."}
             </p>
           </div>
-        </details>
+        </details>}
       </CardContent>
     </Card>
   );
@@ -368,9 +485,9 @@ function ProviderOption({
       tone = "info";
       detail = "Connect your Stripe account with a secure approval. No payment keys are copied into Repairs helper.";
     } else {
-      status = "Server setup needed";
+      status = "Not set up yet";
       tone = "waiting";
-      detail = "A Repairs helper admin must configure Stripe on the server before shops can connect.";
+      detail = "Ask your installer to turn on Stripe card payments. Then connect it here in one step.";
     }
   } else if (provider.id === "square") {
     if (linked) {
@@ -383,7 +500,7 @@ function ProviderOption({
           : config.square.hasError
             ? "Connection needs attention"
             : !config.square.webhookReady
-              ? "Webhook setup needed"
+              ? "Setup not finished"
               : "Connected";
       tone = squareUnavailableInNZ ||
         squareCountryMismatch ||
@@ -399,11 +516,11 @@ function ProviderOption({
         : squareCountryMismatch
           ? `The Square account is registered in ${squareAccountCountry ? COUNTRY_NAMES[squareAccountCountry] : "a different country"}, but this shop is set to ${country ? COUNTRY_NAMES[country] : "another country"}. Confirm the shop country and connect the matching Square account.`
         : !config.square.configured
-          ? "The Square account is linked, but this server no longer has the Square application credentials it needs."
+          ? "Square is linked, but Repairs helper can no longer reach it. Ask your installer to finish the Square setup."
         : config.square.hasError
           ? "Square is linked, but Repairs helper could not refresh its account details. Disconnect and reconnect if this continues."
           : !config.square.webhookReady
-            ? "Square is linked, but payment confirmations are not ready. Ask the server admin to set SQUARE_WEBHOOK_SIGNATURE_KEY before taking payments."
+            ? "Square is linked, but payments cannot confirm themselves yet. Ask your installer to finish the Square setup before taking payments."
           : `Connected to ${config.square.merchantName || "your Square account"}${config.square.locationName ? ` · ${config.square.locationName}` : ""}.`;
     } else if (squareUnavailableInNZ) {
       status = "Unavailable in New Zealand";
@@ -428,9 +545,9 @@ function ProviderOption({
       tone = "info";
       detail = "Approve Square access and return here. Credentials stay on the Repairs helper server.";
     } else {
-      status = "Server setup needed";
+      status = "Not set up yet";
       tone = "waiting";
-      detail = "A Repairs helper admin must set SQUARE_APPLICATION_ID and SQUARE_APPLICATION_SECRET on the server.";
+      detail = "Ask your installer to turn on Square card payments. Then connect it here in one step.";
     }
   } else if (!provider.availableNow) {
     status = provider.connectionMode === "api_credentials"
@@ -464,14 +581,14 @@ function ProviderOption({
       </div>
 
       {provider.id === "stripe" && !linked && connectionConfigured ? (
-        <Button asChild size="sm" className="w-fit">
+        <Button asChild className="h-12 w-fit px-5">
           <a href="/api/payments/stripe/connect">
             <ConnectIcon aria-hidden /> Connect with Stripe
           </a>
         </Button>
       ) : null}
       {canConnectSquare ? (
-        <Button asChild size="sm" className="w-fit">
+        <Button asChild className="h-12 w-fit px-5">
           <a href="/api/payments/square/connect">
             <ConnectIcon aria-hidden />
             {config.square.hasError ? "Reconnect Square" : "Connect with Square"}
@@ -572,6 +689,7 @@ function SquareTerminalPairingDialog({
   action: (input: { name: string }) => Promise<SquarePairingResult>;
   disabled: boolean;
 }) {
+  const zone = useShopZone();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("Front counter");
@@ -631,7 +749,7 @@ function SquareTerminalPairingDialog({
             </code>
             {pairing.pairBy ? (
               <p className="text-[14px] leading-relaxed text-muted-foreground">
-                Enter it by {formatDateTime(pairing.pairBy)} UTC.
+                Enter it by {shopDateTime(pairing.pairBy, zone)}.
               </p>
             ) : (
               <p className="text-[14px] leading-relaxed text-muted-foreground">
@@ -786,7 +904,7 @@ function NotConfiguredCard({ env }: { env: PaymentsTabConfig["env"] }) {
       <CardHeader
         icon={CardIcon}
         title="Stripe processing"
-        description="Stripe is not configured on this server yet."
+        description="Stripe is not configured on this server yet. Until it is, invoices show no pay button."
       />
       <CardContent className="flex flex-col gap-4">
         <p className="text-[14px] leading-relaxed text-muted-foreground">
@@ -820,6 +938,7 @@ function ConnectionCard({
   config: PaymentsTabConfig;
   disconnectAction: () => Promise<SimpleResult>;
 }) {
+  const zone = useShopZone();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [confirming, setConfirming] = React.useState(false);
@@ -893,7 +1012,7 @@ function ConnectionCard({
               locale-sensitive one renders differently on the server and in the
               browser, and React calls that a hydration mismatch. */}
           {config.onboardedAt ? (
-            <Chip>Connected {formatDate(config.onboardedAt)}</Chip>
+            <Chip>Connected {shopDate(config.onboardedAt, zone)}</Chip>
           ) : null}
         </div>
 
@@ -991,7 +1110,7 @@ function Flag({ ok, label }: { ok: boolean; label: string }) {
         <CircleAlert className="size-4 shrink-0 text-status-in-progress" />
       )}
       <span className={ok ? "text-foreground" : "text-muted-foreground"}>
-        {label}
+        {label}: {ok ? "Yes" : "Not yet"}
       </span>
     </span>
   );
@@ -1035,6 +1154,7 @@ function GettingPaidCard({
   config: PaymentsTabConfig;
   retrySetupAction: () => Promise<SimpleResult>;
 }) {
+  const zone = useShopZone();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const { payout, setup, address } = config;
@@ -1107,8 +1227,9 @@ function GettingPaidCard({
         {!address.publicAddress ? (
           <SetupRow
             tone="warn"
-            title="Stripe can't reach this app yet"
-            body={address.message}
+            title="Payments confirm themselves later"
+            // address.message names a server variable; this is the same fact for an owner.
+            body="Cards still work, but a paid invoice is only marked paid once Stripe can reach Repairs helper on its public web address. Ask your installer to finish that."
           />
         ) : !config.connected ? (
           <SetupRow
@@ -1121,7 +1242,7 @@ function GettingPaidCard({
             tone="ok"
             title="Payments confirm themselves"
             body={`Repairs helper set this up for you${
-              setup.setUpAt ? ` on ${formatDate(setup.setUpAt)}` : ""
+              setup.setUpAt ? ` on ${shopDate(setup.setUpAt, zone)}` : ""
             }. When a card is charged, Stripe tells this app and the invoice marks itself paid.`}
           />
         ) : (
@@ -1337,9 +1458,7 @@ function Method({
       <div className="flex min-w-0 flex-col gap-1">
         <span className="flex items-center gap-2 text-[14.5px] font-bold text-foreground">
           {title}
-          {on ? null : (
-            <StatusPill size="sm" dot={false} tone="neutral" label="Off" />
-          )}
+          <StatusPill size="sm" dot={false} tone={on ? "success" : "neutral"} label={on ? "On" : "Off"} />
         </span>
         <span className="text-[14px] leading-relaxed text-muted-foreground">
           {on ? where : off}
@@ -1431,6 +1550,7 @@ function ReaderRow({
   }) => Promise<ReaderResult>;
   forgetAction: (input: { readerId: string }) => Promise<SimpleResult>;
 }) {
+  const zone = useShopZone();
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const online = reader.status === "online";
@@ -1462,7 +1582,7 @@ function ReaderRow({
             </span>
           ) : null}
           {reader.lastSeenAt ? (
-            <span>Last seen {formatDateTime(reader.lastSeenAt)}</span>
+            <span>Last seen {shopDateTime(reader.lastSeenAt, zone)}</span>
           ) : null}
           {reader.serialNumber ? (
             <span className="font-mono">{reader.serialNumber}</span>
@@ -1760,6 +1880,7 @@ function HealthCard({
     { ok: true; health: PaymentsHealth } | { ok: false; error: string }
   >;
 }) {
+  const zone = useShopZone();
   const [health, setHealth] = React.useState<PaymentsHealth | null>(null);
   const [pending, startTransition] = React.useTransition();
 
@@ -1793,7 +1914,7 @@ function HealthCard({
       {health ? (
         <CardContent className="flex flex-col gap-2.5">
           <p className="text-[14px] text-muted-foreground">
-            Checked {formatDateTime(health.ranAt)}.
+            Checked {shopDateTime(health.ranAt, zone)}.
           </p>
           {health.lines.map((line) => (
             <HealthRow key={line.id} line={line} />

@@ -1,7 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
-import { format } from "date-fns";
 
 import { DeviceVisual } from "@/components/dashboard/device-visual";
 import { deviceName, repairChips } from "@/components/tickets/repair-card-facts";
@@ -9,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { STATUS_TONE, StatusPill, normalizeStatus } from "@/components/ui/badge";
 import { ICONS } from "@/components/ui/icons";
 import { MetaChip, RecordCard, RecordGrid } from "@/components/ui/record-card";
+import { formatInZone } from "@/lib/shop-time";
 import { repairRowLines } from "./customer-screen";
 
 export type CustomerRepairRow = {
@@ -27,10 +27,20 @@ export type CustomerRepairRow = {
  * (device picture, a title, one quiet line, the status in words and the facts
  * as chips) but named for the job, because the customer is the page.
  */
-function RepairRow({ repair, now, closed }: { repair: CustomerRepairRow; now: number; closed: boolean }) {
+function RepairRow({
+  repair,
+  now,
+  closed,
+  timeZone,
+}: {
+  repair: CustomerRepairRow;
+  now: number;
+  closed: boolean;
+  timeZone?: string | null;
+}) {
   const lines = repairRowLines(repair);
   const device = deviceName(repair.asset);
-  const chips = repairChips({ status: repair.status, priority: repair.priority, dueDate: repair.dueDate }, now);
+  const chips = repairChips({ status: repair.status, priority: repair.priority, dueDate: repair.dueDate }, now, timeZone);
 
   return (
     <RecordCard
@@ -53,7 +63,7 @@ function RepairRow({ repair, now, closed }: { repair: CustomerRepairRow; now: nu
               {fact.label}
             </MetaChip>
           ))}
-          {closed || !chips.due ? <MetaChip>Opened {format(repair.createdAt, "MMM d")}</MetaChip> : null}
+          {closed || !chips.due ? <MetaChip>Opened {formatInZone(repair.createdAt, "MMM d", timeZone)}</MetaChip> : null}
         </>
       }
     />
@@ -88,6 +98,7 @@ export function CustomerRepairs({
   earlier,
   total,
   now,
+  timeZone,
 }: {
   customerId: string;
   /** For the empty state: "Start the first repair for Elena". */
@@ -97,6 +108,8 @@ export function CustomerRepairs({
   /** Every repair they have ever had, so we know when to offer "See all". */
   total: number;
   now: number;
+  /** The shop's time zone (Shop.timezone): "Opened Oct 4" and "Due Oct 4" are the shop's days. */
+  timeZone?: string | null;
 }) {
   if (total === 0) {
     return (
@@ -127,7 +140,7 @@ export function CustomerRepairs({
           <RecordGrid className="2xl:grid-cols-2">
             {open.map((repair) => (
               <li key={repair.id}>
-                <RepairRow repair={repair} now={now} closed={false} />
+                <RepairRow repair={repair} now={now} closed={false} timeZone={timeZone} />
               </li>
             ))}
           </RecordGrid>
@@ -141,7 +154,7 @@ export function CustomerRepairs({
           <RecordGrid className="2xl:grid-cols-2">
             {earlier.map((repair) => (
               <li key={repair.id}>
-                <RepairRow repair={repair} now={now} closed />
+                <RepairRow repair={repair} now={now} closed timeZone={timeZone} />
               </li>
             ))}
           </RecordGrid>

@@ -8,11 +8,13 @@ import { ListSearch } from "@/components/inventory/list-search";
 import { PurchaseOrderCard } from "@/components/inventory/purchase-order-card";
 import { SupplierFilter } from "@/components/inventory/supplier-filter";
 import {
-  PO_FILTERS,
+  PO_EASY_TABS,
   PO_FILTER_LABELS,
+  PO_FULL_FILTERS,
   PO_STATUS_META,
   asPoFilter,
   asPoStatus,
+  poFilterStatuses,
   poTotals,
   type PoFilter,
 } from "@/components/inventory/purchasing";
@@ -27,7 +29,10 @@ import { RecordGrid } from "@/components/ui/record-card";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isLate, shopTodayKey } from "@/lib/inventory/dates";
+import { shopZone } from "@/lib/inventory/shop-zone";
 import { formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Purchase orders · Repairs helper" };
@@ -57,10 +62,12 @@ export default async function PurchaseOrdersPage({
   const scope: Prisma.PurchaseOrderWhereInput = { shopId, ...(vendorId ? { vendorId } : {}), ...(search ?? {}) };
   const where: Prisma.PurchaseOrderWhereInput = { ...scope };
   // "Open" is the buyer's default view: anything not finished or called off.
-  if (filter === "open") where.status = { in: ["DRAFT", "ORDERED", "PARTIAL"] };
-  else if (filter !== "all") where.status = filter;
+  // "On the way" is ordered or part-arrived. A single status is that status.
+  const statuses = poFilterStatuses(filter);
+  if (statuses && statuses.length > 1) where.status = { in: statuses };
+  else if (statuses) where.status = statuses[0];
 
-  const [orders, vendors, countRows] = await Promise.all([
+  const [orders, vendors, countRows, zone] = await Promise.all([
     db.purchaseOrder.findMany({
       where,
       orderBy: { number: "desc" },
@@ -87,8 +94,15 @@ export default async function PurchaseOrdersPage({
     easy
       ? db.purchaseOrder.groupBy({ by: ["status"], where: scope, _count: { _all: true } })
       : Promise.resolve([]),
+    // "Late" turns on at the shop's midnight, not the server's.
+    easy ? shopZone(shopId) : Promise.resolve("UTC"),
   ]);
   const counts = poFilterCounts(countRows.map((row) => ({ status: row.status, count: row._count._all })));
+  const todayKey = shopTodayKey(requestNow(), zone);
+  // A late delivery is the first thing a buyer chases, so it leads its view.
+  const ordered = easy
+    ? [...orders].sort((a, b) => Number(isLate(b, todayKey)) - Number(isLate(a, todayKey)))
+    : orders;
 
   const filtered = filter !== "open" || vendorId !== "" || query !== "";
 
@@ -143,17 +157,50 @@ export default async function PurchaseOrdersPage({
       />
 
       <div className="flex flex-col gap-3">
-        <FilterTabs
-          aria-label="Purchase order views"
-          tabs={PO_FILTERS.map((key) => ({
-            label: PO_FILTER_LABELS[key],
-            href: hrefFor(key, vendorId, query),
-            active: filter === key,
-            count: easy ? counts[key] : undefined,
-          }))}
-        />
-
         {easy ? (
+          <FilterTabs
+            aria-label="Purchase order views"
+            tabs={PO_EASY_TABS.map((tab) => ({
+              label: tab.label,
+              href: hrefFor(tab.key, vendorId, query),
+              active: filter === tab.key,
+              count: counts[tab.key],
+            }))}
+            trailing={
+              // The rare views (everything, canceled) live behind one quiet link, not more tabs.
+              <Link
+                href={hrefFor(filter === "all" ? "open" : "all", vendorId, query)}
+                data-touch-control
+                aria-current={filter === "all" ? "page" : undefined}
+                className="inline-flex min-h-12 items-center whitespace-nowrap rounded-xl px-3 text-[15px] font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {filter === "all" ? "Show open orders" : `All orders (${counts.all})`}
+              </Link>
+            }
+          />
+        ) : (
+          <FilterTabs
+            aria-label="Purchase order views"
+            tabs={PO_FULL_FILTERS.map((key) => ({
+              label: PO_FILTER_LABELS[key],
+              href: hrefFor(key, vendorId, query),
+              active: filter === key,
+            }))}
+          />
+        )}
+
+        {easy && !["open", "all", ...PO_EASY_TABS.map((tab) => tab.key)].includes(filter) ? (
+          // A view with no tab of its own (an old ?status= link): say what is on screen.
+          <p className="text-base text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{PO_FILTER_LABELS[filter].toLowerCase()}</span> orders.{" "}
+            <Link href={hrefFor("open", vendorId, query)} className="inline-flex min-h-12 items-center font-semibold text-foreground underline underline-offset-4">
+              Show open orders
+            </Link>
+          </p>
+        ) : null}
+
+        {/* A handful of orders needs no search box; one appears once there is something to search. */}
+        {easy && (query !== "" || counts.all > 8) ? (
           <ListSearch
             path="/inventory/purchase-orders"
             query={query}
@@ -178,24 +225,36 @@ export default async function PurchaseOrdersPage({
           <CardContent className="px-0 py-0">
             <EmptyState
               icon={ICONS.purchaseOrder}
-              title={filtered ? "Nothing matches those filters" : "No purchase orders yet"}
+              title={
+                filtered
+                  ? easy && !query && !vendorId
+                    ? emptyViewTitle(filter)
+                    : "Nothing matches those filters"
+                  : easy
+                    ? "Nothing on order"
+                    : "No purchase orders yet"
+              }
               hint={
                 filtered
                   ? easy
-                    ? "Try a shorter search, the All tab, or a different supplier."
+                    ? query || vendorId
+                      ? "Try a shorter search, All orders, or a different supplier."
+                      : "Orders show up here as you place them."
                     : "Try the All pill, or pick a different vendor."
-                  : "Raise an order to record what you asked a vendor for — receiving it moves stock, updates costs and logs the adjustment."
+                  : easy
+                    ? "Start an order when something runs low. When the box arrives, book it in and the stock goes up by itself."
+                    : "Raise an order to record what you asked a supplier for. Booking the delivery in puts it on the shelf and updates its cost."
               }
               action={
                 filtered ? (
                   <Button variant="outline" asChild>
-                    <Link href="/inventory/purchase-orders?status=all">Clear filters</Link>
+                    <Link href="/inventory/purchase-orders?status=all">{easy && !query && !vendorId ? "See all orders" : "Clear filters"}</Link>
                   </Button>
                 ) : vendors.length === 0 ? (
                   <Button asChild>
                     <Link href="/inventory/vendors">
                       <ICONS.vendor />
-                      Add a vendor first
+                      {easy ? "Add a supplier first" : "Add a vendor first"}
                     </Link>
                   </Button>
                 ) : (
@@ -206,12 +265,20 @@ export default async function PurchaseOrdersPage({
           </CardContent>
         </Card>
       ) : easy ? (
-        <section aria-label="Purchase orders" className="flex flex-col gap-4">
-          <RecordGrid>
-            {orders.map((order) => (
-              <PurchaseOrderCard key={order.id} order={order} />
-            ))}
-          </RecordGrid>
+        <section aria-label="Purchase orders" className="flex flex-col gap-6">
+          {filter === "open" ? (
+            // The default view is everything still in play, in the two piles a buyer thinks in.
+            <>
+              <OrderSection title="On the way" orders={ordered.filter((order) => order.status !== "DRAFT")} todayKey={todayKey} zone={zone} />
+              <OrderSection title="To order" orders={ordered.filter((order) => order.status === "DRAFT")} todayKey={todayKey} zone={zone} />
+            </>
+          ) : (
+            <RecordGrid>
+              {ordered.map((order) => (
+                <PurchaseOrderCard key={order.id} order={order} todayKey={todayKey} zone={zone} />
+              ))}
+            </RecordGrid>
+          )}
           {orders.length >= LIST_LIMIT ? (
             <p className="text-center text-sm text-muted-foreground">
               Showing the latest {LIST_LIMIT} orders. Search to find an older one.
@@ -263,7 +330,7 @@ export default async function PurchaseOrdersPage({
                         />
                       </Td>
                       <Td className="text-[13.5px] text-muted-foreground">
-                        {formatDate(order.orderedAt ?? order.createdAt)}
+                        {formatDate(order.orderedAt ?? order.createdAt, zone)}
                       </Td>
                       <Td className="text-[13.5px] text-muted-foreground">
                         {order.expectedAt ? formatDate(order.expectedAt) : "—"}
@@ -287,6 +354,42 @@ export default async function PurchaseOrdersPage({
 }
 
 // ---------------------------------------------------------------------------
+
+/** One pile of the default view ("On the way", "To order"), with its count; nothing at all when it is empty. */
+function OrderSection({
+  title,
+  orders,
+  todayKey,
+  zone,
+}: {
+  title: string;
+  orders: React.ComponentProps<typeof PurchaseOrderCard>["order"][];
+  todayKey: string;
+  zone: string;
+}) {
+  if (orders.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">
+        {title} <span className="rf-num text-muted-foreground">({orders.length})</span>
+      </h2>
+      <RecordGrid>
+        {orders.map((order) => (
+          <PurchaseOrderCard key={order.id} order={order} todayKey={todayKey} zone={zone} />
+        ))}
+      </RecordGrid>
+    </div>
+  );
+}
+
+/** An empty Easy view says what is not there, in the tab's own words. */
+function emptyViewTitle(filter: PoFilter): string {
+  if (filter === "DRAFT") return "Nothing waiting to be ordered";
+  if (filter === "onway") return "Nothing on the way";
+  if (filter === "RECEIVED") return "Nothing has arrived yet";
+  if (filter === "all") return "No orders yet";
+  return `No ${PO_FILTER_LABELS[filter].toLowerCase()} orders`;
+}
 
 function hrefFor(status: PoFilter, vendorId: string, query = ""): string {
   const search = new URLSearchParams();

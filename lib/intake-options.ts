@@ -27,9 +27,12 @@ import { INTAKE_DEVICE_KINDS, INTAKE_OTHER_TYPE } from "@/lib/device-intake";
 export const MAX_DEVICE_KINDS = 24;
 /**
  * What the check-in's first screen holds: eight boxes are two rows on a 1024x768 tablet, so nothing
- * needs a scroll. With more than eight, seven kinds show and the eighth box is "More devices".
+ * needs a scroll. With more than eight, the first six kinds show, then "Other" (always on the first
+ * screen: it is the way out for anything not listed), then "More devices" opens the rest.
  */
 export const FIRST_SCREEN_BOXES = 8;
+/** How many of the shop's own kinds the first screen shows when the list is folded. */
+export const FIRST_SCREEN_KINDS = FIRST_SCREEN_BOXES - 2;
 /** What a device box says. Short enough for a tile; the repair is saved with `type`, which may be longer. */
 export const MAX_KIND_LABEL = 30;
 export const MAX_KIND_TYPE = 80;
@@ -189,6 +192,19 @@ export function visibleDeviceKinds(kinds: readonly DeviceKind[]): DeviceKind[] {
 }
 
 /**
+ * The boxes on the check-in's first screen. Up to FIRST_SCREEN_BOXES all show. Past that the list is
+ * folded: the first FIRST_SCREEN_KINDS kinds, then Other (never folded away), and `folded` says how
+ * many sit behind "More devices".
+ */
+export function firstScreenKinds(shown: readonly DeviceKind[]): { tiles: DeviceKind[]; folded: number } {
+  if (shown.length <= FIRST_SCREEN_BOXES) return { tiles: [...shown], folded: 0 };
+  const kinds = shown.filter((kind) => !isOtherKind(kind));
+  const other = shown.filter(isOtherKind);
+  const tiles = [...kinds.slice(0, FIRST_SCREEN_KINDS), ...other];
+  return { tiles, folded: shown.length - tiles.length };
+}
+
+/**
  * Checks a list a person sent, in words, then cleans it. Strict where cleanDeviceKinds is lenient:
  * a list that is too long or a name that is too long is refused rather than quietly cut.
  */
@@ -259,6 +275,18 @@ export function setDeviceHidden(kinds: readonly DeviceKind[], id: string, hidden
 /** Take a custom box off the list. Built-ins and "Other" stay (hide a built-in instead). Repairs already saved are untouched. */
 export function removeDeviceKind(kinds: readonly DeviceKind[], id: string): DeviceKind[] {
   return kinds.filter((kind) => kind.id !== id || isBuiltInKind(kind.id));
+}
+
+/**
+ * Undo for a removed box: put it back at the place it had, in the list as it is NOW (so moves made
+ * since are kept). Nothing happens when it is already there; "Other" stays last.
+ */
+export function restoreDeviceKind(kinds: readonly DeviceKind[], kind: DeviceKind, index: number): DeviceKind[] {
+  if (kinds.some((item) => item.id === kind.id)) return [...kinds];
+  const rest = kinds.filter((item) => !isOtherKind(item));
+  const other = kinds.filter(isOtherKind);
+  const at = Math.max(0, Math.min(index, rest.length));
+  return [...rest.slice(0, at), kind, ...rest.slice(at), ...other];
 }
 
 /** Move one box a place earlier (-1) or later (+1). "Other" stays last and nothing moves past it. */
@@ -395,6 +423,76 @@ export function removeProblem(
   const pictures = { ...state.pictures };
   delete pictures[name];
   return { ok: true, value: { problems: state.problems.filter((problem) => problem !== name), pictures } };
+}
+
+/** Undo for a removed problem: back at its old place in the list as it is now, with its picture. */
+export function restoreProblem(
+  state: { problems: readonly string[]; pictures: Record<string, string> },
+  name: string,
+  picture: string | undefined,
+  index: number,
+): { problems: string[]; pictures: Record<string, string> } {
+  if (state.problems.some((problem) => same(problem, name))) return { problems: [...state.problems], pictures: { ...state.pictures } };
+  const at = Math.max(0, Math.min(index, state.problems.length));
+  const problems = [...state.problems.slice(0, at), name, ...state.problems.slice(at)];
+  return { problems, pictures: picture ? { ...state.pictures, [name]: picture } : { ...state.pictures } };
+}
+
+// ---------------------------------------------------------------------------
+// The activity history: one entry per burst of rearranging
+// ---------------------------------------------------------------------------
+
+/**
+ * Moving boxes earlier or later and hiding or showing them saves on every tap, and used to write an
+ * activity-history row on every tap ("Devices and problems saved" eighty times in one sitting). A
+ * tap that only rearranges (same boxes, same names, same pictures; only the order or what is hidden
+ * changed) now joins the rearranging entry the same person started in the last AUDIT_BURST_MINUTES,
+ * instead of writing its own. Anything else (a box added, renamed, re-pictured or removed, a reset)
+ * always gets its own entry. Rows are still never edited: a burst is simply one row.
+ */
+export const AUDIT_BURST_MINUTES = 15;
+
+export type IntakeSnapshot = {
+  kinds: readonly DeviceKind[];
+  problems: readonly string[];
+  pictures: Record<string, string>;
+};
+
+const kindKey = (kind: DeviceKind) => `${kind.id}\u0000${kind.label}\u0000${kind.type}\u0000${kind.image}`;
+
+/**
+ * When a save only rearranged the boxes, one plain line saying how ("Tablet hidden", "Device order
+ * changed"); null when it changed what is in the lists, which is never folded into a burst.
+ */
+export function describeArrangement(before: IntakeSnapshot, after: IntakeSnapshot): string | null {
+  const sorted = (values: string[]) => [...values].sort().join("\u0001");
+  if (sorted(before.kinds.map(kindKey)) !== sorted(after.kinds.map(kindKey))) return null;
+  if (sorted(before.problems.map((name) => `${name}\u0000${before.pictures[name] ?? ""}`)) !== sorted(after.problems.map((name) => `${name}\u0000${after.pictures[name] ?? ""}`))) return null;
+
+  const wasHidden = new Map(before.kinds.map((kind) => [kind.id, Boolean(kind.hidden)]));
+  const hidden = after.kinds.filter((kind) => kind.hidden && !wasHidden.get(kind.id)).map((kind) => kind.label);
+  const shown = after.kinds.filter((kind) => !kind.hidden && wasHidden.get(kind.id)).map((kind) => kind.label);
+  const parts: string[] = [];
+  if (hidden.length) parts.push(`${hidden.join(", ")} hidden`);
+  if (shown.length) parts.push(`${shown.join(", ")} shown again`);
+  if (before.kinds.map((kind) => kind.id).join() !== after.kinds.map((kind) => kind.id).join()) parts.push("device order changed");
+  if (before.problems.join("\u0001") !== after.problems.join("\u0001")) parts.push("problem order changed");
+  const line = parts.length ? parts.join(", ") : "no change";
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+/** The last activity-history row this person wrote, as far as a burst cares. */
+export type BurstCandidate = { createdAt: Date | string; meta: unknown } | null | undefined;
+
+/** True when a rearranging save joins the entry `last` started, rather than writing its own. */
+export function joinsArrangeBurst(last: BurstCandidate, nowMs: number): boolean {
+  if (!last) return false;
+  const meta = last.meta && typeof last.meta === "object" && !Array.isArray(last.meta) ? (last.meta as Record<string, unknown>) : {};
+  if (meta.section !== "devices-and-problems" || meta.kind !== "arrange") return false;
+  const at = new Date(last.createdAt).getTime();
+  if (!Number.isFinite(at)) return false;
+  const age = nowMs - at;
+  return age >= 0 && age < AUDIT_BURST_MINUTES * 60_000;
 }
 
 // ---------------------------------------------------------------------------

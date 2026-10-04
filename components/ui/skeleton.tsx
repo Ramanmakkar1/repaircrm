@@ -17,19 +17,20 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 }
 
 /**
- * The title block every screen opens with, in grey. Sized to match
- * `PageHeader`'s 26px title and 15px description so the real header lands in
- * the same place the skeleton was — the page fills in rather than jumping.
+ * The title block every screen opens with, in grey. Measured against
+ * `PageHeader` (22px title on a phone, 24px from `sm`, a 14px description
+ * under it, 4px apart) so the real header lands exactly where the grey was:
+ * the page fills in instead of jumping.
  */
 export function PageHeaderSkeleton({
   filters = 0,
-  icon = true,
+  icon = false,
 }: {
   filters?: number;
   /**
-   * Matches `PageHeader`'s 44px icon tile, which only exists from `sm` up —
-   * without it the title slides left when the real header lands. Pass `false`
-   * for the handful of screens whose header carries no icon.
+   * A 44px tile left of the title. `PageHeader` no longer draws one, so it is
+   * off by default (it used to be on, and every title landed 58px left of its
+   * placeholder). Only pass `true` for a header that really has an icon tile.
    */
   icon?: boolean;
 }) {
@@ -39,15 +40,15 @@ export function PageHeaderSkeleton({
         {icon ? (
           <Skeleton className="hidden size-11 shrink-0 rounded-lg sm:block" />
         ) : null}
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-5 w-72" />
+        <div className="flex min-w-0 flex-col gap-1">
+          <Skeleton className="h-[25px] w-44 sm:h-[27px] sm:w-56" />
+          <Skeleton className="h-[22px] w-72 max-w-full" />
         </div>
       </div>
       {filters > 0 ? (
         <div className="flex flex-wrap gap-2">
           {Array.from({ length: filters }, (_, index) => (
-            <Skeleton key={index} className="h-10 w-28 rounded-full" />
+            <Skeleton key={index} className="h-12 w-28 rounded-full" />
           ))}
         </div>
       ) : null}
@@ -98,6 +99,47 @@ export function RowsSkeleton({ count = 8 }: { count?: number }) {
     <div className="flex flex-col gap-2.5">
       {Array.from({ length: count }, (_, index) => (
         <Skeleton key={index} className="h-14 rounded-lg" />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A page of `RecordCard`s in grey: the round picture, a title, a line, and
+ * the same 1 / 2 / 3 column grid as `RecordGrid`. For list screens in Easy mode.
+ */
+export function RecordCardsSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="flex min-h-28 items-center gap-4 rounded-2xl border border-border bg-surface p-4">
+          <Skeleton className="size-20 shrink-0 rounded-xl sm:size-24" />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-6 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-6 w-28 rounded-lg" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A hub of `PictureTile`s in grey: the 4:3 picture and two lines under it, in
+ * the hub grid (2 / 3 / 4 across). For Home and the hub screens.
+ */
+export function PictureTileGridSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="flex min-h-44 flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+          <Skeleton className="aspect-[4/3] w-full rounded-none" />
+          <div className="flex flex-col gap-1.5 px-3 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        </div>
       ))}
     </div>
   );

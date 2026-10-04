@@ -39,18 +39,18 @@ export function SaleComplete({
   onNewSale: () => void;
 }) {
   const newSaleRef = React.useRef<HTMLButtonElement | null>(null);
-  const hasChange = sale.method === "CASH" && sale.changeDueCents > 0;
+  const hasChange = (sale.method === "CASH" || sale.method === "SPLIT") && sale.changeDueCents > 0;
 
   React.useEffect(() => {
     newSaleRef.current?.focus();
   }, []);
 
-  // The change is a fact about this moment at the drawer, not something the
-  // invoice stores, so it rides along to the receipt as a query param. A
-  // reprint later simply shows no change line.
+  // The change rides along to the receipt as a query param (a reprint later
+  // reads it back from the "Tendered $X" stored on the cash payment), and
+  // `from=pos` sends the slip's Back button to the register.
   const receiptHref = hasChange
-    ? `/print/receipts/${sale.invoiceId}?change=${sale.changeDueCents}`
-    : `/print/receipts/${sale.invoiceId}`;
+    ? `/print/receipts/${sale.invoiceId}?change=${sale.changeDueCents}&from=pos`
+    : `/print/receipts/${sale.invoiceId}?from=pos`;
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-5 py-6">

@@ -63,7 +63,10 @@ describe("Easy-mode check-in, first paint", () => {
   it("opens on 1 Customer with a big search box and a New customer box", () => {
     expect(text(html)).toContain("Who is this for?");
     expect(html).toContain('placeholder="Name or phone number"');
-    expect(html).toContain("autofocus"); // React writes the attribute lower-case in static markup
+    // No autofocus in the markup: the search box is focused on a fine pointer only (a counter PC),
+    // so a touch tablet's keyboard does not cover the picture choices on arrival.
+    expect(html).not.toContain("autofocus");
+    expect(html).toContain('type="search"');
     expect(text(html)).toContain("New customer");
     expect(text(html)).toContain("Just a name or a phone number");
   });
@@ -183,10 +186,10 @@ describe("1 Customer", () => {
 describe("2 Device", () => {
   const withCustomer = { ...initialState({ customerId: "cus_2" }) };
 
-  it("shows the first seven kinds as picture tiles, then a More devices box (the standard list has more than eight)", () => {
+  it("shows the first six kinds, then Other, then a More devices box (the standard list has more than eight)", () => {
     const html = render(DeviceStep, withDifferent(withCustomer));
-    for (const label of ["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Watch"]) expect(text(html)).toContain(label);
-    for (const photo of ["phone", "tablet", "laptop", "desktop-computer", "game-console", "television", "smartwatch"]) expect(html).toContain(`${photo}.webp`);
+    for (const label of ["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Other"]) expect(text(html)).toContain(label);
+    for (const photo of ["phone", "tablet", "laptop", "desktop-computer", "game-console", "television"]) expect(html).toContain(`${photo}.webp`);
     expect(text(html)).toContain("More devices");
     expect(text(html)).toContain("No device");
     expect(text(html)).toContain("Skip, I'll add it later");

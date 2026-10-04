@@ -521,7 +521,7 @@ describe("the repair pipeline", () => {
     const dueToday = callsTo("ticket.count")[0].args.where as Where;
     expect(dueToday.status).toEqual({ not: "Resolved" });
     expect(dueToday.dueDate.gte).toEqual(new Date(NOW));
-    expect(dueToday.dueDate.lte.getTime()).toBeGreaterThan(NOW);
+    expect(dueToday.dueDate.lt).toEqual(new Date("2026-10-04T06:00:00.000Z"));
   });
 
   it("states the average time to finish from repairs resolved in the last 30 days, and leaves it out with none", async () => {
@@ -781,7 +781,7 @@ describe("team and demand", () => {
       }),
     );
     const { appointments } = await load();
-    expect(appointments[0]).toMatchObject({ title: "Data handover", customerName: "Amara Nwosu", day: "Tomorrow", href: "/appointments?date=2026-10-04" });
+    expect(appointments[0]).toMatchObject({ title: "Data handover", customerName: "Amara Nwosu", day: "Tomorrow", href: "/appointments?view=day&date=2026-10-04" });
     expect(appointments[1]).toMatchObject({ customerName: null, day: "Wed, Oct 7" });
     const query = callsTo("appointment.findMany")[0].args;
     expect(query.where).toMatchObject({ shopId: "shop_1", status: "SCHEDULED" });

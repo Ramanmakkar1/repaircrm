@@ -11,7 +11,7 @@ import {
   saveCannedResponseAction,
 } from "@/app/(app)/settings/actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -25,12 +25,14 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { CannedResponseItem } from "./types";
 
 /**
- * Canned responses — the reusable message bodies staff drop into a ticket
- * update instead of retyping "your part has arrived" for the ninth time today.
+ * Saved replies (stored as "canned responses") — the reusable messages staff
+ * drop into a repair update instead of retyping "your part has arrived" for
+ * the ninth time today. Each one is shown as the message bubble the customer
+ * will read, with one Edit button; Delete lives inside the edit sheet, with
+ * an Undo.
  *
  * Everyone can read them (a tech needs to see what the shop's voice sounds
  * like); only OWNER and FRONT_DESK can change them, which `canManage` mirrors
@@ -80,6 +82,7 @@ export function CannedTab({
 
     toastWithUndo({
       message: `"${item.title}" deleted.`,
+      description: "Changed your mind? Undo puts it back.",
       undo: async () => {
         const restored = await saveCannedResponseAction({
           title: item.title,
@@ -88,16 +91,16 @@ export function CannedTab({
         if (!restored.ok) throw new Error(restored.error);
         router.refresh();
       },
-      onUndoError: "Could not put that response back.",
+      onUndoError: "Could not put that reply back.",
     });
   }
 
   return (
     <div className="flex flex-col gap-5">
       {canManage ? (
-        <div className="flex justify-end">
-          <Button onClick={() => setCreating(true)}>
-            <AddIcon aria-hidden /> New response
+        <div className="flex">
+          <Button onClick={() => setCreating(true)} className="h-12 px-5 text-base">
+            <AddIcon aria-hidden /> New saved reply
           </Button>
         </div>
       ) : null}
@@ -106,76 +109,51 @@ export function CannedTab({
         <Card>
           <EmptyState
             icon={ICONS.message}
-            title="No canned responses yet"
+            title="No saved replies yet"
             hint={
               canManage
-                ? "Save the updates you send most often — parts arrived, ready for pickup, quote approved."
+                ? "Save the messages you send most often: parts arrived, ready for pickup, quote approved."
                 : "Ask an owner or the front desk to add the messages your shop sends most often."
             }
             action={
               canManage ? (
-                <Button onClick={() => setCreating(true)}>
-                  <AddIcon aria-hidden /> New response
+                <Button onClick={() => setCreating(true)} className="h-12">
+                  <AddIcon aria-hidden /> New saved reply
                 </Button>
               ) : undefined
             }
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ul aria-label="Saved replies" className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {responses.map((item) => (
-            <Card key={item.id} className="rf-lift flex flex-col">
-              <CardContent className="flex flex-1 flex-col gap-3 py-5">
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-base font-bold tracking-tight text-foreground">
-                    {item.title}
-                  </h3>
-                  {canManage ? (
-                    <div className="flex shrink-0 items-center gap-1">
-                      {/* Icon-only because they repeat on every card — so both
-                          carry an aria-label and a tooltip. */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${item.title}`}
-                            onClick={() => setEditing(item)}
-                          >
-                            <EditIcon aria-hidden />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit response</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={busy}
-                            aria-label={`Delete ${item.title}`}
-                            className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                            onClick={() => remove(item)}
-                          >
-                            {busy ? (
-                              <Loader2 className="animate-spin" />
-                            ) : (
-                              <DeleteIcon aria-hidden />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Delete response</TooltipContent>
-                      </Tooltip>
-                    </div>
-                  ) : null}
-                </div>
-                <p className="whitespace-pre-wrap text-[14px] leading-relaxed text-muted-foreground">
-                  {item.body}
-                </p>
-              </CardContent>
-            </Card>
+            <li
+              key={item.id}
+              className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border bg-surface p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="min-w-0 text-[17px] font-semibold leading-tight text-foreground [overflow-wrap:anywhere]">
+                  {item.title}
+                </h3>
+                {canManage ? (
+                  <Button
+                    variant="outline"
+                    className="h-12 shrink-0 px-4"
+                    aria-label={`Edit ${item.title}`}
+                    disabled={busy}
+                    onClick={() => setEditing(item)}
+                  >
+                    <EditIcon aria-hidden /> Edit
+                  </Button>
+                ) : null}
+              </div>
+              {/* The message as the customer reads it. */}
+              <p className="line-clamp-5 whitespace-pre-wrap rounded-2xl rounded-tl-md bg-surface-hover px-4 py-3 text-[15px] leading-relaxed text-foreground">
+                {item.body}
+              </p>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       <CannedDialog
@@ -184,6 +162,15 @@ export function CannedTab({
         key={editing?.id ?? (creating ? "new" : "idle")}
         open={creating || editing !== null}
         item={editing}
+        onDelete={
+          editing && canManage
+            ? () => {
+                const item = editing;
+                setEditing(null);
+                void remove(item);
+              }
+            : undefined
+        }
         onClose={() => {
           setCreating(false);
           setEditing(null);
@@ -198,10 +185,13 @@ function CannedDialog({
   open,
   item,
   onClose,
+  onDelete,
 }: {
   open: boolean;
   item: CannedResponseItem | null;
   onClose: () => void;
+  /** Editing an existing reply: take it off the list (with Undo on the toast). */
+  onDelete?: () => void;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -221,7 +211,7 @@ function CannedDialog({
       toast.error(result.error);
       return;
     }
-    toast.success(item ? "Response updated." : "Response added.");
+    toast.success(item ? "Saved." : "Saved. The new reply is ready to use.");
     onClose();
     router.refresh();
   }
@@ -235,22 +225,22 @@ function CannedDialog({
     >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{item ? "Edit response" : "New canned response"}</DialogTitle>
+          <DialogTitle>{item ? "Edit saved reply" : "New saved reply"}</DialogTitle>
           <DialogDescription>
-            Staff pick these by title when posting a ticket update.
+            Staff pick these by name when they send a customer an update.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="canned-title">Title</Label>
+            <Label htmlFor="canned-title">Name</Label>
             <Input
               id="canned-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Parts arrived"
               maxLength={120}
-              autoFocus
+              className="h-12 text-base"
             />
           </div>
 
@@ -266,20 +256,35 @@ function CannedDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {busy ? (
-                <Loader2 className="animate-spin" />
-              ) : item ? (
-                <SaveIcon aria-hidden />
-              ) : (
-                <AddIcon aria-hidden />
-              )}
-              {busy ? "Saving…" : item ? "Save changes" : "Add response"}
-            </Button>
+          <DialogFooter className="flex-wrap gap-2 sm:justify-between">
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                disabled={busy}
+                onClick={onDelete}
+              >
+                <DeleteIcon aria-hidden /> Delete this reply
+              </Button>
+            ) : (
+              <span />
+            )}
+            <span className="flex gap-2">
+              <Button type="button" variant="ghost" className="h-12" disabled={busy} onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" className="h-12 px-5" disabled={busy}>
+                {busy ? (
+                  <Loader2 className="animate-spin" />
+                ) : item ? (
+                  <SaveIcon aria-hidden />
+                ) : (
+                  <AddIcon aria-hidden />
+                )}
+                {busy ? "Saving…" : item ? "Save" : "Add reply"}
+              </Button>
+            </span>
           </DialogFooter>
         </form>
       </DialogContent>

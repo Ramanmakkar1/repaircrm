@@ -18,7 +18,8 @@ import { RowVisual } from "./thumbs";
 export function NeedsYouSection({ rows, candidates }: { rows: readonly NeedsYouRow[]; candidates: number }) {
   const hidden = Math.max(0, candidates - rows.length);
   return (
-    <section aria-labelledby="needs-title">
+    // id="needs-you": other screens (Home's Today strip, a notification) can link straight to /dashboard#needs-you.
+    <section id="needs-you" aria-labelledby="needs-title" className="scroll-mt-24">
       <SectionTitle
         id="needs-title"
         title="Needs you now"

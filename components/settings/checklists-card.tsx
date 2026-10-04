@@ -24,7 +24,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import {
   Select,
@@ -80,7 +79,7 @@ export function ChecklistsCard({
       <CardHeader
         icon={ICONS.checklist}
         title="Checklists"
-        description="Steps a tech ticks off on the ticket. Give one a problem type and it attaches itself to every new ticket of that type."
+        description="Steps a technician ticks off on a repair. Tie one to a problem and every new repair with that problem gets it. Each checklist saves on its own."
         action={
           <Button variant="soft" onClick={() => setCreating(true)}>
             <AddIcon aria-hidden /> New checklist
@@ -93,7 +92,7 @@ export function ChecklistsCard({
           <EmptyState
             icon={ICONS.checklist}
             title="No checklists yet"
-            hint="Write down the steps your techs should never skip, and every ticket of that problem type gets them automatically."
+            hint="Write down the steps your technicians should never skip, and every repair with that problem gets them automatically."
             action={
               <Button onClick={() => setCreating(true)}>
                 <AddIcon aria-hidden /> Create the first checklist
@@ -185,9 +184,9 @@ function TemplateRow({
           {template.items.length} step{template.items.length === 1 ? "" : "s"}
           {template.problemType
             ? listed
-              ? ` · auto-attaches to ${template.problemType}`
+              ? ` · added to every ${template.problemType} repair`
               : ""
-            : " · picked by hand"}
+            : " · added by hand"}
         </span>
         {template.problemType && !listed ? (
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted-foreground">
@@ -200,28 +199,23 @@ function TemplateRow({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onEdit} disabled={busy}>
+        <Button variant="outline" className="h-12 px-4" onClick={onEdit} disabled={busy}>
           <EditIcon aria-hidden /> Edit
         </Button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              aria-label={`Delete ${template.name}`}
-              className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-              onClick={remove}
-            >
-              {busy ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <DeleteIcon className="size-4" aria-hidden />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Delete checklist</TooltipContent>
-        </Tooltip>
+        <Button
+          variant="outline"
+          disabled={busy}
+          aria-label={`Delete ${template.name}`}
+          className="h-12 px-4 text-destructive hover:bg-destructive-soft hover:text-destructive"
+          onClick={remove}
+        >
+          {busy ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <DeleteIcon className="size-4" aria-hidden />
+          )}
+          Delete
+        </Button>
       </div>
     </div>
   );
@@ -309,7 +303,7 @@ function TemplateDialog({
         <DialogHeader>
           <DialogTitle>{template ? "Edit checklist" : "New checklist"}</DialogTitle>
           <DialogDescription>
-            The steps appear on the ticket in this order, each with a box to tick.
+            The steps appear on the repair in this order, each with a box to tick.
           </DialogDescription>
         </DialogHeader>
 
@@ -322,7 +316,6 @@ function TemplateDialog({
               onChange={(event) => setName(event.target.value)}
               placeholder="Water damage intake"
               maxLength={80}
-              autoFocus
             />
           </div>
 
@@ -458,7 +451,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-6 shrink-0 items-center justify-center rounded-md text-faint-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-40"
+      className="flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-40"
     >
       {children}
     </button>

@@ -8,19 +8,15 @@ import { groupPanels, OWNER_PANELS } from "./settings-panels";
  * It draws the SAME shell the page lands in, in both modes, so the real panel
  * replaces the grey instead of shunting sideways:
  *
- * - Easy mode (the default): a centred `max-w-5xl` column, the title, the two
- *   rows of big pills (the five areas, then the screens of the first area, the
- *   state a fresh visit opens in), one line of text and the first cards.
+ * - Easy mode (the default): a centred `max-w-5xl` column, the title, then the
+ *   hub a fresh visit opens on: each of the five area headings over its row of
+ *   picture tiles (one grey tile per real tile).
  * - Full mode: the 208px side rail with the cards beside it.
  *
- * The number of pills comes from the real section list, so adding or merging a
- * section cannot leave the skeleton drawing the wrong row. Pure markup, no
+ * The number of tiles comes from the real section list, so adding or merging a
+ * section cannot leave the skeleton drawing the wrong grid. Pure markup, no
  * hooks: it renders from `loading.tsx` on the server.
  */
-
-// Pill widths, cycled. Roughly the spread of real labels ("People" to
-// "Connections") so the grey reads as a row of different buttons.
-const PILL_WIDTHS = ["w-20", "w-24", "w-24", "w-32", "w-24"];
 
 /**
  * The title and one line of `PageHeader`, in grey. Drawn here rather than with
@@ -41,22 +37,6 @@ function HeaderSkeleton() {
   );
 }
 
-/** One row of pill-shaped blocks, at the real pill height (48px) and spacing. */
-function PillRowSkeleton({ count }: { count: number }) {
-  return (
-    // Same box as the live row in settings-nav.tsx (`-mx-1 px-1 py-1`), so the
-    // two rows sit at exactly the heights the real pills do.
-    <div className="-mx-1 flex items-center gap-2 overflow-hidden px-1 py-1">
-      {Array.from({ length: count }, (_, index) => (
-        <Skeleton
-          key={index}
-          className={`h-12 shrink-0 rounded-xl ${PILL_WIDTHS[index % PILL_WIDTHS.length]}`}
-        />
-      ))}
-    </div>
-  );
-}
-
 function EasySettingsSkeleton() {
   const groups = groupPanels(OWNER_PANELS);
 
@@ -64,18 +44,18 @@ function EasySettingsSkeleton() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
       <HeaderSkeleton />
 
-      <div className="flex flex-col gap-2">
-        <PillRowSkeleton count={groups.length} />
-        <PillRowSkeleton count={groups[0].items.length} />
-      </div>
-
-      <div className="flex flex-col gap-5">
-        {/* The one line that says what this screen is for. */}
-        <div className="-mt-2">
-          <Skeleton className="h-5 w-80 max-w-full" />
-        </div>
-        <Skeleton className="h-[214px] rounded-lg" />
-        <Skeleton className="h-72 rounded-lg" />
+      {/* The hub: same headings, same grid and the same tile height as SettingsHub. */}
+      <div className="flex flex-col gap-6">
+        {groups.map((group) => (
+          <div key={group.label} className="flex flex-col gap-3">
+            <Skeleton className="h-6 w-28" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {group.items.map((panel) => (
+                <Skeleton key={panel.value} data-hub-tile-skeleton="" className="h-24 rounded-2xl" />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

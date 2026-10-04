@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format, isSameDay } from "date-fns";
+import { format } from "date-fns";
 
 import { StatusPill } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
@@ -13,7 +13,10 @@ import {
   asAppointmentStatus,
   customerNameOf,
   durationLabel,
+  isOnDay,
   timeRange,
+  toDateParam,
+  todayIn,
   type CalendarAppointment,
 } from "./calendar-meta";
 
@@ -36,20 +39,24 @@ export function AppointmentList({
   canDelete,
   now,
   filtered = false,
+  zone,
 }: {
   days: Date[];
   appointments: CalendarAppointment[];
   editHref: (id: string) => string;
   canDelete: boolean;
   now: Date;
-  /** A tech filter is on, so "nothing booked" needs a different explanation. */
+  /** A staff filter is on, so "nothing booked" needs a different explanation. */
   filtered?: boolean;
+  /** The shop's time zone: which day a booking is on and what time it shows. */
+  zone?: string;
 }) {
+  const todayKey = toDateParam(todayIn(now, zone));
   const populated = days
     .map((day) => ({
       day,
       items: appointments.filter((appointment) =>
-        isSameDay(appointment.startsAt, day),
+        isOnDay(appointment.startsAt, day, zone),
       ),
     }))
     .filter((group) => group.items.length > 0);
@@ -59,10 +66,10 @@ export function AppointmentList({
       <Card>
         <EmptyState
           icon={ICONS.appointment}
-          title={filtered ? "Nothing booked for this tech" : "Nothing booked"}
+          title={filtered ? "Nothing booked for this person" : "Nothing booked"}
           hint={
             filtered
-              ? "Switch the tech filter back to All to see the rest of the week."
+              ? "Switch Staff back to All to see the rest of the week."
               : "Click any empty slot on the calendar to book something into it."
           }
         />
@@ -77,7 +84,7 @@ export function AppointmentList({
           <CardHeader
             title={
               <span
-                className={cn(isSameDay(day, now) && "text-accent-soft-foreground")}
+                className={cn(toDateParam(day) === todayKey && "text-accent-soft-foreground")}
               >
                 {format(day, "EEEE, MMMM d")}
               </span>
@@ -111,6 +118,7 @@ export function AppointmentList({
                   appointment={appointment}
                   editHref={editHref}
                   canDelete={canDelete}
+                  zone={zone}
                 />
               ))}
             </TBody>
@@ -127,10 +135,12 @@ function AppointmentRow({
   appointment,
   editHref,
   canDelete,
+  zone,
 }: {
   appointment: CalendarAppointment;
   editHref: (id: string) => string;
   canDelete: boolean;
+  zone?: string;
 }) {
   const status = asAppointmentStatus(appointment.status);
   const meta = APPOINTMENT_STATUS_META[status];
@@ -148,7 +158,7 @@ function AppointmentRow({
               canceled && "text-faint-foreground line-through",
             )}
           >
-            {timeRange(appointment.startsAt, appointment.endsAt)}
+            {timeRange(appointment.startsAt, appointment.endsAt, zone)}
           </span>
           <span className="rf-num text-[11.5px] text-faint-foreground">
             {durationLabel(appointment.startsAt, appointment.endsAt)}

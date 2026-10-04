@@ -25,7 +25,7 @@ const STATUSES = [...DEFAULT_TICKET_STATUSES];
 
 describe("the section tabs", () => {
   it("has the five sections, Work first", () => {
-    expect(JOB_TABS.map((tab) => tab.label)).toEqual(["Work", "Updates", "Photos & files", "Customer & device", "Money"]);
+    expect(JOB_TABS.map((tab) => tab.label)).toEqual(["Work", "Updates", "Photos", "Customer", "Money"]);
     expect(DEFAULT_JOB_TAB).toBe("work");
   });
 

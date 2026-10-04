@@ -44,11 +44,11 @@ function render(rows: CampaignCardRow[]): string {
 describe("campaignCardParts", () => {
   it("says when it goes out, how, and how many", () => {
     const parts = campaignCardParts(live, { scheduled: 3, sent: 1 });
-    expect(parts.subtitle).toBe("After ticket resolved · 14 days later");
+    expect(parts.subtitle).toBe("After a repair is finished · 2 weeks later");
     expect(parts.facts).toEqual([
       { key: "channel", text: "Email" },
       { key: "sent", text: "1 sent" },
-      { key: "queued", text: "3 queued" },
+      { key: "queued", text: "3 waiting" },
     ]);
     expect(parts.statusLabel).toBe("Live");
   });
@@ -69,7 +69,7 @@ describe("CampaignCards", () => {
     expect(html).toContain("Live");
     expect(html).toContain("Paused");
     expect(html).toContain("1 sent");
-    expect(html).toContain("3 queued");
+    expect(html).toContain("3 waiting");
     expect(html).toContain("0 sent");
   });
 

@@ -37,9 +37,9 @@
  * changes the answer (overpayment, and the dedupe keys above).
  */
 
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
 import { emitInvoiceEvent, emitPaymentEvent } from "@/lib/events";
-import { invoiceTotals } from "@/lib/money";
 
 /** Where a Stripe payment came from. Mirrors `Payment.stripeSource`. */
 export type StripeSource = "checkout" | "card_on_file" | "terminal";
@@ -122,6 +122,7 @@ async function writeStripePayment(
               select: { quantity: true, unitPriceCents: true, taxable: true },
             },
             payments: { select: { amountCents: true } },
+            refunds: { select: { amountCents: true, status: true } },
           },
         });
         if (!invoice) {
@@ -159,10 +160,11 @@ async function writeStripePayment(
           return { status: "ignored" as const, reason: "invoice is void" };
         }
 
-        const totals = invoiceTotals(
+        const totals = refundAwareTotals(
           invoice.lines,
           invoice.taxRateBps,
           invoice.payments,
+          invoice.refunds,
         );
         const balanceAfter = totals.balanceCents - amountCents;
         const nextStatus = balanceAfter <= 0 ? "PAID" : "PARTIAL";

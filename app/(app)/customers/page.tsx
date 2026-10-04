@@ -17,7 +17,8 @@ import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { refundAwareTotals } from "@/components/billing/refund-math";
+import { formatCents } from "@/lib/money";
 import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Customers · Repairs helper" };
@@ -27,7 +28,7 @@ const PAGE_SIZE = 25;
 /** Easy mode buttons: 48px tall, 16px text. */
 const BIG_BUTTON = "h-12 px-6 text-base";
 
-/** Ticket statuses that mean "no longer on the bench". */
+/** Repair statuses that mean "no longer on the bench". */
 const CLOSED_TICKET_STATUSES = [
   "Resolved",
   "Closed",
@@ -88,7 +89,7 @@ export default async function CustomersPage({
 
   // Two lean roll-ups over just the 25 rows on screen, rather than a per-row
   // include that would fan out into 25+ queries.
-  const [openTicketRows, owingInvoices, lastVisitRows] = await Promise.all([
+  const [openTicketRows, owingInvoices, lastVisitRows, shopClock] = await Promise.all([
     ids.length
       ? db.ticket.groupBy({
           by: ["customerId"],
@@ -112,6 +113,7 @@ export default async function CustomersPage({
             taxRateBps: true,
             lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
             payments: { select: { amountCents: true } },
+            refunds: { select: { amountCents: true, status: true } },
           },
         })
       : Promise.resolve([]),
@@ -124,7 +126,10 @@ export default async function CustomersPage({
           _max: { createdAt: true },
         })
       : Promise.resolve([]),
+    // Dates on the cards and in the ledger are the shop's calendar days (Shop.timezone), not the server's.
+    db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } }),
   ]);
+  const timeZone = shopClock?.timezone ?? null;
 
   const lastVisits = new Map<string, Date | null>();
   for (const row of lastVisitRows) lastVisits.set(row.customerId, row._max.createdAt);
@@ -134,10 +139,11 @@ export default async function CustomersPage({
 
   const balances = new Map<string, number>();
   for (const invoice of owingInvoices) {
-    const { balanceCents } = invoiceTotals(
+    const { balanceCents } = refundAwareTotals(
       invoice.lines,
       invoice.taxRateBps,
       invoice.payments,
+      invoice.refunds,
     );
     if (balanceCents > 0) {
       balances.set(
@@ -198,6 +204,7 @@ export default async function CustomersPage({
         ) : (
           <>
             <CustomerCards
+              timeZone={timeZone}
               rows={customers.map((customer) => ({
                 id: customer.id,
                 name: fullName(customer),
@@ -270,7 +277,7 @@ export default async function CustomersPage({
               hint={
                 query
                   ? `Nothing matches “${query}”. Try a shorter search.`
-                  : "Add your first customer to start writing tickets."
+                  : "Add your first customer to start booking in repairs."
               }
               action={
                 query ? (
@@ -337,7 +344,7 @@ export default async function CustomersPage({
                         </Td>
 
                         <Td className="text-muted-foreground">
-                          {formatDate(customer.createdAt)}
+                          {formatDate(customer.createdAt, timeZone)}
                         </Td>
 
                         {/*

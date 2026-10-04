@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DuplicateWarning } from "../duplicate-warning";
 import { AlertCircle } from "lucide-react";
 
 import {
@@ -123,6 +124,7 @@ export function EasyCustomerForm({
 
   return (
     <form action={formAction} onSubmit={onSubmit} className="flex flex-col gap-5">
+      <DuplicateWarning state={state} />
       {customer ? <input type="hidden" name="id" value={customer.id} /> : null}
       {/* Hidden mirrors so switched-off sections keep sensible server values. */}
       {!open.email ? <input type="hidden" name="emailOptIn" value={values.emailOptIn ? "on" : ""} /> : null}

@@ -21,6 +21,7 @@ import {
   daysPast,
 } from "./print-chrome";
 import { PrintToolbar } from "./print-toolbar";
+import { shopNow } from "./shop-clock";
 
 /**
  * The printable customer statement behind /print/statements/[customerId].
@@ -64,16 +65,24 @@ export function StatementSheet({
   to,
   backHref,
   logoUrl,
+  zone,
+  nowMs,
 }: {
   statement: StatementData;
   from: Date;
   to: Date;
   backHref: string;
   logoUrl?: string | null;
+  /** The shop's time zone: when things happened, and how late a bill is, are the shop's days. */
+  zone?: string | null;
+  /** The request's clock reading (the page reads it once). */
+  nowMs: number;
 }) {
-  const { shop, customer, invoices, payments, totals } = statement;
+  const { shop, customer, invoices, payments, refunds, totals } = statement;
   const name = statementCustomerName(customer);
-  const now = new Date();
+  // Ages are counted on the shop's calendar: the due date is a calendar day,
+  // so "now" is moved onto the shop's wall clock before the two are compared.
+  const now = new Date(shopNow(nowMs, zone));
   const range = `${formatDate(from)} – ${formatDate(to)}`;
 
   // Void invoices are not a debt, so they are shown but never aged or totalled.
@@ -117,7 +126,7 @@ export function StatementSheet({
             />
             <MetaTable
               rows={[
-                { label: "Statement date", value: formatDate(now) },
+                { label: "Statement date", value: formatDate(new Date(nowMs), zone) },
                 { label: "Period from", value: formatDate(from) },
                 { label: "Period to", value: formatDate(to) },
                 {
@@ -177,7 +186,7 @@ export function StatementSheet({
                         #{invoice.number}
                       </td>
                       <td className="rf-num" style={{ textAlign: "left" }}>
-                        {formatDate(invoice.createdAt)}
+                        {formatDate(invoice.createdAt, zone)}
                       </td>
                       <td className="rf-num" style={{ textAlign: "left" }}>
                         {invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt"}
@@ -191,7 +200,8 @@ export function StatementSheet({
                       </td>
                       <td className="rf-num">{overdue ? `${age} d` : "—"}</td>
                       <td className="rf-num">{formatCents(invoice.totalCents)}</td>
-                      <td className="rf-num">{formatCents(invoice.paidCents)}</td>
+                      {/* Net of refunds, so Total − Paid = Balance on every row. */}
+                      <td className="rf-num">{formatCents(invoice.paidCents - invoice.refundedCents)}</td>
                       <td className="rf-num">
                         {void_ ? "—" : formatCents(balance)}
                       </td>
@@ -232,9 +242,9 @@ export function StatementSheet({
           ) : null}
 
           {/* -------------------------------------------------- payments --- */}
-          {payments.length > 0 ? (
+          {payments.length > 0 || refunds.length > 0 ? (
             <section className="rf-section rf-avoid">
-              <SectionHead title="Payments received" />
+              <SectionHead title={refunds.length > 0 ? "Payments and refunds" : "Payments received"} />
               <table className="rf-mini">
                 <thead>
                   <tr>
@@ -251,7 +261,7 @@ export function StatementSheet({
                   {payments.map((payment) => (
                     <tr key={payment.id}>
                       <td className="rf-num" style={{ textAlign: "left" }}>
-                        {formatDate(payment.createdAt)}
+                        {formatDate(payment.createdAt, zone)}
                       </td>
                       <td className="rf-num" style={{ textAlign: "left" }}>
                         #{payment.invoiceNumber}
@@ -261,6 +271,22 @@ export function StatementSheet({
                       </td>
                       <td className="rf-muted">{payment.reference || "—"}</td>
                       <td className="rf-num">{formatCents(payment.amountCents)}</td>
+                    </tr>
+                  ))}
+                  {refunds.map((refund) => (
+                    <tr key={refund.id}>
+                      <td className="rf-num" style={{ textAlign: "left" }}>
+                        {formatDate(refund.createdAt, zone)}
+                      </td>
+                      <td className="rf-num" style={{ textAlign: "left" }}>
+                        #{refund.invoiceNumber}
+                      </td>
+                      <td>
+                        Refund · {PAYMENT_METHOD_LABELS[refund.method] ?? refund.method}
+                        {refund.status === "pending" ? " (on its way)" : ""}
+                      </td>
+                      <td className="rf-muted">{refund.reason || "—"}</td>
+                      <td className="rf-num">-{formatCents(refund.amountCents)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -285,6 +311,14 @@ export function StatementSheet({
                       -{formatCents(totals.paidCents)}
                     </td>
                   </tr>
+                  {totals.refundedCents > 0 ? (
+                    <tr>
+                      <td className="rf-t-label">Refunded to you</td>
+                      <td className="rf-t-value">
+                        +{formatCents(totals.refundedCents)}
+                      </td>
+                    </tr>
+                  ) : null}
                   {totals.creditBalanceCents > 0 ? (
                     <tr>
                       <td className="rf-t-label">Store credit on account</td>

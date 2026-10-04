@@ -55,7 +55,8 @@ import { ObjectHeader } from "@/components/ui/object-header";
 import { IconVisual, InitialsVisual } from "@/components/ui/record-card";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { refundAwareTotals } from "@/components/billing/refund-math";
+import { formatCents } from "@/lib/money";
 import { readUiPrefs } from "@/lib/prefs";
 import { customerWarranties } from "@/lib/warranty";
 import { cardExpired, cardOnFile, paymentsLive } from "@/lib/payments";
@@ -64,7 +65,7 @@ import {
   startSaveCardAction,
 } from "@/app/(app)/customers/card-actions";
 
-/** Ticket statuses that mean "no longer on the bench". */
+/** Repair statuses that mean "no longer on the bench". */
 const CLOSED_TICKET_STATUSES = [
   "Resolved",
   "Closed",
@@ -207,6 +208,7 @@ export default async function CustomerHubPage({
     communicationCount,
     creditHistory,
     warranties,
+    shopClock,
   ] = await Promise.all([
     needs.tickets
       ? db.ticket.findMany({
@@ -258,6 +260,7 @@ export default async function CustomerHubPage({
             paidAt: true,
             lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
             payments: { select: { amountCents: true } },
+            refunds: { select: { amountCents: true, status: true } },
           },
         })
       : Promise.resolve([]),
@@ -325,6 +328,7 @@ export default async function CustomerHubPage({
         taxRateBps: true,
         lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         payments: { select: { amountCents: true } },
+        refunds: { select: { amountCents: true, status: true } },
       },
     }),
     needs.details ? db.communicationLog.count({ where: { shopId, customerId: id } }) : Promise.resolve(0),
@@ -347,13 +351,17 @@ export default async function CustomerHubPage({
     // Live cover first, then lapsed — "is this still covered?" is the question
     // being asked at the counter.
     needs.details ? customerWarranties(shopId, id) : Promise.resolve([]),
+    // Every date on this screen is the shop's calendar day (Shop.timezone), never the server's.
+    db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } }),
   ]);
+  const timeZone = shopClock?.timezone ?? null;
 
   const unpaidBalanceCents = owingInvoices.reduce((sum, invoice) => {
-    const { balanceCents } = invoiceTotals(
+    const { balanceCents } = refundAwareTotals(
       invoice.lines,
       invoice.taxRateBps,
       invoice.payments,
+      invoice.refunds,
     );
     return sum + Math.max(0, balanceCents);
   }, 0);
@@ -376,6 +384,7 @@ export default async function CustomerHubPage({
     role === "OWNER" || role === "FRONT_DESK" ? (
       <CreditDialog
         customerId={customer.id}
+        timeZone={timeZone}
         customerName={name}
         balanceCents={customer.creditBalanceCents}
         history={creditHistory.map((entry) => ({
@@ -426,7 +435,8 @@ export default async function CustomerHubPage({
           detailsHref={customerTabHref(customer.id, "details")}
           newRepairHref={`/tickets/new?customerId=${customer.id}`}
           newInvoiceHref={`/invoices/new?customerId=${customer.id}`}
-          bookHref="/appointments"
+          // Opens the booking with this customer already chosen.
+          bookHref={`/appointments?book=1&customerId=${customer.id}`}
           messageMenu={<MessageMenu options={canMessage} />}
           moreMenu={
             <CustomerActionsMenu
@@ -449,6 +459,7 @@ export default async function CustomerHubPage({
             lastVisit: lastVisit?._max.createdAt ?? null,
             customerSince: customer.createdAt,
             now,
+            timeZone,
           })}
           creditAction={creditDialog}
         />
@@ -477,6 +488,7 @@ export default async function CustomerHubPage({
             earlier={earlierRepairRows}
             total={customer._count.tickets}
             now={now.getTime()}
+            timeZone={timeZone}
           />
         ) : null}
 
@@ -513,11 +525,11 @@ export default async function CustomerHubPage({
                 />
               </div>
             </div>
-            <WarrantiesCard warranties={warranties} />
-            <PaymentsCard payments={payments} total={paymentTotals._count._all} />
+            <WarrantiesCard easy warranties={warranties} timeZone={timeZone} />
+            <PaymentsCard easy payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
             {/* The Message tile's "Past messages" lands here. */}
             <div id="messages" className="min-w-0 scroll-mt-4">
-              <CommunicationsCard entries={communications} total={communicationCount} />
+              <CommunicationsCard entries={communications} total={communicationCount} timeZone={timeZone} />
             </div>
           </div>
         ) : null}
@@ -599,7 +611,7 @@ export default async function CustomerHubPage({
             ),
           },
           {
-            label: "Open tickets",
+            label: "Open repairs",
             value: (
               <span className="rf-num">
                 {openTicketCount} of {customer._count.tickets}
@@ -629,7 +641,7 @@ export default async function CustomerHubPage({
               </span>
             ),
           },
-          { label: "Customer since", value: formatDate(customer.createdAt) },
+          { label: "Customer since", value: formatDate(customer.createdAt, timeZone) },
         ]}
         actions={
           // The width cap is the same local workaround the ticket page
@@ -640,7 +652,7 @@ export default async function CustomerHubPage({
             <Button size="sm" asChild>
               <Link href={`/tickets/new?customerId=${customer.id}`}>
                 <ICONS.ticket />
-                New Ticket
+                New repair
               </Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
@@ -701,20 +713,23 @@ export default async function CustomerHubPage({
             customerId={customer.id}
             tickets={tickets}
             total={customer._count.tickets}
+            timeZone={timeZone}
           />
           <InvoicesCard
             customerId={customer.id}
             invoices={invoices}
             total={customer._count.invoices}
+            timeZone={timeZone}
           />
           <EstimatesCard
             customerId={customer.id}
             estimates={estimates}
             total={customer._count.estimates}
+            timeZone={timeZone}
           />
-          <WarrantiesCard warranties={warranties} />
-          <PaymentsCard payments={payments} total={paymentTotals._count._all} />
-          <CommunicationsCard entries={communications} total={communicationCount} />
+          <WarrantiesCard warranties={warranties} timeZone={timeZone} />
+          <PaymentsCard payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
+          <CommunicationsCard entries={communications} total={communicationCount} timeZone={timeZone} />
         </div>
       </div>
     </div>

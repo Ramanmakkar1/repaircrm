@@ -35,12 +35,16 @@ import { toast } from "sonner";
  * at all — so a caller with no real reverse should use a dialog instead of
  * passing a no-op here.
  */
+/** One word for it everywhere, on a 44px button (globals.css, "Toasts"). */
+export const UNDO_LABEL = "Undo";
+export const UNDO_MS = 10_000;
+
 export function toastWithUndo({
   message,
   description,
   undo,
   onUndoError = "Could not undo that.",
-  duration = 8000,
+  duration = UNDO_MS,
 }: {
   /** What happened, in the past tense: "Lead archived". */
   message: string;
@@ -49,8 +53,9 @@ export function toastWithUndo({
   undo: () => Promise<unknown>;
   onUndoError?: string;
   /**
-   * Eight seconds, not sonner's four. Undo is only useful if it is still there
-   * when you realise — and realising takes a beat longer than reading.
+   * Ten seconds, not sonner's four. Undo is only useful if it is still there
+   * when you realise — and realising takes a beat longer than reading,
+   * especially with a customer talking to you.
    */
   duration?: number;
 }): void {
@@ -58,12 +63,12 @@ export function toastWithUndo({
     description,
     duration,
     action: {
-      label: "Undo",
+      label: UNDO_LABEL,
       onClick: () => {
         // Fire and report. The toast is already closing by the time this runs,
         // so the outcome needs a toast of its own either way.
         void undo().then(
-          () => toast.success("Undone."),
+          () => toast.success("Undone. It's back as it was."),
           (error: unknown) =>
             toast.error(
               error instanceof Error && error.message ? error.message : onUndoError,

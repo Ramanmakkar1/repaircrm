@@ -25,7 +25,6 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/components/ui/cn";
 import { formatBps } from "@/lib/money";
 import type { TaxRateOption } from "@/lib/tax";
@@ -43,6 +42,7 @@ import type { TaxRateOption } from "@/lib/tax";
  * page.
  */
 const AddIcon = ACTIONS.add;
+const EditIcon = ACTIONS.edit;
 const DeleteIcon = ACTIONS.delete;
 const SaveIcon = ACTIONS.save;
 
@@ -62,7 +62,7 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
       toast.error(result.error);
       return;
     }
-    toast.success(`"${rate.name}" removed.`);
+    toast.success(`Saved. "${rate.name}" is deleted.`);
     setRemoving(null);
     router.refresh();
   }
@@ -72,16 +72,16 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
       <Card>
         <CardHeader
           icon={ICONS.tax}
-          title="Tax rates"
-          description="Your named rates. The starred one is what new documents use."
+          title="Named tax rates"
+          description="Optional, for customers taxed differently (GST, PST, out of state). Each change here saves on its own."
           action={
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              className="h-12 px-4"
               onClick={() => setCreating(true)}
             >
-              <AddIcon aria-hidden /> Add rate
+              <AddIcon aria-hidden /> Add a rate
             </Button>
           }
         />
@@ -107,13 +107,9 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
               {rates.map((rate) => (
                 <li
                   key={rate.id}
-                  className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+                  className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setEditing(rate)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
-                  >
+                  <span className="flex min-w-0 flex-1 items-center gap-2.5">
                     <Star
                       aria-hidden
                       className={cn(
@@ -125,15 +121,18 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
                     />
                     <span
                       className={cn(
-                        "truncate text-[14.5px] font-semibold",
-                        rate.active ? "text-foreground" : "text-faint-foreground",
+                        "truncate text-[15px] font-semibold",
+                        rate.active ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
                       {rate.name}
                     </span>
+                    <span className="shrink-0 text-[15px] font-semibold tabular-nums text-muted-foreground">
+                      {formatBps(rate.rateBps)}
+                    </span>
                     {rate.isDefault ? (
-                      <span className="shrink-0 rounded-full bg-surface-hover px-2 py-0.5 text-[12px] font-semibold text-muted-foreground">
-                        Default
+                      <span className="shrink-0 rounded-full bg-surface-hover px-2 py-0.5 text-[13px] font-semibold text-muted-foreground">
+                        Shop rate
                       </span>
                     ) : null}
                     {!rate.active ? (
@@ -141,40 +140,40 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
                         size="sm"
                         dot={false}
                         tone="neutral"
-                        label="Inactive"
+                        label="Not in use"
                         className="shrink-0"
                       />
                     ) : null}
-                  </button>
-                  <span className="shrink-0 text-[14.5px] font-semibold tabular-nums text-muted-foreground">
-                    {formatBps(rate.rateBps)}
                   </span>
-                  {/* Icon-only, because it repeats down the list — so it
-                      carries an aria-label and a tooltip both. */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${rate.name}`}
-                        className="text-faint-foreground hover:bg-destructive-soft hover:text-destructive"
-                        onClick={() => setRemoving(rate)}
-                      >
-                        <DeleteIcon className="size-4" aria-hidden />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Delete rate</TooltipContent>
-                  </Tooltip>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 px-4"
+                      aria-label={`Edit ${rate.name}`}
+                      onClick={() => setEditing(rate)}
+                    >
+                      <EditIcon aria-hidden /> Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12 px-4 text-destructive hover:bg-destructive-soft hover:text-destructive"
+                      aria-label={`Delete ${rate.name}`}
+                      onClick={() => setRemoving(rate)}
+                    >
+                      <DeleteIcon aria-hidden /> Delete
+                    </Button>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
 
           <p className="max-w-prose text-[14px] leading-relaxed text-muted-foreground">
-            The starred rate is what new documents use, and it is the same number
-            as the sales tax rate above. A customer can be pinned to a different
-            rate, or marked tax exempt, on their own record.
+            The starred one is your shop rate (the same number as the sales tax
+            rate above). A customer can be given a different rate, or marked tax
+            exempt, on their own page.
           </p>
         </CardContent>
       </Card>
@@ -206,11 +205,12 @@ export function TaxRatesCard({ rates }: { rates: TaxRateOption[] }) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" disabled={busy} onClick={() => setRemoving(null)}>
-              Cancel
+            <Button variant="ghost" className="h-12" disabled={busy} onClick={() => setRemoving(null)}>
+              Keep it
             </Button>
             <Button
               variant="destructive"
+              className="h-12"
               disabled={busy}
               onClick={() => removing && remove(removing)}
             >
@@ -266,7 +266,7 @@ function TaxRateDialog({
       toast.error(result.error);
       return;
     }
-    toast.success(rate ? "Tax rate updated." : "Tax rate added.");
+    toast.success(rate ? "Saved. Tax rate updated." : "Saved. Tax rate added.");
     onClose();
     router.refresh();
   }
@@ -299,7 +299,6 @@ function TaxRateDialog({
               onChange={(event) => setName(event.target.value)}
               placeholder="GST"
               maxLength={60}
-              autoFocus
             />
           </div>
 
@@ -326,7 +325,7 @@ function TaxRateDialog({
             />
             <span className="flex flex-col gap-0.5">
               <span className="text-[14px] font-semibold text-foreground">
-                Shop default
+                Shop rate
               </span>
               <span className="text-[14px] text-muted-foreground">
                 What new documents use when the customer has no rate of their own.
@@ -342,19 +341,19 @@ function TaxRateDialog({
             />
             <span className="flex flex-col gap-0.5">
               <span className="text-[14px] font-semibold text-foreground">
-                Active
+                In use
               </span>
               <span className="text-[14px] text-muted-foreground">
-                Uncheck to retire it without touching old documents.
+                Untick to stop offering it, without touching old documents.
               </span>
             </span>
           </label>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
+            <Button type="button" variant="ghost" className="h-12" disabled={busy} onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" className="h-12" disabled={busy}>
               {busy ? (
                 <Loader2 className="animate-spin" />
               ) : rate ? (

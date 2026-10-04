@@ -280,7 +280,7 @@ export async function inviteTeamAction(
     .filter((row) => row.name !== "" || row.email !== "");
 
   if (wanted.length === 0) {
-    return { ok: false, error: "Add at least one person, or skip this step.", invited: [] };
+    return { ok: false, error: "Add at least one person, or choose Do this later.", invited: [] };
   }
   if (wanted.length > 10) {
     return { ok: false, error: "Add up to ten people at a time.", invited: [] };
@@ -339,7 +339,7 @@ export async function createStarterItemsAction(
     .filter((row) => row.name !== "");
 
   if (wanted.length === 0) {
-    return { ok: false, error: "Add at least one item, or skip this step." };
+    return { ok: false, error: "Add at least one item, or choose Do this later." };
   }
   if (wanted.some((row) => row.priceCents < 0)) {
     return { ok: false, error: "A price cannot be negative." };

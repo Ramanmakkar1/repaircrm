@@ -182,7 +182,7 @@ function LocationCard({
       toast.error(result.error);
       return;
     }
-    toast.success(`${location.name} ${next ? "reopened" : "closed"}.`);
+    toast.success(`Saved. ${location.name} is ${next ? "open again" : "closed"}.`);
     router.refresh();
   }
 
@@ -194,7 +194,7 @@ function LocationCard({
       toast.error(result.error);
       return;
     }
-    toast.success(`${location.name} is now the default.`);
+    toast.success(`Saved. ${location.name} is now the default.`);
     router.refresh();
   }
 
@@ -224,7 +224,8 @@ function LocationCard({
           checked={location.active}
           disabled={busy || (location.active && !canDeactivate)}
           onCheckedChange={toggleActive}
-          aria-label={`${location.active ? "Close" : "Reopen"} ${location.name}`}
+          words={["Open", "Closed"]}
+          aria-label={`${location.name} is open`}
         />
       </CardHeader>
 
@@ -241,19 +242,19 @@ function LocationCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onEdit} disabled={busy}>
+          <Button variant="outline" className="h-12 px-4" onClick={onEdit} disabled={busy}>
             <EditIcon aria-hidden /> Edit details
           </Button>
           <Button
             variant="outline"
-            size="sm"
+            className="h-12 px-4"
             onClick={() => setStaffOpen(true)}
             disabled={busy || !location.active}
           >
             <AssignIcon aria-hidden /> Staff based here
           </Button>
           {!location.isDefault && location.active ? (
-            <Button variant="ghost" size="sm" onClick={makeDefault} disabled={busy}>
+            <Button variant="ghost" className="h-12 px-4" onClick={makeDefault} disabled={busy}>
               Make default
             </Button>
           ) : null}
@@ -368,7 +369,6 @@ function LocationDialog({
               onChange={(event) => set("name", event.target.value)}
               placeholder="Northside Kiosk"
               maxLength={80}
-              autoFocus
             />
           </div>
 

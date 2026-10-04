@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatInZone } from "@/lib/shop-time";
 import type { Prisma } from "@prisma/client";
 
 import {
@@ -116,12 +116,13 @@ export type LabourLine = {
 export function labourLinesFor(
   entries: readonly BillableTimeEntry[],
   labour: LabourSettings,
+  zone = "UTC",
 ): LabourLine[] {
   return entries.map((entry) => ({
     productId: null,
     description: labourDescription(
       entry.userName,
-      format(entry.startedAt, "MMM d"),
+      formatInZone(entry.startedAt, "MMM d", zone),
       entry.seconds,
       labour.roundingMinutes,
     ),

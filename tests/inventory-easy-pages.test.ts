@@ -64,6 +64,8 @@ const render = async (page: unknown, params: Record<string, string> = {}) =>
 beforeEach(() => {
   resetDb();
   prefs.simple = true;
+  // The purchasing pages read the shop's own time zone, so "late" and every date follow the shop.
+  handlers["shop.findUnique"] = () => ({ timezone: "America/Edmonton" });
 });
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 function seedOrders() {
+  handlers["shop.findUnique"] = () => ({ timezone: "America/Edmonton" });
   const order = (over: Record<string, unknown>) => ({
     id: "po",
     number: 1000,
@@ -115,16 +118,19 @@ describe("Purchase orders list", () => {
     expect(html).not.toContain("All inventory");
   });
 
-  it("puts a count on every tab, Open being the three states still in play", async () => {
+  it("has three tabs with counts (To order, On the way, Arrived) and All behind a small link", async () => {
     seedOrders();
     const html = await render(PurchaseOrdersPage);
 
     const tab = (label: string) => html.match(new RegExp(`${label}<span[^>]*>(\\d+)</span>`))?.[1];
-    expect(tab("Open")).toBe("2");
-    expect(tab("All")).toBe("6");
-    expect(tab("Draft")).toBe("1");
-    expect(tab("Received")).toBe("4");
-    expect(tab("Canceled")).toBe("0");
+    expect(tab("To order")).toBe("1");
+    expect(tab("On the way")).toBe("1");
+    expect(tab("Arrived")).toBe("4");
+    expect(html).toContain("All orders (6)");
+    // The default view is everything still in play, in its two piles.
+    expect(html).toContain(">On the way <");
+    expect(html).toContain(">To order <");
+    for (const gone of [">Partial<", ">Canceled<span", ">Open<span"]) expect(html).not.toContain(gone);
   });
 
   it("counts within this shop only, and within the chosen supplier and search", async () => {
@@ -304,6 +310,7 @@ describe("Suppliers list", () => {
 // ---------------------------------------------------------------------------
 
 function seedOrder(status: string) {
+  handlers["shop.findUnique"] = () => ({ timezone: "America/Edmonton" });
   handlers["purchaseOrder.findFirst"] = () => ({
     id: "po1",
     number: 1001,
@@ -338,7 +345,7 @@ async function renderOrder() {
 }
 
 describe("Purchase order page header", () => {
-  it("opens with a big title, the status in words, and Receive as the one black button", async () => {
+  it("opens with a big title, the status in words, and Book in delivery as the one black button", async () => {
     seedOrder("ORDERED");
     const html = await renderOrder();
 
@@ -349,22 +356,28 @@ describe("Purchase order page header", () => {
     const black = [...html.matchAll(/<button\b[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)]
       .filter((match) => match[1].includes("bg-accent text-accent-foreground"))
       .map((match) => match[2].replace(/<[^>]+>/g, "").trim());
-    expect(black).toEqual(["Receive"]);
+    expect(black).toEqual(["Book in delivery"]);
   });
 
-  it("keeps every fact the dense header carried, and every section under it", async () => {
+  it("keeps every fact the dense header carried, once, with the lines as cards and one progress line", async () => {
     seedOrder("ORDERED");
     const html = await renderOrder();
 
-    for (const fact of ["Supplier", "Received", "Raised", "Placed", "Expected", "Account"]) {
+    for (const fact of ["Raised", "Placed", "Expected", "Account"]) {
       expect(html).toContain(`>${fact}<`);
     }
     expect(html).toContain("MCG-1");
     expect(html).toContain("Meridian Component Group");
-    for (const section of ["Lines", "Totals"]) expect(html).toContain(`>${section}<`);
+    expect(html).toContain("0 of 2 arrived");
+    expect(html).toContain(">On this order<");
+    expect(html).toContain("ordered 2 · arrived 0");
+    expect(html).toContain(">Waiting<");
+    expect(html).not.toContain("<table");
     expect(html).toContain("Keyboard assembly");
     expect(html).toContain("PO #1001");
     expect(html).toContain("/print/purchase-orders/po1");
+    // The total once in the header and once on the totals line, not again in a Totals card.
+    expect(html.match(/\$200\.00/g)?.length).toBe(3);
   });
 
   it("makes Mark as ordered the black button on a draft", async () => {

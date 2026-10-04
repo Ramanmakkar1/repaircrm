@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatInZone } from "@/lib/shop-time";
 
 /**
  * Presentation helpers shared by every customer view.
@@ -40,14 +40,20 @@ export function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export function formatDate(value: Date | string | null | undefined): string {
+/**
+ * "Oct 4, 2026", on the shop's calendar. `zone` is Shop.timezone: a server
+ * render must pass it, or the date is read on the server's clock (UTC on the
+ * live server). Without one the runtime's zone is used, as before.
+ */
+export function formatDate(value: Date | string | null | undefined, zone?: string | null): string {
   const d = toDate(value);
-  return d ? format(d, "MMM d, yyyy") : EM_DASH;
+  return d ? formatInZone(d, "MMM d, yyyy", zone) : EM_DASH;
 }
 
-export function formatDateTime(value: Date | string | null | undefined): string {
+/** "Oct 4, 2026 · 7:30 PM", on the shop's clock (see `formatDate`). */
+export function formatDateTime(value: Date | string | null | undefined, zone?: string | null): string {
   const d = toDate(value);
-  return d ? format(d, "MMM d, yyyy · h:mm a") : EM_DASH;
+  return d ? formatInZone(d, "MMM d, yyyy · h:mm a", zone) : EM_DASH;
 }
 
 function toDate(value: Date | string | null | undefined): Date | null {
@@ -111,7 +117,7 @@ export function deleteBlockedReason(counts: {
   estimates: number;
 }): string | null {
   const parts: string[] = [];
-  if (counts.tickets) parts.push(plural(counts.tickets, "ticket"));
+  if (counts.tickets) parts.push(plural(counts.tickets, "repair"));
   if (counts.invoices) parts.push(plural(counts.invoices, "invoice"));
   if (counts.estimates) parts.push(plural(counts.estimates, "estimate"));
   if (parts.length === 0) return null;

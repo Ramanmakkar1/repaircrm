@@ -321,7 +321,7 @@ describe("saveIntakeOptionsAction: a renamed problem takes its checklists with i
     expect(audit).toHaveBeenCalledWith(
       expect.objectContaining({
         summary: "Devices and problems saved",
-        meta: { section: "devices-and-problems", devices: DEFAULT_DEVICE_KINDS.length, hiddenDevices: 0, problems: 3, renamedProblems: 1, checklistsMoved: 2 },
+        meta: { section: "devices-and-problems", kind: "change", devices: DEFAULT_DEVICE_KINDS.length, hiddenDevices: 0, problems: 3, renamedProblems: 1, checklistsMoved: 2 },
       }),
     );
   });
@@ -381,7 +381,7 @@ describe("saveIntakeOptionsAction: the audit trail and the pages that show the b
       entity: "settings",
       entityId: "shop_1",
       summary: "Devices and problems saved",
-      meta: { section: "devices-and-problems", devices: 3, hiddenDevices: 1, problems: 3 },
+      meta: { section: "devices-and-problems", kind: "change", devices: 3, hiddenDevices: 1, problems: 3 },
     });
   });
 
@@ -404,9 +404,9 @@ describe("updateWorkflowAction: its contract is unchanged", () => {
     expect(callsTo("shop.update")).toHaveLength(0);
   });
 
-  it("still needs at least one problem type and one ticket status", async () => {
+  it("still needs at least one problem type and one repair step", async () => {
     expect(await updateWorkflowAction({ problemTypes: [" ", ""], ticketStatuses: ["New"] })).toEqual({ ok: false, error: "Keep at least one problem type." });
-    expect(await updateWorkflowAction({ problemTypes: ["A"], ticketStatuses: [] })).toEqual({ ok: false, error: "Keep at least one ticket status." });
+    expect(await updateWorkflowAction({ problemTypes: ["A"], ticketStatuses: [] })).toEqual({ ok: false, error: "Keep at least one repair step." });
     expect(callsTo("shop.update")).toHaveLength(0);
   });
 
@@ -419,7 +419,7 @@ describe("updateWorkflowAction: its contract is unchanged", () => {
       automation: { lastRun: "yesterday" },
     });
     expect(whereOf("shop.update")).toEqual({ id: "shop_1" });
-    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ summary: "Problem types and ticket statuses saved" }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ summary: "Problems and repair steps saved" }));
   });
 
   it("leaves a shop that never chose pictures without a pictures key", async () => {

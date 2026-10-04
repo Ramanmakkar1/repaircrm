@@ -4,11 +4,15 @@
  * Pure: imported by the staff page, the print page and the client period
  * picker, so no `db`, no `next/*`, no "use server".
  *
- * Everything is anchored to UTC calendar days, matching how the rest of the
- * billing module stores dates (see components/billing/format.ts) — a statement
- * headed "Jun 1 – Aug 30" must cover exactly those days no matter which side of
- * midnight the browser is on.
+ * A period is a run of the SHOP's calendar days. `from` / `to` are those days
+ * as dates at UTC midnight (how billing stores and prints a calendar day, see
+ * components/billing/format.ts), and `startsAt` / `toExclusive` are the
+ * instants the queries cut at: the shop's own midnights, in `Shop.timezone`.
+ * So a statement headed "Jun 1 – Aug 30" covers exactly those days as the shop
+ * lived them, and a payment taken at 9pm on Aug 30 is on it.
  */
+
+import { shopDayRange, shopTodayKey } from "@/components/billing/shop-clock";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -23,11 +27,13 @@ export const PERIOD_PRESETS = [
 ] as const;
 
 export type Period = {
-  /** Inclusive first day, at UTC midnight. */
+  /** Inclusive first day, at UTC midnight (a calendar day, for display). */
   from: Date;
-  /** Inclusive last day, at UTC midnight. */
+  /** Inclusive last day, at UTC midnight (a calendar day, for display). */
   to: Date;
-  /** Exclusive upper bound for `createdAt < toExclusive` queries. */
+  /** The instant the first day starts in the shop's zone: `createdAt >= startsAt`. */
+  startsAt: Date;
+  /** The instant the day after `to` starts in the shop's zone: `createdAt < toExclusive`. */
   toExclusive: Date;
   /** `yyyy-mm-dd` round-trip values for the date inputs and print links. */
   fromValue: string;
@@ -46,11 +52,16 @@ function parseDay(raw: unknown): Date | null {
   const value = String(raw ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
 }
 
 function toValue(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/** Today on the shop's calendar, as that day at UTC midnight. No zone is UTC's today. */
+function todayFor(now: Date, zone?: string | null): Date {
+  return zone ? new Date(`${shopTodayKey(now.getTime(), zone)}T00:00:00.000Z`) : startOfUtcDay(now);
 }
 
 /**
@@ -58,13 +69,17 @@ function toValue(date: Date): string {
  *
  * A reversed range (`from` after `to`) is swapped rather than rejected — the
  * operator's intent is obvious and an error page would be theatre.
+ *
+ * `zone` is the shop's (`Shop.timezone`): "today" and every day edge are the
+ * shop's. Without it the days are UTC's, as they always were.
  */
 export function resolvePeriod(
   fromRaw?: unknown,
   toRaw?: unknown,
   now: Date = new Date(),
+  zone?: string | null,
 ): Period {
-  const today = startOfUtcDay(now);
+  const today = todayFor(now, zone);
 
   let to = parseDay(toRaw) ?? today;
   let from =
@@ -76,10 +91,15 @@ export function resolvePeriod(
   const days = Math.round((to.getTime() - from.getTime()) / DAY_MS);
   const preset = PERIOD_PRESETS.find((p) => p.days === days);
 
+  const edges = zone
+    ? shopDayRange(toValue(from), toValue(to), zone)
+    : { from, toExclusive: new Date(to.getTime() + DAY_MS) };
+
   return {
     from,
     to,
-    toExclusive: new Date(to.getTime() + DAY_MS),
+    startsAt: edges.from,
+    toExclusive: edges.toExclusive,
     fromValue: toValue(from),
     toValue: toValue(to),
     presetDays: spansToToday && preset ? preset.days : null,
@@ -90,8 +110,9 @@ export function resolvePeriod(
 export function presetRange(
   days: number,
   now: Date = new Date(),
+  zone?: string | null,
 ): { from: string; to: string } {
-  const today = startOfUtcDay(now);
+  const today = todayFor(now, zone);
   return {
     from: toValue(new Date(today.getTime() - days * DAY_MS)),
     to: toValue(today),

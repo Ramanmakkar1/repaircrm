@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import type { Period } from "./period";
 
 /**
@@ -17,7 +17,22 @@ export type StatementInvoice = {
   totalCents: number;
   /** Every payment ever taken against this invoice, not just in-period ones. */
   paidCents: number;
+  /** Every refund handed back on it (a failed card refund is not one). */
+  refundedCents: number;
+  /** Refund-aware, exactly as the invoice screen reads it: a refund owes again. */
   balanceCents: number;
+};
+
+export type StatementRefund = {
+  id: string;
+  createdAt: Date;
+  method: string;
+  reason: string | null;
+  amountCents: number;
+  /** "pending" while a card refund is on its way. */
+  status: string;
+  invoiceId: string;
+  invoiceNumber: number;
 };
 
 export type StatementPayment = {
@@ -57,11 +72,22 @@ export type StatementData = {
   };
   invoices: StatementInvoice[];
   payments: StatementPayment[];
+  /** Money handed back in the period, whichever invoice it came off. */
+  refunds: StatementRefund[];
+  /**
+   * What the customer owes RIGHT NOW, whatever the period: every sent or
+   * part-paid invoice with a refund-aware balance above zero. The same
+   * definition as "Owed to you" on Reports, the Shop overview and the
+   * invoices list, so the statement's big number matches theirs.
+   */
+  owing: { id: string; number: number; dueDate: Date | null; balanceCents: number }[];
   totals: {
     /** Billed in the period. Void invoices are excluded — they are not a debt. */
     invoicedCents: number;
     /** Received in the period, whichever invoice it landed on. */
     paidCents: number;
+    /** Handed back in the period. */
+    refundedCents: number;
     /** Still owed on the period's invoices, as of right now. */
     outstandingCents: number;
     creditBalanceCents: number;
@@ -84,16 +110,21 @@ export function statementCustomerName(customer: {
  * A statement is a summary, not a re-render of each invoice, so line items are
  * loaded only to total them — `Invoice` deliberately stores no denormalised
  * total (see the schema note), which means the sum has to be computed here with
- * the same `invoiceTotals` the invoice screen uses.
+ * the same refund-aware `refundAwareTotals` the invoice screen, the printed
+ * invoice and the receipt use: a refunded invoice owes here exactly what it
+ * owes there.
+ *
+ * The period's edges are the shop's own midnights (`period.startsAt` /
+ * `period.toExclusive`, see ./period.ts).
  */
 export async function loadStatement(
   shopId: string,
   customerId: string,
   period: Period,
 ): Promise<StatementData | null> {
-  const inPeriod = { gte: period.from, lt: period.toExclusive };
+  const inPeriod = { gte: period.startsAt, lt: period.toExclusive };
 
-  const [shop, customer, invoiceRows, paymentRows] = await Promise.all([
+  const [shop, customer, invoiceRows, paymentRows, refundRows, owingRows] = await Promise.all([
     db.shop.findUnique({
       where: { id: shopId },
       select: {
@@ -137,6 +168,7 @@ export async function loadStatement(
         taxRateBps: true,
         lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
         payments: { select: { amountCents: true } },
+        refunds: { select: { amountCents: true, status: true } },
       },
     }),
     // Payment carries shopId; scoping through the invoice narrows it to this
@@ -153,12 +185,55 @@ export async function loadStatement(
         invoice: { select: { id: true, number: true } },
       },
     }),
+    // Same scoping as the payments: shopId on the row, the customer through
+    // its invoice. A failed card refund never left the shop, so it is not one.
+    db.refund.findMany({
+      where: { shopId, invoice: { customerId }, createdAt: inPeriod, status: { not: "failed" } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        createdAt: true,
+        method: true,
+        reason: true,
+        amountCents: true,
+        status: true,
+        invoice: { select: { id: true, number: true } },
+      },
+    }),
+    // Not period-scoped: a debt from before the period is still owed today.
+    db.invoice.findMany({
+      where: { shopId, customerId, status: { in: ["SENT", "PARTIAL"] } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        number: true,
+        dueDate: true,
+        taxRateBps: true,
+        lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
+        payments: { select: { amountCents: true } },
+        refunds: { select: { amountCents: true, status: true } },
+      },
+    }),
   ]);
 
   if (!shop || !customer) return null;
 
+  const owing = owingRows
+    .map((row) => ({
+      id: row.id,
+      number: row.number,
+      dueDate: row.dueDate,
+      balanceCents: refundAwareTotals(row.lines, row.taxRateBps, row.payments, row.refunds).balanceCents,
+    }))
+    .filter((row) => row.balanceCents > 0);
+
   const invoices: StatementInvoice[] = invoiceRows.map((invoice) => {
-    const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+    const totals = refundAwareTotals(
+      invoice.lines,
+      invoice.taxRateBps,
+      invoice.payments,
+      invoice.refunds,
+    );
     return {
       id: invoice.id,
       number: invoice.number,
@@ -167,6 +242,7 @@ export async function loadStatement(
       dueDate: invoice.dueDate,
       totalCents: totals.totalCents,
       paidCents: totals.paidCents,
+      refundedCents: totals.refundedCents,
       balanceCents: totals.balanceCents,
     };
   });
@@ -181,6 +257,17 @@ export async function loadStatement(
     invoiceNumber: payment.invoice.number,
   }));
 
+  const refunds: StatementRefund[] = refundRows.map((refund) => ({
+    id: refund.id,
+    createdAt: refund.createdAt,
+    method: refund.method,
+    reason: refund.reason,
+    amountCents: refund.amountCents,
+    status: refund.status,
+    invoiceId: refund.invoice.id,
+    invoiceNumber: refund.invoice.number,
+  }));
+
   const live = invoices.filter((invoice) => invoice.status !== "VOID");
 
   return {
@@ -188,9 +275,12 @@ export async function loadStatement(
     customer,
     invoices,
     payments,
+    refunds,
+    owing,
     totals: {
       invoicedCents: live.reduce((sum, i) => sum + i.totalCents, 0),
       paidCents: payments.reduce((sum, p) => sum + p.amountCents, 0),
+      refundedCents: refunds.reduce((sum, r) => sum + r.amountCents, 0),
       // Overpayment on one invoice does not cancel a debt on another, so each
       // balance is floored at zero before summing.
       outstandingCents: live.reduce(

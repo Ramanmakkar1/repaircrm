@@ -57,15 +57,15 @@ export function NewDeviceFields({ onIdentityChange }: { onIdentityChange?: (devi
   </fieldset>;
 }
 
-export function PromisedTimeField({ hint }: { hint?: string }) {
+export function PromisedTimeField({ hint, timeZone }: { hint?: string; timeZone?: string }) {
   const [value, setValue] = useState("");
   function quick(days: number) {
-    setValue(quickPromisedLocal(days));
+    setValue(quickPromisedLocal(days, new Date(), timeZone));
   }
   return <div className="space-y-2"><Label htmlFor="promised-time">Promised pickup</Label>
     <Input id="promised-time" type="datetime-local" value={value} onChange={e => setValue(e.target.value)} />
-    <input type="hidden" name="promisedAt" value={promisedIso(value)} />
+    <input type="hidden" name="promisedAt" value={promisedIso(value, timeZone)} />
     <div className="flex flex-wrap gap-1">{[["Today", 0], ["Tomorrow", 1], ["+3 days", 3], ["+1 week", 7]].map(([label, days]) => <Button type="button" key={label} size="sm" variant="outline" onClick={() => quick(Number(days))}>{label}</Button>)}</div>
-    <p className="text-xs text-muted-foreground">Times use this device&apos;s timezone. {hint}</p>
+    <p className="text-xs text-muted-foreground">Times use the shop&apos;s clock. {hint}</p>
   </div>;
 }

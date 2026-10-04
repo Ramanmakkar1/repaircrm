@@ -154,6 +154,10 @@ export function balanceBlock(input: BalanceInput, now: number): BalanceBlock {
   if (input.refundedCents > 0) collected = `Collected ${paid}, refunded ${refunded}`;
   else if (input.paidCents > 0) collected = `Collected so far ${paid} of ${total}`;
 
+  // A refund put money back on the bill: say that is why it owes, in words.
+  if (input.refundedCents > 0) {
+    return { state, figure, word: "owing again", headline: `${figure} owing again`, when, whenTone, collected };
+  }
   return { state, figure, word: "due", headline: `${figure} due`, when, whenTone, collected };
 }
 
@@ -224,11 +228,13 @@ export function invoicePrimaryLabel(
 
 export function estimatePrimaryLabel(
   primary: EstimatePrimary,
-  input: { alreadySent: boolean; invoiceNumber: number | null },
+  input: { alreadySent: boolean; invoiceNumber: number | null; declined?: boolean },
 ): string | null {
   switch (primary) {
     case "send":
       return input.alreadySent ? "Send again" : "Send";
+    case "approve":
+      return input.declined ? "They said yes after all" : "Customer said yes";
     case "convert":
       return "Convert to invoice";
     case "invoice":
@@ -244,7 +250,7 @@ export function estimatePrimaryLabel(
  * The tiles under the big button. `send` and `message` are two tiles of the one
  * send dialog (they sit side by side), `receipt` is "Send receipt".
  */
-export type QuickTile = "pay" | "send" | "message" | "receipt" | "print" | "copy" | "edit" | "more";
+export type QuickTile = "pay" | "send" | "message" | "receipt" | "print" | "copy" | "edit" | "sign" | "more";
 
 /**
  * Which tiles a bill shows, in order. The big button is never repeated as a
@@ -263,13 +269,31 @@ export function invoiceTiles(input: {
   // A draft's big button is Send, but a deposit or a cash sale can still be
   // rung up against it, so Take payment is the first tile, not lost to the menu.
   if (input.primary === "send") return [...(input.canTakePayment ? (["pay"] as const) : []), "edit", "print", "copy", "more"];
-  if (input.primary === "print") return [...(input.receiptable ? (["receipt"] as const) : []), "send", "message", "copy", "more"];
+  // Paid with money taken: the big button prints the counter slip, so the
+  // full letter invoice ("Print invoice") is a tile beside "Send receipt".
+  if (input.primary === "print") {
+    return input.receiptable ? ["receipt", "print", "send", "message", "copy", "more"] : ["send", "message", "copy", "more"];
+  }
   return ["send", "message", "print", "copy", "more"];
 }
 
+/**
+ * A quote's tiles follow where it stands, so nothing that no longer makes sense
+ * (sending a turned-down quote again) sits in front of what does:
+ *
+ * - Draft (big button Send): Edit, Print, Copy link, More.
+ * - Sent (big button "Customer said yes"): Sign on screen, Send again,
+ *   Message, Print, Copy link, More.
+ * - Declined (big button "They said yes after all"): Edit, Print, Copy link, More.
+ * - Approved (big button Convert): Print, Copy link, Edit, More.
+ * - Converted: Print, Copy link, More (frozen).
+ */
 export function estimateTiles(input: { primary: EstimatePrimary; status: string }): QuickTile[] {
   if (input.status === "CONVERTED") return ["print", "copy", "more"];
-  if (input.primary === "send") return ["edit", "print", "copy", "more"];
+  if (input.primary === "send" && input.status === "DRAFT") return ["edit", "print", "copy", "more"];
+  if (input.primary === "approve" && input.status === "SENT") return ["sign", "send", "message", "print", "copy", "more"];
+  if (input.primary === "approve") return ["edit", "print", "copy", "more"];
+  if (input.primary === "convert") return ["print", "copy", "edit", "more"];
   return ["send", "message", "print", "copy", "more"];
 }
 

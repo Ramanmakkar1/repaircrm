@@ -18,11 +18,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   deleteTimeClockEntryAction,
   updateTimeClockEntryAction,
 } from "./actions";
@@ -41,13 +36,25 @@ export function EntryDialog({
   clockInValue,
   clockOutValue,
   note,
+  easy = false,
+  suggestedOut,
+  suggestedLabel,
 }: {
   entryId: string;
   userName: string;
-  /** Pre-formatted `yyyy-MM-ddTHH:mm` so the input never re-parses a timestamp. */
+  /** Pre-formatted `yyyy-MM-ddTHH:mm` (the shop's wall clock) so the input never re-parses a timestamp. */
   clockInValue: string;
   clockOutValue: string;
   note: string;
+  /**
+   * Easy mode: ONE worded button, "Fix this shift", with Delete inside the
+   * dialog. Full mode keeps a compact pair, also in words: "Edit" and "Delete".
+   */
+  easy?: boolean;
+  /** A forgotten shift: the clock-out the dialog suggests (`yyyy-MM-ddTHH:mm`), still to be saved by a person. */
+  suggestedOut?: string;
+  /** The suggestion in words: "6:00 PM". */
+  suggestedLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -59,9 +66,9 @@ export function EntryDialog({
     note,
   });
 
-  /** Re-opening after a refresh starts from what the server now holds. */
+  /** Re-opening after a refresh starts from what the server now holds (plus the suggested clock-out of a forgotten shift). */
   function openEditor() {
-    setValues({ clockIn: clockInValue, clockOut: clockOutValue, note });
+    setValues({ clockIn: clockInValue, clockOut: clockOutValue || suggestedOut || "", note });
     setOpen(true);
   }
 
@@ -96,38 +103,35 @@ export function EntryDialog({
 
   return (
     <>
-      {/* Icon-only because this pair repeats on every shift row; each one
-          carries its own label and a tooltip so the glyph is never the only
-          thing telling you what it does. */}
-      <div className="flex items-center justify-end gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={openEditor}
-              aria-label={`Edit ${userName}'s entry`}
-            >
-              <ACTIONS.edit className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Edit this shift</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:bg-destructive-soft hover:text-destructive"
-              onClick={() => setConfirming(true)}
-              aria-label={`Delete ${userName}'s entry`}
-            >
-              <ACTIONS.delete className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Delete this shift</TooltipContent>
-        </Tooltip>
-      </div>
+      {easy ? (
+        // One worded button per shift; deleting is a choice inside the dialog, never a red bin beside the pencil.
+        <Button
+          variant={suggestedOut ? "default" : "outline"}
+          className="h-12 shrink-0 px-4 text-base"
+          onClick={openEditor}
+          aria-label={`Fix ${userName}'s shift`}
+        >
+          <ACTIONS.edit className="size-4" />
+          Fix this shift
+        </Button>
+      ) : (
+        // Words, not a pencil and a bin: the pair repeats on every row, and a glyph alone says too little.
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={openEditor} aria-label={`Edit ${userName}'s entry`}>
+            <ACTIONS.edit className="size-4" />
+            Edit
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+            onClick={() => setConfirming(true)}
+            aria-label={`Delete ${userName}'s entry`}
+          >
+            Delete
+          </Button>
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
@@ -163,7 +167,9 @@ export function EntryDialog({
                 }
               />
               <p className="text-[12.5px] text-muted-foreground">
-                Leave this empty to put the shift back to running.
+                {suggestedOut && !clockOutValue
+                  ? `Still running, so ${suggestedLabel ?? "a time"} is filled in for you. Change it if you know when they left.`
+                  : "Leave this empty to put the shift back to running."}
               </p>
             </div>
 
@@ -181,14 +187,27 @@ export function EntryDialog({
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button onClick={save} disabled={busy}>
-              {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.save />}
-              {busy ? "Saving…" : "Save changes"}
-            </Button>
+          <DialogFooter className={easy ? "gap-2 sm:justify-between" : undefined}>
+            {easy ? (
+              <Button
+                variant="ghost"
+                className="h-12 text-base text-destructive hover:bg-destructive-soft hover:text-destructive"
+                onClick={() => setConfirming(true)}
+                disabled={busy}
+              >
+                <ACTIONS.delete />
+                Delete this shift
+              </Button>
+            ) : null}
+            <div className="flex gap-2 sm:justify-end">
+              <Button variant="ghost" className={easy ? "h-12 text-base" : undefined} onClick={() => setOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button className={easy ? "h-12 flex-1 px-6 text-base sm:flex-none" : undefined} onClick={save} disabled={busy}>
+                {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.save />}
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

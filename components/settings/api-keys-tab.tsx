@@ -28,6 +28,10 @@ import { Switch } from "./settings-switch";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { WebhooksCard } from "./webhooks-card";
+import { shopDate } from "./shop-time";
+import { useShopZone } from "./shop-zone";
+import { StatusTile } from "./status-tile";
+import { TechnicalDetails } from "./technical-details";
 import type { ApiKeyItem, WebhookDeliveryItem, WebhookItem } from "./types";
 
 /**
@@ -62,28 +66,36 @@ export function ApiKeysTab({
     null,
   );
 
+  const activeKeys = keys.filter((key) => key.active).length;
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex justify-end">
-        <Button onClick={() => setCreating(true)}>
-          <AddIcon aria-hidden /> Create key
+      <StatusTile
+        photo="/images/products/laptop.webp"
+        title="Other programs"
+        state={activeKeys === 0 ? "None connected" : `${activeKeys} connected`}
+        tone={activeKeys === 0 ? "neutral" : "success"}
+        detail="Only needed when your web developer connects another program (a website form, a booking tool) to your shop. If nobody has asked you for a key, you can leave this alone."
+      >
+        <Button onClick={() => setCreating(true)} className="h-12 px-5 text-base">
+          <AddIcon aria-hidden /> Make a key
         </Button>
-      </div>
+      </StatusTile>
 
       <Card>
         <CardHeader
-          title="API keys"
-          description="Each key lets another system use this shop's data. Keep them private."
+          title="Keys"
+          description="Each key lets one program use this shop's data. Keep them private. Switch one off to stop that program at once."
         />
         <CardContent className="px-0 py-0">
           {keys.length === 0 ? (
             <EmptyState
               icon={KeyIcon}
               title="No API keys yet"
-              hint="Create a key to let another system read your customers, tickets and invoices."
+              hint="Make a key when your web developer asks for one, so another program can read your customers, repairs and invoices."
               action={
                 <Button variant="outline" onClick={() => setCreating(true)}>
-                  <AddIcon aria-hidden /> Create key
+                  <AddIcon aria-hidden /> Make a key
                 </Button>
               }
             />
@@ -97,7 +109,7 @@ export function ApiKeysTab({
                     <Th>Status</Th>
                     <Th>Created</Th>
                     <Th>Last used</Th>
-                    <Th className="w-[110px] text-right">Actions</Th>
+                    <Th className="w-[150px] text-right">Working</Th>
                   </Tr>
                 </THead>
                 <TBody>
@@ -111,9 +123,13 @@ export function ApiKeysTab({
         </CardContent>
       </Card>
 
-      <UsageCard appUrl={appUrl} />
-
-      <WebhooksCard webhooks={webhooks} deliveries={deliveries} />
+      <TechnicalDetails
+        title="For your web developer"
+        hint="How to use a key, and sending updates to another program (webhooks)."
+      >
+        <UsageCard appUrl={appUrl} />
+        <WebhooksCard webhooks={webhooks} deliveries={deliveries} />
+      </TechnicalDetails>
 
       <CreateDialog
         open={creating}
@@ -128,6 +144,7 @@ export function ApiKeysTab({
 
 function KeyRow({ item }: { item: ApiKeyItem }) {
   const router = useRouter();
+  const zone = useShopZone();
   const [busy, startWriting] = React.useTransition();
 
   /*
@@ -174,7 +191,7 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
 
       toastWithUndo({
         message: `${item.name} revoked.`,
-        description: "Anything using it is getting 401s from now on.",
+        description: "The program using it is refused from now on.",
         undo: async () => {
           const restored = await setApiKeyActiveAction(item.id, true);
           if (!restored.ok) throw new Error(restored.error);
@@ -204,9 +221,9 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
           struck={!active}
         />
       </Td>
-      <Td className="text-muted-foreground">{formatDay(item.createdAt)}</Td>
+      <Td className="text-muted-foreground">{shopDate(item.createdAt, zone)}</Td>
       <Td className="text-muted-foreground">
-        {item.lastUsedAt ? formatDay(item.lastUsedAt) : "Never"}
+        {item.lastUsedAt ? shopDate(item.lastUsedAt, zone) : "Never"}
       </Td>
       <Td className="text-right">
         <div className="flex justify-end">
@@ -214,7 +231,8 @@ function KeyRow({ item }: { item: ApiKeyItem }) {
             checked={active}
             disabled={busy}
             onCheckedChange={toggle}
-            aria-label={`${active ? "Revoke" : "Reactivate"} ${item.name}`}
+            words
+            aria-label={`${item.name} is working`}
           />
         </div>
       </Td>
@@ -470,14 +488,4 @@ function Detail({ term, children }: { term: string; children: React.ReactNode })
       </dd>
     </div>
   );
-}
-
-const DAY = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-function formatDay(iso: string): string {
-  return DAY.format(new Date(iso));
 }

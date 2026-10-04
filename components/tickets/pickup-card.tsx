@@ -40,16 +40,19 @@ import { pickupPlan, readySince, type PickupCardData, type PickupMoney } from ".
 export function PickupCard({
   card,
   now,
+  timeZone,
   className,
 }: {
   card: PickupCardData;
   /** One request-time clock, so every card in a render agrees on "now". */
   now: number;
+  /** The shop's time zone (Shop.timezone): "Ready since yesterday" is counted on the shop's calendar. */
+  timeZone?: string | null;
   className?: string;
 }) {
   const device = deviceName(card.asset);
   const customer = customerLabel(card.customer);
-  const since = readySince(card.readySince, now);
+  const since = readySince(card.readySince, now, timeZone);
   const plan = pickupPlan(card.money, card.unbilledCharges > 0);
 
   return (
@@ -106,6 +109,7 @@ export function PickupCard({
           ticketId={card.id}
           number={card.number}
           customerName={customer}
+          device={device}
           money={card.money}
           plan={plan}
           unbilledCharges={card.unbilledCharges}
@@ -125,7 +129,13 @@ const MONEY_LOOK: Record<PickupMoney["kind"], { box: string; Icon: React.Compone
   none: { box: "bg-surface-hover text-foreground", Icon: ICONS.invoice },
 };
 
-/** What the customer owes, in words: the amount only when there is one. */
+/**
+ * What the customer owes, in words: the amount only when there is one.
+ *
+ * The label and the amount wear the state's colour; the quiet detail line under
+ * them is plain foreground text. In the state colour it measured 4.3:1 on the
+ * tint (Paid in full, light theme), under the 4.5:1 that 14px text needs.
+ */
 function MoneyBlock({ money }: { money: PickupMoney }) {
   const { box, Icon } = MONEY_LOOK[money.kind];
   return (
@@ -134,7 +144,7 @@ function MoneyBlock({ money }: { money: PickupMoney }) {
         <Icon aria-hidden className="size-6 shrink-0" />
         <div className="min-w-0">
           <p className="text-balance text-lg font-semibold leading-tight">{money.label}</p>
-          <p className="break-words text-sm leading-snug">{money.detail}</p>
+          <p className="break-words text-sm leading-snug text-foreground">{money.detail}</p>
         </div>
       </div>
       {money.kind === "due" ? (

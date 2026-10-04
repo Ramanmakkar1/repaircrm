@@ -47,7 +47,7 @@ export async function toggleChecklistItemAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const items = parseChecklist(ticket.checklist);
   const item = items[index];
@@ -78,7 +78,7 @@ export async function attachChecklistAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   const template = await db.checklistTemplate.findFirst({
     where: { id: templateId, shopId, active: true },
@@ -107,7 +107,7 @@ export async function removeChecklistAction(
 ): Promise<ActionState> {
   const { shopId } = await requireUser();
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   await db.ticket.update({
     where: { id: ticket.id },
@@ -151,10 +151,10 @@ export async function restoreChecklistAction(
   if (restored.length === 0) return { error: "There is no checklist to put back." };
 
   const ticket = await findTicket(shopId, ticketId);
-  if (!ticket) return { error: "Ticket not found." };
+  if (!ticket) return { error: "Repair not found." };
 
   if (parseChecklist(ticket.checklist).length > 0) {
-    return { error: "This ticket already has a checklist on it." };
+    return { error: "This repair already has a checklist on it." };
   }
 
   let checklistTemplateId: string | null = null;

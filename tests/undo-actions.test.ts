@@ -147,7 +147,7 @@ describe("restoreChecklistAction — it restores, it does not re-attach", () => 
 
     const result = await restoreChecklistAction("tkt_1", SAVED, "tpl_1");
 
-    expect(result).toEqual({ error: "This ticket already has a checklist on it." });
+    expect(result).toEqual({ error: "This repair already has a checklist on it." });
     expect(callsTo("ticket.update")).toEqual([]);
   });
 });
@@ -166,7 +166,7 @@ describe("restoreChecklistAction — tenancy", () => {
 
     const result = await restoreChecklistAction("tkt_from_shop_2", SAVED, "tpl_1");
 
-    expect(result).toEqual({ error: "Ticket not found." });
+    expect(result).toEqual({ error: "Repair not found." });
     expect(callsTo("ticket.update")).toEqual([]);
     // Refused before the template was even looked up.
     expect(callsTo("checklistTemplate.findFirst")).toEqual([]);

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { invoiceSheetProps } from "@/components/billing/print-mappers";
+import { PRINTABLE_INVOICE_INCLUDE, invoiceIsPayable, invoiceSheetProps, type PrintableInvoice } from "@/components/billing/print-mappers";
+import { invoiceTokenPath, portalUrl } from "@/lib/comms";
+import QRCode from "qrcode";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { PrintSheet } from "@/components/billing/print-sheet";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
@@ -38,16 +40,12 @@ export default async function InvoiceBatchPrintPage({
     db.invoice.findMany({
       where: { id: { in: ids }, shopId },
       orderBy: { number: "asc" },
-      include: {
-        customer: true,
-        taxRate: { select: { name: true } },
-        lines: { orderBy: { sortOrder: "asc" } },
-        payments: { orderBy: { createdAt: "asc" } },
-      },
+      include: PRINTABLE_INVOICE_INCLUDE,
     }),
     loadPrintShop(shopId),
   ]);
   if (invoices.length === 0 || !shop) notFound();
+  const payOnline = await Promise.all(invoices.map(payOnlineFor));
 
   return (
     <>
@@ -59,10 +57,10 @@ export default async function InvoiceBatchPrintPage({
         title={`${invoices.length} invoice${invoices.length === 1 ? "" : "s"}`}
       />
 
-      {invoices.map((invoice) => (
+      {invoices.map((invoice, index) => (
         <div key={invoice.id} className="rf-batch-item">
           {/* One toolbar for the run — each sheet's own is suppressed. */}
-          <PrintSheet {...invoiceSheetProps(invoice, shop)} chrome={false} />
+          <PrintSheet {...invoiceSheetProps(invoice, shop)} payOnline={payOnline[index]} chrome={false} />
         </div>
       ))}
     </>
@@ -88,3 +86,15 @@ const BATCH_CSS = `
   .rf-batch-item:last-child { break-after: auto; page-break-after: auto; }
 }
 `;
+
+/** An unpaid invoice's pay-online link and its QR, printed beside the balance. */
+async function payOnlineFor(invoice: PrintableInvoice): Promise<{ url: string; qrDataUrl: string } | null> {
+  if (!invoiceIsPayable(invoice)) return null;
+  const url = portalUrl(invoiceTokenPath(invoice.publicToken));
+  try {
+    return { url, qrDataUrl: await QRCode.toDataURL(url, { margin: 0, width: 240 }) };
+  } catch {
+    // A QR that cannot be drawn must not cost the customer their invoice.
+    return null;
+  }
+}

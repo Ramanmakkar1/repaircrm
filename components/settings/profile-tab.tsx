@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { StaffPin } from "./staff-pin";
+import { PushSettings } from "./push-settings";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
@@ -18,7 +20,7 @@ import { GoogleButton, GoogleMark } from "@/components/auth/google-button";
 import { Avatar, AvatarFallback, AvatarImage, getInitials } from "@/components/ui/avatar";
 import { Badge, StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   Dialog,
@@ -30,8 +32,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatDateTime } from "@/components/billing/format";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { InitialsVisual } from "@/components/ui/record-card";
+import { shopDateTime } from "./shop-time";
+import { useShopZone } from "./shop-zone";
 import { IDLE_SETTINGS_STATE, ROLE_LABEL, type SettingsFormState } from "./types";
 import type { ProfileValues, TotpSetup } from "./profile-types";
 
@@ -54,7 +58,24 @@ const ShieldIcon = ICONS.security;
 export function ProfileTab({ profile }: { profile: ProfileValues }) {
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4">
+        <InitialsVisual name={profile.name} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="truncate text-xl font-semibold leading-tight">{profile.name}</span>
+          <span className="truncate text-[15px] text-muted-foreground">{profile.email}</span>
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-[13px]">{ROLE_LABEL[profile.role] ?? profile.role}</Badge>
+            <StatusPill
+              tone={profile.totpEnabledAt ? "success" : "neutral"}
+              label={profile.totpEnabledAt ? "Two-step sign-in on" : "Two-step sign-in off"}
+              className="text-[13px]"
+            />
+          </span>
+        </div>
+      </div>
       <DetailsCard profile={profile} />
+      <StaffPin />
+      <PushSettings />
       <GoogleCard profile={profile} />
       <PasswordCard />
       <TwoFactorCard profile={profile} />
@@ -98,6 +119,7 @@ function Banners({ state }: { state: SettingsFormState }) {
 
 function DetailsCard({ profile }: { profile: ProfileValues }) {
   const router = useRouter();
+  const zone = useShopZone();
   const [state, formAction] = useActionStateWithRefresh(
     updateProfileNameAction,
     router.refresh,
@@ -122,6 +144,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
               defaultValue={profile.name}
               maxLength={120}
               required
+              className="h-12 text-base"
             />
             <p className="text-[14px] text-muted-foreground">
               What colleagues see on tickets, notes and time entries.
@@ -130,8 +153,14 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="profile-email">Email</Label>
-            <Input id="profile-email" value={profile.email} readOnly disabled />
-            <p className="text-[14px] text-muted-foreground">
+            <Input
+              id="profile-email"
+              value={profile.email}
+              readOnly
+              aria-describedby="profile-email-hint"
+              className="h-12 bg-surface-hover text-base text-muted-foreground"
+            />
+            <p id="profile-email-hint" className="text-[14px] text-muted-foreground">
               Your sign-in address. Ask an owner to change it for you.
             </p>
           </div>
@@ -144,20 +173,20 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
               </Badge>
               {profile.lastLoginAt ? (
                 <span className="text-[14px] text-muted-foreground">
-                  Last sign-in {formatDateTime(profile.lastLoginAt)}
+                  Last sign-in {shopDateTime(profile.lastLoginAt, zone)}
                 </span>
               ) : null}
             </div>
           </div>
         </CardContent>
+        {/* The button belongs to this card, so it sits inside it. */}
+        <CardFooter>
+          <SubmitButton pendingLabel="Saving…" className="h-12 px-5 text-base">
+            <SaveIcon aria-hidden />
+            Save name
+          </SubmitButton>
+        </CardFooter>
       </Card>
-
-      <div className="flex justify-end">
-        <SubmitButton pendingLabel="Saving…">
-          <SaveIcon aria-hidden />
-          Save name
-        </SubmitButton>
-      </div>
     </form>
   );
 }
@@ -178,6 +207,7 @@ function DetailsCard({ profile }: { profile: ProfileValues }) {
  */
 function GoogleCard({ profile }: { profile: ProfileValues }) {
   const router = useRouter();
+  const zone = useShopZone();
   const [busy, setBusy] = React.useState(false);
 
   if (!profile.googleAvailable) return null;
@@ -241,7 +271,7 @@ function GoogleCard({ profile }: { profile: ProfileValues }) {
                 </span>
                 <span className="text-[14px] text-muted-foreground">
                   {profile.googleLinkedAt
-                    ? `Connected ${formatDateTime(profile.googleLinkedAt)}`
+                    ? `Connected ${shopDateTime(profile.googleLinkedAt, zone)}`
                     : "Connected"}
                 </span>
               </div>
@@ -347,14 +377,13 @@ function PasswordCard() {
             you&apos;re logged in on — this one stays put.
           </p>
         </CardContent>
+        <CardFooter>
+          <SubmitButton pendingLabel="Changing…" className="h-12 px-5 text-base">
+            <SaveIcon aria-hidden />
+            Change password
+          </SubmitButton>
+        </CardFooter>
       </Card>
-
-      <div className="flex justify-end">
-        <SubmitButton pendingLabel="Updating…">
-          <SaveIcon aria-hidden />
-          Update password
-        </SubmitButton>
-      </div>
     </form>
   );
 }
@@ -365,6 +394,7 @@ function PasswordCard() {
 
 function TwoFactorCard({ profile }: { profile: ProfileValues }) {
   const router = useRouter();
+  const zone = useShopZone();
   const [setup, setSetup] = React.useState<TotpSetup | null>(null);
   const [codes, setCodes] = React.useState<string[] | null>(null);
   const [disabling, setDisabling] = React.useState(false);
@@ -388,39 +418,24 @@ function TwoFactorCard({ profile }: { profile: ProfileValues }) {
       <Card>
         <CardHeader
           icon={ShieldIcon}
-          title="Two-step verification"
-          description="An extra code from your phone every time you sign in."
-        />
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusPill
-              tone={enabled ? "success" : "neutral"}
-              label={enabled ? "On" : "Off"}
-            />
-            <span className="text-[14px] text-muted-foreground">
-              {enabled
-                ? `Turned on ${formatDateTime(profile.totpEnabledAt)} · ${profile.recoveryCodesLeft} recovery ${profile.recoveryCodesLeft === 1 ? "code" : "codes"} left`
-                : "Not set up"}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Two-step sign-in
+              <StatusPill tone={enabled ? "success" : "neutral"} label={enabled ? "On" : "Off"} />
             </span>
-          </div>
-
-          <p className="max-w-prose text-[14px] leading-relaxed text-muted-foreground">
-            With this on, signing in asks for a 6-digit code from an
-            authenticator app on your phone as well as your password. Someone
-            who learns your password still can&apos;t get into the shop.
-          </p>
-
-          <div className="flex justify-start">
-            {enabled ? (
+          }
+          description="A code from your phone as well as your password, so a stolen password alone can't get in."
+          action={
+            enabled ? (
               <Button
                 variant="outline"
-                className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+                className="h-12 text-destructive hover:bg-destructive-soft hover:text-destructive"
                 onClick={() => setDisabling(true)}
               >
                 <CancelIcon aria-hidden /> Turn off
               </Button>
             ) : (
-              <Button onClick={start} disabled={starting}>
+              <Button onClick={start} disabled={starting} className="h-12 px-5">
                 {starting ? (
                   <Loader2 className="animate-spin" />
                 ) : (
@@ -428,8 +443,15 @@ function TwoFactorCard({ profile }: { profile: ProfileValues }) {
                 )}
                 {starting ? "Preparing…" : "Turn on"}
               </Button>
-            )}
-          </div>
+            )
+          }
+        />
+        <CardContent>
+          <p className="text-[14px] text-muted-foreground">
+            {enabled
+              ? `Turned on ${shopDateTime(profile.totpEnabledAt, zone)} · ${profile.recoveryCodesLeft} recovery ${profile.recoveryCodesLeft === 1 ? "code" : "codes"} left`
+              : "Off. Turning it on takes a minute with an authenticator app on your phone."}
+          </p>
         </CardContent>
       </Card>
 

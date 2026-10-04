@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { endOfDay, startOfDay } from "date-fns";
 import { Boxes, LayoutGrid, Plus, Search, Store } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
+import { requestNow } from "@/lib/now";
+import { reportDays } from "@/lib/dashboard/logic";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import { attentionItems } from "@/components/counter/attention";
+import { loadAttentionCounts } from "@/components/counter/attention-data";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { TodayStrip } from "@/components/dashboard/today-strip";
 import { HomeTabs, type HomeTab } from "@/components/counter/home-tabs";
@@ -30,15 +34,16 @@ const HOME = "/images/home";
  */
 export default async function CounterPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const [{ shopId, role, name }, branch, params, jar] = await Promise.all([requireUser(), locationWhere(), searchParams, cookies()]);
-  const now = new Date();
-  const [open, ready, overdue, today, unpaid, low] = await Promise.all([
+  const nowMs = requestNow();
+  // "Booked today" is the shop's own day (Shop.timezone), not the server's.
+  const [today] = reportDays(nowMs, await loadShopZone(shopId), 1);
+  const [open, booked, counts] = await Promise.all([
     db.ticket.count({ where: { shopId, ...branch, NOT: { status: RESOLVED_STATUS } } }),
-    db.ticket.count({ where: { shopId, ...branch, status: "Ready for Pickup" } }),
-    db.ticket.count({ where: { shopId, ...branch, NOT: { status: RESOLVED_STATUS }, dueDate: { lt: now } } }),
-    db.appointment.count({ where: { shopId, ...branch, startsAt: { gte: startOfDay(now), lte: endOfDay(now) }, status: { not: "CANCELED" } } }),
-    role !== "TECH" ? db.invoice.count({ where: { shopId, ...branch, status: { in: ["SENT", "PARTIAL"] } } }) : Promise.resolve(0),
-    db.product.count({ where: { shopId, active: true, lowStockAt: { gte: db.product.fields.stockQty } } }),
+    db.appointment.count({ where: { shopId, ...branch, startsAt: { gte: new Date(today.from), lt: new Date(today.toExclusive) }, status: { not: "CANCELED" } } }),
+    // The same numbers as the bell in the controls row and the phone tab bar.
+    loadAttentionCounts({ shopId, role }, branch, new Date(nowMs)),
   ]);
+  const { ready, unpaid, low } = counts;
 
   const allowed = (tile: Tile) => (!tile.money || role !== "TECH") && (!tile.ownerOnly || role === "OWNER");
   const render = (tiles: Tile[]) => (
@@ -57,7 +62,7 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
     { href: "/invoices?status=unpaid", title: "Take payment", detail: unpaid ? `${unpaid} unpaid` : "Collect what's owed", photo: `${HOME}/card-terminal.webp`, money: true },
     { href: "/customers/new", title: "Add customer", detail: "Name or phone", photo: `${HOME}/customers-cards.webp`, mark: Plus },
     { href: "/customers", title: "Find customer", detail: "Search name or phone", photo: `${HOME}/customers-cards.webp`, mark: Search },
-    { href: "/appointments", title: "Book a visit", detail: today ? `${today} booked today` : "Appointments", photo: `${HOME}/diary.webp` },
+    { href: "/appointments", title: "Book a visit", detail: booked ? `${booked} booked today` : "Appointments", photo: `${HOME}/diary.webp` },
   ];
 
   const stock: Tile[] = [
@@ -84,12 +89,8 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
     { key: "shop", label: "Shop management", short: "Shop", icon: <LayoutGrid className="size-5" />, content: render(shop) },
   ];
 
-  const attention: AttentionItem[] = [
-    { href: "/tickets?status=Ready%20for%20Pickup", label: "Ready for pickup", count: ready },
-    { href: "/tickets?due=overdue", label: "Overdue repairs", count: overdue },
-    ...(role !== "TECH" ? [{ href: "/invoices?status=unpaid", label: "Unpaid invoices", count: unpaid }] : []),
-    { href: "/inventory?filter=low", label: "Low stock", count: low },
-  ];
+  // Ready, replies, overdue, new enquiries, unpaid, low stock: one list for Home, the bell and the tab bar.
+  const attention: AttentionItem[] = attentionItems(counts, role);
 
   const firstName = name.trim().split(/\s+/)[0];
   const initial = asHomeTab(params.tab) ?? asHomeTab(jar.get(HOME_TAB_COOKIE)?.value) ?? "counter";

@@ -4,14 +4,24 @@
  * Pure: imported by the server page, the query loader and the client-free
  * period pills, so no `db`, no `next/*`, no "use server".
  *
- * Everything is anchored to UTC calendar days, matching components/statements/
- * period.ts — a report headed "August" must cover exactly that month no matter
- * which side of midnight the browser happens to be on.
+ * A report covers the SHOP's calendar days: "today", "this month" and every
+ * column edge are cut at the shop's own midnight, in `Shop.timezone`, exactly
+ * as the Shop overview cuts its days (lib/dashboard/logic.ts). A sale rung at
+ * 9pm on Saturday is Saturday's, not the UTC Sunday it has already become, so
+ * a day here and the same day on the overview agree to the cent.
+ *
+ * The maths runs on calendar days held as dates at UTC midnight (that is what
+ * the labels and the `yyyy-mm-dd` values are read from), and only the instants
+ * the queries cut at (`from`, `toExclusive`, each bucket's edges) are moved to
+ * the shop's zone at the end. Without a zone the days are UTC's, as before.
  *
  * A period also carries its own *buckets*: the pre-computed x-axis of every
  * chart on the page. Deriving them once here (rather than in each chart) is
  * what keeps "Revenue by week" and "Tickets by week" on the same columns.
  */
+
+import { shopDayStart, shopTodayKey } from "@/components/billing/shop-clock";
+import { safeTimeZone } from "@/lib/dashboard/zone";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -49,13 +59,15 @@ export type Bucket = {
 export type ReportPeriod = {
   key: ReportPeriodKey;
   label: string;
+  /** Also used for current debt aging, which is independent of the date range. */
+  timezone: string;
   /** `yyyy-mm-dd`, for the date inputs and the CSV export links. */
   fromValue: string;
   /** `yyyy-mm-dd`, INCLUSIVE — the last day the report covers. */
   toValue: string;
-  /** Inclusive start, UTC midnight. */
+  /** Inclusive start: the first day's midnight in the shop's zone. */
   from: Date;
-  /** Exclusive end — never later than the start of tomorrow. */
+  /** Exclusive end — never later than the start of the shop's tomorrow. */
   toExclusive: Date;
   /** e.g. "Aug 1 – Aug 27, 2026" — printed under the page title. */
   rangeLabel: string;
@@ -100,7 +112,7 @@ function parseDayParam(raw: string | string[] | null | undefined): Date | null {
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
 }
 
 function dayValue(date: Date): string {
@@ -118,12 +130,17 @@ function dayValue(date: Date): string {
 export function resolveReportPeriod(
   params: ReportRangeParams | string | null | undefined,
   now: Date = new Date(),
+  /** The shop's time zone (`Shop.timezone`). Omitted, the days are UTC's. */
+  zone?: string | null,
 ): ReportPeriod {
   const input: ReportRangeParams =
     typeof params === "string" || params == null ? { period: params } : params;
   const raw = Array.isArray(input.period) ? input.period[0] : input.period;
 
-  const today = startOfUtcDay(now);
+  // Today on the shop's calendar, held as that day at UTC midnight.
+  const today = zone
+    ? new Date(`${shopTodayKey(now.getTime(), zone)}T00:00:00.000Z`)
+    : startOfUtcDay(now);
   // Nothing can be recorded in the future, so no period ever runs past tonight.
   // Without this, "This year" would render four empty columns every August.
   const tomorrow = new Date(today.getTime() + DAY_MS);
@@ -137,15 +154,17 @@ export function resolveReportPeriod(
         customFrom.getTime() <= customTo.getTime()
           ? [customFrom, customTo]
           : [customTo, customFrom];
-      return buildPeriod(CUSTOM_PERIOD, "Custom range", start, new Date(end.getTime() + DAY_MS));
+      return buildPeriod(CUSTOM_PERIOD, "Custom range", start, new Date(end.getTime() + DAY_MS), zone);
     }
   }
 
   const key = REPORT_PERIODS.find((p) => p.key === raw)?.key ?? DEFAULT_PERIOD;
   const label = REPORT_PERIODS.find((p) => p.key === key)!.label;
 
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
+  // The shop's year and month, not the server's: on the evening of the 31st
+  // in Edmonton it is still that month there.
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
 
   let from: Date;
   let toExclusive: Date;
@@ -170,31 +189,44 @@ export function resolveReportPeriod(
       break;
   }
 
-  return buildPeriod(key, label, from, toExclusive);
+  return buildPeriod(key, label, from, toExclusive, zone);
 }
 
-/** The shared tail of every branch above: grain, buckets and the printed label. */
+/**
+ * The shared tail of every branch above: grain, buckets and the printed label.
+ * `from` and `toExclusive` arrive as calendar days (UTC midnight); the instants
+ * the queries use are the shop's midnights on those days.
+ */
 function buildPeriod(
   key: ReportPeriodKey,
   label: string,
   from: Date,
   toExclusive: Date,
+  zone?: string | null,
 ): ReportPeriod {
   const grain: "week" | "month" =
     toExclusive.getTime() - from.getTime() > 100 * DAY_MS ? "month" : "week";
   const lastDay = new Date(toExclusive.getTime() - DAY_MS);
+  // A calendar day -> the instant it starts in the shop's zone.
+  const edge = (day: Date): Date => (zone ? shopDayStart(dayValue(day), zone) : day);
+  const dayBuckets =
+    grain === "month" ? monthBuckets(from, toExclusive) : weekBuckets(from, toExclusive);
 
   return {
     key,
     label,
+    timezone: safeTimeZone(zone),
     fromValue: dayValue(from),
     toValue: dayValue(lastDay),
-    from,
-    toExclusive,
+    from: edge(from),
+    toExclusive: edge(toExclusive),
     rangeLabel: `${dayMonth.format(from)} – ${dayMonthYear.format(lastDay)}`,
     grain,
-    buckets:
-      grain === "month" ? monthBuckets(from, toExclusive) : weekBuckets(from, toExclusive),
+    buckets: dayBuckets.map((bucket) => ({
+      ...bucket,
+      from: edge(bucket.from),
+      toExclusive: edge(bucket.toExclusive),
+    })),
   };
 }
 

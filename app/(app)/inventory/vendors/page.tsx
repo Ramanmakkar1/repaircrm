@@ -17,7 +17,7 @@ import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readUiPrefs } from "@/lib/prefs";
 
-export const metadata: Metadata = { title: "Vendors · Repairs helper" };
+export const metadata: Metadata = { title: "Suppliers · Repairs helper" };
 
 export default async function VendorsPage({
   searchParams,
@@ -88,6 +88,7 @@ export default async function VendorsPage({
 
   const newVendor = (
     <VendorDialog
+      easy={easy}
       trigger={
         <Button>
           <ACTIONS.add />
@@ -164,8 +165,12 @@ export default async function VendorsPage({
               query
                 ? "No suppliers match that search"
                 : !includeInactive && inactiveCount > 0
-                  ? "No active vendors"
-                  : "No vendors yet"
+                  ? easy
+                    ? "No active suppliers"
+                    : "No active vendors"
+                  : easy
+                    ? "No suppliers yet"
+                    : "No vendors yet"
             }
             hint={
               // Telling somebody with twelve retired vendors to add their first
@@ -173,8 +178,10 @@ export default async function VendorsPage({
               query
                 ? "Try a shorter search, or clear it to see everyone."
                 : !includeInactive && inactiveCount > 0
-                  ? `Every vendor on file has been deactivated. Show the ${inactiveCount} inactive ${inactiveCount === 1 ? "one" : "ones"}, or add a new supplier.`
-                  : "Add the suppliers you order parts from so purchase orders, costs and reorder points all point somewhere real."
+                  ? `Every ${easy ? "supplier" : "vendor"} on file has been deactivated. Show the ${inactiveCount} inactive ${inactiveCount === 1 ? "one" : "ones"}, or add a new supplier.`
+                  : easy
+                    ? "Add the suppliers you buy parts from. Then ordering more is a few taps, with their prices filled in."
+                    : "Add the suppliers you order parts from so purchase orders, costs and reorder points all point somewhere real."
             }
             action={
               query ? (

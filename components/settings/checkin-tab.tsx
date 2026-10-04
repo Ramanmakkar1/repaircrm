@@ -2,45 +2,44 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 import { updateCheckinAction, updateReviewsAction } from "@/app/(app)/settings/actions";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
 } from "@/components/ui/card";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
-import { Switch } from "./settings-switch";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/components/ui/cn";
+import { SaveBar, type SaveBarState } from "./save-bar";
+import { ShareLinkActions } from "./share-link";
+import { Switch } from "./settings-switch";
 import {
   CHECKIN_FIELD_LABEL,
   CHECKIN_OPTIONAL_FIELDS,
-  REVIEW_TOKENS,
+  renderReviewMessage,
   type CheckinSettings,
   type ReviewSettings,
 } from "./checkin-meta";
 
 /**
- * The front-counter tab: the public check-in form, and the review ask that goes
- * out after a customer collects their device.
+ * The front-counter screen: the page customers book their own device in on,
+ * and the review request that goes out after they collect it.
  *
- * Two cards because they are two decisions a shop makes at different times —
- * "can people book their own device in?" and "do we chase reviews?" — and each
- * saves on its own. Neither is destructive, so neither hides behind a confirm.
+ * Two cards, ONE Save pinned to the bottom for both (it sends only the card
+ * that changed). The link is buttons (Copy link, Show QR code, Print sign),
+ * never an address to select by hand. The review message shows as the text
+ * the customer will actually read, with their name and the link filled in.
  */
 
 const CheckinIcon = ICONS.checkin;
 const ReviewIcon = ICONS.review;
-const SaveIcon = ACTIONS.save;
-const CopyIcon = ACTIONS.copy;
-const OpenIcon = ACTIONS.openExternal;
 
 export type CheckinTabConfig = {
   checkin: CheckinSettings;
@@ -50,157 +49,319 @@ export type CheckinTabConfig = {
   kioskUrl: string;
   /** PNG data URL of the check-in link, rendered on the server. */
   qrDataUrl: string;
-  /** Review requests sent so far this calendar month. */
+  /** Review requests sent so far this calendar month (on the shop's calendar). */
   reviewsSentThisMonth: number;
+  /** For the review message preview. */
+  shopName?: string;
 };
 
-export function CheckinTab({ config }: { config: CheckinTabConfig }) {
-  return (
-    <div className="flex flex-col gap-5">
-      <CheckinCard config={config} />
-      <ReviewsCard
-        reviews={config.reviews}
-        sentThisMonth={config.reviewsSentThisMonth}
-      />
-    </div>
-  );
+/** "Wait" choices, in hours after pickup. Any other stored value still shows as its own choice. */
+export const REVIEW_WAIT_CHOICES: readonly { hours: number; label: string }[] = [
+  { hours: 2, label: "2 hours" },
+  { hours: 24, label: "Next day" },
+  { hours: 48, label: "2 days" },
+  { hours: 168, label: "1 week" },
+];
+
+export function waitLabel(hours: number): string {
+  const known = REVIEW_WAIT_CHOICES.find((choice) => choice.hours === hours);
+  if (known) return known.label;
+  if (hours === 0) return "Straight away";
+  if (hours % 24 === 0) return `${hours / 24} days`;
+  return `${hours} hours`;
 }
 
-// ---------------------------------------------------------------------------
-// Check-in
-// ---------------------------------------------------------------------------
+type Saved = { checkin: CheckinSettings; reviews: ReviewSettings };
 
-function CheckinCard({ config }: { config: CheckinTabConfig }) {
+const sameCheckin = (a: CheckinSettings, b: CheckinSettings) =>
+  a.enabled === b.enabled && a.terms === b.terms && CHECKIN_OPTIONAL_FIELDS.every((key) => a.fields[key] === b.fields[key]);
+
+const sameReviews = (a: ReviewSettings, b: ReviewSettings) =>
+  a.enabled === b.enabled && a.url === b.url && a.delayHours === b.delayHours && a.template === b.template;
+
+export function CheckinTab({ config }: { config: CheckinTabConfig }) {
   const router = useRouter();
-  const [enabled, setEnabled] = React.useState(config.checkin.enabled);
-  const [terms, setTerms] = React.useState(config.checkin.terms);
-  const [fields, setFields] = React.useState(config.checkin.fields);
+  const [saved, setSaved] = React.useState<Saved>({ checkin: config.checkin, reviews: config.reviews });
+  const [checkin, setCheckin] = React.useState(config.checkin);
+  const [reviews, setReviews] = React.useState(config.reviews);
   const [busy, setBusy] = React.useState(false);
+  const [justSaved, setJustSaved] = React.useState(false);
+  const [problem, setProblem] = React.useState<string | null>(null);
+
+  const checkinDirty = !sameCheckin(checkin, saved.checkin);
+  const reviewsDirty = !sameReviews(reviews, saved.reviews);
+  const dirty = checkinDirty || reviewsDirty;
+
+  function editCheckin(patch: Partial<CheckinSettings>) {
+    setCheckin((current) => ({ ...current, ...patch }));
+    setJustSaved(false);
+    setProblem(null);
+  }
+  function editReviews(patch: Partial<ReviewSettings>) {
+    setReviews((current) => ({ ...current, ...patch }));
+    setJustSaved(false);
+    setProblem(null);
+  }
 
   async function save() {
-    setBusy(true);
-    const result = await updateCheckinAction({ enabled, terms, fields });
-    setBusy(false);
-
-    if (!result.ok) {
-      toast.error(result.error);
+    if (!dirty) {
+      setJustSaved(true);
       return;
     }
-    toast.success("Check-in saved.");
+    setBusy(true);
+    setProblem(null);
+    let next = saved;
+    if (checkinDirty) {
+      const result = await updateCheckinAction({ enabled: checkin.enabled, terms: checkin.terms, fields: checkin.fields });
+      if (!result.ok) {
+        setBusy(false);
+        setProblem(result.error);
+        toast.error(result.error);
+        return;
+      }
+      next = { ...next, checkin };
+    }
+    if (reviewsDirty) {
+      const result = await updateReviewsAction({ enabled: reviews.enabled, url: reviews.url, delayHours: reviews.delayHours, template: reviews.template });
+      if (!result.ok) {
+        setSaved(next);
+        setBusy(false);
+        setProblem(result.error);
+        toast.error(result.error);
+        return;
+      }
+      next = { ...next, reviews };
+    }
+    setSaved(next);
+    setBusy(false);
+    setJustSaved(true);
+    toast.success("Saved.");
     router.refresh();
   }
 
+  function undo() {
+    setCheckin(saved.checkin);
+    setReviews(saved.reviews);
+    setProblem(null);
+  }
+
+  const state: SaveBarState = busy ? "saving" : dirty ? "dirty" : justSaved ? "saved" : "clean";
+  const shopName = config.shopName || "our shop";
+  const preview = renderReviewMessage(reviews.template, {
+    customer: "Sam",
+    shop: shopName,
+    link: reviews.url.trim() || "(your review link)",
+  });
+
   return (
-    <Card>
-      <CardHeader
-        icon={CheckinIcon}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            Public check-in
-            {/* Follows the switch, not the server, so the header and the row
-                below never disagree while an edit is unsaved. */}
-            <StatusPill
-              size="sm"
-              tone={enabled ? "success" : "neutral"}
-              label={enabled ? "Live" : "Off"}
+    <div className="flex flex-col gap-5">
+      {/* ------------------------------------------------------ check-in */}
+      <Card>
+        <CardHeader
+          icon={CheckinIcon}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Customer check-in
+              <StatusPill tone={checkin.enabled ? "success" : "neutral"} label={checkin.enabled ? "On" : "Off"} />
+            </span>
+          }
+          description="A page customers fill in on their own phone, or on a tablet by the door. Each one becomes a customer, a device and a repair."
+        />
+
+        <CardContent className="flex flex-col gap-6">
+          <label className="flex items-center justify-between gap-6">
+            <span className="flex flex-col gap-1">
+              <span className="text-[15px] font-semibold text-foreground">
+                Let customers check their own device in
+              </span>
+              <span className="text-[14px] leading-relaxed text-muted-foreground">
+                {checkin.enabled
+                  ? "The page is open. Put the QR code on the counter."
+                  : "The page is closed: anyone opening the link sees nothing."}
+              </span>
+            </span>
+            <Switch
+              checked={checkin.enabled}
+              onCheckedChange={(enabled) => editCheckin({ enabled })}
+              words
+              aria-label="Customer check-in page is on"
             />
-          </span>
-        }
-        description="A page customers can fill in on their own phone, or on a tablet by the door. Every submission creates a customer, a device and a ticket."
-      />
+          </label>
 
-      <CardContent className="flex flex-col gap-6">
-        <label className="flex items-start justify-between gap-6">
-          <span className="flex flex-col gap-1">
-            <span className="text-[14.5px] font-semibold text-foreground">
-              Let customers book their own device in
-            </span>
-            <span className="text-[14px] leading-relaxed text-muted-foreground">
-              While this is off the link below returns a 404 — the same answer a
-              shop that has never existed gives.
-            </span>
-          </span>
-          <Switch
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            aria-label="Enable public check-in"
-          />
-        </label>
+          <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface-hover p-4">
+            <div className="flex flex-col gap-2">
+              <span className="text-[15px] font-semibold">The check-in page</span>
+              <ShareLinkActions
+                url={config.checkinUrl}
+                qrDataUrl={config.qrDataUrl}
+                linkName="check-in link"
+                signTitle="Check in your device here"
+                signLine="Scan with your phone camera to tell us what's wrong. It takes a minute."
+                fileName="check-in-qr.png"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-[15px] font-semibold">On a tablet by the door (kiosk)</span>
+              <p className="text-[14px] leading-relaxed text-muted-foreground">
+                Bigger buttons, no links off the page, and it clears itself for the next person.
+              </p>
+              <ShareLinkActions
+                url={config.kioskUrl}
+                qrDataUrl=""
+                linkName="kiosk link"
+                signTitle="Check in your device here"
+                signLine=""
+                fileName="kiosk.png"
+              />
+            </div>
+          </div>
 
-        {/* ------------------------------------------------------- the link */}
-        <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface-hover px-4 py-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <LinkRow label="Public link" value={config.checkinUrl} openable />
-            <LinkRow label="Kiosk link" value={config.kioskUrl} openable />
+          <div className="flex flex-col gap-2.5">
+            <span className="text-[15px] font-semibold">Extra questions on the page</span>
+            <div className="flex flex-wrap gap-2">
+              {CHECKIN_OPTIONAL_FIELDS.map((key) => (
+                <FieldToggle
+                  key={key}
+                  label={CHECKIN_FIELD_LABEL[key]}
+                  active={checkin.fields[key]}
+                  onToggle={() => editCheckin({ fields: { ...checkin.fields, [key]: !checkin.fields[key] } })}
+                />
+              ))}
+            </div>
             <p className="text-[14px] leading-relaxed text-muted-foreground">
-              Kiosk mode scales the form up for a tablet, hides the links off the
-              page and clears itself for the next person in the queue.
+              Name, device, problem and a description are always asked. Tap a box to ask or skip the others.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-center gap-1.5">
-            {/* Rendered on the server into a data URL — no client-side QR
-                library ships to the browser for a picture that never changes.
-                eslint-disable: next/image cannot optimise a data URL. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={config.qrDataUrl}
-              alt="QR code for the public check-in page"
-              className="size-32 rounded-lg border border-border bg-white p-1.5"
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="checkin-terms" className="text-[15px]">Terms the customer agrees to</Label>
+            <Textarea
+              id="checkin-terms"
+              rows={6}
+              maxLength={5000}
+              value={checkin.terms}
+              onChange={(event) => editCheckin({ terms: event.target.value })}
+              className="text-base"
             />
-            <span className="text-[11.5px] font-medium text-muted-foreground">
-              Stick this on the counter
+            <p className="text-[14px] text-muted-foreground">
+              They tick a box and sign on screen. The signature is kept on the repair and printed on the work order.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* -------------------------------------------------------- reviews */}
+      <Card>
+        <CardHeader
+          icon={ReviewIcon}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Ask for reviews
+              <StatusPill tone={reviews.enabled ? "success" : "neutral"} label={reviews.enabled ? "On" : "Off"} />
             </span>
+          }
+          description="A short message after a customer collects their device, asking for a review. It goes out by itself."
+        />
+
+        <CardContent className="flex flex-col gap-6">
+          <label className="flex items-center justify-between gap-6">
+            <span className="flex flex-col gap-1">
+              <span className="text-[15px] font-semibold text-foreground">
+                Ask for a review after pickup
+              </span>
+              <span className="text-[14px] leading-relaxed text-muted-foreground">
+                {config.reviewsSentThisMonth === 0
+                  ? "None sent this month yet."
+                  : `${config.reviewsSentThisMonth} sent this month.`}
+              </span>
+            </span>
+            <Switch
+              checked={reviews.enabled}
+              onCheckedChange={(enabled) => editReviews({ enabled })}
+              words
+              aria-label="Review requests are on"
+            />
+          </label>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="review-url" className="text-[15px]">Your review link</Label>
+            <Input
+              id="review-url"
+              value={reviews.url}
+              maxLength={500}
+              inputMode="url"
+              placeholder="https://g.page/r/…/review"
+              onChange={(event) => editReviews({ url: event.target.value })}
+              className="h-12 text-base"
+            />
+            <p className="text-[14px] text-muted-foreground">
+              Your Google review link, or wherever you collect reviews.
+            </p>
           </div>
-        </div>
 
-        {/* ---------------------------------------------------- the fields */}
-        <div className="flex flex-col gap-2.5">
-          <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-            Optional fields
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {CHECKIN_OPTIONAL_FIELDS.map((key) => (
-              <FieldToggle
-                key={key}
-                label={CHECKIN_FIELD_LABEL[key]}
-                active={fields[key]}
-                onToggle={() =>
-                  setFields((prev) => ({ ...prev, [key]: !prev[key] }))
-                }
-              />
-            ))}
+          <div className="flex flex-col gap-2">
+            <span id="review-wait" className="text-[15px] font-semibold">When to send it</span>
+            <div role="radiogroup" aria-labelledby="review-wait" className="flex flex-wrap gap-2">
+              {(REVIEW_WAIT_CHOICES.some((choice) => choice.hours === reviews.delayHours)
+                ? REVIEW_WAIT_CHOICES
+                : [{ hours: reviews.delayHours, label: waitLabel(reviews.delayHours) }, ...REVIEW_WAIT_CHOICES]
+              ).map((choice) => {
+                const chosen = choice.hours === reviews.delayHours;
+                return (
+                  <button
+                    key={choice.hours}
+                    type="button"
+                    role="radio"
+                    aria-checked={chosen}
+                    onClick={() => editReviews({ delayHours: choice.hours })}
+                    className={cn(
+                      "inline-flex min-h-12 items-center gap-2 rounded-xl border px-4 text-[15px] font-semibold transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      chosen ? "border-accent bg-accent text-accent-foreground" : "border-border bg-surface text-foreground hover:border-ring",
+                    )}
+                  >
+                    {chosen ? <Check aria-hidden className="size-4" strokeWidth={3} /> : null}
+                    {choice.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[14px] text-muted-foreground">After the device is picked up.</p>
           </div>
-          <p className="text-[14px] leading-relaxed text-muted-foreground">
-            Name, device type, problem and description are always asked for —
-            without them there is no ticket worth having.
-          </p>
-        </div>
 
-        {/* ----------------------------------------------------- the terms */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="checkin-terms">Terms shown above the signature</Label>
-          <Textarea
-            id="checkin-terms"
-            rows={6}
-            maxLength={5000}
-            value={terms}
-            onChange={(event) => setTerms(event.target.value)}
-          />
-          <p className="text-[14px] text-muted-foreground">
-            The customer ticks a box and signs on screen. The signature is saved
-            on the ticket and reprinted on the work order.
-          </p>
-        </div>
-      </CardContent>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="review-template" className="text-[15px]">The message</Label>
+            <Textarea
+              id="review-template"
+              rows={4}
+              maxLength={1000}
+              value={reviews.template}
+              onChange={(event) => editReviews({ template: event.target.value })}
+              className="text-base"
+            />
+            <p className="text-[14px] text-muted-foreground">
+              Words in curly brackets are filled in for you: the customer&rsquo;s name, your shop&rsquo;s name and the review link. Keep the link one.
+            </p>
+            <div className="flex flex-col gap-1.5 pt-1">
+              <span className="text-[13px] font-semibold text-muted-foreground">What the customer gets</span>
+              <p className="max-w-prose whitespace-pre-wrap rounded-2xl rounded-tl-md bg-surface-hover px-4 py-3 text-[15px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
+                {preview}
+              </p>
+              <span className="text-[13px] text-muted-foreground">
+                Texted to customers who said yes to texts, emailed to everyone else.
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <CardFooter className="justify-end">
-        <Button onClick={save} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
-          {busy ? "Saving…" : "Save check-in"}
-        </Button>
-      </CardFooter>
-    </Card>
+      <SaveBar
+        state={state}
+        onSave={save}
+        onDiscard={undo}
+        message={problem}
+      />
+    </div>
   );
 }
 
@@ -218,200 +379,15 @@ function FieldToggle({
       type="button"
       onClick={onToggle}
       aria-pressed={active}
-      className={
-        active
-          ? "inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3.5 py-1.5 text-[14px] font-semibold text-accent-soft-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-          : "inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-surface px-3.5 py-1.5 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-      }
+      className={cn(
+        "inline-flex min-h-12 items-center gap-2 rounded-xl border px-4 text-[15px] font-semibold transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "border-accent bg-accent-soft text-accent-soft-foreground" : "border-border bg-surface text-muted-foreground hover:border-ring",
+      )}
     >
-      {active ? <Check className="size-3.5" /> : null}
+      {active ? <Check aria-hidden className="size-4" strokeWidth={3} /> : null}
       {label}
+      <span className="font-medium">{active ? "· Asked" : "· Skipped"}</span>
     </button>
-  );
-}
-
-function LinkRow({
-  label,
-  value,
-  openable,
-}: {
-  label: string;
-  value: string;
-  openable?: boolean;
-}) {
-  const [copied, setCopied] = React.useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      toast.error("Couldn't copy — select the link and copy it by hand.");
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-        {label}
-      </span>
-      {/* Wraps on a phone: a 390px row cannot hold a URL and two buttons, and
-          "http://localhos" is not a link anybody can check. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          readOnly
-          value={value}
-          className="h-9 basis-full font-mono text-[14px] sm:min-w-0 sm:flex-1 sm:basis-auto"
-        />
-        <Button type="button" variant="outline" size="sm" onClick={copy}>
-          {copied ? (
-            <Check className="size-4" aria-hidden />
-          ) : (
-            <CopyIcon className="size-4" aria-hidden />
-          )}
-          {copied ? "Copied" : "Copy"}
-          <span className="sr-only">{label}</span>
-        </Button>
-        {openable ? (
-          <Button asChild variant="ghost" size="sm">
-            <a href={value} target="_blank" rel="noreferrer">
-              <OpenIcon className="size-4" aria-hidden />
-              Open
-              <span className="sr-only"> {label}</span>
-            </a>
-          </Button>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Reviews
-// ---------------------------------------------------------------------------
-
-function ReviewsCard({
-  reviews,
-  sentThisMonth,
-}: {
-  reviews: ReviewSettings;
-  sentThisMonth: number;
-}) {
-  const router = useRouter();
-  const [enabled, setEnabled] = React.useState(reviews.enabled);
-  const [url, setUrl] = React.useState(reviews.url);
-  const [delay, setDelay] = React.useState(String(reviews.delayHours));
-  const [template, setTemplate] = React.useState(reviews.template);
-  const [busy, setBusy] = React.useState(false);
-
-  async function save() {
-    setBusy(true);
-    const result = await updateReviewsAction({
-      enabled,
-      url,
-      delayHours: Number.parseInt(delay, 10),
-      template,
-    });
-    setBusy(false);
-
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success("Review requests saved.");
-    router.refresh();
-  }
-
-  return (
-    <Card>
-      <CardHeader
-        icon={ReviewIcon}
-        title={
-          <span className="flex flex-wrap items-center gap-2">
-            Reviews
-            <StatusPill
-              size="sm"
-              tone={enabled ? "success" : "neutral"}
-              label={enabled ? "On" : "Off"}
-            />
-          </span>
-        }
-        description="Asks for a review once a customer has collected their device and had a little time to use it. Sent automatically by the scheduler — see Settings → Automation."
-      />
-
-      <CardContent className="flex flex-col gap-6">
-        <label className="flex items-start justify-between gap-6">
-          <span className="flex flex-col gap-1">
-            <span className="text-[14.5px] font-semibold text-foreground">
-              Ask for a review after pickup
-            </span>
-            <span className="text-[14px] leading-relaxed text-muted-foreground">
-              {sentThisMonth === 0
-                ? "None sent this month yet."
-                : `${sentThisMonth} sent this month.`}
-            </span>
-          </span>
-          <Switch
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            aria-label="Enable review requests"
-          />
-        </label>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="review-url">Review link</Label>
-            <Input
-              id="review-url"
-              value={url}
-              maxLength={500}
-              placeholder="https://g.page/r/…/review"
-              onChange={(event) => setUrl(event.target.value)}
-            />
-            <p className="text-[14px] text-muted-foreground">
-              Your Google review link, or anywhere else you collect them.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="review-delay">Wait (hours)</Label>
-            <Input
-              id="review-delay"
-              inputMode="numeric"
-              value={delay}
-              onChange={(event) =>
-                setDelay(event.target.value.replace(/[^0-9]/g, ""))
-              }
-            />
-            <p className="text-[14px] text-muted-foreground">
-              After pickup. 24 is a good default.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="review-template">Message</Label>
-          <Textarea
-            id="review-template"
-            rows={4}
-            maxLength={1000}
-            value={template}
-            onChange={(event) => setTemplate(event.target.value)}
-          />
-          <p className="text-[14px] text-muted-foreground">
-            {REVIEW_TOKENS.join(" · ")} are filled in. Texted to customers who
-            opted in to SMS, emailed to everyone else.
-          </p>
-        </div>
-      </CardContent>
-
-      <CardFooter className="justify-end">
-        <Button onClick={save} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
-          {busy ? "Saving…" : "Save reviews"}
-        </Button>
-      </CardFooter>
-    </Card>
   );
 }

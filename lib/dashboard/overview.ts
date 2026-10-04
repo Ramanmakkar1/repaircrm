@@ -16,7 +16,6 @@
  * markup. See components/reports/query.ts for the same rule.
  */
 
-import { endOfDay } from "date-fns";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
@@ -50,6 +49,7 @@ import {
   popularProblems,
   reportDays,
   reportsDayHref,
+  reportsRangeHref,
   safeTimeZone,
   summariseOwed,
   timeIn,
@@ -87,6 +87,8 @@ export type TodaySection = {
   days: { key: string; initial: string; dayOfMonth: number; label: string; netCents: number; isToday: boolean; href: string }[];
   weekNetCents: number;
   todayHref: string;
+  /** Reports for the seven days the bars show. */
+  weekHref: string;
 };
 
 export type OwedSection = OwedSummary & { /** More unpaid invoices exist than were read. */ truncated: boolean };
@@ -223,7 +225,8 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
     locationId ? db.location.findFirst({ where: { id: locationId, shopId }, select: { name: true } }) : Promise.resolve(null),
     db.ticket.groupBy({ by: ["status"], where: { shopId, ...branch }, _count: { _all: true } }),
     db.ticket.groupBy({ by: ["status"], where: late, _count: { _all: true } }),
-    db.ticket.count({ where: { ...open, dueDate: { gte: now, lte: endOfDay(now) } } }),
+    // Due later today on the shop's own calendar, not the server's.
+    db.ticket.count({ where: { ...open, dueDate: { gte: now, lt: new Date(today.toExclusive) } } }),
     db.ticket.groupBy({ by: ["assignedToId"], where: open, _count: { _all: true } }),
     db.ticket.groupBy({ by: ["assignedToId"], where: late, _count: { _all: true } }),
     db.user.findMany({ where: { shopId }, select: { id: true, name: true, role: true, active: true } }),
@@ -373,13 +376,14 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
       days: chartDays,
       weekNetCents: chartDays.reduce((sum, day) => sum + day.netCents, 0),
       todayHref: reportsDayHref(days[7].key),
+      weekHref: reportsRangeHref(days[1].key, days[7].key),
     };
   }
-  if (owedLoad) owedSection = { ...summariseOwed(owedLoad.invoices, nowMs), truncated: owedLoad.truncated };
+  if (owedLoad) owedSection = { ...summariseOwed(owedLoad.invoices, nowMs, { zone }), truncated: owedLoad.truncated };
 
   const selling: ShopOverview["selling"] = showMoney
     ? {
-        href: `/reports?period=custom&from=${days[1].key}&to=${days[7].key}`,
+        href: reportsRangeHref(days[1].key, days[7].key),
         rows: topLines.map((line) => {
           const product = productRows.find((row) => row.id === line.productId);
           return {
@@ -508,7 +512,8 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
       startsAt: appointment.startsAt.getTime(),
       day: dayWords(appointment.startsAt.getTime(), nowMs, zone),
       time: timeIn(appointment.startsAt.getTime(), zone),
-      href: `/appointments?date=${dayKeyIn(appointment.startsAt.getTime(), zone)}`,
+      // The day the visit is on, as a day: the counter sees that day's visits, not a week to scroll.
+      href: `/appointments?view=day&date=${dayKeyIn(appointment.startsAt.getTime(), zone)}`,
     })),
     stockWatch: { total: lowTotal, items: lowStock.slice(0, 4) },
     myQueue: isTech

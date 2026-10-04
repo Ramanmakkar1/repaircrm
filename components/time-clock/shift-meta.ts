@@ -13,10 +13,63 @@ import {
   formatHours,
   secondsBetween,
 } from "@/app/(app)/time-clock/meta";
+import { dayKeyIn, formatIn, wallClock, wallDateTimeValue, zonedInstant } from "@/lib/dashboard/zone";
+
+/** "9:14 AM" on the shop's clock (or the runtime's, when no zone is given). */
+export function clockTime(at: Date, zone?: string): string {
+  return zone ? formatIn(at.getTime(), zone, { hour: "numeric", minute: "2-digit" }) : format(at, "h:mm a");
+}
+
+/** "Tue Sep 29": the day a shift started, on the shop's calendar. */
+export function shiftDay(at: Date, zone?: string): string {
+  return zone
+    ? formatIn(at.getTime(), zone, { weekday: "short", month: "short", day: "numeric" }).replace(",", "")
+    : format(at, "EEE MMM d");
+}
 
 /** "9:14 AM – 12:30 PM", or "9:14 AM – now" while the shift is still running. */
-export function shiftRange(clockIn: Date, clockOut: Date | null): string {
-  return `${format(clockIn, "h:mm a")} – ${clockOut ? format(clockOut, "h:mm a") : "now"}`;
+export function shiftRange(clockIn: Date, clockOut: Date | null, zone?: string): string {
+  return `${clockTime(clockIn, zone)} – ${clockOut ? clockTime(clockOut, zone) : "now"}`;
+}
+
+/** A shift still running after this long has almost certainly been forgotten. */
+export const FORGOTTEN_AFTER_SECONDS = 14 * 3600;
+
+export type ForgottenShift = {
+  /** "Wed Sep 30, 9:02 AM". */
+  since: string;
+  /** "86h 15m". */
+  running: string;
+  /** A sensible clock-out for the fix dialog: 6 PM that day, or 8 hours in when it started late. `yyyy-MM-ddTHH:mm`. */
+  suggestedOut: string;
+  /** "6:00 PM": the suggestion in words. */
+  suggestedLabel: string;
+};
+
+/**
+ * A shift somebody forgot to close: still running, and either started on an
+ * earlier day of the shop's calendar or open for 14 hours or more. Without this
+ * an 86-hour "Running" shift reads like any other.
+ */
+export function forgottenShift(
+  entry: { clockInAt: Date; clockOutAt: Date | null },
+  now: Date,
+  zone: string,
+): ForgottenShift | null {
+  if (entry.clockOutAt) return null;
+  const seconds = secondsBetween(entry.clockInAt, now);
+  const earlierDay = dayKeyIn(entry.clockInAt.getTime(), zone) < dayKeyIn(now.getTime(), zone);
+  if (!earlierDay && seconds < FORGOTTEN_AFTER_SECONDS) return null;
+
+  const start = wallClock(entry.clockInAt.getTime(), zone);
+  const sixPm = zonedInstant(start.year, start.month, start.day, 18, 0, zone);
+  const out = start.hour < 17 ? sixPm : entry.clockInAt.getTime() + 8 * 3600_000;
+  return {
+    since: `${shiftDay(entry.clockInAt, zone)}, ${clockTime(entry.clockInAt, zone)}`,
+    running: formatHours(seconds),
+    suggestedOut: wallDateTimeValue(out, zone),
+    suggestedLabel: clockTime(new Date(out), zone),
+  };
 }
 
 /** Seconds worked in one shift; a running one counts up to `now`. */

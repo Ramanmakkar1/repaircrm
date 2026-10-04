@@ -8,68 +8,116 @@ import { ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { attentionBorder } from "./card-attention";
-import { InboundCard } from "./inbound-card";
+import { InboundAddress, InboundTechnical, inboundLive } from "./inbound-card";
+import { StatusTile } from "./status-tile";
+import { TechnicalDetails } from "./technical-details";
 import type { MessagingConfig } from "./types";
 
 /**
- * Read-only view of how outbound email and SMS are wired up right now.
+ * Settings → Emails & texts.
  *
- * Card payments used to live here too. They have their own screen now — Settings
- * → Payments — because Stripe Connect gave them a connection to manage, an
- * account to report on and readers to pair, none of which is messaging.
+ * The owner's question is "are my customers getting my emails and texts?", so
+ * that is what the top of the screen answers: one tile each for emails, texts
+ * and replies, a status word, what it means, and the next step. How messages
+ * are wired (the provider, the variables, the web addresses) is for whoever
+ * installed Repairs helper and sits under Technical details.
  *
- * Deliberately not editable: drivers are chosen by environment (see
- * lib/comms/config.ts), which is what keeps a staging box from blasting real
- * customers because someone flipped a switch in the UI. This screen exists so
- * "why didn't the customer get that?" has an answer that is one click away
- * instead of an SSH session.
+ * Deliberately not editable: providers are chosen by environment (see
+ * lib/comms/config.ts), which is what keeps a staging box from messaging real
+ * customers because someone flipped a switch in the UI.
  *
  * Values are read on the server and passed in — no secret ever reaches the
  * browser, only whether each variable is populated.
  */
 export function MessagingTab({ config }: { config: MessagingConfig }) {
+  const emailLive = config.emailDriver !== "log";
+  const smsLive = config.smsDriver !== "log";
+  const repliesLive = inboundLive(config.inbound);
+  const owner = config.inbound.canEdit;
+  const askWho = owner ? "your installer" : "your shop owner";
+
   return (
-    <div className="flex flex-col gap-5">
-      <DriverCard
-        icon={ICONS.email}
-        title="Email"
-        driver={config.emailDriver}
-        live={config.emailDriver !== "log"}
-        liveName="Resend"
-        vars={config.emailVars}
-        envKey="EMAIL_DRIVER"
-        liveValue="resend"
+    <div className="flex flex-col gap-4">
+      <StatusTile
+        photo="/images/home/megaphone.webp"
+        title="Emails to customers"
+        state={emailLive ? "Sending" : "Not sending yet"}
+        tone={emailLive ? "success" : "neutral"}
+        detail={
+          emailLive
+            ? "Repair updates, estimates, invoices and receipts are emailed to customers under your shop's name."
+            : `Emails are kept in the outbox and not sent to customers yet. Ask ${askWho} to connect an email service.`
+        }
       />
 
-      <DriverCard
-        icon={ICONS.message}
-        title="SMS"
-        driver={config.smsDriver}
-        live={config.smsDriver !== "log"}
-        liveName="Twilio"
-        vars={config.smsVars}
-        envKey="SMS_DRIVER"
-        liveValue="twilio"
+      <StatusTile
+        photo="/images/products/phone.webp"
+        title="Text messages"
+        state={smsLive ? "Sending" : "Not sending yet"}
+        tone={smsLive ? "success" : "neutral"}
+        detail={
+          smsLive
+            ? "Customers who said yes to texts get their updates by text message."
+            : `Texts are kept in the outbox and not sent yet. Ask ${askWho} to connect a text message service.`
+        }
       />
 
-      <InboundCard config={config.inbound} />
+      <StatusTile
+        icon={ICONS.inbound}
+        title="Customer replies"
+        state={repliesLive ? "Coming in" : "Not set up yet"}
+        tone={repliesLive ? "success" : "neutral"}
+        detail={
+          repliesLive
+            ? "When a customer answers an email or a text, it lands on their repair and the repair shows Needs reply."
+            : `Replies to your emails and texts do not come back into Repairs helper yet. Ask ${askWho} to switch replies on.`
+        }
+      >
+        {owner ? <div className="w-full"><InboundAddress config={config.inbound} /></div> : null}
+      </StatusTile>
 
-      <Card>
-        <CardHeader
-          icon={ICONS.customer}
-          title="Customer links"
-          description="The origin every portal link in an outbound message is built from."
+      <TechnicalDetails>
+        <DriverCard
+          icon={ICONS.email}
+          title="Email"
+          driver={config.emailDriver}
+          live={emailLive}
+          liveName="Resend"
+          vars={config.emailVars}
+          envKey="EMAIL_DRIVER"
+          liveValue="resend"
         />
-        <CardContent className="flex flex-col gap-2">
-          <code className="w-fit rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
-            {config.appUrl}
-          </code>
-          <p className="text-[14px] leading-relaxed text-muted-foreground">
-            Set <Env>NEXT_PUBLIC_APP_URL</Env> to your real domain before going
-            live, or customers will receive links pointing at localhost.
-          </p>
-        </CardContent>
-      </Card>
+
+        <DriverCard
+          icon={ICONS.message}
+          title="SMS"
+          driver={config.smsDriver}
+          live={smsLive}
+          liveName="Twilio"
+          vars={config.smsVars}
+          envKey="SMS_DRIVER"
+          liveValue="twilio"
+        />
+
+        <InboundTechnical config={config.inbound} />
+
+        <Card>
+          <CardHeader
+            icon={ICONS.customer}
+            title="Customer links"
+            description="The origin every portal link in an outbound message is built from."
+          />
+          <CardContent className="flex flex-col gap-2">
+            <code className="w-fit break-all rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
+              {config.appUrl}
+            </code>
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
+              Set <Env>NEXT_PUBLIC_APP_URL</Env> to your real domain before going
+              live, or customers will receive links pointing at localhost.
+            </p>
+          </CardContent>
+        </Card>
+      </TechnicalDetails>
     </div>
   );
 }
@@ -114,7 +162,7 @@ function DriverCard({
         description={
           live
             ? `Sending through ${liveName}.`
-            : "Log mode — messages are printed to the server console and filed in the outbox, but nothing leaves the building."
+            : "Log mode: messages are printed to the server console and filed in the outbox; nothing is delivered."
         }
       />
 

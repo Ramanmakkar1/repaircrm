@@ -414,7 +414,7 @@ describe("JobTabs", () => {
     expect(out).toContain('href="/tickets/t1?tab=photos"');
     expect(out).toContain('href="/tickets/t1?tab=customer"');
     expect(out).toContain('href="/tickets/t1?tab=money"');
-    for (const label of ["Work", "Updates", "Photos &amp; files", "Customer &amp; device", "Money"]) expect(out).toContain(label);
+    for (const label of ["Work", "Updates", "Photos", "Customer", "Money"]) expect(out).toContain(label);
   });
 
   it("fills and marks the open section, and nothing else", () => {
@@ -428,7 +428,7 @@ describe("JobTabs", () => {
   it("shows counts as numbers where they mean something", () => {
     const out = html(h(JobTabs, { ticketId: "t1", active: "work", counts }));
     expect(out).toMatch(/Updates[\s\S]*?>12</);
-    expect(out).toMatch(/Photos &amp; files[\s\S]*?>3</);
+    expect(out).toMatch(/Photos[\s\S]*?>3</);
     expect(out).not.toMatch(/Money[\s\S]{0,80}>0</);
   });
 });

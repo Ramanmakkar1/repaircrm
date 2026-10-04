@@ -1,11 +1,12 @@
 import type { ComponentProps } from "react";
 import type { Prisma } from "@prisma/client";
 
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 import { taxLabel } from "@/lib/tax";
 import { formatDate, formatDateLong, formatDateTime } from "./format";
 import { termsLabel } from "./print-chrome";
 import { addressLines, type loadPrintShop } from "./print-queries";
+import { refundAwareTotals } from "./refund-math";
 import type { PrintSheet, PrintTotalRow } from "./print-sheet";
 import type { TicketSheet } from "./print-ticket-sheet";
 
@@ -74,15 +75,39 @@ export type PrintableInvoice = Prisma.InvoiceGetPayload<{
     taxRate: { select: { name: true } };
     lines: true;
     payments: true;
+    refunds: true;
   };
 }>;
+
+/**
+ * The relations both invoice print routes load, in the order the sheet prints
+ * them. One constant so the single and the batch page cannot load different
+ * rows: the batch once printed $0.00 due on an invoice the screen said was
+ * owing, because neither route loaded its refunds.
+ */
+export const PRINTABLE_INVOICE_INCLUDE = {
+  customer: true,
+  taxRate: { select: { name: true } },
+  lines: { orderBy: { sortOrder: "asc" } },
+  payments: { orderBy: { createdAt: "asc" } },
+  refunds: { orderBy: { createdAt: "asc" } },
+} satisfies Prisma.InvoiceInclude;
 
 export function invoiceSheetProps(
   invoice: PrintableInvoice,
   shop: PrintShop,
 ): ComponentProps<typeof PrintSheet> {
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+  // REFUND-AWARE, the same `refundAwareTotals` the invoice screen, the list,
+  // the receipt and the statement use: money handed back puts that amount back
+  // on the bill, so paper and screen always agree on what is owed.
+  const totals = refundAwareTotals(
+    invoice.lines,
+    invoice.taxRateBps,
+    invoice.payments,
+    invoice.refunds,
+  );
   const customerName = partyName(invoice.customer);
+  const zone = shop.timezone;
 
   const paid = invoice.status === "PAID";
   const voided = invoice.status === "VOID";
@@ -104,9 +129,19 @@ export function invoiceSheetProps(
       value: formatCents(totals.taxCents),
     },
     { label: "Total", value: formatCents(totals.totalCents), strong: true },
-    { label: "Payments & credits", value: `-${formatCents(totals.paidCents)}` },
+    // Only lines that carry money: "-$0.00 payments" on an unpaid bill reads
+    // like a refund of nothing.
+    ...(totals.paidCents > 0
+      ? [{ label: "Payments received", value: `-${formatCents(totals.paidCents)}` }]
+      : []),
+    ...(totals.refundedCents > 0
+      ? [{ label: "Refunded to you", value: `+${formatCents(totals.refundedCents)}` }]
+      : []),
     balanceRow,
   ];
+
+  // A failed card refund never left the shop, so it is not on the customer's copy.
+  const refundRows = invoice.refunds.filter((refund) => refund.status !== "failed");
 
   const contact = [shop.phone, shop.email].filter(Boolean).join("  ·  ");
 
@@ -119,12 +154,13 @@ export function invoiceSheetProps(
     billTo: { name: customerName, lines: addressLines(invoice.customer) },
     meta: [
       { label: "Invoice #", value: String(invoice.number) },
-      { label: "Issue date", value: formatDate(invoice.createdAt) },
+      // An instant, so the shop's day; the due date is a stored calendar day.
+      { label: "Issue date", value: formatDate(invoice.createdAt, zone) },
       {
         label: "Due date",
         value: invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt",
       },
-      { label: "Terms", value: termsLabel(invoice.createdAt, invoice.dueDate) },
+      { label: "Terms", value: termsLabel(invoice.createdAt, invoice.dueDate, zone) },
     ],
     lines: invoice.lines.map((line) => ({
       id: line.id,
@@ -137,13 +173,25 @@ export function invoiceSheetProps(
     })),
     showSerial: invoice.lines.some((line) => Boolean(line.serial)),
     totals: totalRows,
-    payments: invoice.payments.map((payment) => ({
-      id: payment.id,
-      date: formatDate(payment.createdAt),
-      method: METHOD_LABELS[payment.method] ?? payment.method,
-      reference: payment.reference,
-      amountCents: payment.amountCents,
-    })),
+    payments: [
+      ...invoice.payments.map((payment) => ({
+        id: payment.id,
+        date: formatDate(payment.createdAt, zone),
+        method: METHOD_LABELS[payment.method] ?? payment.method,
+        reference: payment.reference,
+        amountCents: payment.amountCents,
+      })),
+      ...refundRows.map((refund) => ({
+        id: refund.id,
+        date: formatDate(refund.createdAt, zone),
+        method: `Refund · ${METHOD_LABELS[refund.method] ?? refund.method}${
+          refund.status === "pending" ? " (on its way)" : ""
+        }`,
+        reference: refund.reason,
+        amountCents: -refund.amountCents,
+      })),
+    ],
+    paymentsLabel: refundRows.length > 0 ? "Payments and refunds" : "Payments received",
     notes: invoice.notes,
     signature: invoice.signatureDataUrl,
     signatureCaption: `Received by ${customerName}`,
@@ -151,11 +199,22 @@ export function invoiceSheetProps(
     watermarkTone: voided ? "alarm" : "accent",
     backHref: `/invoices/${invoice.id}`,
     backLabel: `Back to invoice #${invoice.number}`,
-    footer: invoice.paidAt
-      ? `Paid in full on ${formatDateLong(invoice.paidAt)} — thank you!`
-      : "Thank you for your business!",
+    footer:
+      invoice.paidAt && totals.balanceCents <= 0
+        ? `Paid in full on ${formatDateLong(invoice.paidAt, zone)} — thank you!`
+        : "Thank you for your business!",
     footerContact: contact ? `${shop.name}  ·  ${contact}` : shop.name,
   };
+}
+
+/**
+ * Whether the printed invoice offers a "pay online" QR: only while something
+ * is owed (refund-aware, like the balance above it). A void or settled invoice
+ * prints none.
+ */
+export function invoiceIsPayable(invoice: PrintableInvoice): boolean {
+  if (invoice.status === "VOID") return false;
+  return refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds).balanceCents > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -177,23 +236,32 @@ export type PrintableTicket = Prisma.TicketGetPayload<{
  * single sheet would be a promise the shop did not make.
  */
 const TICKET_TERMS =
-  "Charges shown are work recorded to date and are not a final invoice. Devices not collected within 30 days of completion may incur storage fees. Please present the claim check below when collecting.";
+  "Charges shown are the work so far, not a final bill. Devices not collected within 30 days of being ready may be charged for storage. Bring the claim check below when you collect.";
 
 export function ticketSheetProps(
   ticket: PrintableTicket,
   shop: PrintShop,
+  options: { showPasscode?: boolean } = {},
 ): ComponentProps<typeof TicketSheet> {
   const customerName = partyName(ticket.customer);
 
+  // Two short lines, not five: the address on one, the phone and email on the
+  // other, which is part of what keeps this sheet (and its claim check) on one page.
+  const place = [shop.address1, shop.address2, [[shop.city, shop.state].filter(Boolean).join(", "), shop.postalCode].filter(Boolean).join(" ")]
+    .filter((part) => Boolean(part && part.trim()))
+    .join(", ");
+  const reach = [shop.phone, shop.email].filter((part) => Boolean(part && part.trim())).join("  ·  ");
+
   return {
     number: ticket.number,
-    shop: { name: shop.name, lines: addressLines(shop) },
+    shop: { name: shop.name, lines: [place, reach].filter(Boolean) },
     shopPhone: shop.phone,
     logoUrl: shop.logoUrl,
     customer: { name: customerName, lines: addressLines(ticket.customer) },
+    // The number is in the masthead, so it is not repeated here (one row less
+    // is part of what keeps the sheet on one page).
     meta: [
-      { label: "Ticket #", value: String(ticket.number) },
-      { label: "Opened", value: formatDate(ticket.createdAt) },
+      { label: "Opened", value: formatDate(ticket.createdAt, shop.timezone) },
       { label: "Status", value: ticket.status },
       {
         label: "Priority",
@@ -202,7 +270,8 @@ export function ticketSheetProps(
       { label: "Technician", value: ticket.assignedTo?.name ?? "Unassigned" },
       {
         label: "Promised",
-        value: ticket.dueDate ? formatDate(ticket.dueDate) : "—",
+        // A repair's promise is an instant (a pickup time), so the shop's day.
+        value: ticket.dueDate ? formatDate(ticket.dueDate, shop.timezone) : "—",
       },
     ],
     subject: ticket.subject,
@@ -228,11 +297,12 @@ export function ticketSheetProps(
     taxRateBps: shop.taxRateBps,
     intakeSignature: ticket.intakeSignatureDataUrl,
     intakeSignedCaption: ticket.intakeSignedAt
-      ? `Authorised at intake · ${formatDateTime(ticket.intakeSignedAt)}`
+      ? `Authorised at intake · ${formatDateTime(ticket.intakeSignedAt, shop.timezone)}`
       : "Customer authorisation (intake)",
     resolved: ticket.status === "Resolved",
     backHref: `/tickets/${ticket.id}`,
-    backLabel: `Back to ticket #${ticket.number}`,
+    backLabel: `Back to repair #${ticket.number}`,
     terms: TICKET_TERMS,
+    showPasscode: options.showPasscode ?? false,
   };
 }

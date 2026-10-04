@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatInZone } from "@/lib/shop-time";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -133,7 +133,7 @@ export default async function PosPage() {
       }),
       db.shop.findUnique({
         where: { id: shopId },
-        select: { taxRateBps: true, settings: true },
+        select: { taxRateBps: true, settings: true, timezone: true },
       }),
       db.taxRate.findMany({
         where: { shopId },
@@ -191,7 +191,7 @@ export default async function PosPage() {
     ? {
         id: drawer.id,
         // Formatted here rather than in the strip: see OpenDrawer.
-        openedAtLabel: format(drawer.openedAt, "h:mm a"),
+        openedAtLabel: formatInZone(drawer.openedAt, "h:mm a", shop?.timezone ?? "UTC"),
         openedByName: drawer.openedBy.name,
         openingCents: drawer.openingCents,
       }

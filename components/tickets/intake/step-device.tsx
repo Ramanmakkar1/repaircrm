@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { INTAKE_OTHER_TYPE, easyIntakeProfile, easyModelOptions } from "@/lib/device-intake";
 import {
   DEFAULT_DEVICE_KINDS,
-  FIRST_SCREEN_BOXES,
+  FIRST_SCREEN_KINDS,
   MAX_KIND_LABEL,
+  firstScreenKinds,
   kindPicture,
   tidy,
   visibleDeviceKinds,
@@ -37,8 +38,6 @@ import {
 
 const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4";
 
-/** When the shop has more than this many boxes, the last slot is "More devices", which opens the rest in place. */
-const FIRST_SCREEN = FIRST_SCREEN_BOXES;
 
 /** A choice already made, shown small with a way to change it. */
 function Crumb({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
@@ -93,7 +92,8 @@ export function DeviceStep({
   React.useEffect(() => {
     if (!toggled.current) return;
     toggled.current = false;
-    if (allKinds) gridRef.current?.querySelectorAll("button")[FIRST_SCREEN - 1]?.focus();
+    // Opened: the first box that was folded away (the kinds before it, then Other, on the first screen).
+    if (allKinds) gridRef.current?.querySelectorAll("button")[FIRST_SCREEN_KINDS]?.focus();
     else gridRef.current?.querySelector<HTMLButtonElement>("[data-more-devices]")?.focus();
   }, [allKinds]);
   const saved = savedAssets(state, ctx);
@@ -146,11 +146,13 @@ export function DeviceStep({
   const chosen = isNew && state.device.type !== "" && stage !== "kind";
   const addedNote = addedLabel && state.device.type === addedLabel ? `“${addedLabel}” is now one of your devices.` : "";
   const shown = visibleDeviceKinds(kinds);
-  const folded = shown.length > FIRST_SCREEN;
+  // The first screen: the first few kinds, then Other (always there), then "More devices".
+  const first = firstScreenKinds(shown);
+  const folded = first.folded > 0;
   // A box the person already chose from the folded part keeps the list open, so it is never hidden from them.
-  const choseFolded = folded && isNew && shown.slice(FIRST_SCREEN - 1).some((item) => item.type === state.device.type);
+  const choseFolded = folded && isNew && !first.tiles.some((item) => item.type === state.device.type) && shown.some((item) => item.type === state.device.type);
   const open = !folded || allKinds || choseFolded;
-  const tiles = open ? shown : shown.slice(0, FIRST_SCREEN - 1);
+  const tiles = open ? shown : first.tiles;
 
   return (
     <div className="flex flex-col gap-5">
@@ -181,7 +183,7 @@ export function DeviceStep({
               <MoreTile
                 icon={open ? ChevronUp : Ellipsis}
                 title={open ? "Fewer devices" : "More devices"}
-                detail={open ? undefined : `${shown.length - (FIRST_SCREEN - 1)} more`}
+                detail={open ? undefined : `${first.folded} more`}
                 expanded={open}
                 onClick={() => {
                   toggled.current = true;

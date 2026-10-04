@@ -2,9 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { formatDate } from "@/components/billing/format";
-import { StockBadge } from "@/components/inventory/stock-badge";
+import { Globe, Phone } from "lucide-react";
+
+import { stockCount } from "@/components/inventory/easy-lists";
+import { stockStatus } from "@/components/inventory/format";
+import { ProductImage } from "@/components/inventory/product-image";
+import { PurchaseOrderCard, type PurchaseOrderCardData } from "@/components/inventory/purchase-order-card";
+import { RecordWithActions, FOOTER_ACTION } from "@/components/inventory/record-with-actions";
+import { orderMoreHref } from "@/components/inventory/restock";
+import { StockBadge, StockFlag } from "@/components/inventory/stock-badge";
 import { PO_STATUS_META, asPoStatus, poTotals } from "@/components/inventory/purchasing";
+import { VendorActions } from "@/components/inventory/vendor-actions";
 import { VendorDialog } from "@/components/inventory/vendor-dialog";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,10 +28,16 @@ import { cn } from "@/components/ui/cn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Breadcrumbs } from "@/components/ui/page-header";
+import { InitialsVisual, RecordCard, RecordGrid } from "@/components/ui/record-card";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireRole } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatInstantDay, shopTodayKey } from "@/lib/inventory/dates";
+import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
+import { shopZone } from "@/lib/inventory/shop-zone";
 import { formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
+import { readUiPrefs } from "@/lib/prefs";
 
 export async function generateMetadata({
   params,
@@ -36,7 +50,7 @@ export async function generateMetadata({
     where: { id, shopId },
     select: { name: true },
   });
-  return { title: vendor ? `${vendor.name} · Repairs helper` : "Vendor · Repairs helper" };
+  return { title: vendor ? `${vendor.name} · Repairs helper` : "Supplier · Repairs helper" };
 }
 
 export default async function VendorPage({
@@ -45,7 +59,7 @@ export default async function VendorPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId } = await requireRole("OWNER");
-  const { id } = await params;
+  const [{ id }, prefs, zone] = await Promise.all([params, readUiPrefs(), shopZone(shopId)]);
 
   // Scoped by shopId, so a guessed id from another tenant 404s.
   const vendor = await db.vendor.findFirst({
@@ -78,6 +92,11 @@ export default async function VendorPage({
         stockQty: true,
         lowStockAt: true,
         reorderQty: true,
+        vendorId: true,
+        active: true,
+        category: true,
+        catalogImage: true,
+        attachments: PRODUCT_IMAGE_SELECT,
       },
     }),
     db.purchaseOrder.findMany({
@@ -91,10 +110,16 @@ export default async function VendorPage({
         shippingCents: true,
         createdAt: true,
         orderedAt: true,
+        expectedAt: true,
+        receivedAt: true,
         lines: { select: { quantity: true, unitCostCents: true, receivedQty: true } },
       },
     }),
   ]);
+
+  if (prefs.simple) {
+    return <EasyVendor vendor={vendor} products={products} orders={orders} zone={zone} />;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -117,7 +142,7 @@ export default async function VendorPage({
               {vendor.accountNumber ? (
                 <Chip className="font-mono">Account {vendor.accountNumber}</Chip>
               ) : null}
-              <Chip>On file since {formatDate(vendor.createdAt)}</Chip>
+              <Chip>On file since {formatInstantDay(vendor.createdAt, zone)}</Chip>
               {/* Active/inactive is a status, not a fact-tag — it gets the pill
                   everything else in the app wears. */}
               {!vendor.active ? (
@@ -146,8 +171,9 @@ export default async function VendorPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      {/* Side by side only from xl up: at a 1024px counter the products table gets the full width, so no column hides. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <Card className="xl:col-span-1">
           <CardHeader>
             <CardTitle>Contact</CardTitle>
           </CardHeader>
@@ -164,11 +190,11 @@ export default async function VendorPage({
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle>Products supplied</CardTitle>
             <CardDescription>
-              Catalogue items whose vendor is set to {vendor.name}.
+              Products that name {vendor.name} as their supplier.
             </CardDescription>
           </CardHeader>
           <CardContent className="px-0 py-0">
@@ -176,10 +202,10 @@ export default async function VendorPage({
               <EmptyState
                 icon={ICONS.inventory}
                 title="No products yet"
-                hint="Set this vendor on a product to see it here — and to have purchase orders fill in its cost and vendor SKU."
+                hint="Choose this supplier on a product to see it here. New orders then fill in its cost and the supplier's part number."
                 action={
                   <Button variant="outline" asChild>
-                    <Link href="/inventory">Open the catalogue</Link>
+                    <Link href="/inventory">Open stock</Link>
                   </Button>
                 }
               />
@@ -232,7 +258,9 @@ export default async function VendorPage({
           <CardDescription>
             {orders.length === 0
               ? "Orders raised against this vendor."
-              : `The ${orders.length} most recent orders with ${vendor.name}.`}
+              : orders.length === 1
+                ? `The one order with ${vendor.name} so far.`
+                : `The ${orders.length} most recent orders with ${vendor.name}.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 py-0">
@@ -240,7 +268,7 @@ export default async function VendorPage({
             <EmptyState
               icon={ICONS.purchaseOrder}
               title="Nothing ordered yet"
-              hint="Raise a purchase order to record what you asked for, then receive it to move stock and update costs."
+              hint="Raise an order to record what you asked for, then book the delivery in when it arrives."
               action={
                 <Button asChild>
                   <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
@@ -283,7 +311,7 @@ export default async function VendorPage({
                         />
                       </Td>
                       <Td className="text-[13.5px] text-muted-foreground">
-                        {formatDate(order.orderedAt ?? order.createdAt)}
+                        {formatInstantDay(order.orderedAt ?? order.createdAt, zone)}
                       </Td>
                       <Td className="text-right tabular-nums text-muted-foreground">
                         {totals.receivedQty} / {totals.orderedQty}
@@ -304,6 +332,243 @@ export default async function VendorPage({
 }
 
 // ---------------------------------------------------------------------------
+
+type VendorRecord = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  accountNumber: string | null;
+  address: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: Date;
+};
+
+type VendorProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  vendorSku: string | null;
+  costCents: number | null;
+  stockQty: number;
+  lowStockAt: number | null;
+  reorderQty: number | null;
+  vendorId: string | null;
+  active: boolean;
+  category: string | null;
+  catalogImage: string | null;
+  attachments: { id: string }[];
+};
+
+/**
+ * The supplier in Easy mode: who they are (initials, name), the three things you
+ * do with a supplier as big buttons (New order, Call, Email), what is on order
+ * with them as order cards, what you buy from them as picture cards (stock in
+ * words, "Order more" on anything low), and the contact details quietly at the
+ * end. No tables, so nothing is cut off at a 1024px counter. "Supplier"
+ * everywhere, and the supplier's own code is "their part number".
+ */
+function EasyVendor({
+  vendor,
+  products,
+  orders,
+  zone,
+}: {
+  vendor: VendorRecord;
+  products: VendorProduct[];
+  orders: Omit<PurchaseOrderCardData, "vendor">[];
+  zone: string;
+}) {
+  const todayKey = shopTodayKey(requestNow(), zone);
+  const open = orders.filter((order) => ["DRAFT", "ORDERED", "PARTIAL"].includes(order.status));
+  const past = orders.filter((order) => !["DRAFT", "ORDERED", "PARTIAL"].includes(order.status));
+  const big = "h-12 px-5 text-base [&_svg]:size-5";
+
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-4 sm:p-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <InitialsVisual name={vendor.name} />
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="text-balance text-[28px] font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]">{vendor.name}</h1>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base text-muted-foreground">
+              {vendor.active ? <span>Supplier</span> : <StatusPill tone="neutral" label="Inactive" />}
+              {vendor.accountNumber ? <span>Your account: {vendor.accountNumber}</span> : null}
+              <span>Since {formatInstantDay(vendor.createdAt, zone)}</span>
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {vendor.active ? (
+            <Button asChild className={big}>
+              <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
+                <ACTIONS.add />
+                New order
+              </Link>
+            </Button>
+          ) : null}
+          {vendor.phone ? (
+            <Button variant="outline" asChild className={big}>
+              <a href={`tel:${vendor.phone.replace(/[^0-9+]/g, "")}`}>
+                <Phone aria-hidden />
+                Call
+              </a>
+            </Button>
+          ) : null}
+          {vendor.email ? (
+            <Button variant="outline" asChild className={big}>
+              <a href={`mailto:${vendor.email}`}>
+                <ACTIONS.email />
+                Email
+              </a>
+            </Button>
+          ) : null}
+          <VendorActions vendor={vendor} easy />
+        </div>
+      </section>
+
+      <section aria-labelledby="vendor-open" className="flex flex-col gap-3">
+        <h2 id="vendor-open" className="text-lg font-semibold">
+          On order with them <span className="rf-num text-muted-foreground">({open.length})</span>
+        </h2>
+        {open.length === 0 ? (
+          <p className="rounded-2xl border border-border bg-surface p-4 text-base text-muted-foreground">
+            Nothing on order. {vendor.active ? "Tap New order when you need something from them." : null}
+          </p>
+        ) : (
+          <RecordGrid>
+            {open.map((order) => (
+              <PurchaseOrderCard key={order.id} order={{ ...order, vendor: { id: vendor.id, name: vendor.name } }} todayKey={todayKey} zone={zone} />
+            ))}
+          </RecordGrid>
+        )}
+      </section>
+
+      <section aria-labelledby="vendor-parts" className="flex flex-col gap-3">
+        <h2 id="vendor-parts" className="text-lg font-semibold">
+          Parts from this supplier <span className="rf-num text-muted-foreground">({products.length})</span>
+        </h2>
+        {products.length === 0 ? (
+          <div className="flex flex-col items-start gap-3 rounded-2xl border border-border bg-surface p-4">
+            <p className="text-base text-muted-foreground">
+              No products name this supplier yet. Choose them as the supplier on a product, and new orders fill in its cost for you.
+            </p>
+            <Button variant="outline" asChild className={big}>
+              <Link href="/inventory">Open stock</Link>
+            </Button>
+          </div>
+        ) : (
+          <RecordGrid>
+            {products.map((product) => {
+              const count = stockCount(product);
+              const low = product.active && ["low", "out"].includes(stockStatus(product));
+              const card = {
+                href: `/inventory/${product.id}`,
+                visual: (
+                  <ProductImage
+                    productId={product.id}
+                    name={product.name}
+                    category={product.category}
+                    catalogImage={product.catalogImage}
+                    imageUrl={product.attachments[0] ? `/files/${product.attachments[0].id}` : null}
+                    className="size-20 rounded-xl border border-border sm:size-24"
+                    sizes="96px"
+                  />
+                ),
+                title: <span className="block line-clamp-2 whitespace-normal break-words">{product.name}</span>,
+                subtitle: (
+                  <>
+                    <span className="block">{product.costCents == null ? "No cost yet" : `Costs ${formatCents(product.costCents)}`}</span>
+                    {product.vendorSku ? <span className="block truncate">Their part number: {product.vendorSku}</span> : null}
+                  </>
+                ),
+                status: product.active ? null : <StatusPill tone="neutral" label="Inactive" />,
+                trailing: (
+                  <span className="flex h-full min-w-14 flex-col items-end justify-center gap-1.5">
+                    <span className="flex flex-col items-end leading-none">
+                      <span className="rf-num text-[28px] font-semibold tabular-nums">{count.value}</span>
+                      <span className="mt-1 text-right text-sm leading-tight text-muted-foreground">{count.unit}</span>
+                    </span>
+                    {product.active ? <StockFlag product={product} size="md" /> : null}
+                  </span>
+                ),
+              };
+              return low ? (
+                <RecordWithActions
+                  key={product.id}
+                  {...card}
+                  actions={
+                    <Button variant="ghost" asChild className={`${FOOTER_ACTION} font-semibold text-foreground`}>
+                      <Link href={orderMoreHref(product)} aria-label={`Order more ${product.name}`}>
+                        Order more
+                      </Link>
+                    </Button>
+                  }
+                />
+              ) : (
+                <li key={product.id} className="flex">
+                  <RecordCard className="min-w-0 flex-1" {...card} />
+                </li>
+              );
+            })}
+          </RecordGrid>
+        )}
+      </section>
+
+      {past.length > 0 ? (
+        <section aria-labelledby="vendor-past" className="flex flex-col gap-3">
+          <h2 id="vendor-past" className="text-lg font-semibold">
+            Past orders <span className="rf-num text-muted-foreground">({past.length})</span>
+          </h2>
+          <RecordGrid>
+            {past.map((order) => (
+              <PurchaseOrderCard key={order.id} order={{ ...order, vendor: { id: vendor.id, name: vendor.name } }} todayKey={todayKey} zone={zone} />
+            ))}
+          </RecordGrid>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="vendor-contact" className="flex flex-col gap-3">
+        <h2 id="vendor-contact" className="text-lg font-semibold">
+          Contact and notes
+        </h2>
+        <dl className="grid grid-cols-1 gap-4 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-2">
+          <EasyDetail label="Phone" value={vendor.phone} href={vendor.phone ? `tel:${vendor.phone.replace(/[^0-9+]/g, "")}` : null} />
+          <EasyDetail label="Email" value={vendor.email} href={vendor.email ? `mailto:${vendor.email}` : null} />
+          <EasyDetail label="Website" value={vendor.website} href={vendor.website ? externalHref(vendor.website) : null} icon={<Globe className="size-4" aria-hidden />} />
+          <EasyDetail label="Address" value={vendor.address} />
+          <div className="sm:col-span-2">
+            <EasyDetail label="Notes" value={vendor.notes} />
+          </div>
+        </dl>
+      </section>
+    </div>
+  );
+}
+
+function EasyDetail({ label, value, href, icon }: { label: string; value: string | null; href?: string | null; icon?: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-base">
+        {value ? (
+          href ? (
+            <a href={href} className="inline-flex min-h-12 items-center gap-1.5 font-semibold underline underline-offset-4 [overflow-wrap:anywhere]">
+              {icon}
+              {value}
+            </a>
+          ) : (
+            <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{value}</span>
+          )
+        ) : (
+          <span className="text-muted-foreground">Not given</span>
+        )}
+      </dd>
+    </div>
+  );
+}
 
 /** A bare "vendor.com" still has to become a real link. */
 function externalHref(website: string): string {
@@ -328,7 +593,7 @@ function Detail({
         href ? (
           <a
             href={href}
-            className="break-words text-[14.5px] font-medium text-accent-soft-foreground hover:underline"
+            className="[overflow-wrap:anywhere] text-[14.5px] font-medium text-accent-soft-foreground hover:underline"
           >
             {value}
           </a>

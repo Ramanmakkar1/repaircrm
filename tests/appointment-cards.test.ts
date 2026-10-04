@@ -150,7 +150,7 @@ describe("AppointmentCards", () => {
 
   it("explains a filtered empty list instead of offering to book", () => {
     const html = cards([], { filtered: true });
-    expect(html).toContain("Nothing booked for this tech");
+    expect(html).toContain("Nothing booked for this person");
     expect(html).not.toContain('href="/appointments?new=1"');
   });
 });

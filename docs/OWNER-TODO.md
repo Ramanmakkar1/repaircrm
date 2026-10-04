@@ -1,21 +1,16 @@
 # Things only you can do
 
-Written 2026-10-03. Everything here needs your decision, your accounts or your
-hands. I did not do any of it (no commits, no deploys, no key changes).
+Written 2026-10-03, updated 2026-10-04. Everything here needs your decision, your accounts or your
+hands. I changed no keys or accounts; the commit and the deploy were done when you asked.
 
 ## 1. Protect and publish the work (do this first)
 
-- [ ] **Commit the work.** More than 100 files of new work are not saved in git yet
-      (the Home, the picture library, all the page restyles, the fixes). A copy of the
-      state from before today's fixes is in `app-backup-before-fixes-2026-10-03.tar.gz`
-      in the project folder, but git is the real safety net. Tell me "commit it" and I will
-      do it on a branch and show you the summary first. Nothing is pushed to GitHub until
-      you say so.
-- [ ] **Deploy to the live site.** repairshelper.com is still running the 30 Sep release.
-      Deploys are manual (`ops/deploy.sh` on the server); the step that builds the release
-      archive from your Mac is not written down anywhere. Ask me to write that script.
-      A new database column (the chosen product picture) is added by a migration that
-      the deploy script applies for you.
+- [x] **Commit the work.** Done: pushed to `main` (latest `7a2d6fc`, CI green).
+- [x] **Deploy to the live site.** Done 4 Oct 2026: repairshelper.com runs `7a2d6fc`.
+      The steps are in the deploy note (git archive of a pushed commit, then
+      `/usr/local/sbin/repairshelper-deploy` on the server, which backs up the database
+      first and puts the old code back if the health check fails). The server now runs
+      in Edmonton time (all live shops are there); see docs/FIX-LIST.md.
 - [ ] **Back up off the server.** Daily backups are only stored on the same server as the
       database. Copy them somewhere else (another machine or a storage bucket) and try
       one restore. If the server is lost today, everything entered since launch is lost.
@@ -43,12 +38,9 @@ hands. I did not do any of it (no commits, no deploys, no key changes).
 
 - [ ] **Voice language.** Voice now starts in live English. It used to auto-detect Hindi,
       Punjabi and Hinglish through the cloud service. Which should be the default?
-- [ ] **Text-message consent.** The new customer form switches on "Text repair updates"
-      as soon as a phone number is typed. Many places require express consent for
-      marketing-style texts; the safe default is OFF.
-- [ ] **Duplicate customers.** Adding a customer never warns you that the same phone number
-      already exists. Warn, block, or leave as is?
-- [ ] **Split payment** (part cash, part card) is not built. Do you need it?
+- [ ] **Text-message consent.** The verified new-customer form starts text updates OFF. Confirm your shop’s consent process before enabling messages for customers.
+- [x] **Duplicate customers.** Requested 4 Oct: warn on an existing phone number and require an explicit override to create a separate customer. Implemented locally.
+- [x] **Split payment.** Requested 4 Oct and implemented for sales and invoice payments. See the setup notes below.
 - [ ] **Assistant stock changes.** Adding or changing stock by voice runs immediately with no
       confirmation tap (removing a product does ask). Keep or add a confirm?
 - [ ] **Negative stock** is allowed (so you can sell before you receive). Keep?
@@ -67,5 +59,12 @@ hands. I did not do any of it (no commits, no deploys, no key changes).
       reachable. Fine today; worth knowing.
 - [ ] Two generated pictures resemble real products' shapes (the earbuds and the delivery van);
       there are no logos. Swap them if you want purely generic pictures.
-- [ ] Dark theme: the assistant's "Talk" button label is nearly invisible. (Small fix.)
+- [x] Dark theme: the assistant’s Talk control now uses paired theme colours. Browser check: dark text rgb(17,18,20) on rgb(241,242,243), 48px height.
 - [ ] Newer version of the design tool available (`npx impeccable update`): optional.
+
+## 6. Set up the new counter features after release
+
+- Each staff member sets their own six-digit PIN under **Settings → My profile** using their current password. Use **Switch staff** in the account menu on a shared tablet. Accounts with two-step sign-in keep full sign-in.
+- Upload your shop logo under **Settings → Shop details** (PNG, JPEG or WebP, up to 2 MB).
+- On each personal phone, open **My profile → Phone notifications**, opt in and send a test. On iPhone, add the app to the Home Screen first. Check delivery with the app closed; alerts follow the automation interval. Do not opt a shared tablet into someone’s private notifications.
+- For **Cash + card**, approve the displayed card remainder on your separate card machine before recording both parts. This does not initiate a connected-reader split charge.

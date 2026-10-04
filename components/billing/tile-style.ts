@@ -11,7 +11,10 @@
  * the rest stretched) instead of leaving a hole at the end of the last one.
  */
 export const TILE_CLASS =
-  "flex min-h-16 flex-1 basis-[6rem] flex-col items-center justify-center gap-1 rounded-xl border border-border-strong bg-surface px-2 py-2 text-center text-[14px] font-semibold leading-tight text-foreground " +
+  // Icon and word start at the same height in every tile (justify-start), so a
+  // two-word label that wraps ("Send receipt") never pushes its icon out of
+  // line with its neighbours'; the words wrap evenly rather than leaving one.
+  "flex min-h-16 flex-1 basis-[6rem] flex-col items-center justify-start gap-1 rounded-xl border border-border-strong bg-surface px-1.5 pb-2 pt-3 text-center text-[14px] font-semibold leading-tight text-foreground [text-wrap:balance] " +
   "transition-[background-color,transform] duration-150 hover:bg-surface-hover active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-5 [&_svg]:shrink-0";
 

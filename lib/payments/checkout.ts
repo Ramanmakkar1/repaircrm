@@ -21,11 +21,12 @@
  * success page after a card decline is not.
  */
 
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 import { appUrl } from "@/lib/comms/config";
 
 import { accountFor } from "./account";
+import { invoicePaymentKey } from "./invoice-key";
 import { stripeFetch } from "./stripe";
 import {
   currencySupported,
@@ -115,9 +116,9 @@ export function buildCheckoutParams(input: CheckoutParamsInput): URLSearchParams
  *
  * Double-click, a browser retry and an impatient refresh all resolve to the
  * same key, so Stripe replays the first session instead of opening a second
- * payment page for the same money. The balance is part of the key: once a
- * payment lands the operation is genuinely different, and the customer must be
- * shown the new, smaller amount.
+ * payment page for the same money. The balance and append-only ledger counts
+ * identify the operation: repayment followed by another refund can reopen the
+ * SAME balance, and must not replay a previously completed session.
  */
 export function checkoutIdempotencyKey(
   invoiceId: string,
@@ -164,6 +165,7 @@ export async function createInvoiceCheckout(
       publicToken: true,
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
       customer: { select: { email: true } },
       shop: { select: { name: true } },
     },
@@ -184,7 +186,7 @@ export async function createInvoiceCheckout(
     };
   }
 
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+  const totals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
   if (totals.balanceCents <= 0) {
     return { ok: false, reason: "There is nothing left to pay on this invoice." };
   }
@@ -218,7 +220,11 @@ export async function createInvoiceCheckout(
       method: "POST",
       body: Object.fromEntries(params),
       account,
-      idempotencyKey: checkoutIdempotencyKey(invoice.id, totals.balanceCents),
+      idempotencyKey: await invoicePaymentKey(
+        checkoutIdempotencyKey(invoice.id, totals.balanceCents),
+        invoice.payments.length,
+        invoice.refunds.length,
+      ),
     },
   );
 

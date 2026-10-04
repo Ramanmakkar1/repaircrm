@@ -68,10 +68,11 @@ export async function GET(
   });
 
   if (!invoice) {
-    // Deliberately the same destination a bad magic link reaches: a stranger
-    // probing tokens learns nothing from the response about whether one exists.
-    const failed = new URL("/portal", appOrigin(request.url));
-    failed.searchParams.set("error", "invalid");
+    // The same destination for a bad token and a draft, so a stranger probing
+    // tokens learns nothing about whether one exists; the page talks about the
+    // payment link the customer actually tapped, not about signing in.
+    const failed = new URL("/portal/link-expired", appOrigin(request.url));
+    failed.searchParams.set("doc", "invoice");
     return NextResponse.redirect(failed);
   }
 

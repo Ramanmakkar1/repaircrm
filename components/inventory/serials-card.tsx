@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useActionState } from "react";
+import { ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,7 +13,6 @@ import {
 } from "@/app/(app)/inventory/actions";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,23 +22,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { parseSerialList } from "@/lib/serials";
 import { SERIAL_STATUS_META } from "./purchasing";
 import { SerialScanField } from "./serial-scan-field";
 
-/** One physical unit, flattened for the client (dates pre-formatted). */
+/** One physical unit, flattened for the client (dates pre-formatted in the shop's zone). */
 export type SerialRow = {
   id: string;
   serial: string;
@@ -47,20 +39,33 @@ export type SerialRow = {
   soldLabel: string | null;
   notes: string | null;
   invoice: { id: string; number: number } | null;
+  /** Who bought it, when the sale's invoice names a customer. */
+  soldTo?: string | null;
 };
 
 const EMPTY: InventoryActionState = {};
 
-/** The order the table groups by: what you can sell first, write-offs last. */
+/** The order the list groups by: what you can sell first, write-offs last. */
 const ORDER = ["IN_STOCK", "RETURNED", "DEFECTIVE", "SOLD"];
+
+/** The moves a unit can make from here, as words on buttons (SOLD only happens by selling). */
+const MOVES: { status: string; label: string; done: string }[] = [
+  { status: "IN_STOCK", label: "Back on the shelf", done: "Put back in stock." },
+  { status: "DEFECTIVE", label: "Faulty", done: "Marked faulty." },
+  { status: "RETURNED", label: "Sent back", done: "Marked as sent back." },
+];
 
 /**
  * Every unit of a serialized product, and where each one is.
  *
  * This is the whole point of serial tracking: "which handset did Mrs Alvarez
- * get?" is answered by the SOLD row's invoice link, and "how many can I
- * actually sell?" is the IN_STOCK count — which is also, by construction, the
- * product's on-hand level.
+ * get?" is answered on the sold unit's card ("Sold to Priscilla A. · Invoice
+ * #1008"), and "how many can I actually sell?" is the in-stock count — which is
+ * also, by construction, the product's stock level.
+ *
+ * Units are cards with their status in words and their moves as visible
+ * buttons (no hidden "..." menu). A box on top finds one serial (type it or
+ * scan it), and "Scan units in" adds a batch with a running count.
  */
 export function SerialsCard({
   productId,
@@ -70,6 +75,7 @@ export function SerialsCard({
   serials: SerialRow[];
 }) {
   const [busy, startTransition] = React.useTransition();
+  const [find, setFind] = React.useState("");
 
   const sorted = React.useMemo(
     () =>
@@ -80,6 +86,8 @@ export function SerialsCard({
     [serials],
   );
 
+  const needle = find.trim().toLowerCase();
+  const shown = needle ? sorted.filter((unit) => unit.serial.toLowerCase().includes(needle)) : sorted;
   const inStock = serials.filter((unit) => unit.status === "IN_STOCK").length;
 
   const setStatus = (serialId: string, status: string, label: string) =>
@@ -90,132 +98,109 @@ export function SerialsCard({
     });
 
   return (
-    <Card>
-      <CardHeader
-        icon={ICONS.serial}
-        title="Serial numbers"
-        description={
-          serials.length === 0
-            ? "Every unit of this product, tracked individually."
-            : `${inStock} of ${serials.length} unit${serials.length === 1 ? "" : "s"} in stock.`
-        }
-        action={<AddSerialsDialog productId={productId} />}
-      />
+    <section id="units" aria-labelledby="units-heading" className="flex scroll-mt-24 flex-col gap-4 rounded-2xl border border-border bg-surface p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 id="units-heading" className="flex items-center gap-2 text-xl font-semibold">
+            <ICONS.serial className="size-5 text-muted-foreground" aria-hidden />
+            Units by serial number
+          </h2>
+          <p className="text-base text-muted-foreground">
+            {serials.length === 0
+              ? "Each unit of this product is kept by its own serial number."
+              : `${inStock} of ${serials.length} ${serials.length === 1 ? "unit is" : "units are"} in stock.`}
+          </p>
+        </div>
+        <AddSerialsDialog productId={productId} />
+      </div>
 
-      <CardContent className="px-0 py-0">
-        {serials.length === 0 ? (
-          <EmptyState
-            icon={ICONS.serial}
-            title="No units yet"
-            hint="Add the serial numbers on the shelf, or receive a purchase order — either way each unit gets its own record."
-            action={<AddSerialsDialog productId={productId} />}
+      {serials.length > 0 ? (
+        <div className="relative">
+          <ScanBarcode aria-hidden className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-faint-foreground" />
+          <Input
+            value={find}
+            onChange={(event) => setFind(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+            }}
+            type="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="Find a serial number"
+            placeholder="Find a serial: type or scan it"
+            className="h-14 rounded-xl pl-12 font-mono text-base"
           />
-        ) : (
-          <Table>
-            <THead>
-              <Tr>
-                <Th>Serial</Th>
-                <Th>Status</Th>
-                <Th>Received</Th>
-                <Th>Sold</Th>
-                <Th className="w-12" />
-              </Tr>
-            </THead>
-            <TBody>
-              {sorted.map((unit) => {
-                // A status the vocabulary doesn't know about still gets a pill,
-                // in grey, showing whatever the database actually holds.
-                const meta = SERIAL_STATUS_META[unit.status] ?? {
-                  label: unit.status,
-                  tone: "neutral" as const,
-                };
-                return (
-                  <Tr key={unit.id}>
-                    <Td className="font-mono text-[13.5px] font-semibold text-foreground">
-                      {unit.serial}
-                      {unit.notes ? (
-                        <span className="ml-2 font-sans text-[12.5px] font-normal text-muted-foreground">
-                          {unit.notes}
-                        </span>
-                      ) : null}
-                    </Td>
-                    <Td>
-                      <StatusPill tone={meta.tone} label={meta.label} size="sm" />
-                    </Td>
-                    <Td className="text-[13.5px] text-muted-foreground">
-                      {unit.receivedLabel}
-                    </Td>
-                    <Td className="text-[13.5px] text-muted-foreground">
+        </div>
+      ) : null}
+
+      {serials.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border-strong px-4 py-6 text-center text-base text-muted-foreground">
+          No units yet. Scan them in here, or book in an order that has them.
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="rounded-xl border border-border px-4 py-6 text-center text-base text-muted-foreground">
+          No serial matches “{find.trim()}”.
+        </p>
+      ) : (
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2" aria-label="Units">
+          {shown.map((unit) => {
+            // A status the vocabulary doesn't know about still gets its word, in grey.
+            const meta = SERIAL_STATUS_META[unit.status] ?? { label: unit.status, tone: "neutral" as const };
+            const label = unit.status === "DEFECTIVE" ? "Faulty" : unit.status === "RETURNED" ? "Sent back" : meta.label;
+            return (
+              <li key={unit.id} className="flex flex-col gap-3 rounded-2xl border border-border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <span className="min-w-0 font-mono text-lg font-semibold [overflow-wrap:anywhere]">{unit.serial}</span>
+                  <StatusPill tone={meta.tone} label={label} />
+                </div>
+                <div className="flex flex-col gap-0.5 text-[15px] text-muted-foreground">
+                  <span>In since {unit.receivedLabel}</span>
+                  {unit.status === "SOLD" ? (
+                    <span>
+                      Sold{unit.soldTo ? ` to ${unit.soldTo}` : ""}
+                      {unit.soldLabel ? ` · ${unit.soldLabel}` : ""}
                       {unit.invoice ? (
-                        <Link
-                          href={`/invoices/${unit.invoice.id}`}
-                          className="font-semibold text-accent-soft-foreground tabular-nums hover:underline"
-                        >
-                          #{unit.invoice.number}
-                        </Link>
-                      ) : (
-                        (unit.soldLabel ?? "—")
-                      )}
-                    </Td>
-                    <Td className="text-right">
-                      {unit.status === "SOLD" ? null : (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={busy}
-                              aria-label={`Actions for ${unit.serial}`}
-                            >
-                              <ACTIONS.more />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            {unit.status !== "IN_STOCK" ? (
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setStatus(unit.id, "IN_STOCK", "Put back in stock.")
-                                }
-                              >
-                                Back in stock
-                              </DropdownMenuItem>
-                            ) : null}
-                            {unit.status !== "DEFECTIVE" ? (
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setStatus(unit.id, "DEFECTIVE", "Marked defective.")
-                                }
-                              >
-                                Mark defective
-                              </DropdownMenuItem>
-                            ) : null}
-                            {unit.status !== "RETURNED" ? (
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  setStatus(unit.id, "RETURNED", "Marked returned.")
-                                }
-                              >
-                                Mark returned
-                              </DropdownMenuItem>
-                            ) : null}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </Td>
-                  </Tr>
-                );
-              })}
-            </TBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+                        <>
+                          {" · "}
+                          <Link href={`/invoices/${unit.invoice.id}`} className="inline-flex min-h-12 items-center font-semibold text-foreground underline underline-offset-4">
+                            Invoice #{unit.invoice.number}
+                          </Link>
+                        </>
+                      ) : null}
+                    </span>
+                  ) : null}
+                  {unit.notes ? <span className="[overflow-wrap:anywhere]">{unit.notes}</span> : null}
+                </div>
+                {unit.status === "SOLD" ? null : (
+                  <div className="flex flex-wrap gap-2">
+                    {MOVES.filter((move) => move.status !== unit.status).map((move) => (
+                      <Button
+                        key={move.status}
+                        type="button"
+                        variant="outline"
+                        disabled={busy}
+                        className="h-12 px-4 text-[15px]"
+                        onClick={() => setStatus(unit.id, move.status, move.done)}
+                        aria-label={`${move.label}: ${unit.serial}`}
+                      >
+                        {move.label}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-/** Paste a batch of serials straight onto the shelf. */
+/** Scan a batch of serials straight onto the shelf, with a running count. */
 function AddSerialsDialog({ productId }: { productId: string }) {
   const [open, setOpen] = React.useState(false);
   const [pasted, setPasted] = React.useState("");
@@ -249,63 +234,62 @@ function AddSerialsDialog({ productId }: { productId: string }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <ACTIONS.add className="size-4" />
-          Add Serials
+        <Button variant="outline" className="h-12 px-5 text-base [&_svg]:size-5">
+          <ACTIONS.scan />
+          Scan units in
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add serial numbers</DialogTitle>
-          <DialogDescription>
-            Scan them one after another, or paste a packing slip. Each becomes a
-            unit in stock, and the total is recorded as a stock adjustment.
+          <DialogTitle className="text-xl">Scan units in</DialogTitle>
+          <DialogDescription className="text-[15px]">
+            Scan each unit, one after another, or paste the list from the packing slip.
+            Each one goes on the shelf as its own unit.
           </DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="flex flex-col gap-4">
           {state.error ? (
-            <p role="alert" className="text-[13px] font-medium text-destructive">
+            <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive-soft px-4 py-3 text-[15px] font-medium text-destructive">
               {state.error}
             </p>
           ) : null}
 
-          {/* The label row carries the scan control: each camera read appends
-              one more line to the box below, which is how a batch of units
-              gets captured without a laser gun. */}
           <SerialScanField
             id="add-serials"
             name="serials"
             label="Serial numbers"
-            rows={6}
             autoFocus
             value={pasted}
             onChange={setPasted}
             hint={
-              <p className="text-[13px] text-muted-foreground tabular-nums">
-                {count} unit{count === 1 ? "" : "s"} will be added.
+              <p className="rf-num text-base font-semibold tabular-nums" aria-live="polite">
+                {count === 0 ? "Nothing scanned yet" : `${count} ${count === 1 ? "unit" : "units"} scanned`}
               </p>
             }
           />
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="add-serials-note">Note</Label>
+            <Label htmlFor="add-serials-note" className="text-[15px]">
+              Where did they come from? <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
             <Input
               id="add-serials-note"
               name="note"
               maxLength={200}
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Optional — where these came from"
+              placeholder="A trade-in, a supplier…"
+              className="h-12 text-base"
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button type="button" variant="ghost" className="h-12 px-5 text-base" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <SubmitButton disabled={count === 0} pendingLabel="Saving…">
-              {`Add ${count || ""} unit${count === 1 ? "" : "s"}`}
+            <SubmitButton disabled={count === 0} pendingLabel="Saving…" className="h-12 px-6 text-base">
+              {count === 0 ? "Add units" : `Add ${count} ${count === 1 ? "unit" : "units"}`}
             </SubmitButton>
           </DialogFooter>
         </form>

@@ -47,11 +47,11 @@ export const ROLE_LABEL: Record<string, string> = {
   TECH: "Technician",
 };
 
-/** What each role is actually allowed to do — shown under the team table. */
+/** What each role is actually allowed to do — shown on the team screen and in the role picker. */
 export const ROLE_BLURB: Record<string, string> = {
   OWNER: "Full access, including settings, team and voiding invoices.",
   FRONT_DESK: "Intake, customers, billing and store credit. No settings.",
-  TECH: "Tickets, time and notes. No billing or settings.",
+  TECH: "Repairs, time and notes. No billing or settings.",
 };
 
 export type TeamMember = {
@@ -88,6 +88,7 @@ export type CannedResponseItem = {
 };
 
 export type ShopSettingsValues = {
+  logoUrl?: string | null;
   name: string;
   address1: string;
   address2: string;

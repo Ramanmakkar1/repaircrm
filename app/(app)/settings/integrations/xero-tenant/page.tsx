@@ -1,17 +1,12 @@
 import { redirect } from "next/navigation";
 
-import Link from "next/link";
-
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readSettings } from "@/lib/integrations/oauth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
 import { XeroTenantPicker } from "@/components/settings/xero-tenant-picker";
 
-export const metadata = { title: "Choose a Xero organisation · Repairs helper" };
+export const metadata = { title: "Choose your Xero books · Repairs helper" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -37,32 +32,16 @@ export default async function XeroTenantPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       {/*
-        A back button rather than a breadcrumb trail: breadcrumbs mean "this
-        screen is a record and here is where it sits". This screen is a step
-        you entered from the Integrations panel and leave the moment you pick.
+        One question, nothing else on the screen. The shell's Back leads out;
+        leaving without choosing writes nothing (the connection stays pending).
       */}
       <PageHeader
-        title="Choose a Xero organisation"
-        description="Your Xero login reaches more than one set of books. Pick the one this shop belongs in."
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/settings?tab=integrations">
-              <ACTIONS.back aria-hidden /> All integrations
-            </Link>
-          </Button>
-        }
+        title="Which Xero books are this shop's?"
+        description="Your Xero login opens more than one set of books. Tap the one this shop's invoices and payments should go to."
       />
-
-      <Card className="max-w-2xl">
-        <CardHeader>
-          <CardTitle>Organisations this login can reach</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <XeroTenantPicker tenants={tenants} />
-        </CardContent>
-      </Card>
+      <XeroTenantPicker tenants={tenants} />
     </div>
   );
 }

@@ -28,7 +28,7 @@ export async function setTicketLocationAction(
     where: { id: ticketId, shopId },
     data: { locationId: target },
   });
-  if (count === 0) return { error: "Ticket not found." };
+  if (count === 0) return { error: "Repair not found." };
 
   revalidatePath("/tickets");
   revalidatePath(`/tickets/${ticketId}`);

@@ -12,14 +12,9 @@
 
 import { requireOwner, csvResponse, type CsvValue } from "@/app/api/exports/_lib/csv";
 import { db } from "@/lib/db";
-import {
-  decimalHours,
-  parseDateParam,
-  secondsBetween,
-  toDateParam,
-  weekEnd,
-  weekStart,
-} from "../meta";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { dayKeyIn, wallTimeValue } from "@/lib/dashboard/zone";
+import { decimalHours, secondsBetween, shopWeek } from "../meta";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +23,12 @@ export async function GET(request: Request): Promise<Response> {
   if ("denied" in guard) return guard.denied;
 
   const url = new URL(request.url);
-  const now = new Date();
-  const start = weekStart(parseDateParam(url.searchParams.get("week") ?? undefined, now));
-  const end = weekEnd(start);
+  // The week, the dates and the times are the shop's own (Shop.timezone), whatever zone the server runs in.
+  const zone = await loadShopZone(guard.shopId);
+  const week = shopWeek(url.searchParams.get("week"), Date.now(), zone);
 
   const entries = await db.timeClockEntry.findMany({
-    where: { shopId: guard.shopId, clockInAt: { gte: start, lte: end } },
+    where: { shopId: guard.shopId, clockInAt: { gte: week.from, lt: week.toExclusive } },
     orderBy: [{ clockInAt: "asc" }],
     select: {
       clockInAt: true,
@@ -55,26 +50,19 @@ export async function GET(request: Request): Promise<Response> {
     rows.push([
       entry.user.name,
       entry.user.email,
-      localDate(entry.clockInAt),
-      localTime(entry.clockInAt),
-      open ? "" : localTime(entry.clockOutAt as Date),
+      localDate(entry.clockInAt, zone),
+      wallTimeValue(entry.clockInAt.getTime(), zone),
+      open ? "" : wallTimeValue((entry.clockOutAt as Date).getTime(), zone),
       open ? "" : decimalHours(secondsBetween(entry.clockInAt, entry.clockOutAt as Date)),
       entry.note ?? "",
     ]);
   }
 
-  return csvResponse(rows, `time-clock-${toDateParam(start)}.csv`);
+  return csvResponse(rows, `time-clock-${week.monday}.csv`);
 }
 
-/** MM/DD/YYYY in the shop's own clock — the timesheet is a local document. */
-function localDate(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${month}/${day}/${date.getFullYear()}`;
-}
-
-function localTime(date: Date): string {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+/** MM/DD/YYYY on the shop's own calendar — the timesheet is a local document. */
+function localDate(date: Date, zone: string): string {
+  const [year, month, day] = dayKeyIn(date.getTime(), zone).split("-");
+  return `${month}/${day}/${year}`;
 }

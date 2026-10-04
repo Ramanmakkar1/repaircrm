@@ -36,6 +36,7 @@ export type AssetOption = Option & { type?: string; make?: string; model?: strin
 export type WarrantyOption = Option & { hint: string };
 
 export type CheckInContext = {
+  timeZone?: string;
   customers: SearchCustomer[];
   assetsByCustomer: Record<string, AssetOption[]>;
   warrantiesByCustomer: Record<string, WarrantyOption[]>;
@@ -367,10 +368,10 @@ export function withProblem(state: CheckInState, problemType: string): CheckInSt
 }
 
 /** The pickup tiles. Choosing the same one again clears it, and the shop's own target applies. */
-export function withPromised(state: CheckInState, choice: Exclude<PromisedChoice, "">, now: Date = new Date()): CheckInState {
+export function withPromised(state: CheckInState, choice: Exclude<PromisedChoice, "">, now: Date = new Date(), zone?: string): CheckInState {
   if (state.promised.choice === choice) return { ...state, promised: { choice: "", local: "" } };
-  if (choice === "pick") return { ...state, promised: { choice, local: state.promised.local || quickPromisedLocal(1, now) } };
-  return { ...state, promised: { choice, local: quickPromisedLocal(PROMISED_DAYS[choice], now) } };
+  if (choice === "pick") return { ...state, promised: { choice, local: state.promised.local || quickPromisedLocal(1, now, zone) } };
+  return { ...state, promised: { choice, local: quickPromisedLocal(PROMISED_DAYS[choice], now, zone) } };
 }
 
 export const PROMISED_DAYS = { today: 0, tomorrow: 1, three: 3, week: 7 } as const;
@@ -384,9 +385,9 @@ export const PROMISED_TILES: { choice: Exclude<PromisedChoice, "">; label: strin
 
 /** "Sat, Oct 4, 5:00 PM", or "" for no date. */
 export function promisedLabel(local: string): string {
-  const date = local ? new Date(local) : null;
+  const date = local ? new Date(`${local}Z`) : null;
   if (!date || !Number.isFinite(date.getTime())) return "";
-  return date.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return date.toLocaleString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 // ---------------------------------------------------------------------------
@@ -571,7 +572,7 @@ export function nextLabel(state: CheckInState, step: number): string {
  */
 export function fieldValues(
   state: CheckInState,
-  ctx: Pick<CheckInContext, "assetsByCustomer" | "locations" | "checklists">,
+  ctx: Pick<CheckInContext, "assetsByCustomer" | "locations" | "checklists" | "timeZone">,
 ): Record<string, string> {
   const values: Record<string, string> = { customerId: state.customerId };
 
@@ -600,7 +601,7 @@ export function fieldValues(
   if (state.termsAccepted) values.termsAccepted = "on";
   values.priority = state.priority;
   values.assignedToId = state.assignedToId;
-  values.promisedAt = promisedIso(state.promised.local);
+  values.promisedAt = promisedIso(state.promised.local, ctx.timeZone);
   if (ctx.locations.length > 1 && state.locationId) values.locationId = state.locationId;
   if (ctx.checklists.length > 0) values.checklistTemplateId = state.checklistTemplateId;
   if (state.isWarranty && state.customerId && state.customerId !== NEW) values.warrantyInvoiceLineId = state.warrantyLineId;

@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Check, Loader2 } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { chooseXeroTenantAction } from "@/app/(app)/settings/integration-actions";
 import { Button } from "@/components/ui/button";
 import { ACTIONS } from "@/components/ui/icons";
-import { cn } from "@/components/ui/cn";
 
 const ConnectIcon = ACTIONS.connect;
 
@@ -26,76 +25,58 @@ export function XeroTenantPicker({
   tenants: { tenantId: string; tenantName: string }[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = React.useState(tenants[0]?.tenantId ?? "");
-  const [busy, setBusy] = React.useState(false);
+  const [busy, setBusy] = React.useState<string | null>(null);
 
-  async function confirm() {
-    setBusy(true);
-    const result = await chooseXeroTenantAction(selected);
-    setBusy(false);
+  async function choose(tenantId: string) {
+    setBusy(tenantId);
+    const result = await chooseXeroTenantAction(tenantId);
     if (!result.ok) {
+      setBusy(null);
       toast.error(result.error);
       return;
     }
-    toast.success("Xero connected.");
+    toast.success("Xero is connected.");
     router.push("/settings?tab=integrations&connected=xero");
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <ul className="flex flex-col gap-2.5">
-        {tenants.map((tenant) => {
-          const active = tenant.tenantId === selected;
-          return (
-            <li key={tenant.tenantId}>
-              <button
-                type="button"
-                onClick={() => setSelected(tenant.tenantId)}
-                aria-pressed={active}
-                className={cn(
-                  "flex w-full items-center gap-3.5 rounded-md border px-4 py-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  active
-                    ? "border-accent bg-accent-soft"
-                    : "border-border bg-surface hover:bg-surface-hover",
-                )}
+    <div className="flex flex-col gap-4">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {tenants.map((tenant) => (
+          <li
+            key={tenant.tenantId}
+            className="flex min-h-28 flex-col justify-between gap-4 rounded-2xl border border-border bg-surface p-4"
+          >
+            <span className="flex min-w-0 items-center gap-3.5">
+              <span
+                aria-hidden
+                className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-surface-hover text-foreground"
               >
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-md",
-                    active
-                      ? "bg-accent text-accent-foreground"
-                      : "bg-surface-hover text-muted-foreground",
-                  )}
-                >
-                  {active ? (
-                    <Check className="size-4" strokeWidth={2.5} />
-                  ) : (
-                    <Building2 className="size-4" strokeWidth={2.25} />
-                  )}
-                </span>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-[15px] font-semibold text-foreground">
-                    {tenant.tenantName}
-                  </span>
-                  <span className="truncate font-mono text-[12px] text-muted-foreground">
-                    {tenant.tenantId}
-                  </span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
+                <Building2 className="size-7" strokeWidth={1.6} />
+              </span>
+              <span className="min-w-0 text-lg font-semibold leading-tight [overflow-wrap:anywhere]">
+                {tenant.tenantName}
+              </span>
+            </span>
+            <Button
+              className="h-12 w-full text-base"
+              disabled={busy !== null}
+              onClick={() => choose(tenant.tenantId)}
+              aria-label={`Use ${tenant.tenantName}`}
+            >
+              {busy === tenant.tenantId ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <ConnectIcon aria-hidden />
+              )}
+              {busy === tenant.tenantId ? "Connecting…" : "Use this one"}
+            </Button>
+          </li>
+        ))}
       </ul>
-
-      <div className="flex items-center gap-3">
-        <Button onClick={confirm} disabled={busy || !selected}>
-          {busy ? <Loader2 className="animate-spin" /> : <ConnectIcon aria-hidden />}
-          {busy ? "Connecting…" : "Use this organisation"}
-        </Button>
-        <span className="text-[14px] text-muted-foreground">
-          You can switch later by reconnecting Xero.
-        </span>
-      </div>
+      <p className="text-[15px] text-muted-foreground">
+        Not sure? Pick the one your accountant uses for this shop. You can change it later by connecting Xero again.
+      </p>
     </div>
   );
 }

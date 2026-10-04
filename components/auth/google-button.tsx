@@ -51,7 +51,7 @@ export function GoogleMark({ className }: { className?: string }) {
  */
 const GOOGLE_BUTTON = [
   "inline-flex w-full items-center justify-center gap-3 rounded-md",
-  "h-11 px-4 text-[15px] font-semibold",
+  "h-12 px-4 text-[15px] font-semibold",
   "border border-[#dadce0] bg-white text-[#3c4043]",
   "transition-colors hover:bg-[#f8f9fa] active:bg-[#f1f3f4]",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4285f4] focus-visible:ring-offset-2",

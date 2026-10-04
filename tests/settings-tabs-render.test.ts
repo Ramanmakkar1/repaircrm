@@ -159,17 +159,17 @@ function render(options: { role: string; activeTab: string; simple: boolean }) {
 }
 
 describe("SettingsTabs", () => {
-  it("Easy mode: pill navigation, a one-line explanation, no side rail", () => {
+  it("Easy mode: an open area has All settings, its own title and line, and no side rail", () => {
     const html = render({ role: "OWNER", activeTab: "shop", simple: true });
-    expect(html).toContain('aria-label="Settings areas"');
-    expect(html).toContain("min-h-11");
-    // The screen's own name stays for screen readers, the line says what it is for.
-    expect(html).toContain('<h2 class="sr-only">Shop details</h2>');
-    expect(html).toContain("Your shop&#x27;s name, address, timezone, tax rates and labour rate.");
+    expect(html).toContain("All settings");
+    expect(html).toMatch(/<h1[^>]*>Shop details<\/h1>/);
+    expect(html).toContain("Your shop&#x27;s name, address, time zone, sales tax and labour rate.");
     expect(html).not.toContain("lg:sticky");
     // The same forms are still there.
     expect(html).toContain('name="timezone"');
-    expect(html).toContain("Shop identity");
+    expect(html).toContain("Your shop");
+    // No hub while an area is open.
+    expect(html).not.toContain('aria-label="Settings areas"');
   });
 
   it("Easy mode restyles card headers from one place and adds no side stripes", () => {
@@ -186,19 +186,19 @@ describe("SettingsTabs", () => {
     expect(html).not.toContain('aria-label="Settings areas"');
     for (const label of [
       "Shop details",
-      "Workflow",
+      "Devices &amp; repair steps",
       "Locations",
-      "Canned responses",
+      "Saved replies",
       "Team",
       "My profile",
-      "Payments",
-      "Connect",
-      "Messaging",
+      "Getting paid",
+      "Shop link",
+      "Emails &amp; texts",
       "Check-in &amp; reviews",
-      "Integrations",
-      "API &amp; webhooks",
-      "Automation",
-      "Audit log",
+      "Accounting",
+      "Developer access",
+      "Reminders &amp; follow-ups",
+      "Activity history",
     ]) {
       expect(html).toContain(`>${label}</button>`);
     }
@@ -206,22 +206,30 @@ describe("SettingsTabs", () => {
     expect(html).not.toContain("before:");
   });
 
-  it("opens the section ?tab= names, and the first one for anything else", () => {
-    expect(render({ role: "OWNER", activeTab: "shop", simple: true })).toContain("Shop identity");
-    expect(render({ role: "OWNER", activeTab: "nonsense", simple: true })).toContain("Shop identity");
+  it("opens the area ?tab= names; anything else opens the hub (Easy) or the first area (Full)", () => {
+    expect(render({ role: "OWNER", activeTab: "shop", simple: true })).toContain("Your shop");
+    const hub = render({ role: "OWNER", activeTab: "nonsense", simple: true });
+    expect(hub).toContain('aria-label="Settings areas"');
+    expect(hub).toContain('href="/settings?tab=shop"');
+    expect(render({ role: "OWNER", activeTab: "nonsense", simple: false })).toContain("Your shop");
   });
 
-  it("gives a technician three sections, My profile first, in either mode", () => {
-    for (const simple of [true, false]) {
-      const html = render({ role: "TECH", activeTab: "payments", simple });
-      expect(html).toContain("Your details");
-      for (const label of ["My profile", "Canned responses", "Messaging"]) {
-        expect(html).toContain(`>${label}</button>`);
-      }
-      // Owner-only sections are not rendered at all.
-      for (const label of ["Team", "Payments", "Audit log", "Workflow"]) {
-        expect(html).not.toContain(`>${label}</button>`);
-      }
+  it("gives a technician three areas, My profile first, in either mode", () => {
+    const easy = render({ role: "TECH", activeTab: "payments", simple: true });
+    // Payments is not theirs, so they land on their hub of three.
+    expect(easy.match(/data-hub-tile="/g)).toHaveLength(3);
+    for (const tab of ["profile", "canned", "messaging"]) expect(easy).toContain(`href="/settings?tab=${tab}"`);
+    expect(easy.indexOf("tab=profile")).toBeLessThan(easy.indexOf("tab=canned"));
+    for (const tab of ["team", "payments", "audit", "workflow"]) expect(easy).not.toContain(`tab=${tab}"`);
+
+    const full = render({ role: "TECH", activeTab: "payments", simple: false });
+    expect(full).toContain("Your details");
+    for (const label of ["My profile", "Saved replies", "Emails &amp; texts"]) {
+      expect(full).toContain(`>${label}</button>`);
+    }
+    // Owner-only sections are not rendered at all.
+    for (const label of ["Team", "Getting paid", "Activity history", "Devices &amp; repair steps"]) {
+      expect(full).not.toContain(`>${label}</button>`);
     }
   });
 });

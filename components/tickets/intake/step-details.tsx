@@ -89,7 +89,7 @@ export function DetailsStep({
       <Block title="Pickup promised">
         <div role="group" aria-label="Pickup promised" className="grid grid-cols-3 gap-3">
           {PROMISED_TILES.map((tile) => (
-            <TextTile key={tile.choice} title={tile.label} selected={state.promised.choice === tile.choice} onClick={() => setState((current) => withPromised(current, tile.choice))} />
+            <TextTile key={tile.choice} title={tile.label} selected={state.promised.choice === tile.choice} onClick={() => setState((current) => withPromised(current, tile.choice, new Date(), ctx.timeZone))} />
           ))}
         </div>
         {state.promised.choice === "pick" ? (
@@ -105,7 +105,7 @@ export function DetailsStep({
         ) : null}
         <p className="text-[13px] text-muted-foreground" aria-live="polite">
           {when ? <strong className="font-semibold text-foreground">Promised for {when}. </strong> : null}
-          {slaHint ?? "Leave empty and the shop's usual time applies."} Times use this device&apos;s timezone.
+          {slaHint ?? "Leave empty and the shop's usual time applies."} Times use the shop&apos;s clock.
         </p>
       </Block>
 

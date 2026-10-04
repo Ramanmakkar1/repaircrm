@@ -48,6 +48,7 @@ export function CustomerStep({
   onChosen,
   onNext,
   issues,
+  allowNew = true,
 }: {
   state: BillState;
   ctx: BillContext;
@@ -56,6 +57,11 @@ export function CustomerStep({
   onChosen: () => void;
   onNext: () => void;
   issues: Issue[];
+  /**
+   * Off when changing a saved document: its save moves it to someone already
+   * on file, and a brand-new person is made only with a new document.
+   */
+  allowNew?: boolean;
 }) {
   const [query, setQuery] = React.useState("");
   const [more, setMore] = React.useState(false);
@@ -197,7 +203,7 @@ export function CustomerStep({
             if (event.key !== "Enter" || event.nativeEvent.isComposing || !typed) return;
             event.preventDefault();
             if (matches[0]) pick(matches[0].id);
-            else startNew(typed);
+            else if (allowNew) startNew(typed);
           }}
           placeholder="Name or phone number"
           autoComplete="off"
@@ -222,6 +228,7 @@ export function CustomerStep({
         <p className="px-1 text-base text-muted-foreground">Start typing a name or a phone number.</p>
       ) : null}
 
+      {allowNew ? (
       <button
         type="button"
         onClick={() => startNew(typed)}
@@ -235,6 +242,7 @@ export function CustomerStep({
           <span className="text-[15px] text-muted-foreground">Just a name or a phone number</span>
         </span>
       </button>
+      ) : null}
 
       {!typed && recent.length > 0 ? (
         <div className="flex flex-col gap-2">

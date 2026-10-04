@@ -1,558 +1,536 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import SignatureCanvas from "react-signature-canvas";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, LayoutGrid, Loader2, Package, Pencil } from "lucide-react";
 
+import { PublicShell } from "@/components/public/shell";
+import { BIG_INPUT, HUGE_BUTTON } from "@/components/public/sizes";
+import { ChoiceChips, StepBar, StepHeader } from "@/components/public/steps";
+import { problemOptions, problemVisualFor } from "@/components/tickets/intake/flow";
+import { ChipButton, IconTile, IssueLines, MoreTile, MoreToggle, PhotoTile } from "@/components/tickets/intake/tiles";
+import { PROBLEM_ICONS } from "@/components/tickets/intake/visuals";
+import type { CheckinFieldKey } from "@/components/settings/checkin-meta";
 import { Button } from "@/components/ui/button";
-import { ACTIONS } from "@/components/ui/icons";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/components/ui/cn";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { CheckinFieldKey } from "@/components/settings/checkin-meta";
-import { CHECKIN_FIELD_HINT, CHECKIN_FIELD_LABEL } from "@/components/settings/checkin-meta";
+import { easyIntakeProfile } from "@/lib/device-intake";
+import { FIRST_SCREEN_BOXES } from "@/lib/intake-options";
+import { fewProblems, problemHint, type PublicShop } from "@/lib/portal-display";
 import { submitCheckinAction } from "./actions";
-
-const SendIcon = ACTIONS.send;
+import {
+  CHECKIN_STEPS,
+  EMPTY_CHECKIN,
+  LAST_CHECKIN_STEP,
+  checkinDeviceLabel,
+  checkinFields,
+  checkinIssues,
+  firstOpenStep,
+  isOtherKind,
+  stepForError,
+  type CheckinState,
+} from "./flow";
 
 /**
- * The form a walk-in fills in on their own phone, or on the tablet by the door.
+ * The check-in a walk-in does on their own phone, or on the tablet by the door,
+ * built like the shop's own New repair screen: one question per screen, big
+ * picture boxes, the choices so far as chips on top, and one big button at the
+ * bottom.
  *
- * It is one long single column with big targets and no jargon: the person
- * filling it in is holding a broken laptop, not reading a manual. Kiosk mode
- * scales the type and the controls up, drops every link off the page, and
- * returns to a blank form eight seconds after a successful check-in so the next
- * person in the queue is not looking at somebody else's ticket number.
+ *   1 What are you leaving with us?   device boxes (the shop's own list)
+ *   2 What is wrong with it?          problem boxes, plus an optional note
+ *   3 Who are you?                    name, mobile, email
+ *   4 Sign and you are done           terms, tick, signature, "Check me in"
+ *
+ * Kiosk mode (?kiosk=1) drops every link off the page and hands the tablet back
+ * to the queue on its own a few seconds after a check-in.
  */
 
-const KIOSK_RESET_MS = 8000;
+const KIOSK_RESET_SECONDS = 8;
+
+export type CheckinKind = { label: string; type: string; photo: string | null };
 
 export function CheckinForm({
   slug,
-  shopName,
-  shopPhone,
-  deviceTypes,
+  shop,
+  kinds,
   problemTypes,
+  problemPictures,
   terms,
   fields,
   kiosk,
+  hubLive,
 }: {
   slug: string;
-  shopName: string;
-  shopPhone: string | null;
-  deviceTypes: string[];
+  shop: PublicShop;
+  kinds: CheckinKind[];
   problemTypes: string[];
+  problemPictures: Record<string, string>;
   terms: string;
   fields: Record<CheckinFieldKey, boolean>;
   kiosk: boolean;
+  /** The shop page and its "check my repair" box are on, so a returning customer can be sent there. */
+  hubLive: boolean;
 }) {
-  const [error, setError] = React.useState<string | null>(null);
+  const [state, setState] = React.useState<CheckinState>(EMPTY_CHECKIN);
+  const [step, setStep] = React.useState(0);
+  const [issues, setIssues] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
-  const [ticketNumber, setTicketNumber] = React.useState<number | null>(null);
-  const [signature, setSignature] = React.useState("");
-  const [accepted, setAccepted] = React.useState(false);
+  const [repairNumber, setRepairNumber] = React.useState<number | null>(null);
+  const [allKinds, setAllKinds] = React.useState(false);
+  const [moreDetails, setMoreDetails] = React.useState(false);
+  const [secondsLeft, setSecondsLeft] = React.useState(KIOSK_RESET_SECONDS);
 
   const formRef = React.useRef<HTMLFormElement | null>(null);
   const padRef = React.useRef<SignatureCanvas | null>(null);
+  const titleRef = React.useRef<HTMLHeadingElement | null>(null);
+  const moved = React.useRef(false);
+
+  const update = (patch: Partial<CheckinState>) => setState((current) => ({ ...current, ...patch }));
+  const kind = kinds.find((item) => item.type === state.kindType);
+  const deviceLabel = checkinDeviceLabel(state, kind?.label ?? "");
+
+  // A new question gets the focus and the top of the screen.
+  React.useEffect(() => {
+    if (!moved.current) return;
+    titleRef.current?.focus();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   const reset = React.useCallback(() => {
-    setTicketNumber(null);
-    setError(null);
-    setSignature("");
-    setAccepted(false);
+    setState(EMPTY_CHECKIN);
+    setStep(0);
+    setIssues([]);
+    setRepairNumber(null);
+    setAllKinds(false);
+    setMoreDetails(false);
+    setSecondsLeft(KIOSK_RESET_SECONDS);
     padRef.current?.clear();
     formRef.current?.reset();
+    moved.current = false;
+    window.scrollTo({ top: 0 });
   }, []);
 
-  // Kiosk only: hand the tablet back to the queue on its own.
+  // Coming back to the last step: the pad is new, so draw the signature already given back onto it.
   React.useEffect(() => {
-    if (!kiosk || ticketNumber === null) return;
-    const timer = window.setTimeout(reset, KIOSK_RESET_MS);
+    if (step !== LAST_CHECKIN_STEP || !state.signature) return;
+    padRef.current?.fromDataURL(state.signature);
+    // Only when the step is entered; a new stroke updates state.signature itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // Kiosk only: count down, then hand the tablet back to the queue.
+  React.useEffect(() => {
+    if (!kiosk || repairNumber === null) return;
+    const timer = window.setTimeout(() => {
+      if (secondsLeft <= 1) reset();
+      else setSecondsLeft((left) => left - 1);
+    }, 1000);
     return () => window.clearTimeout(timer);
-  }, [kiosk, ticketNumber, reset]);
+  }, [kiosk, repairNumber, secondsLeft, reset]);
 
-  async function submit(formData: FormData) {
-    setBusy(true);
-    formData.set("signature", signature);
-    const result = await submitCheckinAction(slug, formData);
-    setBusy(false);
+  function go(next: number) {
+    moved.current = true;
+    setIssues([]);
+    setStep(next);
+  }
 
-    if (!result.ok) {
-      setError(result.error);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+  function next() {
+    const found = checkinIssues(step, state);
+    if (found.length > 0) {
+      setIssues(found);
       return;
     }
-    setError(null);
-    setTicketNumber(result.ticketNumber);
+    go(step + 1);
+  }
+
+  async function send() {
+    const open = firstOpenStep(state);
+    if (open !== null) {
+      if (open !== step) go(open);
+      setIssues(checkinIssues(open, state));
+      return;
+    }
+    const form = new FormData();
+    for (const [key, value] of Object.entries(checkinFields(state, fields))) form.set(key, value);
+    // The honeypot: a person never sees it; a bot fills it and is quietly ignored.
+    form.set("website", String(new FormData(formRef.current ?? undefined).get("website") ?? ""));
+
+    setBusy(true);
+    const result = await submitCheckinAction(slug, form);
+    setBusy(false);
+    if (!result.ok) {
+      const at = stepForError(result.error);
+      if (at !== step) go(at);
+      setIssues([result.error]);
+      return;
+    }
+    setIssues([]);
+    setSecondsLeft(KIOSK_RESET_SECONDS);
+    setRepairNumber(result.ticketNumber);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  if (ticketNumber !== null) {
+  // ------------------------------------------------------------------ done --
+  if (repairNumber !== null) {
     return (
-      <Shell shopName={shopName} shopPhone={shopPhone} kiosk={kiosk}>
-        <div className="flex flex-col items-center gap-5 rounded-2xl border border-border bg-surface px-6 py-14 text-center shadow-sm">
-          <span className="flex size-16 items-center justify-center rounded-full bg-status-resolved-bg">
-            <CheckCircle2 className="size-8 text-status-resolved-fg" />
-          </span>
+      <PublicShell shop={shop} eyebrow="Device check-in" kiosk={kiosk} legalNewTab>
+        <section className="flex flex-col items-center gap-5 rounded-2xl border border-border bg-surface px-6 py-12 text-center">
+          <CheckCircle2 className="size-16 text-status-resolved" aria-hidden />
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">You&rsquo;re checked in</h1>
-            <p className="text-[15px] text-muted-foreground">
-              Keep this number handy — it&rsquo;s how we&rsquo;ll find your device.
+            <h1 className="text-[32px] font-bold leading-tight tracking-tight">You are checked in</h1>
+            <p className="text-[17px] text-muted-foreground">
+              {kiosk ? "Please take a seat. We will call your name." : `${shop.name} has your ${deviceLabel || "device"}.`}
             </p>
           </div>
-          <div className="rounded-xl bg-accent-soft px-8 py-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent-soft-foreground">
-              Your ticket
-            </div>
-            <div className="font-mono text-4xl font-bold tabular-nums text-accent-soft-foreground">
-              #{ticketNumber}
-            </div>
+          <div className="rounded-2xl bg-surface-hover px-10 py-5">
+            <div className="text-[15px] font-semibold text-muted-foreground">Your repair number</div>
+            <div className="text-5xl font-bold tabular-nums">#{repairNumber}</div>
           </div>
-          <p className="max-w-sm text-[14px] leading-relaxed text-muted-foreground">
-            We&rsquo;ve sent a confirmation with a link you can use to follow the
-            repair. {shopName} will be in touch before any chargeable work starts.
+          <p className="max-w-md text-[15px] leading-relaxed text-muted-foreground">
+            We sent you a message with a link to follow your repair. {shop.name} will contact you before any work that costs money.
           </p>
-          <Button variant="outline" size="lg" onClick={reset}>
-            Check in another device
-          </Button>
-        </div>
-      </Shell>
+          {kiosk ? (
+            <div className="flex w-full max-w-sm flex-col gap-2">
+              <Button type="button" size="lg" className={HUGE_BUTTON} onClick={reset}>
+                Done
+              </Button>
+              <p role="timer" aria-live="off" className="text-[14px] text-muted-foreground">
+                This screen clears by itself in {secondsLeft} seconds.
+              </p>
+            </div>
+          ) : (
+            <div className="flex w-full max-w-sm flex-col gap-2">
+              <Button asChild size="lg" className={HUGE_BUTTON}>
+                <Link href={`/portal?shop=${slug}`}>Follow my repair</Link>
+              </Button>
+              <Button type="button" size="lg" variant="outline" className="h-12 min-h-12 w-full rounded-xl text-[15px]" onClick={reset}>
+                Check in another device
+              </Button>
+            </div>
+          )}
+        </section>
+      </PublicShell>
     );
   }
 
-  return (
-    <Shell shopName={shopName} shopPhone={shopPhone} kiosk={kiosk}>
-      <Heading
-        kiosk={kiosk}
-        title="Check in a device"
-        description={`Tell ${shopName} what you're leaving with them and what's wrong with it — it takes about a minute.`}
-      />
+  // ------------------------------------------------------------------ steps --
+  const shownKinds = allKinds || kinds.length <= FIRST_SCREEN_BOXES ? kinds : kinds.slice(0, FIRST_SCREEN_BOXES - 1);
+  const makes = state.kindType && !isOtherKind(state) ? easyIntakeProfile(state.kindType).makes.slice(0, 8) : [];
+  const problems = fewProblems(problemOptions(isOtherKind(state) ? state.otherText : state.kindType, problemTypes));
+  const tileGrid = cn("grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4", kiosk && "sm:gap-4");
+  const field = cn(BIG_INPUT, kiosk && "h-14 text-lg");
+  const hasMore = fields.serial || fields.unlockCode;
 
+  return (
+    <PublicShell shop={shop} eyebrow="Device check-in" kiosk={kiosk} legalNewTab hideContact={kiosk}>
       <form
         ref={formRef}
-        action={submit}
-        className={cn("flex flex-col", kiosk ? "gap-7" : "gap-6")}
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (step === LAST_CHECKIN_STEP) void send();
+          else next();
+        }}
+        className="relative flex flex-col gap-5"
       >
-        {error ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm font-medium text-destructive"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
-
-        {/* Honeypot: off-screen, not `display:none`, so bots that skip hidden
+        {/* Honeypot: off-screen, not display:none, so bots that skip hidden
             inputs still fill it in. Never shown to a person. */}
         <div aria-hidden className="absolute left-[-9999px] top-0 h-0 w-0 overflow-hidden">
           <label htmlFor="website">Website</label>
           <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
         </div>
 
-        <Section title="About you" kiosk={kiosk}>
-          <Row>
-            <FieldBox label="Your name" htmlFor="name" required kiosk={kiosk}>
-              <Input
-                id="name"
-                name="name"
-                required
-                maxLength={120}
-                autoComplete="name"
-                placeholder="Ada Lovelace"
-                className={kiosk ? "h-14 text-base" : undefined}
-              />
-            </FieldBox>
-          </Row>
-          <Row>
-            <FieldBox
-              label="Email"
-              htmlFor="email"
-              hint="We'll send your ticket link here."
-              kiosk={kiosk}
-            >
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                maxLength={160}
-                autoComplete="email"
-                placeholder="you@example.com"
-                className={kiosk ? "h-14 text-base" : undefined}
-              />
-            </FieldBox>
-            <FieldBox
-              label="Mobile"
-              htmlFor="phone"
-              hint="Either one is fine — we need one way to reach you."
-              kiosk={kiosk}
-            >
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                maxLength={40}
-                autoComplete="tel"
-                placeholder="(512) 555-0142"
-                className={kiosk ? "h-14 text-base" : undefined}
-              />
-            </FieldBox>
-          </Row>
-        </Section>
+        <StepHeader
+          step={step}
+          total={CHECKIN_STEPS.length}
+          title={CHECKIN_STEPS[step].title}
+          hint={step === 0 ? `Tell ${shop.name} what you are leaving and what is wrong. It takes about a minute.` : CHECKIN_STEPS[step].hint}
+          titleRef={titleRef}
+        />
+        <ChoiceChips items={[step > 0 ? deviceLabel : "", step > 1 ? state.problem : "", step > 2 ? state.name.trim() : ""]} />
+        <IssueLines messages={issues} />
 
-        <Section title="The device" kiosk={kiosk}>
-          <Row>
-            <FieldBox label="What is it?" htmlFor="deviceType" required kiosk={kiosk}>
-              <Input
-                id="deviceType"
-                name="deviceType"
-                required
-                maxLength={60}
-                list="rf-device-types"
-                placeholder="Laptop, phone, tablet…"
-                className={kiosk ? "h-14 text-base" : undefined}
+        {/* ------------------------------------------------ 1. the device -- */}
+        {step === 0 ? (
+          state.kindType ? (
+            <div className="flex flex-col gap-5">
+              <Chosen
+                label={kind?.label ?? state.kindType}
+                onChange={() => update({ kindType: "", otherText: "", make: "", model: "" })}
               />
-              <datalist id="rf-device-types">
-                {deviceTypes.map((type) => (
-                  <option key={type} value={type} />
-                ))}
-              </datalist>
-            </FieldBox>
-            {fields.make ? (
-              <FieldBox
-                label={CHECKIN_FIELD_LABEL.make}
-                htmlFor="make"
-                hint={CHECKIN_FIELD_HINT.make}
-                kiosk={kiosk}
-              >
-                <Input
-                  id="make"
-                  name="make"
-                  maxLength={60}
-                  className={kiosk ? "h-14 text-base" : undefined}
-                />
-              </FieldBox>
-            ) : null}
-          </Row>
-          {/* A shop that hides both of these would otherwise render an empty
-              grid — an invisible row still eats a 16px gap. */}
-          {fields.model || fields.serial ? (
-            <Row>
-              {fields.model ? (
-                <FieldBox
-                  label={CHECKIN_FIELD_LABEL.model}
-                  htmlFor="model"
-                  hint={CHECKIN_FIELD_HINT.model}
-                  kiosk={kiosk}
-                >
+
+              {isOtherKind(state) ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="checkin-device" className="text-[15px]">What is it?</Label>
                   <Input
-                    id="model"
-                    name="model"
+                    id="checkin-device"
+                    value={state.otherText}
                     maxLength={60}
-                    className={kiosk ? "h-14 text-base" : undefined}
+                    autoComplete="off"
+                    onChange={(event) => update({ otherText: event.target.value })}
+                    placeholder="For example: e-scooter, smart speaker"
+                    className={field}
                   />
-                </FieldBox>
+                </div>
               ) : null}
-              {fields.serial ? (
-                <FieldBox
-                  label={CHECKIN_FIELD_LABEL.serial}
-                  htmlFor="serial"
-                  hint={CHECKIN_FIELD_HINT.serial}
-                  kiosk={kiosk}
-                >
+
+              {fields.make && makes.length > 0 ? (
+                <div role="group" aria-labelledby="checkin-brand" className="flex flex-col gap-2">
+                  <span id="checkin-brand" className="text-[15px] font-semibold">
+                    Brand <span className="font-normal text-muted-foreground">(if you know it)</span>
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {makes.map((make) => (
+                      <ChipButton key={make} selected={state.make === make} onClick={() => update({ make: state.make === make ? "" : make })}>
+                        {make}
+                      </ChipButton>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {fields.make && makes.length === 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="checkin-make" className="text-[15px]">
+                    Brand <span className="font-normal text-muted-foreground">(if you know it)</span>
+                  </Label>
+                  <Input id="checkin-make" value={state.make} maxLength={60} onChange={(event) => update({ make: event.target.value })} className={field} />
+                </div>
+              ) : null}
+
+              {fields.model ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="checkin-model" className="text-[15px]">
+                    Model <span className="font-normal text-muted-foreground">(if you know it)</span>
+                  </Label>
                   <Input
-                    id="serial"
-                    name="serial"
-                    maxLength={80}
-                    className={kiosk ? "h-14 text-base" : undefined}
+                    id="checkin-model"
+                    value={state.model}
+                    maxLength={60}
+                    autoComplete="off"
+                    onChange={(event) => update({ model: event.target.value })}
+                    placeholder="For example: iPhone 14, Galaxy S23, PS5"
+                    className={field}
                   />
-                </FieldBox>
+                </div>
               ) : null}
-            </Row>
-          ) : null}
-          {fields.unlockCode ? (
-            <Row>
-              <FieldBox
-                label={CHECKIN_FIELD_LABEL.unlockCode}
-                htmlFor="unlockCode"
-                hint={CHECKIN_FIELD_HINT.unlockCode}
-                kiosk={kiosk}
-              >
-                <Input
-                  id="unlockCode"
-                  name="unlockCode"
-                  maxLength={60}
-                  autoComplete="off"
-                  className={kiosk ? "h-14 text-base" : undefined}
-                />
-              </FieldBox>
-            </Row>
-          ) : null}
-        </Section>
 
-        <Section title="What's wrong?" kiosk={kiosk}>
-          <FieldBox label="Type of job" htmlFor="problemType" required kiosk={kiosk}>
-            {/* A native select, not the Radix one: this page is used on tablets
-                and old phones, where the OS picker is faster and never traps
-                focus. */}
-            <select
-              id="problemType"
-              name="problemType"
-              required
-              defaultValue=""
-              className={cn(
-                "w-full rounded-md border border-border-strong bg-surface px-3.5 text-sm text-foreground shadow-xs outline-none transition-colors",
-                "focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-ring/20",
-                kiosk ? "h-14 text-base" : "h-10",
+              {hasMore ? (
+                <div className="flex flex-col gap-3">
+                  <MoreToggle open={moreDetails} onToggle={() => setMoreDetails((open) => !open)}>
+                    {fields.serial && fields.unlockCode ? "Serial number and passcode (optional)" : fields.serial ? "Serial number (optional)" : "Passcode (optional)"}
+                  </MoreToggle>
+                  {moreDetails ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {fields.serial ? (
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="checkin-serial" className="text-[15px]">Serial number</Label>
+                          <Input id="checkin-serial" value={state.serial} maxLength={80} autoComplete="off" onChange={(event) => update({ serial: event.target.value })} className={field} />
+                          <p className="text-[14px] text-muted-foreground">Usually on a sticker or in Settings, About.</p>
+                        </div>
+                      ) : null}
+                      {fields.unlockCode ? (
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="checkin-code" className="text-[15px]">Passcode</Label>
+                          <Input id="checkin-code" value={state.unlockCode} maxLength={60} autoComplete="off" onChange={(event) => update({ unlockCode: event.target.value })} className={field} />
+                          <p className="text-[14px] text-muted-foreground">So we can test the repair. Kept with your repair, never shown in public.</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div role="group" aria-label="Kind of device" className={tileGrid}>
+              {shownKinds.map((item) =>
+                item.photo ? (
+                  <PhotoTile key={item.type} photo={item.photo} title={item.label} onClick={() => update({ kindType: item.type })} />
+                ) : (
+                  <IconTile key={item.type} icon={Package} title={item.label} onClick={() => update({ kindType: item.type })} />
+                ),
               )}
-            >
-              <option value="" disabled>
-                Choose one…
-              </option>
-              {problemTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </FieldBox>
-
-          <FieldBox
-            label="Tell us what's happening"
-            htmlFor="description"
-            required
-            hint="When it started, what you've already tried, anything we should know."
-            kiosk={kiosk}
-          >
-            <Textarea
-              id="description"
-              name="description"
-              required
-              rows={kiosk ? 6 : 5}
-              maxLength={4000}
-              placeholder="Screen cracked after a drop. It still turns on but the bottom third is black."
-              className={kiosk ? "text-base" : undefined}
-            />
-          </FieldBox>
-        </Section>
-
-        <Section title="Terms" kiosk={kiosk}>
-          <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background px-4 py-3.5 text-[14px] leading-relaxed text-muted-foreground">
-            {terms}
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-3">
-            <Checkbox
-              checked={accepted}
-              onCheckedChange={(value) => setAccepted(value === true)}
-              className={kiosk ? "mt-0.5 size-6" : "mt-0.5"}
-            />
-            <input type="hidden" name="terms" value={accepted ? "on" : ""} />
-            <span className={cn("font-medium", kiosk ? "text-[16px]" : "text-[14.5px]")}>
-              I&rsquo;ve read and accept the terms above.
-            </span>
-          </label>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-[13px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-              Signature
-            </span>
-            {/* Always white paper with a dark pen: this image is reprinted on
-                the work order, and a signature drawn in white would vanish. */}
-            <div className="rounded-lg border border-border-strong bg-white p-2 shadow-sm">
-              <SignatureCanvas
-                ref={padRef}
-                penColor="#1c1a17"
-                onEnd={() => {
-                  const pad = padRef.current;
-                  setDataUrl(pad, setSignature);
-                }}
-                canvasProps={{
-                  className: cn(
-                    "block w-full touch-none rounded-sm",
-                    kiosk ? "h-[220px]" : "h-[170px]",
-                  ),
-                  "aria-label": "Signature pad",
-                }}
-              />
+              {kinds.length > FIRST_SCREEN_BOXES ? (
+                <MoreTile
+                  icon={LayoutGrid}
+                  title={allKinds ? "Fewer devices" : "More devices"}
+                  detail={allKinds ? undefined : `${kinds.length - shownKinds.length} more`}
+                  expanded={allKinds}
+                  onClick={() => setAllKinds((open) => !open)}
+                />
+              ) : null}
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] text-muted-foreground">
-                Sign with a finger, a stylus or a mouse.
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  padRef.current?.clear();
-                  setSignature("");
-                }}
-              >
-                Clear
-              </Button>
-            </div>
-          </div>
-        </Section>
+          )
+        ) : null}
 
-        <Button
-          type="submit"
-          size="lg"
-          disabled={busy || !accepted || signature === ""}
-          className={kiosk ? "h-16 text-lg" : undefined}
-        >
-          {busy ? <Loader2 className="animate-spin" /> : <SendIcon aria-hidden />}
-          {busy ? "Checking in…" : "Check in my device"}
-        </Button>
+        {/* ----------------------------------------------- 2. the problem -- */}
+        {step === 1 ? (
+          state.problem ? (
+            <div className="flex flex-col gap-5">
+              <Chosen label={state.problem} onChange={() => update({ problem: "" })} />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="checkin-note" className="text-[15px]">
+                  Anything else we should know? <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <Textarea
+                  id="checkin-note"
+                  value={state.note}
+                  rows={kiosk ? 5 : 4}
+                  maxLength={4000}
+                  onChange={(event) => update({ note: event.target.value })}
+                  placeholder="When it started, what you have tried. For example: dropped it yesterday, still turns on."
+                  className={cn("rounded-xl px-4 py-3 text-base", kiosk && "text-lg")}
+                />
+              </div>
+            </div>
+          ) : (
+            <div role="group" aria-label="What is wrong" className={tileGrid}>
+              {problems.map((label) => {
+                const visual = problemVisualFor(label, problemPictures);
+                const detail = problemHint(label) || undefined;
+                return visual.kind === "photo" ? (
+                  <PhotoTile key={label} photo={visual.src} title={label} detail={detail} onClick={() => update({ problem: label })} />
+                ) : (
+                  <IconTile key={label} icon={PROBLEM_ICONS[visual.icon]} title={label} detail={detail} onClick={() => update({ problem: label })} />
+                );
+              })}
+            </div>
+          )
+        ) : null}
+
+        {/* ------------------------------------------------------- 3. you -- */}
+        {step === 2 ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="checkin-name" className="text-[15px]">Your name</Label>
+              <Input id="checkin-name" value={state.name} maxLength={120} autoComplete="name" onChange={(event) => update({ name: event.target.value })} placeholder="First and last name" className={field} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="checkin-phone" className="text-[15px]">Mobile number</Label>
+                <Input id="checkin-phone" type="tel" inputMode="tel" value={state.phone} maxLength={40} autoComplete="tel" onChange={(event) => update({ phone: event.target.value })} placeholder="(512) 555-0142" className={field} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="checkin-email" className="text-[15px]">Email</Label>
+                <Input id="checkin-email" type="email" inputMode="email" value={state.email} maxLength={160} autoComplete="email" onChange={(event) => update({ email: event.target.value })} placeholder="you@example.com" className={field} />
+              </div>
+            </div>
+            <p className="text-[14px] text-muted-foreground">One of the two is enough. We send the link to follow your repair there.</p>
+          </div>
+        ) : null}
+
+        {/* ---------------------------------------------------- 4. sign -- */}
+        {step === 3 ? (
+          <div className="flex flex-col gap-5">
+            <div className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-surface px-4 py-3.5 text-[15px] leading-relaxed text-muted-foreground" tabIndex={0} aria-label="The shop's terms">
+              {terms}
+            </div>
+
+            <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
+              <Checkbox checked={state.accepted} onCheckedChange={(value) => update({ accepted: value === true })} className="size-6" />
+              <span className={cn("font-semibold", kiosk ? "text-lg" : "text-[15px]")}>I have read and accept these terms</span>
+            </label>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[15px] font-semibold">Sign here</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-xl px-4 text-[15px]"
+                  onClick={() => {
+                    padRef.current?.clear();
+                    update({ signature: "" });
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+              {/* White paper and a dark pen in every theme: this image is
+                  reprinted on the work order, and a white signature would vanish. */}
+              <div className="rounded-xl border border-border-strong bg-white p-1">
+                <SignatureCanvas
+                  ref={padRef}
+                  penColor="#1c1a17"
+                  onEnd={() => {
+                    const pad = padRef.current;
+                    update({ signature: pad && !pad.isEmpty() ? pad.toDataURL("image/png") : "" });
+                  }}
+                  canvasProps={{
+                    className: cn("block w-full touch-none rounded-lg", kiosk ? "h-[220px]" : "h-[170px]"),
+                    "aria-label": "Signature pad",
+                  }}
+                />
+              </div>
+              <p className="text-[14px] text-muted-foreground">Sign with your finger, a stylus or a mouse.</p>
+            </div>
+
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
+              We use your details only for this repair.{" "}
+              {kiosk ? (
+                "Ask at the counter to read our privacy policy and terms of service."
+              ) : (
+                <>
+                  Read our{" "}
+                  <Link href="/privacy" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center font-semibold text-foreground underline underline-offset-4">
+                    privacy policy
+                  </Link>{" "}
+                  and{" "}
+                  <Link href="/terms" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center font-semibold text-foreground underline underline-offset-4">
+                    terms
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+        ) : null}
+
+        <StepBar>
+          {step > 0 ? (
+            <Button type="button" size="lg" variant="outline" className={cn("h-14 min-h-14 rounded-xl px-5 text-base", kiosk && "h-16 text-lg")} onClick={() => go(step - 1)}>
+              <ArrowLeft aria-hidden />
+              Back
+            </Button>
+          ) : null}
+          <Button type="submit" size="lg" disabled={busy} className={cn(HUGE_BUTTON, "flex-1 sm:ml-auto sm:w-auto sm:flex-none sm:min-w-64", kiosk && "h-16 text-lg")}>
+            {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
+            {step === LAST_CHECKIN_STEP ? (busy ? "Checking you in…" : "Check me in") : "Next"}
+          </Button>
+        </StepBar>
+
+        {!kiosk && hubLive && step === 0 ? (
+          <p className="text-center text-[15px] text-muted-foreground">
+            Checking on a repair you already left?{" "}
+            <Link href={`/s/${slug}#status`} className="inline-flex min-h-12 items-center font-semibold text-foreground underline underline-offset-4">
+              Check your repair
+            </Link>
+          </p>
+        ) : null}
       </form>
-    </Shell>
+    </PublicShell>
   );
 }
 
-/** Reads the pad into state, or clears it when the customer wiped the canvas. */
-function setDataUrl(
-  pad: SignatureCanvas | null,
-  set: (value: string) => void,
-): void {
-  if (!pad || pad.isEmpty()) {
-    set("");
-    return;
-  }
-  set(pad.toDataURL("image/png"));
-}
-
-// ---------------------------------------------------------------------------
-// Chrome
-// ---------------------------------------------------------------------------
-
-function Shell({
-  shopName,
-  shopPhone,
-  kiosk,
-  children,
-}: {
-  shopName: string;
-  shopPhone: string | null;
-  kiosk: boolean;
-  children: React.ReactNode;
-}) {
+/** A choice already made, shown big with a way to change it. */
+function Chosen({ label, onChange }: { label: string; onChange: () => void }) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      {/* Shop branding in the band, the page's own title below it — the same
-          two-part lockup the customer portal uses (app/portal/_components/
-          shell.tsx), so a shop's two public surfaces introduce themselves the
-          same way. The <h1> belongs to whichever state is on screen (see
-          `Heading` below), because "Check in a device" is the wrong title to
-          leave sitting above a finished check-in. */}
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto max-w-2xl px-5 py-4">
-          <div className={cn("font-bold tracking-tight", kiosk ? "text-xl" : "text-[17px]")}>
-            {shopName}
-          </div>
-          <div className="text-[13px] text-muted-foreground">Device check-in</div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-2xl px-5 py-8 sm:py-10">{children}</main>
-
-      {/* Kiosk mode deliberately has no footer contact line: the tablet is
-          already standing in the shop, and a phone number invites a customer to
-          wander off to call it. */}
-      {kiosk ? null : (
-        <footer className="mx-auto max-w-2xl px-5 pb-10 text-center text-[13px] text-muted-foreground">
-          Rather do this at the counter? Come in and see us
-          {shopPhone ? `, or call ${shopPhone}` : ""}.
-        </footer>
-      )}
-    </div>
-  );
-}
-
-function Section({
-  title,
-  kiosk,
-  children,
-}: {
-  title: string;
-  kiosk: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-border bg-surface px-5 py-5 shadow-sm sm:px-6">
-      <h2 className={cn("font-bold tracking-tight", kiosk ? "text-xl" : "text-[17px]")}>
-        {title}
-      </h2>
-      <div className="mt-4 flex flex-col gap-4">{children}</div>
-    </section>
-  );
-}
-
-/**
- * The page title and its one-line explanation. One per state, so the document
- * always has exactly one `h1` and it always names what is actually on screen.
- */
-function Heading({
-  title,
-  description,
-  kiosk,
-}: {
-  title: string;
-  description: string;
-  kiosk: boolean;
-}) {
-  return (
-    <div className="mb-6">
-      <h1
-        className={cn(
-          "font-bold leading-tight tracking-tight",
-          kiosk ? "text-[32px]" : "text-2xl",
-        )}
-      >
-        {title}
-      </h1>
-      <p
-        className={cn(
-          "mt-1.5 leading-snug text-muted-foreground",
-          kiosk ? "text-[17px]" : "text-[15px]",
-        )}
-      >
-        {description}
-      </p>
-    </div>
-  );
-}
-
-function Row({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>;
-}
-
-function FieldBox({
-  label,
-  htmlFor,
-  hint,
-  required,
-  kiosk,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  hint?: string;
-  required?: boolean;
-  kiosk: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor} className={kiosk ? "text-[15px]" : undefined}>
-        {label}
-        {required ? <span className="text-destructive"> *</span> : null}
-      </Label>
-      {children}
-      {hint ? (
-        <p className="text-[12.5px] leading-snug text-muted-foreground">{hint}</p>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      onClick={onChange}
+      className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-accent bg-surface px-4 text-left ring-1 ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="min-w-0 text-lg font-semibold [overflow-wrap:anywhere]">{label}</span>
+      <span className="flex shrink-0 items-center gap-1.5 text-[15px] font-medium text-muted-foreground">
+        <Pencil aria-hidden className="size-4" />
+        Change
+      </span>
+    </button>
   );
 }

@@ -2,13 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { ACTIONS } from "@/components/ui/icons";
+import { BIG_BUTTON } from "@/components/public/sizes";
 import { Button } from "@/components/ui/button";
-
-const UploadIcon = ACTIONS.upload;
 import {
   formatBytes,
   MAX_UPLOAD_BYTES,
@@ -21,7 +19,7 @@ import {
  *
  * Posts to /portal/tickets/<id>/upload for the same reason the staff card does
  * (Server Actions cap a body at 1MB), and re-uses the SAME client-side checks
- * from attachment-meta — so a photo the shop's own card would accept is the one
+ * from attachment-meta, so a photo the shop's own card would accept is the one
  * this accepts, and the friendly refusal reads identically on both sides.
  */
 export function PhotoUpload({ ticketId }: { ticketId: string }) {
@@ -62,13 +60,11 @@ export function PhotoUpload({ ticketId }: { ticketId: string }) {
 
       result.errors.forEach((message) => toast.error(message));
       if (result.uploaded > 0) {
-        toast.success(
-          result.uploaded === 1 ? "Photo sent" : `${result.uploaded} photos sent`,
-        );
+        toast.success(result.uploaded === 1 ? "Photo sent" : `${result.uploaded} photos sent`);
         router.refresh();
       }
     } catch {
-      toast.error("That didn't go through — check your connection and try again.");
+      toast.error("That didn't go through. Check your connection and try again.");
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -76,7 +72,7 @@ export function PhotoUpload({ ticketId }: { ticketId: string }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 px-5 py-5 sm:px-6">
+    <div className="flex flex-col gap-2 px-4 py-5 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
       <input
         ref={inputRef}
         type="file"
@@ -87,14 +83,16 @@ export function PhotoUpload({ ticketId }: { ticketId: string }) {
       />
       <Button
         type="button"
+        size="lg"
         variant="outline"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
+        className={BIG_BUTTON}
       >
-        {busy ? <Loader2 className="animate-spin" /> : <UploadIcon aria-hidden />}
+        {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
         {busy ? "Sending…" : "Add a photo"}
       </Button>
-      <span className="text-[13px] text-muted-foreground">
+      <span className="text-[14px] text-muted-foreground">
         Photos, PDFs or logs, up to {formatBytes(MAX_UPLOAD_BYTES)} each.
       </span>
     </div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InitialsVisual } from "@/components/ui/record-card";
 import { contactFromQuery, matchesCustomer, type SearchCustomer } from "@/lib/customers/search-options";
+import { useFinePointerAutoFocus } from "./fine-pointer";
 import { Field, IssueLines, MoreToggle, NextButton } from "./tiles";
 import { NEW, customerOf, withCustomer, type CheckInContext, type CheckInState, type Issue } from "./flow";
 
@@ -57,6 +58,7 @@ export function CustomerStep({
   issues: Issue[];
 }) {
   const [query, setQuery] = React.useState("");
+  const searchAutoFocus = useFinePointerAutoFocus<HTMLInputElement>();
   const [more, setMore] = React.useState(false);
   const selected = customerOf(state, ctx);
   const adding = state.customerId === NEW;
@@ -199,7 +201,11 @@ export function CustomerStep({
           }}
           placeholder="Name or phone number"
           autoComplete="off"
-          autoFocus
+          type="search"
+          enterKeyHint="search"
+          // The cursor waits here on a counter PC; on a touch tablet or phone it waits for a tap,
+          // so the on-screen keyboard does not cover the picture choices.
+          ref={searchAutoFocus}
           className="h-16 pl-12 text-lg"
         />
       </div>

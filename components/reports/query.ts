@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { invoiceTotals } from "@/lib/money";
+import { summariseOwed } from "@/lib/dashboard/logic";
+import { loadOwedInvoices } from "@/lib/dashboard/money";
 import { PAYMENT_METHOD_LABELS } from "@/components/statements/query";
 import { bucketIndex, type ReportPeriod } from "./period";
 
@@ -22,9 +24,6 @@ import { bucketIndex, type ReportPeriod } from "./period";
  * their lines both need per-row work, and both are bounded by the period, so
  * the row counts stay in the hundreds for a real shop.
  */
-
-/** Invoice statuses that can still carry a balance the customer owes. */
-const OWING_STATUSES = ["SENT", "PARTIAL"] as const;
 
 const TOP_PRODUCT_LIMIT = 8;
 
@@ -75,8 +74,14 @@ export type MoneyReport = {
     paidCents: number;
   };
   topProducts: { name: string; cents: number; quantity: number }[];
-  /** As of right now, not period-scoped — see the rules above. */
-  ar: { totalCents: number; count: number };
+  /**
+   * "Owed to you": as of right now, not period-scoped — see the rules above.
+   * The ONE definition the Shop overview, the Home strip and the invoices
+   * list's Unpaid view share (lib/dashboard: sent and part-paid invoices,
+   * refund-aware, an overpayment never cancelling another invoice's debt),
+   * read through the very same loader, so the three can never disagree.
+   */
+  ar: { totalCents: number; count: number; overdueCount: number; truncated: boolean };
 };
 
 export type ThroughputReport = {
@@ -310,7 +315,7 @@ async function loadMoney(
     raisedRows,
     paidRows,
     productLines,
-    owing,
+    owed,
     refundRows,
     depositRows,
   ] = await Promise.all([
@@ -351,18 +356,11 @@ async function loadMoney(
           product: { select: { name: true } },
         },
       }),
-      db.invoice.findMany({
-        where: { shopId, status: { in: [...OWING_STATUSES] }, locationId },
-        select: {
-          taxRateBps: true,
-          lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
-          payments: { select: { amountCents: true } },
-        },
-      }),
+      loadOwedInvoices(shopId, locationId),
       // Money handed back in the period. Its own table, never a negative
       // payment, so "collected" and "returned" stay separately reportable.
       db.refund.findMany({
-        where: { shopId, createdAt: inPeriod, ...viaInvoice },
+        where: { shopId, createdAt: inPeriod, status: { not: "failed" }, ...viaInvoice },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -439,21 +437,9 @@ async function loadMoney(
     .sort((a, b) => b.cents - a.cents)
     .slice(0, TOP_PRODUCT_LIMIT);
 
-  // Overpayment on one invoice does not cancel a debt on another, so each
-  // balance is floored at zero before summing.
-  let arTotalCents = 0;
-  let arCount = 0;
-  for (const invoice of owing) {
-    const { balanceCents } = invoiceTotals(
-      invoice.lines,
-      invoice.taxRateBps,
-      invoice.payments,
-    );
-    if (balanceCents > 0) {
-      arTotalCents += balanceCents;
-      arCount += 1;
-    }
-  }
+  // Refund-aware, and an overpayment on one invoice never cancels a debt on
+  // another: summariseOwed is the overview's own rule, not a copy of it.
+  const owedSummary = summariseOwed(owed.invoices, Date.now(), { zone: period.timezone });
 
   const refundCents = refundRows.reduce((sum, row) => sum + row.amountCents, 0);
   const refunds: RefundRow[] = refundRows.map((row) => ({
@@ -493,6 +479,11 @@ async function loadMoney(
       paidCents: sumTotals(paidRows),
     },
     topProducts,
-    ar: { totalCents: arTotalCents, count: arCount },
+    ar: {
+      totalCents: owedSummary.totalCents,
+      count: owedSummary.count,
+      overdueCount: owedSummary.overdueCount,
+      truncated: owed.truncated,
+    },
   };
 }

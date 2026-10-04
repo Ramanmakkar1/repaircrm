@@ -86,8 +86,8 @@ describe("customerChipInfo", () => {
 });
 
 describe("moreTenders", () => {
-  it("offers Check, Other and Store credit, in that order", () => {
-    expect(moreTenders(0).map((option) => option.method)).toEqual(["CHECK", "OTHER", "CREDIT"]);
+  it("offers Cash + card, Check, Other and Store credit, in that order", () => {
+    expect(moreTenders(0).map((option) => option.method)).toEqual(["SPLIT", "CHECK", "OTHER", "CREDIT"]);
   });
 
   it("switches Store credit off, and says why, until the customer has credit", () => {

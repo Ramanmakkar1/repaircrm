@@ -80,10 +80,12 @@ export function PurchaseOrderForm({
     undefined,
   );
 
+  // Never a silent default: a rushed buyer must not order from whoever sorts first.
+  // Only a supplier named in the address (their own "New order" button) is filled in.
   const [vendorId, setVendorId] = React.useState(
     initialVendorId && vendors.some((v) => v.id === initialVendorId)
       ? initialVendorId
-      : (vendors[0]?.id ?? ""),
+      : "",
   );
   const [drafts, setDrafts] = React.useState<Draft[]>([blank("seed-0")]);
   const [shipping, setShipping] = React.useState("0.00");

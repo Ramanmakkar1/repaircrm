@@ -8,7 +8,7 @@ export function InstallAppItem() {
   const app = useAppInstall();
   if (!app || app.installed) return null;
   const Icon = ACTIONS.install;
-  return <DropdownMenuItem onSelect={() => app.install()}>
-    <Icon className="size-4 text-muted-foreground" aria-hidden />Install app
+  return <DropdownMenuItem onSelect={() => app.install()} className="min-h-12 text-[15px]">
+    <Icon className="size-5 text-muted-foreground" aria-hidden />Install app
   </DropdownMenuItem>;
 }

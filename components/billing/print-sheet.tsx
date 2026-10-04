@@ -92,6 +92,7 @@ export function PrintSheet({
   footer,
   footerContact,
   barcodeValue,
+  payOnline,
 }: {
   docLabel: string;
   docNote?: string;
@@ -132,6 +133,12 @@ export function PrintSheet({
   footer: string;
   footerContact?: string | null;
   barcodeValue?: string;
+  /**
+   * An unpaid invoice's "pay online" link, with its QR code already drawn (a
+   * data URL), printed beside the balance so the customer can pay from the
+   * paper. Absent on anything that is not owed.
+   */
+  payOnline?: { url: string; qrDataUrl: string } | null;
 }) {
   const code = barcodeValue ?? `${docLabel[0] ?? "D"}${number}`;
 
@@ -238,7 +245,18 @@ export function PrintSheet({
           </section>
 
           {/* ----------------------------------------------------- totals --- */}
-          <section className="rf-totals-wrap">
+          <section className={`rf-totals-wrap${payOnline ? " has-pay" : ""}`}>
+            {payOnline ? (
+              <div className="rf-pay">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="rf-pay-qr" src={payOnline.qrDataUrl} alt="QR code to pay this invoice online" />
+                <div className="rf-pay-text">
+                  <div className="rf-eyebrow">Pay online</div>
+                  <div>Scan with your phone camera, or open:</div>
+                  <div className="rf-pay-url">{payOnline.url}</div>
+                </div>
+              </div>
+            ) : null}
             <div className="rf-totals-panel">
               {tableRows.length > 0 ? (
                 <table className="rf-totals">

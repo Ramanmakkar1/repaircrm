@@ -1,26 +1,20 @@
 import { notFound } from "next/navigation";
 import { CheckCircle2, XCircle } from "lucide-react";
 
-import { formatDate, formatDateTime } from "@/components/billing/format";
-import { EstimateStatusBadge } from "@/components/billing/status-badge";
+import { LineRows, TotalsBlock } from "@/components/public/line-rows";
+import { StatusPill } from "@/components/ui/badge";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
+import { dayWords, deadline, estimateWords, itemCount, whenWords } from "@/lib/portal-display";
 import { taxLabel } from "@/lib/tax";
 import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
 import { EstimateDecision } from "../../_components/estimate-decision";
-import {
-  BackLink,
-  PortalCard,
-  PortalCardHeader,
-  PortalShell,
-} from "../../_components/shell";
+import { BackLink, PortalCard, PortalShell } from "../../_components/shell";
+import { loadPortalShop } from "../../_components/shop";
 
-/** Scoped through the cookie, like the render — see the ticket page for why. */
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+/** Scoped through the cookie, like the render; see the repair page for why. */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getPortalSession();
   if (!session) return { title: "Estimate · Repairs helper" };
@@ -35,222 +29,143 @@ export async function generateMetadata({
     },
     select: { number: true },
   });
-  return {
-    title: estimate
-      ? `Estimate #${estimate.number} · Repairs helper`
-      : "Estimate · Repairs helper",
-  };
+  return { title: estimate ? `Estimate #${estimate.number} · Repairs helper` : "Estimate · Repairs helper" };
 }
 
-export default async function PortalEstimatePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+/**
+ * A quote, the way a customer wants to read it: the price in big type, what it
+ * is for as simple rows, and one decision (approve, or no thanks) pinned to the
+ * bottom of a phone while they read.
+ */
+export default async function PortalEstimatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const customer = await requirePortalCustomer(`/portal/estimates/${id}`);
 
-  const estimate = await db.estimate.findFirst({
-    where: {
-      id,
-      customerId: customer.id,
-      shopId: customer.shopId,
-      // Unsent means invisible — a draft 404s rather than rendering.
-      status: { not: "DRAFT" },
-    },
-    select: {
-      id: true,
-      number: true,
-      status: true,
-      createdAt: true,
-      expiresAt: true,
-      approvedAt: true,
-      approvalSignatureDataUrl: true,
-      notes: true,
-      taxRateBps: true,
-      taxRate: { select: { name: true } },
-      ticketId: true,
-      lines: {
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          description: true,
-          quantity: true,
-          unitPriceCents: true,
-          taxable: true,
+  const [shop, estimate] = await Promise.all([
+    loadPortalShop(customer.shopId),
+    db.estimate.findFirst({
+      where: {
+        id,
+        customerId: customer.id,
+        shopId: customer.shopId,
+        // Unsent means invisible: a draft 404s rather than rendering.
+        status: { not: "DRAFT" },
+      },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        createdAt: true,
+        expiresAt: true,
+        approvedAt: true,
+        approvalSignatureDataUrl: true,
+        notes: true,
+        taxRateBps: true,
+        taxRate: { select: { name: true } },
+        lines: {
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, description: true, quantity: true, unitPriceCents: true, taxable: true },
         },
       },
-    },
-  });
+    }),
+  ]);
   if (!estimate) notFound();
 
+  const now = requestNow();
+  const zone = shop.timezone;
   const totals = calcTotals(estimate.lines, estimate.taxRateBps);
-  const expired = estimate.status === "SENT" && isPast(estimate.expiresAt);
+  const total = formatCents(totals.totalCents);
+  const words = estimateWords(estimate.status);
+  const validUntil = estimate.expiresAt ? deadline(estimate.expiresAt, now, zone) : null;
+  const expired = estimate.status === "SENT" && validUntil?.state === "overdue";
+  const open = estimate.status === "SENT";
 
   return (
-    <PortalShell
-      shopName={customer.shop.name}
-      customerName={`${customer.firstName} ${customer.lastName}`}
-    >
-      <BackLink href="/portal/home">Back to your portal</BackLink>
-
-      <div className="mb-6">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Estimate #{estimate.number}
-          </h1>
-          <EstimateStatusBadge status={estimate.status} />
-        </div>
-        <p className="mt-1.5 text-[14px] text-muted-foreground">
-          Prepared {formatDate(estimate.createdAt)}
-          {estimate.expiresAt ? ` · valid until ${formatDate(estimate.expiresAt)}` : ""}
-        </p>
-      </div>
+    <PortalShell shop={shop} customerName={`${customer.firstName} ${customer.lastName}`.trim()}>
+      <BackLink href="/portal/home">Back to your repairs</BackLink>
 
       <div className="flex flex-col gap-6">
-        <PortalCard>
-          <PortalCardHeader
-            title="What we'd do"
-            description="No work starts and nothing is charged until you approve this."
-          />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse text-[14px]">
-              <thead>
-                <tr className="border-b border-border text-left text-[12px] uppercase tracking-wider text-muted-foreground">
-                  <th className="px-5 py-2.5 font-semibold sm:px-6">Item</th>
-                  <th className="w-16 px-3 py-2.5 text-right font-semibold">Qty</th>
-                  <th className="w-24 px-3 py-2.5 text-right font-semibold">Rate</th>
-                  <th className="w-28 px-5 py-2.5 text-right font-semibold sm:px-6">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {estimate.lines.map((line) => (
-                  <tr key={line.id} className="border-b border-border last:border-0">
-                    <td className="px-5 py-3 sm:px-6">{line.description}</td>
-                    <td className="px-3 py-3 text-right font-mono">{line.quantity}</td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      {formatCents(line.unitPriceCents)}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono sm:px-6">
-                      {formatCents(line.quantity * line.unitPriceCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* ------------------------------------------------- the price -- */}
+        <PortalCard className="flex flex-col gap-3 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill size="md" tone={words.tone} label={words.label} />
+            <span className="text-[14px] text-muted-foreground">Estimate #{estimate.number}</span>
           </div>
-
-          <div className="flex justify-end border-t border-border px-5 py-4 sm:px-6">
-            <dl className="w-full max-w-xs space-y-2 text-[14px]">
-              <div className="flex items-baseline justify-between">
-                <dt className="text-muted-foreground">Subtotal</dt>
-                <dd className="font-mono text-muted-foreground">
-                  {formatCents(totals.subtotalCents)}
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <dt className="text-muted-foreground">
-                  {taxLabel(estimate.taxRate?.name, estimate.taxRateBps)}
-                </dt>
-                <dd className="font-mono text-muted-foreground">
-                  {formatCents(totals.taxCents)}
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between border-t border-border-strong pt-2.5">
-                <dt className="font-semibold">Estimated total</dt>
-                <dd className="font-mono text-[17px] font-bold">
-                  {formatCents(totals.totalCents)}
-                </dd>
-              </div>
-            </dl>
-          </div>
+          <h1 className="text-[40px] font-bold leading-none tracking-tight tabular-nums">{total}</h1>
+          <p className="text-[15px] leading-relaxed text-muted-foreground">
+            {open
+              ? `This is what ${shop.name} would charge. No work starts and nothing is charged until you approve.`
+              : `Sent ${dayWords(estimate.createdAt, now, zone)}.`}
+            {validUntil ? ` ${expired ? "It was valid until" : "Valid until"} ${validUntil.day}.` : ""}
+          </p>
         </PortalCard>
 
-        {estimate.notes ? (
-          <PortalCard className="px-5 py-5 sm:px-6">
-            <h2 className="text-[13px] font-semibold">Notes from the shop</h2>
-            <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted-foreground">
-              {estimate.notes}
-            </p>
-          </PortalCard>
-        ) : null}
-
-        {/* --------------------------------------------------- your answer -- */}
-        {estimate.status === "SENT" ? (
-          <PortalCard className="px-5 py-5 sm:px-6">
-            <h2 className="text-[15px] font-bold">Your decision</h2>
-            <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">
-              {expired
-                ? "This estimate has passed its expiry date — you can still answer, but the shop may re-quote."
-                : "Approve to give the shop the go-ahead, or decline if you'd rather not proceed."}
-            </p>
-            <div className="mt-4">
-              <EstimateDecision estimateId={estimate.id} variant="full" />
-            </div>
-          </PortalCard>
-        ) : (
-          <PortalCard className="flex items-start gap-3 px-5 py-5 sm:px-6">
+        {/* ------------------------------------------------- decided -- */}
+        {open ? null : (
+          <PortalCard className="flex items-start gap-3 p-5 sm:p-6">
             {estimate.status === "DECLINED" ? (
-              <XCircle className="mt-0.5 size-5 shrink-0 text-status-overdue" />
+              <XCircle className="mt-0.5 size-6 shrink-0 text-muted-foreground" aria-hidden />
             ) : (
-              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-status-resolved" />
+              <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-status-resolved" aria-hidden />
             )}
-            <div>
-              <h2 className="text-[15px] font-bold">
-                {STATUS_HEADLINE[estimate.status] ?? "This estimate is closed"}
-              </h2>
-              <p className="mt-1 text-[14px] leading-relaxed text-muted-foreground">
-                {estimate.approvedAt
-                  ? `Approved on ${formatDateTime(estimate.approvedAt)}. `
-                  : ""}
-                {STATUS_BLURB[estimate.status] ??
-                  "Give the shop a call if you need to change anything."}
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold">{STATUS_HEADLINE[estimate.status] ?? "This estimate is closed"}</h2>
+              <p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
+                {estimate.approvedAt ? `Approved ${whenWords(estimate.approvedAt, now, zone)}. ` : ""}
+                {STATUS_BLURB[estimate.status] ?? "Call the shop if you need to change anything."}
               </p>
 
               {estimate.approvalSignatureDataUrl ? (
-                <div className="mt-4 w-[240px] rounded-xl border border-border bg-white p-2">
+                <figure className="mt-4 w-full max-w-[260px] rounded-xl border border-border bg-white p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={estimate.approvalSignatureDataUrl}
-                    alt="Your signature"
-                    className="h-[60px] w-full object-contain object-left"
-                  />
-                  <div className="mt-1 border-t border-neutral-300 pt-1 text-[10px] uppercase tracking-wider text-neutral-500">
-                    Your signature
-                  </div>
-                </div>
+                  <img src={estimate.approvalSignatureDataUrl} alt="Your signature" className="h-[60px] w-full object-contain object-left" />
+                  {/* Paper colours on purpose: the signature is shown on its white sheet in every theme. */}
+                  <figcaption className="mt-1 border-t border-neutral-300 pt-1 text-[12px] text-neutral-600">Your signature</figcaption>
+                </figure>
               ) : null}
             </div>
           </PortalCard>
         )}
+
+        {/* ------------------------------------------- what it is for -- */}
+        <section aria-labelledby="items-title" className="flex flex-col gap-3">
+          <h2 id="items-title" className="text-xl font-semibold">
+            What we would do <span className="text-muted-foreground">({itemCount(estimate.lines.length)})</span>
+          </h2>
+          <PortalCard className="overflow-hidden">
+            <LineRows lines={estimate.lines} />
+            <TotalsBlock
+              rows={[
+                { label: "Subtotal", value: formatCents(totals.subtotalCents) },
+                { label: taxLabel(estimate.taxRate?.name, estimate.taxRateBps), value: formatCents(totals.taxCents) },
+                { label: "Total", value: total, strong: true },
+              ]}
+            />
+          </PortalCard>
+        </section>
+
+        {estimate.notes ? (
+          <section aria-labelledby="notes-title" className="flex flex-col gap-2">
+            <h2 id="notes-title" className="text-xl font-semibold">Notes from the shop</h2>
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{estimate.notes}</p>
+          </section>
+        ) : null}
+
+        {/* ------------------------------------------- your answer -- */}
+        {open ? <EstimateDecision estimateId={estimate.id} totalLabel={total} expired={expired} /> : null}
       </div>
     </PortalShell>
   );
 }
 
-/**
- * Module scope, not inline in the render: reading the clock during a render is
- * an impure call, and the whole app treats "now" as something passed in rather
- * than reached for (see components/tickets/ticket-meta.ts).
- */
-function isPast(date: Date | null): boolean {
-  return date !== null && date.getTime() < Date.now();
-}
-
 const STATUS_HEADLINE: Record<string, string> = {
-  DRAFT: "Not ready yet",
   APPROVED: "You approved this estimate",
-  DECLINED: "You declined this estimate",
-  CONVERTED: "This estimate became an invoice",
+  DECLINED: "You said no to this estimate",
+  CONVERTED: "Approved, and now on your bill",
 };
 
 const STATUS_BLURB: Record<string, string> = {
-  DRAFT: "The shop is still putting this quote together.",
   APPROVED: "The shop has the go-ahead and will get to work.",
-  DECLINED:
-    "Nothing will be charged. Call the shop if you change your mind — they can re-issue it.",
-  CONVERTED:
-    "The approved work has been invoiced — you'll find it under Invoices in your portal.",
+  DECLINED: "Nothing will be charged. Call the shop if you change your mind; they can send it again.",
+  CONVERTED: "The approved work has been billed. You will find it under Invoices in your repairs.",
 };

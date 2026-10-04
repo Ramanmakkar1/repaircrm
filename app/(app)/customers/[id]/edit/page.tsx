@@ -71,7 +71,7 @@ export default async function EditCustomerPage({
           { label: "Edit" },
         ]}
         title="Edit customer"
-        description={simple ? undefined : "Changes apply from the next ticket, estimate and invoice on."}
+        description={simple ? undefined : "Changes apply from the next repair, estimate and invoice on."}
       />
 
       <CustomerForm customer={customer} taxRates={taxRates} simple={simple} />

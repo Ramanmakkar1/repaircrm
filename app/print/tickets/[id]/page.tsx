@@ -25,11 +25,16 @@ export const metadata: Metadata = { title: "Work order · Repairs helper" };
  */
 export default async function TicketPrintPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ passcode?: string | string[] }>;
 }) {
   const { shopId } = await requireUser();
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  // The passcode is printed only when asked for (?passcode=show): the sheet is
+  // pinned to the device and passed around the shop.
+  const showPasscode = (Array.isArray(query.passcode) ? query.passcode[0] : query.passcode) === "show";
 
   const [ticket, shop] = await Promise.all([
     db.ticket.findFirst({
@@ -45,5 +50,10 @@ export default async function TicketPrintPage({
   ]);
   if (!ticket || !shop) notFound();
 
-  return <TicketSheet {...ticketSheetProps(ticket, shop)} />;
+  return (
+    <TicketSheet
+      {...ticketSheetProps(ticket, shop, { showPasscode })}
+      passcodeToggleHref={showPasscode ? `/print/tickets/${ticket.id}` : `/print/tickets/${ticket.id}?passcode=show`}
+    />
+  );
 }

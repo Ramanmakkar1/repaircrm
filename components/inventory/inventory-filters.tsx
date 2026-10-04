@@ -89,7 +89,8 @@ export function InventoryFilters({
     return () => clearTimeout(timer);
   }, [value, query, go]);
 
-  const dirty = filter !== "all" || query !== "" || category !== "" || group !== "";
+  // "All products" is not a filter, so it does not earn a "Clear all".
+  const dirty = filter !== "all" || query !== "" || category !== "" || (group !== "" && group !== "all");
 
   // The search box, then the slot the camera-scan button occupies. A scanned
   // SKU lands in this box, so the scan control belongs immediately to its right
@@ -134,7 +135,11 @@ export function InventoryFilters({
       </form>
 
       <ScanButton
-        label="Scan a barcode"
+        // Easy mode says "Scan" beside the icon: an unlabeled glyph is not something a counter hand finds.
+        showLabel={easy}
+        className={easy ? "h-12 rounded-xl px-4 text-base" : undefined}
+        labelClassName={easy ? "hidden sm:inline" : undefined}
+        label={easy ? "Scan" : "Scan a barcode"}
         title="Scan to find a product"
         description="A code that matches exactly opens that product."
         onScan={async (hit) => {

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
-import { MessageSquareText } from "lucide-react";
+import { MessageSquareText, Wrench } from "lucide-react";
 
 import { DetailHero } from "@/components/customers/detail-hero";
 import { sourceLabel } from "@/components/customers/lead-facts";
@@ -23,10 +22,13 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CopyableId } from "@/components/ui/copyable-id";
 import { ICONS } from "@/components/ui/icons";
 import { ObjectHeader } from "@/components/ui/object-header";
-import { InitialsVisual } from "@/components/ui/record-card";
+import { Button } from "@/components/ui/button";
+import { IconVisual, InitialsVisual, RecordCard } from "@/components/ui/record-card";
 import { TBody, THead, Table, Td, Th, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { formatIn } from "@/lib/dashboard/zone";
 import { readUiPrefs } from "@/lib/prefs";
 
 export async function generateMetadata({
@@ -42,7 +44,7 @@ export async function generateMetadata({
     select: { name: true },
   });
 
-  return { title: lead ? `${lead.name} · Repairs helper` : "Lead · Repairs helper" };
+  return { title: lead ? `${lead.name} · Repairs helper` : "Enquiry · Repairs helper" };
 }
 
 export const dynamic = "force-dynamic";
@@ -53,7 +55,7 @@ export default async function LeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const [{ id }, prefs] = await Promise.all([params, readUiPrefs()]);
+  const [{ id }, prefs, zone] = await Promise.all([params, readUiPrefs(), loadShopZone(shopId)]);
 
   const lead = await db.lead.findFirst({
     where: { id, shopId },
@@ -92,8 +94,12 @@ export default async function LeadDetailPage({
       : db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
   ]);
 
+  // "Oct 3, 9:14 AM" on the shop's clock, not the server's.
+  const received = formatIn(lead.createdAt.getTime(), zone, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
   const actions = (
     <LeadActions
+      easy={easy}
       lead={{
         id: lead.id,
         status: lead.status,
@@ -116,17 +122,17 @@ export default async function LeadDetailPage({
     ? lead.customer.businessName || `${lead.customer.firstName} ${lead.customer.lastName}`.trim()
     : null;
 
-  return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      {easy ? (
-        // Easy mode: the same header the customer page has. A big name, the
-        // phone as a large tap-to-call link, the status in words, and the
-        // actions (Convert first, then the rest) beside it; the facts that
-        // used to be a strip of columns are plain label/value pairs.
+  if (easy) {
+    // Easy mode: the same header the customer page has (a big name, the phone
+    // as a large tap-to-call link, the status in words) with ONE next step,
+    // "Start a repair". Under it, what they said, as a speech bubble: the
+    // reason the page exists comes before the facts.
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
         <DetailHero
           visual={<InitialsVisual name={lead.name} />}
           title={lead.name}
-          status={<StatusPill tone={meta.tone} label={meta.label} />}
+          status={<StatusPill tone={meta.tone} label={statusWord(status)} />}
           phone={lead.phone}
           contact={
             lead.email ? (
@@ -142,29 +148,89 @@ export default async function LeadDetailPage({
               <p className="text-base text-muted-foreground">No phone or email given.</p>
             ) : null
           }
-          primary={actions}
-          facts={[
-            { label: "Source", value: sourceLabel(lead.source) ?? "Unknown" },
-            { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
-            { label: "Last touched", value: leadAge(lead.updatedAt) },
-            {
-              label: "Became a customer",
-              value: lead.customer && convertedTo ? (
-                <Link href={`/customers/${lead.customer.id}`} className="text-accent-soft-foreground hover:underline">
-                  {convertedTo}
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">Not yet</span>
-              ),
-            },
-          ]}
+          primary={
+            isConverted ? (
+              lead.ticket ? (
+                <Button asChild size="lg" className="h-14 px-6 text-base [&_svg]:size-5">
+                  <Link href={`/tickets/${lead.ticket.id}`}>
+                    <Wrench aria-hidden />
+                    Open repair #{lead.ticket.number}
+                  </Link>
+                </Button>
+              ) : lead.customer ? (
+                <Button asChild size="lg" className="h-14 px-6 text-base">
+                  <Link href={`/customers/${lead.customer.id}`}>Open {convertedTo ?? "customer"}</Link>
+                </Button>
+              ) : null
+            ) : (
+              actions
+            )
+          }
         />
-      ) : (
-        // No headline figure: a lead is a name and a phone number, and inventing
-        // a number for it would put a zero where the object's identity belongs.
-        // `ObjectHeader` promotes the title into the top slot instead, so the
-        // page still opens exactly like a ticket or a customer does.
-        <ObjectHeader
+
+        <section aria-labelledby="said-title" className="flex flex-col gap-2">
+          <h2 id="said-title" className="text-lg font-semibold">What they said</h2>
+          <div className="flex items-start gap-3">
+            <InitialsVisual name={lead.name} className="size-11 text-base sm:size-11 sm:text-base" />
+            <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-border bg-surface px-4 py-3">
+              {lead.message ? (
+                <p className="whitespace-pre-wrap text-lg leading-relaxed text-foreground">{lead.message}</p>
+              ) : (
+                <p className="text-base text-muted-foreground">Nothing was written down with this enquiry.</p>
+              )}
+              <p className="mt-2 text-sm text-muted-foreground">
+                {received}
+                {sourceLabel(lead.source) ? ` · ${sourceLabel(lead.source)}` : ""}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <dl className="grid gap-x-6 gap-y-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-3 sm:p-5">
+          <EasyFact label="Came in by" value={sourceLabel(lead.source) ?? "Not known"} />
+          <EasyFact label="Received" value={received} />
+          <EasyFact label="Last touched" value={leadAge(lead.updatedAt, undefined, zone)} />
+        </dl>
+
+        {lead.customer || lead.ticket ? (
+          <section aria-labelledby="became-title" className="flex flex-col gap-3">
+            <h2 id="became-title" className="text-lg font-semibold">What it became</h2>
+            <ul className="grid gap-3 md:grid-cols-2">
+              {lead.customer && convertedTo ? (
+                <li>
+                  <RecordCard
+                    href={`/customers/${lead.customer.id}`}
+                    visual={<InitialsVisual name={convertedTo} />}
+                    title={convertedTo}
+                    subtitle="Customer"
+                  />
+                </li>
+              ) : null}
+              {lead.ticket ? (
+                <li>
+                  <RecordCard
+                    href={`/tickets/${lead.ticket.id}`}
+                    visual={<IconVisual icon={Wrench} />}
+                    title={`Repair #${lead.ticket.number}`}
+                    subtitle={lead.ticket.subject}
+                    status={<TicketStatus status={lead.ticket.status} />}
+                  />
+                </li>
+              ) : null}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+      {/* No headline figure: a lead is a name and a phone number, and inventing
+          a number for it would put a zero where the object's identity belongs.
+          `ObjectHeader` promotes the title into the top slot instead, so the
+          page still opens exactly like a ticket or a customer does. */}
+      <ObjectHeader
           back={{ label: "Leads", href: "/leads" }}
           title={lead.name}
           status={<StatusPill tone={meta.tone} label={meta.label} />}
@@ -195,8 +261,8 @@ export default async function LeadDetailPage({
               ),
             },
             { label: "Source", value: lead.source ?? "Unknown" },
-            { label: "Received", value: format(lead.createdAt, "MMM d, h:mm a") },
-            { label: "Last touched", value: leadAge(lead.updatedAt) },
+            { label: "Received", value: received },
+            { label: "Last touched", value: leadAge(lead.updatedAt, undefined, zone) },
             // The one question a lead exists to answer: did anything come of
             // it? At a glance here; the table below carries what it became and
             // what state that record is in now.
@@ -221,7 +287,6 @@ export default async function LeadDetailPage({
             <div className="flex flex-wrap items-center gap-2">{actions}</div>
           }
         />
-      )}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/*
@@ -307,6 +372,22 @@ export default async function LeadDetailPage({
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Easy mode's status words: "Called" reads better at the counter than "Contacted". */
+function statusWord(status: ReturnType<typeof asLeadStatus>): string {
+  if (status === "CONTACTED") return "Called";
+  if (status === "CONVERTED") return "Became a customer";
+  return LEAD_STATUS_META[status].label;
+}
+
+function EasyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className="text-base font-semibold">{value}</dd>
     </div>
   );
 }

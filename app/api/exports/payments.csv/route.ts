@@ -25,7 +25,9 @@ export async function GET(request: Request) {
   const guard = await requireOwner();
   if ("denied" in guard) return guard.denied;
 
-  const range = parseRange(new URL(request.url));
+  const shop = await db.shop.findUnique({ where: { id: guard.shopId }, select: { timezone: true } });
+  const zone = shop?.timezone ?? "UTC";
+  const range = parseRange(new URL(request.url), new Date(), zone);
 
   const payments = await db.payment.findMany({
     where: {
@@ -55,7 +57,7 @@ export async function GET(request: Request) {
 
   for (const payment of payments) {
     rows.push([
-      csvDate(payment.createdAt),
+      csvDate(payment.createdAt, zone),
       payment.invoice.number,
       customerLabel(payment.invoice.customer),
       csvAmount(payment.amountCents),

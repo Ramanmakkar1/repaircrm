@@ -33,6 +33,13 @@ export const TRIGGER_HINT: Record<CampaignTrigger, string> = {
   CUSTOMER_CREATED: "Counts from the day the customer record was created.",
 };
 
+/** Easy mode's words for the same moments: what a counter clerk would say. */
+export const TRIGGER_WORDS: Record<CampaignTrigger, string> = {
+  TICKET_RESOLVED: "After a repair is finished",
+  INVOICE_PAID: "After an invoice is paid",
+  CUSTOMER_CREATED: "When a new customer is added",
+};
+
 /** The source column on the sends table names the event that produced the row. */
 export const TRIGGER_SOURCE_LABEL: Record<CampaignTrigger, string> = {
   TICKET_RESOLVED: "Ticket",
@@ -110,7 +117,7 @@ export const PLACEHOLDERS: {
 }[] = [
   { token: "firstName", label: "First name", triggers: "all" },
   { token: "shopName", label: "Shop name", triggers: "all" },
-  { token: "ticketNumber", label: "Ticket #", triggers: ["TICKET_RESOLVED"] },
+  { token: "ticketNumber", label: "Repair #", triggers: ["TICKET_RESOLVED"] },
   { token: "invoiceNumber", label: "Invoice #", triggers: ["INVOICE_PAID"] },
 ];
 
@@ -156,6 +163,61 @@ export function delayLabel(days: number): string {
   if (days <= 0) return "Straight away";
   if (days === 1) return "1 day later";
   return `${days} days later`;
+}
+
+/** The waits Easy mode offers as buttons; anything else is "Other" with a number of days. */
+export const WAIT_CHOICES: { days: number; label: string }[] = [
+  { days: 0, label: "Straight away" },
+  { days: 2, label: "2 days" },
+  { days: 7, label: "1 week" },
+  { days: 14, label: "2 weeks" },
+  { days: 30, label: "1 month" },
+  { days: 90, label: "3 months" },
+];
+
+/** "2 weeks later", "3 months later", "5 days later", "Straight away": the wait in the words people use. */
+export function waitWords(days: number): string {
+  if (days <= 0) return "Straight away";
+  if (days === 7) return "1 week later";
+  if (days === 30) return "1 month later";
+  if (days % 7 === 0 && days <= 56) return `${days / 7} weeks later`;
+  if (days % 30 === 0 && days <= 360) return `${days / 30} months later`;
+  return delayLabel(days);
+}
+
+// ---------------------------------------------------------------------------
+// Placeholders in words
+// ---------------------------------------------------------------------------
+
+/**
+ * What a placeholder is called where a person edits the message: "[First
+ * name]" instead of `{{firstName}}`. The message is SAVED with the tokens, so
+ * the engine and every campaign already written are untouched; only the editor
+ * shows the words.
+ */
+export const TOKEN_WORDS: Record<PlaceholderToken, string> = {
+  firstName: "First name",
+  shopName: "Shop name",
+  ticketNumber: "Repair number",
+  invoiceNumber: "Invoice number",
+};
+
+/** `{{firstName}}` -> `[First name]` for the editor. Unknown tokens stay as they are, so a typo is visible. */
+export function toFriendlyBody(body: string): string {
+  return body.replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (match, token: string) =>
+    Object.hasOwn(TOKEN_WORDS, token) ? `[${TOKEN_WORDS[token as PlaceholderToken]}]` : match,
+  );
+}
+
+/** `[First name]` -> `{{firstName}}` for saving. Case and spaces inside the brackets do not matter. */
+export function fromFriendlyBody(text: string): string {
+  return text.replace(/\[\s*([a-zA-Z ]+?)\s*\]/g, (match, words: string) => {
+    const wanted = words.replace(/\s+/g, " ").toLowerCase();
+    const token = (Object.keys(TOKEN_WORDS) as PlaceholderToken[]).find(
+      (key) => TOKEN_WORDS[key].toLowerCase() === wanted,
+    );
+    return token ? `{{${token}}}` : match;
+  });
 }
 
 /** Adds whole days without touching the time of day. Negative days go back. */
@@ -241,7 +303,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
     subject: "How is your repair holding up?",
     body: `Hi {{firstName}},
 
-It has been a couple of weeks since we finished the work on ticket #{{ticketNumber}}, so we wanted to check in — is everything still behaving the way it should?
+It has been a couple of weeks since we finished the work on repair #{{ticketNumber}}, so we wanted to check in — is everything still behaving the way it should?
 
 If anything feels off, even something small, just reply to this message or give us a call. We would much rather take another look early than have you live with it.
 
@@ -262,7 +324,7 @@ The team at {{shopName}}`,
     subject: "Three months on — how is it running?",
     body: `Hi {{firstName}},
 
-It has been about three months since we handed your device back on ticket #{{ticketNumber}}. By this point a repair has usually either settled in for good or started hinting at something new.
+It has been about three months since we handed your device back after repair #{{ticketNumber}}. By this point a repair has usually either settled in for good or started hinting at something new.
 
 If it is the second one, tell us and we will take a look. And if there is another device around the house or office that has been slow, hot, or not holding a charge, bring it by — we are happy to give it a quick once-over.
 

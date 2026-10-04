@@ -90,7 +90,8 @@ export function InitialsVisual({ name, className }: { name: string; className?: 
   return (
     <span
       aria-hidden
-      className={cn("flex size-16 items-center justify-center rounded-full bg-accent-soft text-xl font-semibold text-accent-soft-foreground sm:size-20 sm:text-2xl", className)}
+      // Bold, so the 20px initials count as large text: blue on the soft fill is 4.3:1, enough for large text only.
+      className={cn("flex size-16 items-center justify-center rounded-full bg-accent-soft text-xl font-bold text-accent-soft-foreground sm:size-20 sm:text-2xl", className)}
     >
       {initials}
     </span>

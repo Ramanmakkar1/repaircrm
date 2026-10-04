@@ -30,6 +30,8 @@ import type { CardFlow } from "@/lib/payments/card-machine";
 import { TerminalPanel } from "@/components/payments/terminal-panel";
 import { useStripeTerminal } from "@/components/payments/use-stripe-terminal";
 import { formatCents, parseCents } from "@/lib/money";
+import { CashTender, QuickAmount, cashChange } from "@/components/pos/tender-pieces";
+import { tenderedReference } from "./receipt-math";
 import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
 import { TILE_CLASS } from "./tile-style";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -68,11 +70,19 @@ const METHODS = [
   { value: "CHECK", label: "Check" },
   { value: "CREDIT", label: "Store credit" },
   { value: "OTHER", label: "Other" },
+  { value: "SPLIT", label: "Cash + card" },
 ] as const;
 
 /**
  * Take-payment dialog. Defaults to the full outstanding balance — the
  * overwhelmingly common case at the counter — but accepts any amount up to it.
+ *
+ * It works like the register's tender (components/pos/tender-dialog.tsx) and
+ * uses its pieces: one-tap amounts (all of it, half), the method as big tiles,
+ * and for cash the "Cash handed over" field, the bills and the change due. The
+ * form still posts exactly `invoiceId`, `amount`, `method` and `reference`; a
+ * cash payment's reference is the register's own "Tendered $50.00", which is
+ * what lets a reprinted receipt show the change again.
  *
  * Store credit is a special method: it draws down `customer.creditBalanceCents`
  * rather than taking new money, so the available balance is surfaced inline and
@@ -148,11 +158,16 @@ export function PaymentDialog({
   const [amount, setAmount] = React.useState(() =>
     (Math.max(balanceCents, 0) / 100).toFixed(2),
   );
+  // Cash handed over, for the change. Starts on the amount (exact money).
+  const [received, setReceived] = React.useState(() =>
+    (Math.max(balanceCents, 0) / 100).toFixed(2),
+  );
 
   // Reset to a fresh default every time the dialog is opened.
   const onOpenChange = (next: boolean) => {
     if (next) {
       setAmount((Math.max(balanceCents, 0) / 100).toFixed(2));
+      setReceived((Math.max(balanceCents, 0) / 100).toFixed(2));
       setMethod("CARD");
       // An "automatic" shop lands on its machine with the balance already
       // going out to it; everyone else lands on the form.
@@ -167,8 +182,22 @@ export function PaymentDialog({
     setOpen(next);
   };
 
-  const creditShort =
-    method === "CREDIT" && customerCreditCents < Math.round(Number(amount) * 100);
+  const amountCents = Math.max(parseCents(amount), 0);
+  const creditShort = method === "CREDIT" && customerCreditCents < amountCents;
+  const fullCents = Math.max(balanceCents, 0);
+  const halfCents = Math.round(fullCents / 2);
+  const isSplit = method === "SPLIT";
+  const [cashAmount, setCashAmount] = React.useState("0.00");
+  const cashPart = parseCents(cashAmount);
+  const isCash = method === "CASH";
+  const cash = cashChange(received, isSplit ? cashPart : amountCents);
+  const cashShort = (isCash || isSplit) && cash.short;
+  // Picking an amount moves the cash field with it, so "exact money" stays exact.
+  const pickAmount = (cents: number) => {
+    const text = (cents / 100).toFixed(2);
+    setAmount(text);
+    setReceived(text);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -215,6 +244,11 @@ export function PaymentDialog({
         ) : (
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="invoiceId" value={invoiceId} />
+          {/* Cash carries what was handed over, in the register's words; the
+              other methods post the reference typed below. */}
+          {isCash ? (
+            <input type="hidden" name="reference" value={tenderedReference(cash.receivedCents, amountCents) ?? ""} />
+          ) : null}
 
           {cardFlow !== "manual" ? (
             <ReaderButtons
@@ -235,44 +269,78 @@ export function PaymentDialog({
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="amount">Amount</Label>
-            <Input
-              id="amount"
-              name="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="decimal"
-              className="h-14 text-right text-2xl font-bold tabular-nums"
-              autoFocus
-            />
+            <Label htmlFor="amount">How much are they paying?</Label>
+            <div className="relative">
+              <span aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-muted-foreground">
+                $
+              </span>
+              <Input
+                id="amount"
+                name="amount"
+                value={amount}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  setReceived(e.target.value);
+                }}
+                inputMode="decimal"
+                className="h-14 pl-10 text-right text-2xl font-bold tabular-nums"
+                autoFocus
+              />
+            </div>
+            {fullCents > 1 ? (
+              <div className="grid grid-cols-2 gap-2">
+                <QuickAmount
+                  label={`All of it · ${formatCents(fullCents)}`}
+                  pressed={amountCents === fullCents}
+                  onClick={() => pickAmount(fullCents)}
+                />
+                <QuickAmount
+                  label={`Half · ${formatCents(halfCents)}`}
+                  pressed={amountCents === halfCents}
+                  onClick={() => pickAmount(halfCents)}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label id="method-label">Method</Label>
+            <Label id="method-label">How are they paying?</Label>
             <MethodTiles value={method} onChange={setMethod} />
           </div>
 
           {method === "CARD" ? (
-            <p className="rounded-md bg-surface-hover px-4 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="rounded-md bg-surface-hover px-4 py-3 text-[15px] leading-relaxed text-muted-foreground">
               Key{" "}
               <span className="font-bold tabular-nums text-foreground">
-                {formatCents(Math.max(parseCents(amount), 0))}
+                {formatCents(amountCents)}
               </span>{" "}
               into your card machine. When it says approved, press the button
               below.
             </p>
           ) : null}
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="reference">
-              {method === "CARD" ? "Last 4 digits or approval code (optional)" : "Reference"}
-            </Label>
-            <Input
-              id="reference"
-              name="reference"
-              placeholder={method === "CARD" ? "e.g. 4242" : "Check #, reference…"}
-            />
-          </div>
+          {isSplit ? <div className="flex flex-col gap-3"><Label htmlFor="invoice-cash-part">Cash part</Label><Input id="invoice-cash-part" name="cashPart" inputMode="decimal" className="h-12" value={cashAmount} onChange={e => setCashAmount(e.target.value)} /><input type="hidden" name="cashReference" value={tenderedReference(cash.receivedCents, cashPart) ?? ""} /><CashTender dueCents={Math.max(0, cashPart)} received={received} onReceived={setReceived} autoFocus={false} /><p className="rounded-xl bg-surface-hover p-4 text-base">Key <strong>{formatCents(Math.max(0, amountCents - cashPart))}</strong> into your card machine. Record both parts after the card is approved.</p></div> : null}
+          {isCash ? (
+            <CashTender dueCents={amountCents} received={received} onReceived={setReceived} autoFocus={false} />
+          ) : null}
+
+          {method === "CARD" || method === "CHECK" || method === "OTHER" ? (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="reference">
+                {method === "CARD"
+                  ? "Last 4 digits or approval code (optional)"
+                  : method === "CHECK"
+                    ? "Check number (optional)"
+                    : "Note or reference (optional)"}
+              </Label>
+              <Input
+                id="reference"
+                name="reference"
+                className="h-12"
+                placeholder={method === "CARD" ? "e.g. 4242" : method === "CHECK" ? "e.g. 1045" : "e.g. bank transfer"}
+              />
+            </div>
+          ) : null}
 
           {cardFlow === "manual" && method === "CARD" ? (
             <ReaderButtons
@@ -287,8 +355,8 @@ export function PaymentDialog({
             <p
               className={
                 creditShort
-                  ? "rounded-md bg-destructive-soft px-3 py-2 text-[13.5px] font-medium text-destructive"
-                  : "rounded-md bg-surface-hover px-3 py-2 text-[13.5px] text-muted-foreground"
+                  ? "rounded-md bg-destructive-soft px-4 py-3 text-[15px] font-medium text-destructive"
+                  : "rounded-md bg-surface-hover px-4 py-3 text-[15px] text-muted-foreground"
               }
             >
               Store credit available: {formatCents(customerCreditCents)}
@@ -296,12 +364,17 @@ export function PaymentDialog({
             </p>
           ) : null}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          {/* Stacked on a phone with the big button on top, under the thumb. */}
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
+            <Button type="button" variant="outline" className="h-12 w-full px-5 text-base sm:w-auto" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <SubmitButton pendingLabel="Recording…">
-              {method === "CARD" ? "Approved — record payment" : "Record payment"}
+            <SubmitButton
+              pendingLabel="Recording…"
+              disabled={cashShort || amountCents <= 0 || (isSplit && (cashPart <= 0 || cashPart >= amountCents))}
+              className="h-12 w-full px-5 text-base sm:w-auto"
+            >
+              {paymentButtonLabel(method, amountCents)}
             </SubmitButton>
           </DialogFooter>
         </form>
@@ -309,6 +382,25 @@ export function PaymentDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The words on the one big button: what pressing it does, with the amount. */
+export function paymentButtonLabel(method: string, amountCents: number): string {
+  const amount = formatCents(amountCents);
+  switch (method) {
+    case "SPLIT":
+      return "Card approved — record cash + card";
+    case "CARD":
+      return `Approved — take ${amount}`;
+    case "CASH":
+      return `Take ${amount} in cash`;
+    case "CHECK":
+      return `Take ${amount} by check`;
+    case "CREDIT":
+      return `Use ${amount} of store credit`;
+    default:
+      return `Record ${amount}`;
+  }
 }
 
 /**
@@ -324,9 +416,25 @@ const METHOD_ICONS = {
   CHECK: ICONS.payout,
   CREDIT: ICONS.credit,
   OTHER: ACTIONS.more,
+  SPLIT: ICONS.payment,
 } as const;
 
-export function MethodTiles({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+export function MethodTiles({
+  value,
+  onChange,
+  labelId = "method-label",
+  name = "method",
+  labels,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  /** The id of the words that name the group. */
+  labelId?: string;
+  /** The form field the choice posts as. */
+  name?: string;
+  /** Other words for a method, e.g. "Back to their card" on a refund. */
+  labels?: Partial<Record<(typeof METHODS)[number]["value"], string>>;
+}) {
   const move = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
     if (!step) return;
@@ -339,8 +447,8 @@ export function MethodTiles({ value, onChange }: { value: string; onChange: (nex
 
   return (
     <>
-      <input type="hidden" name="method" value={value} />
-      <div role="radiogroup" aria-labelledby="method-label" className="flex flex-wrap gap-2">
+      <input type="hidden" name={name} value={value} />
+      <div role="radiogroup" aria-labelledby={labelId} className="flex flex-wrap gap-2">
         {METHODS.map((m, index) => {
           const Icon = METHOD_ICONS[m.value];
           const checked = m.value === value;
@@ -363,7 +471,7 @@ export function MethodTiles({ value, onChange }: { value: string; onChange: (nex
               )}
             >
               <Icon aria-hidden />
-              {m.label}
+              {labels?.[m.value] ?? m.label}
             </button>
           );
         })}

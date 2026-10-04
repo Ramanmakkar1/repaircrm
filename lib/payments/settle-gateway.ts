@@ -1,6 +1,6 @@
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
 import { emitInvoiceEvent, emitPaymentEvent } from "@/lib/events";
-import { invoiceTotals } from "@/lib/money";
 import type { SettleOutcome } from "./settle";
 
 export type GatewaySettleInput = {
@@ -38,6 +38,7 @@ export async function settleGatewayPayment(input: GatewaySettleInput): Promise<S
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
           payments: { select: { amountCents: true } },
+          refunds: { select: { amountCents: true, status: true } },
         },
       });
       if (!invoice) return { status: "ignored" as const, reason: "invoice not found for that shop" };
@@ -58,7 +59,7 @@ export async function settleGatewayPayment(input: GatewaySettleInput): Promise<S
         return { status: "ignored" as const, reason: "invoice is void" };
       }
 
-      const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+      const totals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
       const balanceAfter = totals.balanceCents - amountCents;
       const nextStatus = balanceAfter <= 0 ? "PAID" : "PARTIAL";
       const payment = await tx.payment.create({

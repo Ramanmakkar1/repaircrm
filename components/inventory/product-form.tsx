@@ -826,12 +826,14 @@ function VendorFields({ api, vendors }: { api: Api; vendors: VendorOption[] }) {
         value={values.vendorId === NO_VENDOR ? "" : values.vendorId}
       />
       <Field
-        label="Vendor"
+        label={api.easy ? "Supplier" : "Vendor"}
         htmlFor="vendorId"
         error={errors.vendorId}
         hint={
           vendors.length === 0
-            ? "No vendors yet — add one under Inventory ▸ Vendors."
+            ? api.easy
+              ? "No suppliers yet. Add one under Stock, Suppliers."
+              : "No vendors yet — add one under Inventory ▸ Vendors."
             : "Who you buy this from. Purchase orders start from here."
         }
         easy={api.easy}
@@ -844,7 +846,7 @@ function VendorFields({ api, vendors }: { api: Api; vendors: VendorOption[] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-64">
-            <SelectItem value={NO_VENDOR}>No vendor</SelectItem>
+            <SelectItem value={NO_VENDOR}>{api.easy ? "No supplier" : "No vendor"}</SelectItem>
             {vendors.map((vendor) => (
               <SelectItem key={vendor.id} value={vendor.id}>
                 {vendor.name}
@@ -855,10 +857,10 @@ function VendorFields({ api, vendors }: { api: Api; vendors: VendorOption[] }) {
       </Field>
 
       <Field
-        label="Vendor SKU"
+        label={api.easy ? "Their part number" : "Vendor SKU"}
         htmlFor="vendorSku"
         error={errors.vendorSku}
-        hint="Their part number — printed on the purchase order they read."
+        hint={api.easy ? "The supplier's own code for it, printed on the order they read." : "Their part number — printed on the purchase order they read."}
         easy={api.easy}
       >
         <div className="flex items-center gap-2">
@@ -868,12 +870,12 @@ function VendorFields({ api, vendors }: { api: Api; vendors: VendorOption[] }) {
             placeholder="MS-IP14-OLED"
           />
           <ScanButton
-            label="Scan the vendor's code"
-            title="Scan into vendor SKU"
+            label={api.easy ? "Scan the supplier's code" : "Scan the vendor's code"}
+            title={api.easy ? "Scan their part number" : "Scan into vendor SKU"}
             description="Point at the code on the supplier's packaging."
             onScan={(hit) => {
               set("vendorSku", hit.value);
-              return `Vendor SKU set to ${hit.value}`;
+              return `${api.easy ? "Part number" : "Vendor SKU"} set to ${hit.value}`;
             }}
           />
         </div>

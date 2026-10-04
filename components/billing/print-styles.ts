@@ -408,6 +408,13 @@ export const PRINT_BASE_CSS = `
   page-break-inside: avoid;
 }
 .rf-totals-panel { width: 3.3in; max-width: 100%; }
+/* An unpaid invoice's pay-online QR, beside the balance. */
+.rf-totals-wrap.has-pay { justify-content: space-between; align-items: flex-end; gap: 0.3in; }
+.rf-pay { display: flex; align-items: flex-end; gap: 0.14in; min-width: 0; }
+.rf-pay-qr { flex: none; width: 0.95in; height: 0.95in; image-rendering: pixelated; }
+.rf-pay-text { min-width: 0; font-size: 8pt; line-height: 1.45; color: var(--rf-ink-soft); }
+.rf-pay-text .rf-eyebrow { margin-bottom: 0.03in; }
+.rf-pay-url { font-family: var(--rf-mono); font-size: 7.5pt; color: var(--rf-ink); word-break: break-all; }
 .rf-totals { width: 100%; border-collapse: collapse; }
 .rf-totals td { padding: 0.045in 0; font-size: 9pt; }
 .rf-t-label { text-align: right; padding-right: 0.3in; color: var(--rf-ink-soft); }
@@ -740,6 +747,47 @@ export const PRINT_BASE_CSS = `
 }
 .rf-stub-code { flex: none; text-align: right; }
 .rf-stub-code svg { display: block; height: 0.5in; width: auto; }
+
+/* ===================================================== work order (rf-wo) === */
+/* The work order and its claim check fit ONE page on Letter (10in of print
+   area inside the 0.5in margins) and on A4 (10.69in): the house spacing is
+   tightened here, for this sheet only. */
+.rf-wo { line-height: 1.4; }
+.rf-wo .rf-band { padding-top: 0.1in; padding-bottom: 0.12in; }
+.rf-wo .rf-doctype { font-size: 19pt; }
+.rf-wo .rf-shop-lines { line-height: 1.35; }
+.rf-wo .rf-cols { margin-top: 0.1in; }
+.rf-wo .rf-party-lines { line-height: 1.4; }
+.rf-wo .rf-meta th, .rf-wo .rf-meta td { padding-top: 0.03in; padding-bottom: 0.03in; }
+.rf-wo .rf-section { margin-top: 0.16in; }
+.rf-wo .rf-section-tight { margin-top: 0.13in; }
+.rf-wo .rf-section-head { margin-bottom: 0.05in; }
+.rf-wo .rf-panel { padding: 0.08in 0.12in; }
+.rf-wo .rf-totals td { padding: 0.025in 0; }
+.rf-wo .rf-signs { margin-top: 0.14in; }
+.rf-wo .rf-sign-img, .rf-wo .rf-sign-blank { height: 0.45in; }
+.rf-wo .rf-note { margin-top: 0.06in; line-height: 1.4; }
+.rf-wo .rf-cut { margin: 0.18in 0 0.1in; }
+.rf-wo .rf-stub { padding: 0.08in 0.12in; }
+.rf-wo .rf-stub-code svg { height: 0.4in; }
+.rf-wo .rf-stub-number { font-size: 13pt; }
+.rf-wo .rf-stub-lines { margin-top: 0.02in; line-height: 1.3; }
+.rf-wo .rf-section { margin-top: 0.13in; }
+.rf-wo .rf-section-tight { margin-top: 0.1in; }
+.rf-wo .rf-sign-img, .rf-wo .rf-sign-blank { height: 0.4in; }
+.rf-wo-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3in; }
+.rf-wo-total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.06in 0.25in;
+  margin-top: 0.06in;
+  font-size: 8.5pt;
+  font-variant-numeric: tabular-nums;
+  color: var(--rf-ink-soft);
+}
+.rf-wo-total strong { color: var(--rf-ink); font-weight: 700; }
+.rf-wo-terms { font-size: 7.5pt; }
 
 /* ============================================================== @page ===== */
 /* No 'size' on purpose: the sheet has to compose on Letter AND A4, so the

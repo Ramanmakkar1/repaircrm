@@ -16,10 +16,9 @@
  * explaining what happened.
  */
 
-import { format, isToday, isTomorrow } from "date-fns";
-
 import { db } from "@/lib/db";
 import { sendEmail, sendSms } from "@/lib/comms";
+import { dayWords, safeTimeZone, timeIn } from "@/lib/dashboard/logic";
 
 const HORIZON_MS = 24 * 60 * 60 * 1000;
 
@@ -41,9 +40,10 @@ export async function runDueAppointmentRemindersForShop(
 
   const shop = await db.shop.findUnique({
     where: { id: shopId },
-    select: { name: true, phone: true },
+    select: { name: true, phone: true, timezone: true },
   });
   if (!shop) return result;
+  const zone = safeTimeZone(shop.timezone);
 
   const appointments = await db.appointment.findMany({
     where: {
@@ -75,7 +75,7 @@ export async function runDueAppointmentRemindersForShop(
     const customer = appointment.customer;
     if (!customerId || !customer) continue;
 
-    const when = formatWhen(appointment.startsAt);
+    const when = formatWhen(appointment.startsAt, now, zone);
     const body = [
       `Hi ${customer.firstName}, a reminder about your appointment with ${shop.name}:`,
       `${appointment.title} — ${when}${appointment.location ? ` at ${appointment.location.name}` : ""}.`,
@@ -121,23 +121,15 @@ export async function runDueAppointmentRemindersForShop(
 }
 
 /**
- * "Tomorrow at 10:00 AM" / "Wed, Sep 3 at 10:00 AM".
- *
- * Formatted on the SERVER against the server's own zone, which is the shop's
- * working assumption everywhere else in the app (see the date handling in the
- * ticket actions). A per-shop timezone conversion belongs with the rest of the
- * app's date rendering, not bolted on here.
+ * "tomorrow at 10:00 AM" / "Wed, Sep 3 at 10:00 AM", on the SHOP'S clock
+ * (Shop.timezone): the server runs in UTC, and a reminder that told an
+ * Edmonton customer "4:00 PM" for a 10 AM visit would be worse than none.
+ * Today and tomorrow are the shop's calendar days.
  */
-function formatWhen(startsAt: Date): string {
-  const time = startsAt.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  // date-fns handles the month/year rollovers a hand-rolled `getDate() + 1`
-  // gets wrong on the 31st.
-  if (isToday(startsAt)) return `today at ${time}`;
-  if (isTomorrow(startsAt)) return `tomorrow at ${time}`;
-
-  return `${format(startsAt, "EEE, MMM d")} at ${time}`;
+export function formatWhen(startsAt: Date, now: Date, zone: string): string {
+  const time = timeIn(startsAt.getTime(), zone);
+  const day = dayWords(startsAt.getTime(), now.getTime(), zone);
+  if (day === "Today") return `today at ${time}`;
+  if (day === "Tomorrow") return `tomorrow at ${time}`;
+  return `${day} at ${time}`;
 }

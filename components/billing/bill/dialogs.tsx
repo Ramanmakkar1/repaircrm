@@ -367,7 +367,14 @@ export function RepairList({ repairs, currentId, onPick }: { repairs: RepairOpti
             >
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="line-clamp-2 text-base font-semibold leading-snug [overflow-wrap:anywhere]">{repairLabel(repair)}</span>
-                <span className="text-[13px] text-muted-foreground">{repair.status}</span>
+                <span className="text-[13px] text-muted-foreground">
+                  {repair.status}
+                  {repair.charges && repair.charges.length > 0
+                    ? ` · ${repair.charges.length} ${repair.charges.length === 1 ? "charge" : "charges"} to bill`
+                    : repair.charges
+                      ? " · nothing left to bill"
+                      : ""}
+                </span>
               </span>
               {current ? <Check aria-hidden className="size-5 shrink-0" strokeWidth={3} /> : null}
             </button>
@@ -399,7 +406,7 @@ export function RepairDialog({
         <DialogHeader>
           <DialogTitle>From repair</DialogTitle>
           <DialogDescription>
-            Link this to one of this customer&rsquo;s open repairs, so it shows up on that repair. Add the items yourself.
+            Pick one of this customer&rsquo;s open repairs. Anything charged on it and not billed yet goes on this bill, and the repair shows it as billed once you save.
           </DialogDescription>
         </DialogHeader>
         <RepairList repairs={repairs} currentId={currentId} onPick={(id) => { onPick(id); onOpenChange(false); }} />

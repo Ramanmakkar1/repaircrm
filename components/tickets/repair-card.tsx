@@ -56,15 +56,18 @@ const FACT_ICON: Partial<Record<RepairFactKind, typeof Package>> = {
 export function RepairCard({
   repair,
   now,
+  timeZone,
   className,
 }: {
   repair: RepairCardData;
   /** One request-time clock, so every card in a render agrees on "now". */
   now: number;
+  /** The shop's time zone (Shop.timezone): "Due Oct 12" is the shop's date, not the server's. */
+  timeZone?: string | null;
   className?: string;
 }) {
   const device = deviceName(repair.asset);
-  const chips = repairChips(repair, now);
+  const chips = repairChips(repair, now, timeZone);
   const tech = repair.assignedTo?.name ?? null;
   const customer = customerLabel(repair.customer);
 

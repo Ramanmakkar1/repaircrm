@@ -11,6 +11,9 @@ import {
   GoogleNoticeBanner,
 } from "@/components/auth/google-button";
 
+import { Button } from "@/components/ui/button";
+
+import { AUTH_LINK } from "../auth-link";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
@@ -53,7 +56,7 @@ export default async function LoginPage({
       </div>
 
       {noticeText ? (
-        <p className="mb-5 rounded-md border border-border-strong bg-surface-hover px-4 py-3 text-[14.5px] font-medium text-foreground">
+        <p className="mb-5 rounded-md border border-border-strong bg-surface-hover px-4 py-3 text-[15px] font-medium text-foreground">
           {noticeText}
         </p>
       ) : null}
@@ -84,23 +87,19 @@ export default async function LoginPage({
       ) : null}
 
       <LoginForm redirectTo={redirectTo} />
-      <Link href="/email-code" className="mt-4 flex min-h-11 items-center justify-center rounded-md border border-border text-sm font-semibold hover:bg-surface-hover">Email me a sign-in code</Link>
+      <Button asChild size="lg" variant="outline" className="mt-3 h-12 min-h-12 w-full text-[15px]">
+        <Link href="/email-code">Email me a sign-in code instead</Link>
+      </Button>
 
-      <p className="mt-6 text-center text-[14.5px]">
-        <Link
-          href="/forgot-password"
-          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
-        >
+      <p className="mt-4 text-center text-[15px]">
+        <Link href="/forgot-password" className={AUTH_LINK}>
           Forgot password?
         </Link>
       </p>
 
-      <p className="mt-4 text-center text-[14.5px] text-muted-foreground">
+      <p className="text-center text-[15px] text-muted-foreground">
         New here?{" "}
-        <Link
-          href="/signup"
-          className="font-semibold text-accent underline underline-offset-4 hover:text-accent-hover"
-        >
+        <Link href="/signup" className={AUTH_LINK}>
           Create a shop
         </Link>
       </p>
@@ -110,12 +109,9 @@ export default async function LoginPage({
         their repair ends up — /portal already points people the other way, and
         without the return leg they have nowhere to go but the back button.
       */}
-      <p className="mt-6 border-t border-border pt-5 text-center text-[13.5px] text-muted-foreground">
+      <p className="mt-4 border-t border-border pt-4 text-center text-[15px] text-muted-foreground">
         Had a device repaired?{" "}
-        <Link
-          href="/portal"
-          className="font-semibold text-foreground underline underline-offset-4 hover:text-accent"
-        >
+        <Link href="/portal" className={AUTH_LINK}>
           Check your repair here
         </Link>
       </p>

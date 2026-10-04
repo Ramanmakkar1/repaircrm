@@ -19,12 +19,15 @@ export function CalendarNav({
   todayHref,
   nextHref,
   simple,
+  hideTitle = false,
 }: {
   title: string;
   prevHref: string;
   todayHref: string;
   nextHref: string;
   simple: boolean;
+  /** Easy mode with the title drawn elsewhere: only the three buttons. */
+  hideTitle?: boolean;
 }) {
   if (!simple) {
     return (
@@ -54,12 +57,7 @@ export function CalendarNav({
 
   const big = "h-12 flex-1 px-5 text-base sm:flex-none [&_svg]:size-5";
 
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="flex items-center gap-2.5 text-xl font-semibold tracking-tight text-foreground">
-        <ICONS.appointment className="size-6 shrink-0 text-muted-foreground" aria-hidden />
-        {title}
-      </p>
+  const buttons = (
       <div className="grid grid-cols-3 gap-2 sm:flex">
         <Button variant="outline" size="lg" className={big} asChild>
           <Link href={prevHref} scroll={false}>
@@ -79,6 +77,17 @@ export function CalendarNav({
           </Link>
         </Button>
       </div>
+  );
+
+  if (hideTitle) return buttons;
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="flex items-center gap-2.5 text-xl font-semibold tracking-tight text-foreground">
+        <ICONS.appointment className="size-6 shrink-0 text-muted-foreground" aria-hidden />
+        {title}
+      </p>
+      {buttons}
     </div>
   );
 }

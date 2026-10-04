@@ -67,6 +67,7 @@ export function InvoiceActionMenu({
   invoiceNumber,
   customerName,
   printHref,
+  receiptPrintHref = null,
   editHref,
   receipt,
   signature,
@@ -80,6 +81,8 @@ export function InvoiceActionMenu({
   invoiceNumber: number;
   customerName: string;
   printHref: string;
+  /** The 80mm counter slip, once money has come in. Null hides the item. */
+  receiptPrintHref?: string | null;
   /** Null once the invoice is past the point where lines can change. */
   editHref: string | null;
   /** Offered on a settled invoice. `blockedReason` disables it, with a reason. */
@@ -95,6 +98,8 @@ export function InvoiceActionMenu({
     refundableCents: number;
     payments: RefundablePayment[];
     defaultMethod: string;
+    /** What the invoice owes now, so the refund can say what it will owe after. */
+    owingNowCents?: number;
   } | null;
   /** OWNER only. `blockedReason` is set when payments are already recorded. */
   voidInvoice: { action: VoidAction; blockedReason: string | null } | null;
@@ -166,9 +171,18 @@ export function InvoiceActionMenu({
           <DropdownMenuItem asChild>
             <Link href={printHref} target="_blank">
               <ACTIONS.print className="size-4 text-muted-foreground" />
-              Print
+              {receiptPrintHref ? "Print invoice" : "Print"}
             </Link>
           </DropdownMenuItem>
+
+          {receiptPrintHref ? (
+            <DropdownMenuItem asChild>
+              <Link href={receiptPrintHref} target="_blank">
+                <ICONS.invoice className="size-4 text-muted-foreground" />
+                Print receipt
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
 
           {editHref ? (
             <DropdownMenuItem asChild>
@@ -259,6 +273,7 @@ export function InvoiceActionMenu({
           payments={refund.payments}
           customerName={customerName}
           defaultMethod={refund.defaultMethod}
+          owingNowCents={refund.owingNowCents}
         />
       ) : null}
 

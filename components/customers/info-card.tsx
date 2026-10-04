@@ -31,13 +31,19 @@ export type CustomerInfo = {
 };
 
 /**
- * `easy` is the Easy mode "Contact" section, first on the page after the
- * header. The Easy header has no editable strip, so this is where the phone and
- * email are changed in place (the same fields, written the same way): the
- * number the header dials is the one edited here, and a second number, when
- * there is one, stays a plain tap-to-call line. It also carries "Total paid",
- * which the old Easy header showed as a fact ("Customer since" is now in the
- * summary strip's last-visit pair).
+ * The customer's contact facts: how to reach them, address, preferences, tax
+ * and "Referred by".
+ *
+ * `easy` is the "Contact" card at the top of the Easy customer screen's Details
+ * tab. The Easy header (big name, call and text buttons) edits nothing, so this
+ * is where the phone and email are changed in place (the same fields, written
+ * the same way): the number the header dials is the one edited here, and a
+ * second number, when there is one, stays a plain tap-to-call line. It also
+ * carries "Total paid"; "Customer since" lives in the summary strip under the
+ * header, beside "Last visit".
+ *
+ * Full mode keeps the contact lines read-only `tel:` / `mailto:` links, because
+ * its ObjectHeader strip carries the phone and email editors.
  */
 export function InfoCard({
   customer,
@@ -157,12 +163,13 @@ export function InfoCard({
             }
           />
           {/*
-            The one editable line in this card. "How did they hear about us"
-            is answered at the counter, weeks after the record was made, and
+            Editable in place in both modes. "How did they hear about us" is
+            answered at the counter, weeks after the record was made, and
             walking the whole customer form to write four words was the reason
-            it was so often left blank. The contact lines above stay read-only
-            on purpose: they are `tel:`/`mailto:` links, and the header strip
-            now carries the editors for phone and email.
+            it was so often left blank. (In Full mode it is the only editor in
+            this card: the contact lines above are links there, and the header
+            strip edits phone and email. In Easy mode the contact lines above
+            are editors too.)
           */}
           <div className="flex items-baseline justify-between gap-3">
             <dt className="text-muted-foreground">Referred by</dt>

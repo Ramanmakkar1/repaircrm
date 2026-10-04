@@ -30,6 +30,8 @@ export type SessionUser = {
    * out without keeping server-side session state (see lib/session-guard.ts).
    */
   pv?: number;
+  /** PIN sessions are short-lived and invalidated whenever the PIN changes. */
+  pinv?: string;
 };
 
 const ROLES: readonly SessionRole[] = ["OWNER", "TECH", "FRONT_DESK"];
@@ -54,12 +56,12 @@ export function authSecretKey(): Uint8Array {
 
 const secretKey = authSecretKey;
 
-export async function signSession(user: SessionUser): Promise<string> {
+export async function signSession(user: SessionUser, maxAge = SESSION_MAX_AGE): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT({ ...user } as unknown as JWTPayload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt(now)
-    .setExpirationTime(now + SESSION_MAX_AGE)
+    .setExpirationTime(now + maxAge)
     .setSubject(user.userId)
     .sign(secretKey());
 }
@@ -72,7 +74,7 @@ export async function verifySession(
     const { payload } = await jwtVerify(token, secretKey(), {
       algorithms: ["HS256"],
     });
-    const { userId, shopId, role, name, email, pv } = payload as Record<
+    const { userId, shopId, role, name, email, pv, pinv } = payload as Record<
       string,
       unknown
     >;
@@ -93,6 +95,7 @@ export async function verifySession(
       name,
       email,
       pv: typeof pv === "number" ? pv : 0,
+      ...(typeof pinv === "string" ? { pinv } : {}),
     };
   } catch {
     // Expired, tampered with, or signed by a different AUTH_SECRET.
@@ -104,15 +107,15 @@ export async function verifySession(
  * Writes the session cookie. Can only be called from a Server Action or a
  * Route Handler — Next.js forbids mutating cookies during a render.
  */
-export async function setSessionCookie(user: SessionUser): Promise<void> {
-  const token = await signSession(user);
+export async function setSessionCookie(user: SessionUser, maxAge = SESSION_MAX_AGE): Promise<void> {
+  const token = await signSession(user, maxAge);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_MAX_AGE,
+    maxAge,
   });
 }
 

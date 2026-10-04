@@ -365,6 +365,14 @@ describe("a sale that bills a repair ticket", () => {
     });
   });
 
+  it("refuses a sale when another screen billed the repair charge after pricing", async () => {
+    stubTicketSale();
+    handlers["ticketCharge.updateMany"] = () => ({ count: 0 });
+    const result = await performCheckout(CONTEXT, cart({ lines: [cartLine({ ticketChargeId: "chg_1" })] }));
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("already billed") });
+    expect(callsTo("ticketComment.create")).toHaveLength(0);
+  });
+
   describe("deposits", () => {
     it("TAKES ONLY THE REMAINDER at the counter", async () => {
       stubTicketSale([{ id: "dep_1", amountCents: 4_000 }]);
@@ -598,4 +606,26 @@ describe("multi-tenancy", () => {
     expect(dataOf("invoice.create").shopId).toBe(SHOP);
     expect(whereOf("product.findMany")).toMatchObject({ shopId: SHOP });
   });
+});
+
+describe("cash + card on a single sale", () => {
+ const split = (extra: Partial<CheckoutInput> = {}) => cart({lines: [cartLine({description: "Service", unitPriceCents: 10000})], method: "SPLIT", cashAmountCents: 3000, tenderedCents: 5000, reference: "approved 4242", ...extra});
+ it("records separate tender rows, one invoice, and only the cash change", async () => {
+  const result = await performCheckout(CONTEXT, split());
+  expect(result).toMatchObject({ok: true, method: "SPLIT", changeDueCents: 2000, totalCents: 10000});
+  expect(callsTo("invoice.create")).toHaveLength(1);
+  expect(callsTo("payment.create").map(c => c.args.data)).toMatchObject([{shopId: SHOP, invoiceId: "inv_new", method: "CASH", amountCents: 3000, reference: "Tendered $50.00"}, {shopId: SHOP, invoiceId: "inv_new", method: "CARD", amountCents: 7000, reference: "approved 4242"}]);
+ });
+ it.each([0, -1, 10000, 11000, 1.2])("refuses an invalid cash part %s before creating a sale", async cashAmountCents => {
+  expect(await performCheckout(CONTEXT, split({cashAmountCents}))).toMatchObject({ok: false});
+  expect(callsTo("invoice.create")).toHaveLength(0);
+ });
+ it("refuses short cash rather than overstating the drawer", async () => {
+  expect(await performCheckout(CONTEXT, split({tenderedCents: 2999}))).toMatchObject({ok: false});
+  expect(callsTo("invoice.create")).toHaveLength(0);
+ });
+ it("does not reuse a full-balance reader approval for a split", async () => {
+  expect(await performCheckout(CONTEXT, split({terminalPaymentIntentId: "pi_paid"}))).toMatchObject({ok: false});
+  expect(callsTo("invoice.create")).toHaveLength(0);
+ });
 });

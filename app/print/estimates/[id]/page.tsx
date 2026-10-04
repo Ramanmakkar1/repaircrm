@@ -7,6 +7,7 @@ import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
 import { taxLabel } from "@/lib/tax";
 import { formatDate, formatDateLong } from "@/components/billing/format";
+import { shopNow } from "@/components/billing/shop-clock";
 import { addressLines, loadPrintShop } from "@/components/billing/print-queries";
 import {
   PrintSheet,
@@ -46,7 +47,7 @@ export default async function EstimatePrintPage({
   const expired =
     !approved &&
     !declined &&
-    Boolean(estimate.expiresAt && estimate.expiresAt.getTime() < requestNow());
+    Boolean(estimate.expiresAt && estimate.expiresAt.getTime() < shopNow(requestNow(), shop.timezone));
 
   const totalRows: PrintTotalRow[] = [
     { label: "Subtotal", value: formatCents(totals.subtotalCents) },
@@ -81,7 +82,8 @@ export default async function EstimatePrintPage({
       billToLabel="Prepared for"
       meta={[
         { label: "Estimate #", value: String(estimate.number) },
-        { label: "Issue date", value: formatDate(estimate.createdAt) },
+        // An instant, so the shop's day; the expiry is a stored calendar day.
+        { label: "Issue date", value: formatDate(estimate.createdAt, shop.timezone) },
         {
           label: "Valid until",
           value: estimate.expiresAt ? formatDate(estimate.expiresAt) : "—",
@@ -113,7 +115,7 @@ export default async function EstimatePrintPage({
       signature={estimate.approvalSignatureDataUrl}
       signatureCaption={
         estimate.approvedAt
-          ? `Approved by ${customerName} · ${formatDate(estimate.approvedAt)}`
+          ? `Approved by ${customerName} · ${formatDate(estimate.approvedAt, shop.timezone)}`
           : "Customer approval signature"
       }
       // An unsigned estimate prints the box it wants signed, not a blank gap.

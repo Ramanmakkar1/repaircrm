@@ -1,6 +1,5 @@
-import { format } from "date-fns";
-
 import { formatCents } from "@/lib/money";
+import { shortDateIn } from "@/lib/shop-time";
 import { plural } from "./format";
 
 /**
@@ -28,11 +27,14 @@ export function customerFacts({
   owedCents,
   lastVisit,
   now = new Date(),
+  timeZone,
 }: {
   openRepairs: number;
   owedCents: number;
   lastVisit: Date | null | undefined;
   now?: Date;
+  /** The shop's time zone (Shop.timezone): the visit is dated on the shop's calendar. */
+  timeZone?: string | null;
 }): CustomerFact[] {
   const facts: CustomerFact[] = [];
 
@@ -45,10 +47,9 @@ export function customerFacts({
   if (lastVisit && !Number.isNaN(lastVisit.getTime())) {
     // "Sep 30" this year; "Sep 30, 2025" once the year differs, so an old
     // visit never reads as a recent one.
-    const sameYear = lastVisit.getFullYear() === now.getFullYear();
     facts.push({
       key: "visit",
-      label: `Last visit ${format(lastVisit, sameYear ? "MMM d" : "MMM d, yyyy")}`,
+      label: `Last visit ${shortDateIn(lastVisit, now.getTime(), timeZone)}`,
       tone: "neutral",
     });
   }

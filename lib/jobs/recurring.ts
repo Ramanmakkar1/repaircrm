@@ -3,6 +3,8 @@ import { invoiceMessage } from "@/lib/comms/documents";
 import { deliverEmail } from "@/lib/comms/drivers";
 import { sendEmail } from "@/lib/comms";
 import { db } from "@/lib/db";
+import { loadShopZone } from "@/lib/dashboard/shop-zone";
+import { recurringCalendarDate } from "@/lib/recurring-clock";
 import { shopDefaultLocationId } from "@/lib/location";
 import { formatCents, invoiceTotals } from "@/lib/money";
 // Imported from the leaf modules rather than the @/lib/payments barrel: the
@@ -14,10 +16,8 @@ import { paymentsLive } from "@/lib/payments/config";
 import { withNextNumber } from "@/lib/sequence";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import {
-  addUtcDays,
   advanceRunDate,
   asFrequency,
-  startOfUtcDay,
 } from "@/components/recurring/meta";
 
 /**
@@ -82,8 +82,9 @@ export type RecurringRunResult = {
 export async function runDueRecurringInvoicesForShop(
   shopId: string,
 ): Promise<RecurringRunResult> {
+  const zone = await loadShopZone(shopId);
   const due = await db.recurringInvoice.findMany({
-    where: { shopId, active: true, nextRunAt: { lte: new Date() } },
+    where: { shopId, active: true, nextRunAt: { lte: recurringCalendarDate(Date.now(), zone) } },
     orderBy: { nextRunAt: "asc" },
     take: MAX_INVOICES_PER_RUN,
     select: { id: true },
@@ -95,7 +96,7 @@ export async function runDueRecurringInvoicesForShop(
 
   for (const schedule of due) {
     try {
-      const result = await generate(shopId, schedule.id);
+      const result = await generate(shopId, schedule.id, zone);
       if (!result.ok) {
         errors.push(result.error);
         continue;
@@ -162,6 +163,7 @@ type GenerateResult =
 async function generate(
   shopId: string,
   scheduleId: string,
+  zone: string,
 ): Promise<GenerateResult> {
   const schedule = await db.recurringInvoice.findFirst({
     where: { id: scheduleId, shopId },
@@ -189,9 +191,8 @@ async function generate(
     asFrequency(schedule.frequency),
     schedule.anchorDay,
   );
-  // Terms run from the day the bill is raised, normalised to UTC midnight so
-  // the printed due date reads the same in every timezone.
-  const dueDate = addUtcDays(startOfUtcDay(new Date()), schedule.dueInDays);
+  // Terms start on the shop's day. Store the resulting calendar day at UTC midnight.
+  const dueDate = recurringCalendarDate(Date.now(), zone, schedule.dueInDays);
 
   const invoice = await withNextNumber(shopId, "invoice", (number) =>
     db.$transaction(async (tx) => {
@@ -276,7 +277,7 @@ async function autoSendInvoice(
       customer: { select: { firstName: true, email: true, emailOptIn: true } },
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
-      shop: { select: { name: true } },
+      shop: { select: { name: true, timezone: true } },
     },
   });
   if (!invoice) return "that invoice vanished before it could be sent";
@@ -292,6 +293,7 @@ async function autoSendInvoice(
 
   const message = invoiceMessage({
     shopName: invoice.shop.name,
+    timeZone: invoice.shop.timezone,
     customerFirstName: invoice.customer.firstName,
     number: invoice.number,
     publicToken: invoice.publicToken,

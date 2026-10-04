@@ -30,7 +30,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.{ts,tsx}"],
     // Explicit imports of describe/it/expect keep the test files honest under
     // `tsc --noEmit` without adding vitest's globals to the app's type space.
     globals: false,

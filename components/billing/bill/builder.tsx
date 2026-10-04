@@ -26,11 +26,13 @@ import {
   copyFor,
   fieldEntries,
   initialBillState,
+  linkRepair,
   needsUnit,
   productQuantity,
   removeLine,
   setQuantity,
   stepForServerError,
+  stepLabels,
   stepStatuses,
   stepTitle,
   submitReason,
@@ -38,14 +40,16 @@ import {
   totalsOf,
   updateLine,
   validate,
-  withRepair,
   withTax,
   type BillContext,
   type BillInitial,
   type BillKind,
+  type BillMode,
   type BillState,
   type RepairOption,
+  type RepeatDetails,
 } from "./flow";
+import { RepeatStep } from "@/components/recurring/repeat-step";
 import { BillMobileBar } from "./mobile-bar";
 import { BillPanel } from "./panel";
 import { BillStepper } from "./stepper";
@@ -72,6 +76,16 @@ export type BillBuilderProps = {
    * height for a real list of lines; on a phone it is simply the first thing, as before.
    */
   header?: React.ReactNode;
+  /**
+   * "edit" changes a saved document: the same screen, opened on Check and save,
+   * posting the document's `id` first so the update action rewrites it. The
+   * fields posted are otherwise exactly the new document's.
+   */
+  mode?: BillMode;
+  /** The saved document's id, for mode "edit". */
+  documentId?: string;
+  /** A plain-words note above the steps (e.g. "Already sent to Elena"). */
+  notice?: React.ReactNode;
 };
 
 /**
@@ -98,17 +112,23 @@ export function BillBuilder({
   recentCustomerIds = [],
   initial,
   header,
+  mode = "new",
+  documentId,
+  notice,
 }: BillBuilderProps) {
   const [server, formAction, pending] = useActionState(action, IDLE_FORM_STATE);
-  const copy = copyFor(kind);
+  const copy = copyFor(kind, mode);
   const ctx = React.useMemo<BillContext>(
     () => ({ kind, customers, products, taxRates, taxRateBps, repairs, recentCustomerIds }),
     [kind, customers, products, taxRates, taxRateBps, repairs, recentCustomerIds],
   );
 
   const [state, setState] = React.useState<BillState>(() => initialBillState(ctx, initial));
-  // A document opened for a customer already (from their page) starts on the items.
-  const [step, setStep] = React.useState(() => (customers.some((customer) => customer.id === initial?.customerId) ? 1 : 0));
+  // A saved document opens on Check and save (everything on one page, Save
+  // right there); a new one opened for a customer already starts on the items.
+  const [step, setStep] = React.useState(() =>
+    mode === "edit" ? LAST_STEP : customers.some((customer) => customer.id === initial?.customerId) ? 1 : 0,
+  );
   /** The steps something was refused on: their messages stay up until each is fixed. */
   const [attempted, setAttempted] = React.useState<number[]>([]);
   /** Counts refusals, so each one brings its message into view. */
@@ -240,7 +260,7 @@ export function BillBuilder({
       const product = products.find((option) => option.id === result.serial.productId);
       if (!product) return { ok: false, message: "That unit's product is not on this list." };
       // An estimate has no serial column, so only the product is quoted, which is what quoting a serialized item means.
-      if (kind === "estimate") {
+      if (kind !== "invoice") {
         setState((current) => addProduct(current, product, kind));
         const message = `Added ${product.name}.`;
         setStatus(message);
@@ -284,15 +304,16 @@ export function BillBuilder({
   return (
     <>
       <form ref={formRef} action={formAction} noValidate onSubmit={onSubmit} onKeyDown={onKeyDown} className="flex flex-col gap-5">
-        {fieldEntries(state, ctx).map(([name, value]) => (
+        {fieldEntries(state, ctx, mode === "edit" ? documentId : null).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
         ))}
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
           <div ref={leftRef} className="flex min-w-0 flex-col gap-5">
             {header}
+            {notice}
             <div ref={stepperRef}>
-              <BillStepper step={step} statuses={statuses} onStep={goTo} label={copy.stepsLabel} />
+              <BillStepper step={step} statuses={statuses} onStep={goTo} label={copy.stepsLabel} labels={stepLabels(kind)} />
             </div>
 
             {server?.error ? (
@@ -311,7 +332,7 @@ export function BillBuilder({
               </div>
 
               {step === 0 ? (
-                <CustomerStep state={state} ctx={ctx} setState={setState} onChosen={() => goTo(1)} onNext={goNext} issues={issues} />
+                <CustomerStep state={state} ctx={ctx} setState={setState} onChosen={() => goTo(1)} onNext={goNext} issues={issues} allowNew={mode !== "edit"} />
               ) : null}
               {step === 1 ? (
                 <ItemsStep
@@ -326,7 +347,21 @@ export function BillBuilder({
                   status={status}
                 />
               ) : null}
-              {step === 2 ? (
+              {step === 2 && kind === "repeat" ? (
+                <RepeatStep
+                  state={state}
+                  ctx={ctx}
+                  copy={copy}
+                  editing={mode === "edit"}
+                  onDate={panelHandlers.onDate}
+                  onRepeat={(patch: Partial<RepeatDetails>) => setState((current) => ({ ...current, repeat: { ...current.repeat, ...patch } }))}
+                  issues={issues}
+                  phonePanel={
+                    <BillPanel {...panelHandlers} onStep={goTo} showActions={false} showOptions={false} idPrefix="review-panel" />
+                  }
+                />
+              ) : null}
+              {step === 2 && kind !== "repeat" ? (
                 <ReviewStep
                   state={state}
                   ctx={ctx}
@@ -348,7 +383,8 @@ export function BillBuilder({
             <BillPanel
               {...panelHandlers}
               onStep={goTo}
-              showOptions={step !== LAST_STEP}
+              // A repeat bill's day is on its "How often" step, and it has no printed notes.
+              showOptions={step !== LAST_STEP && kind !== "repeat"}
               idPrefix="aside"
               className="lg:h-[calc(100dvh-7rem)] lg:min-h-[28rem]"
             />
@@ -396,8 +432,14 @@ export function BillBuilder({
         open={repairOpen}
         repairs={repairs.filter((repair) => repair.customerId === state.customerId)}
         currentId={state.ticketId}
-        onPick={(id) => setState((current) => withRepair(current, id))}
-        onUnlink={() => setState((current) => withRepair(current, ""))}
+        onPick={(id) => {
+          // The repair's unbilled charges come onto the bill with it.
+          setState((current) => linkRepair(current, id, ctx));
+          const picked = repairs.find((repair) => repair.id === id);
+          const count = picked?.charges?.length ?? 0;
+          setStatus(count > 0 ? `Added ${count} ${count === 1 ? "charge" : "charges"} from repair #${picked?.number}.` : `Linked to repair #${picked?.number}.`);
+        }}
+        onUnlink={() => setState((current) => linkRepair(current, "", ctx))}
         onOpenChange={setRepairOpen}
       />
 

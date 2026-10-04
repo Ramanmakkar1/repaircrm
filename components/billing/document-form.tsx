@@ -37,6 +37,8 @@ export type DocumentFormProps = {
     customerId?: string | null;
     ticketId?: string | null;
     taxRateId?: string | null;
+    /** A saved document's own snapshotted rate (0 is a real rate: no tax). */
+    taxRateBps?: number;
     /** yyyy-mm-dd */
     date?: string;
     notes?: string | null;
@@ -49,8 +51,12 @@ export type DocumentFormProps = {
   repairs?: RepairOption[];
   /** Easy mode, new documents only: who was billed most recently, to tap on step 1. */
   recentCustomerIds?: string[];
-  /** Easy mode, new documents only: the page's title block, drawn at the top of the builder's choices. */
+  /** Easy mode: the page's title block, drawn at the top of the builder's choices. */
   header?: React.ReactNode;
+  /** Easy mode: a plain-words note under the title (e.g. "Already sent to Elena"). */
+  notice?: React.ReactNode;
+  /** Easy mode, a new invoice opened for a repair: put its unbilled charges on the bill. */
+  withRepairCharges?: boolean;
 };
 
 /**
@@ -58,14 +64,16 @@ export type DocumentFormProps = {
  * /estimates/[id]/edit. The only thing that varies is the date field's meaning
  * (due vs. expires) and whether lines carry a serial number.
  *
- * A NEW document in Easy mode is the bill builder (components/billing/bill): a
- * sibling of the Sell screen and the new-repair check-in. It posts the same
- * fields to the same actions as the form below, which Full mode (and editing a
- * saved document) keeps exactly as it was.
+ * In Easy mode a document, new or saved, is the bill builder
+ * (components/billing/bill): a sibling of the Sell screen and the new-repair
+ * check-in. A saved one opens it in edit mode (on Check and save, posting its
+ * `id`). It posts the same fields to the same actions as the form below, which
+ * Full mode keeps exactly as it was.
  */
 export function DocumentForm(props: DocumentFormProps) {
-  if (props.simple && !props.initial?.id) {
-    const { action, kind, customers, products, taxRateBps, taxRates, repairs, recentCustomerIds, initial, header } = props;
+  if (props.simple) {
+    const { action, kind, customers, products, taxRateBps, taxRates, repairs, recentCustomerIds, initial, header, notice } = props;
+    const editing = Boolean(initial?.id);
     return (
       <BillBuilder
         action={action}
@@ -74,15 +82,21 @@ export function DocumentForm(props: DocumentFormProps) {
         products={products}
         taxRateBps={taxRateBps}
         taxRates={taxRates}
-        repairs={repairs}
+        repairs={editing ? [] : repairs}
         recentCustomerIds={recentCustomerIds}
         header={header}
+        notice={notice}
+        mode={editing ? "edit" : "new"}
+        documentId={initial?.id}
         initial={{
           customerId: initial?.customerId,
           ticketId: initial?.ticketId,
           date: initial?.date,
           notes: initial?.notes,
           lines: initial?.lines,
+          // A saved document keeps its own tax snapshot until someone picks another rate.
+          tax: editing ? { taxRateId: initial?.taxRateId ?? null, taxRateBps: initial?.taxRateBps ?? taxRateBps } : undefined,
+          withRepairCharges: !editing && props.withRepairCharges,
         }}
       />
     );
@@ -246,7 +260,7 @@ function ClassicDocumentForm({
               rates={taxRates}
               value={tax.taxRateId}
               onChange={setTax}
-              hint="Snapshotted on save — changing a rate later never restates this document."
+              hint="Saved with this document. Changing the rate in Settings later never changes it."
             />
           ) : null}
 

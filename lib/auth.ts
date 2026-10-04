@@ -6,6 +6,7 @@ import { z } from "zod";
 import { sendWelcomeEmail } from "@/lib/password-reset";
 import { audit } from "@/lib/audit";
 import { db } from "@/lib/db";
+import { clearPushDevice } from "@/lib/push/device";
 import { setPending2faCookie } from "@/lib/pending-2fa";
 import { clearRateLimit, rateLimit, retryAfterLabel } from "@/lib/rate-limit";
 import {
@@ -122,6 +123,7 @@ export async function destroySession(): Promise<void> {
 export async function signOutCurrentUser(): Promise<void> {
   const session = await getSession();
   if (session) {
+    await clearPushDevice(session.shopId, session.userId);
     await audit({
       shopId: session.shopId,
       userId: session.userId,
@@ -150,7 +152,7 @@ export async function getSession(): Promise<SessionUser | null> {
 const liveAccount = cache(async (userId: string, shopId: string) =>
   db.user.findFirst({
     where: { id: userId, shopId },
-    select: { active: true, role: true, email: true, passwordChangedAt: true },
+    select: { active: true, role: true, email: true, passwordChangedAt: true, pinVersion: true, pinHash: true, totpEnabledAt: true, mustChangePassword: true },
   }),
 );
 
@@ -175,6 +177,7 @@ export async function requireUser(): Promise<SessionUser> {
   const account = await liveAccount(session.userId, session.shopId);
   if (!account) redirect("/session-expired?reason=gone");
   if (!account.active) redirect("/session-expired?reason=inactive");
+  if (session.pinv && (session.pinv !== account.pinVersion || !account.pinHash || account.totpEnabledAt || account.mustChangePassword)) redirect("/session-expired?reason=password");
   if ((session.pv ?? 0) < passwordVersion(account.passwordChangedAt)) {
     redirect("/session-expired?reason=password");
   }

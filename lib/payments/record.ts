@@ -78,6 +78,8 @@ export type RecordPaymentInput = {
   reference?: string | null;
   /** The staff member taking it, or null for a machine-recorded payment. */
   takenById?: string | null;
+  cashPartCents?: number;
+  cashReference?: string | null;
 };
 
 export type RecordPaymentResult =
@@ -108,6 +110,9 @@ export async function recordPayment(
     return { ok: false, error: "Enter an amount greater than zero." };
   }
 
+  const cashPart = input.cashPartCents ?? 0;
+  if (!Number.isSafeInteger(input.amountCents) || !Number.isSafeInteger(cashPart) || cashPart < 0 || cashPart >= input.amountCents || (cashPart > 0 && input.method !== "CARD")) return { ok: false, error: "Enter a cash part smaller than the payment total." };
+  let cashPaymentId: string | null = null;
   let paymentId: string;
   let nextStatus: "PAID" | "PARTIAL";
   let invoiceId: string;
@@ -181,11 +186,15 @@ export async function recordPayment(
         });
       }
 
+      if (cashPart > 0) {
+        const cashPayment = await tx.payment.create({ data: { shopId: input.shopId, invoiceId: invoice.id, amountCents: cashPart, method: "CASH", reference: input.cashReference ?? null, takenById: input.takenById ?? null }, select: { id: true } });
+        cashPaymentId = cashPayment.id;
+      }
       const payment = await tx.payment.create({
         data: {
           shopId: input.shopId,
           invoiceId: invoice.id,
-          amountCents: input.amountCents,
+          amountCents: input.amountCents - cashPart,
           method: input.method,
           reference: input.reference ?? null,
           takenById: input.takenById ?? null,
@@ -221,6 +230,7 @@ export async function recordPayment(
 
   // After the commit, never inside it: a queued webhook for a rolled-back
   // transaction would announce money that never arrived.
+  if (cashPaymentId) await emitPaymentEvent(input.shopId, cashPaymentId);
   await emitPaymentEvent(input.shopId, paymentId);
   if (nextStatus === "PAID") {
     await emitInvoiceEvent(input.shopId, "invoice.paid", invoiceId);

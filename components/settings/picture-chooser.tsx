@@ -131,10 +131,15 @@ export function PictureChooser({
         />
       </div>
 
+      {/*
+        While a search is typed no group is chosen (the search covers them all),
+        so no tab is filled in; they stay at full strength, because faded text
+        is text people cannot read (it failed contrast at 60%).
+      */}
       <div
         role="group"
         aria-label="Picture groups"
-        className={cn("flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", searching && "opacity-60")}
+        className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {CATALOG_GROUPS.map((item) => {
           const active = !searching && item.name === group;
@@ -158,6 +163,12 @@ export function PictureChooser({
           );
         })}
       </div>
+
+      {searching ? (
+        <p className="text-[14px] text-muted-foreground" aria-live="polite">
+          Pictures from every group that match &ldquo;{deferred.trim()}&rdquo;. Tap a group to browse instead.
+        </p>
+      ) : null}
 
       {entries.length > 0 ? (
         <div role="group" aria-label={searching ? "Pictures that match" : group} className={GRID}>

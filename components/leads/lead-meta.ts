@@ -9,6 +9,7 @@
 import { format } from "date-fns";
 
 import type { StatusTone } from "@/components/ui/badge";
+import { formatIn } from "@/lib/dashboard/zone";
 
 // ---------------------------------------------------------------------------
 // Status
@@ -73,7 +74,7 @@ export const FRESH_MS = 24 * 60 * 60 * 1000;
  * Deliberately not date-fns `formatDistanceToNow` — that renders "about 2
  * hours ago", which is three words too long for a card corner.
  */
-export function leadAge(date: Date, now: Date = new Date()): string {
+export function leadAge(date: Date, now: Date = new Date(), zone?: string): string {
   const ms = now.getTime() - date.getTime();
   if (ms < 60_000) return "just now";
 
@@ -86,7 +87,8 @@ export function leadAge(date: Date, now: Date = new Date()): string {
   const days = Math.floor(hours / 24);
   if (days < 14) return `${days}d ago`;
 
-  return format(date, "MMM d, yyyy");
+  // An old enquiry gets its date, on the shop's calendar when the zone is known.
+  return zone ? formatIn(date.getTime(), zone, { month: "short", day: "numeric", year: "numeric" }) : format(date, "MMM d, yyyy");
 }
 
 /** A NEW lead less than a day old — the ones worth a coloured edge. */

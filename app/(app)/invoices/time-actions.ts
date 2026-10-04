@@ -25,6 +25,7 @@ export type AddTimeResult =
   | { ok: false; error: string };
 
 const EDITABLE = ["DRAFT", "SENT"] as const;
+class TimeChangedError extends Error {}
 
 export async function addTimeToInvoiceAction(
   invoiceId: string,
@@ -49,6 +50,7 @@ export async function addTimeToInvoiceAction(
   if (!invoice.ticketId) {
     return { ok: false, error: "This invoice is not linked to a ticket." };
   }
+  const ticketId = invoice.ticketId;
   if (!EDITABLE.includes(invoice.status as "DRAFT" | "SENT")) {
     return {
       ok: false,
@@ -58,7 +60,7 @@ export async function addTimeToInvoiceAction(
 
   const shop = await db.shop.findUnique({
     where: { id: shopId },
-    select: { settings: true },
+    select: { settings: true, timezone: true },
   });
   const labour = readLabourSettings(shop?.settings);
 
@@ -67,34 +69,45 @@ export async function addTimeToInvoiceAction(
     return { ok: false, error: "There is no unbilled time on this ticket." };
   }
 
-  const lines = labourLinesFor(entries, labour);
+  const lines = labourLinesFor(entries, labour, shop?.timezone ?? "UTC");
   const startOrder = invoice._count.lines;
 
-  await db.$transaction(async (tx) => {
-    await tx.invoiceLine.createMany({
-      data: lines.map((line, index) => ({
-        invoiceId: invoice.id,
-        productId: line.productId,
-        description: line.description,
-        quantity: line.quantity,
-        unitPriceCents: line.unitPriceCents,
-        taxable: line.taxable,
-        sortOrder: startOrder + index,
-      })),
-    });
+  try {
+    await db.$transaction(async (tx) => {
+      // Claim the entries before creating lines. A conditional update alone
+      // does not protect billing if its count is ignored after lines are written.
+      const claimed = await tx.timeEntry.updateMany({
+        where: {
+          id: { in: entries.map((entry) => entry.id) },
+          shopId,
+          ticketId,
+          billable: true,
+          endedAt: { not: null },
+          invoiceId: null,
+        },
+        data: { invoiceId: invoice.id },
+      });
+      if (claimed.count !== entries.length) throw new TimeChangedError();
 
-    // `invoiceId: null` in the filter is the race guard: if another tab billed
-    // the same entries a moment ago, this matches nothing rather than
-    // re-stamping them onto a second invoice.
-    await tx.timeEntry.updateMany({
-      where: {
-        id: { in: entries.map((entry) => entry.id) },
-        shopId,
-        invoiceId: null,
-      },
-      data: { invoiceId: invoice.id },
+      await tx.invoiceLine.createMany({
+        data: lines.map((line, index) => ({
+          invoiceId: invoice.id,
+          productId: line.productId,
+          description: line.description,
+          quantity: line.quantity,
+          unitPriceCents: line.unitPriceCents,
+          taxable: line.taxable,
+          sortOrder: startOrder + index,
+        })),
+      });
     });
-  });
+  } catch (error) {
+    // Throwing inside the transaction also rolls back any partial claim.
+    if (error instanceof TimeChangedError) {
+      return { ok: false, error: "That time changed or was already billed. Refresh and try again." };
+    }
+    throw error;
+  }
 
   revalidatePath(`/invoices/${invoice.id}`);
   revalidatePath("/invoices");

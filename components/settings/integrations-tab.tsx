@@ -38,6 +38,9 @@ import { Label } from "@/components/ui/label";
 import { StatusPill, type StatusTone } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { attentionBorder } from "./card-attention";
+import { shopDateTime } from "./shop-time";
+import { useShopZone } from "./shop-zone";
+import { TechnicalDetails } from "./technical-details";
 import {
   ENTITY_LABEL,
   SYNC_ENTITIES,
@@ -46,14 +49,14 @@ import {
 } from "@/lib/integrations/types";
 
 /**
- * Settings → Integrations.
+ * Settings → Accounting (the `integrations` panel).
  *
- * The hub answers one question — "what is this shop plugged into?" — and does
- * it as a calm grid of cards rather than a wall of forms. Two of them do real
- * work (QuickBooks, Xero); the rest are honest signposts to the tab or screen
- * where that particular thing is actually configured, because a settings
- * screen that quietly duplicates another settings screen is how two sources of
- * truth get born.
+ * One question: "do my invoices and payments reach my books?" Two cards,
+ * QuickBooks and Xero, each with a status word and one button. What an
+ * installer needs to switch one on (variable names, the address to register)
+ * sits under Technical details. The old shortcut cards to Payments, Messaging
+ * and Developer access are gone: the Settings hub and the Shop link screen
+ * already show those, once.
  *
  * Nothing secret is on this screen. Whether an env var is populated crosses
  * from the server; its value never does.
@@ -90,14 +93,14 @@ const CONNECTION_META: Record<
 > = {
   connected: { label: "Connected", tone: "success" },
   pending: { label: "Needs an answer", tone: "waiting" },
-  error: { label: "Sync failing", tone: "danger" },
+  error: { label: "Sending failed", tone: "danger" },
   disconnected: { label: "Disconnected", tone: "neutral" },
   none: { label: "Not connected", tone: "neutral" },
 };
 
 /** An unconfigured server outranks whatever a stored connection claims. */
 function connectionMeta(card: IntegrationCard) {
-  if (!card.configured) return { label: "Not available", tone: "neutral" as const };
+  if (!card.configured) return { label: "Not set up yet", tone: "neutral" as const };
   return CONNECTION_META[card.status] ?? CONNECTION_META.none;
 }
 
@@ -131,8 +134,8 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <SectionLabel hint="Send your invoices and payments to your accounting software.">
-          Accounting
+        <SectionLabel hint="Your invoices, payments and customers are sent across by themselves, so the books match the shop.">
+          Your accounting software
         </SectionLabel>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           {config.cards.map((card) => (
@@ -141,75 +144,34 @@ export function IntegrationsTab({ config }: { config: IntegrationsConfig }) {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <SectionLabel hint="Shortcuts to the other places a connection is set up.">
-          Elsewhere in Repairs helper
-        </SectionLabel>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <QuickCard
-            icon={ICONS.payment}
-            title="Online payments"
-            tone={config.stripeConnected ? "success" : "neutral"}
-            status={
-              config.stripeConnected
-                ? "Connected"
-                : config.stripeLive
-                  ? "Not connected yet"
-                  : "Off on this server"
-            }
-            body={
-              config.stripeConnected
-                ? "Customers can pay an invoice by card from their portal, and the money lands in your own Stripe account."
-                : "Take card payments from the customer portal. Set it up under Settings \u2192 Payments."
-            }
-            href="/settings?tab=payments"
-            cta={config.stripeConnected ? "Payment settings" : "Set up payments"}
-          />
+      <QuickCard
+        icon={ICONS.exportData}
+        title="Spreadsheet for your accountant"
+        tone="success"
+        status="Always available"
+        body="Download your invoices as a spreadsheet: the file every accountant already knows how to open."
+        href={`${config.appUrl}/api/exports/invoices.csv`}
+        cta="Download invoices"
+        external
+      />
 
-          <QuickCard
-            icon={ICONS.message}
-            title="Email & SMS"
-            tone={
-              config.emailDriver !== "log" || config.smsDriver !== "log"
-                ? "success"
-                : "neutral"
-            }
-            status={`Email: ${config.emailDriver} · SMS: ${config.smsDriver}`}
-            body={
-              config.emailDriver === "log" && config.smsDriver === "log"
-                ? "Log mode — messages are printed to the server console and filed in the outbox, but nothing leaves the building."
-                : "Outbound messages are going through a live provider."
-            }
-            href="/settings?tab=messaging"
-            cta="Messaging settings"
-          />
-
-          <QuickCard
-            icon={ICONS.apiKey}
-            title="API & webhooks"
-            tone={config.apiKeyCount > 0 ? "success" : "neutral"}
-            status={
-              config.apiKeyCount === 0
-                ? "No keys yet"
-                : `${config.apiKeyCount} key${config.apiKeyCount === 1 ? "" : "s"}`
-            }
-            body="Let another system read and write your customers, tickets and invoices over the REST API."
-            href="/settings?tab=api-keys"
-            cta="API & webhooks"
-          />
-
-          <QuickCard
-            icon={ICONS.exportData}
-            title="CSV exports"
-            tone="success"
-            status="Always available"
-            body="Download customers, invoices and payments as spreadsheets — the format every accountant already knows how to open."
-            href={`${config.appUrl}/api/exports/invoices.csv`}
-            cta="Download invoices"
-            external
-          />
-        </div>
-      </section>
+      {config.cards.some((card) => !card.configured) ? (
+        <TechnicalDetails>
+          {config.cards
+            .filter((card) => !card.configured)
+            .map((card) => (
+              <div key={card.provider} className="flex flex-col gap-2">
+                <h3 className="text-base font-semibold">{card.label}</h3>
+                <NotConfigured
+                  card={card}
+                  missing={card.envVars.filter(
+                    (variable) => !variable.set && variable.name !== "QBO_ENVIRONMENT",
+                  )}
+                />
+              </div>
+            ))}
+        </TechnicalDetails>
+      ) : null}
     </div>
   );
 }
@@ -243,10 +205,6 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
 
   const connected = card.status === "connected" || card.status === "error";
   const status = connectionMeta(card);
-  const missing = card.envVars.filter(
-    (variable) => !variable.set && variable.name !== "QBO_ENVIRONMENT",
-  );
-
   async function sync() {
     setBusy("sync");
     const result = await syncNowAction(card.provider);
@@ -290,7 +248,12 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
 
       <CardContent className="flex flex-1 flex-col gap-4">
         {!card.configured ? (
-          <NotConfigured card={card} missing={missing} />
+          <p className="text-[15px] leading-relaxed text-muted-foreground">
+            {card.label} is not switched on for your shop yet. Ask your
+            installer to connect it; what they need is under Technical details
+            below. Until then, your books can be kept with the spreadsheet
+            download.
+          </p>
         ) : card.status === "pending" ? (
           <p className="text-[14px] leading-relaxed text-muted-foreground">
             This Xero login covers {card.tenantChoices.length} organisations.
@@ -300,39 +263,39 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
         ) : connected ? (
           <ConnectedBody card={card} />
         ) : (
-          <p className="text-[14px] leading-relaxed text-muted-foreground">
-            Pushes your customers, products, invoices and payments across so the
-            books match the shop without anyone retyping them. Nothing is ever
-            pulled back — Repairs helper stays the place work is recorded.
+          <p className="text-[15px] leading-relaxed text-muted-foreground">
+            Sends your customers, products, invoices and payments across so the
+            books match the shop without anyone typing them twice. Nothing comes
+            back the other way: Repairs helper stays where the work is recorded.
           </p>
         )}
       </CardContent>
 
       <CardFooter className="flex-wrap justify-between gap-2">
         {!card.configured ? (
-          <span className="text-[14px] text-muted-foreground">
-            Ask whoever runs this server to add the variables above.
+          <span className="text-[14px] font-medium text-muted-foreground">
+            Next step: ask your installer to connect {card.label}.
           </span>
         ) : card.status === "pending" ? (
-          <Button asChild size="sm">
+          <Button asChild className="h-12 px-5">
             <Link href="/settings/integrations/xero-tenant">
-              Pick an organisation <NextIcon aria-hidden />
+              Choose your Xero books <NextIcon aria-hidden />
             </Link>
           </Button>
         ) : connected ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={sync} disabled={busy !== null}>
+              <Button className="h-12 px-5" onClick={sync} disabled={busy !== null}>
                 <SyncIcon
                   aria-hidden
                   className={busy === "sync" ? "animate-spin" : ""}
                 />
-                {busy === "sync" ? "Syncing…" : "Sync now"}
+                {busy === "sync" ? "Sending…" : "Send now"}
               </Button>
               <Button
                 asChild
-                size="sm"
                 variant="outline"
+                className="h-12 px-5"
                 aria-label={`Reconnect ${card.label}`}
               >
                 <a href={`/api/integrations/${card.provider}/connect`}>
@@ -342,9 +305,8 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
             </div>
             {/* Reads as what it is: the one button here that takes something away. */}
             <Button
-              size="sm"
               variant="ghost"
-              className="text-destructive hover:bg-destructive-soft hover:text-destructive"
+              className="h-12 text-destructive hover:bg-destructive-soft hover:text-destructive"
               disabled={busy !== null}
               onClick={() => setConfirming(true)}
             >
@@ -352,7 +314,7 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
             </Button>
           </>
         ) : (
-          <Button asChild size="sm">
+          <Button asChild className="h-12 px-5">
             <a href={`/api/integrations/${card.provider}/connect`}>
               <ConnectIcon aria-hidden /> Connect {card.label}
             </a>
@@ -368,7 +330,7 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
           <DialogHeader>
             <DialogTitle>Disconnect {card.label}?</DialogTitle>
             <DialogDescription>
-              Syncing stops immediately. What has already been pushed stays in{" "}
+              Sending stops immediately. What has already been sent stays in{" "}
               {card.label} untouched, and reconnecting the same company later
               picks up where this left off rather than sending everything again.
             </DialogDescription>
@@ -401,18 +363,18 @@ function ProviderCard({ card }: { card: IntegrationCard }) {
 }
 
 function describeStatus(card: IntegrationCard): string {
-  if (!card.configured) return "Not configured on this server.";
+  if (!card.configured) return "Not set up for your shop yet.";
   switch (card.status) {
     case "connected":
       return card.tenantName
         ? `Connected to ${card.tenantName}.`
         : "Connected.";
     case "error":
-      return "Connected, but the last attempt failed.";
+      return "Connected, but the last send did not go through.";
     case "pending":
       return "Almost there — one question left.";
     case "disconnected":
-      return "Disconnected. Reconnect to resume syncing.";
+      return "Disconnected. Reconnect to start sending again.";
     default:
       return "Not connected.";
   }
@@ -466,6 +428,7 @@ function NotConfigured({
 }
 
 function ConnectedBody({ card }: { card: IntegrationCard }) {
+  const zone = useShopZone();
   return (
     <div className="flex flex-col gap-4">
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
@@ -486,9 +449,9 @@ function ConnectedBody({ card }: { card: IntegrationCard }) {
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[14px] text-muted-foreground">
         <span>
-          Last sync:{" "}
+          Last sent:{" "}
           <span className="font-semibold text-foreground">
-            {card.lastSyncAt ? formatWhen(card.lastSyncAt) : "never"}
+            {card.lastSyncAt ? shopDateTime(card.lastSyncAt, zone) : "never"}
           </span>
         </span>
         {card.lastSummary ? <span>{syncLine(card.lastSummary)}</span> : null}
@@ -643,15 +606,4 @@ function Env({ children }: { children: React.ReactNode }) {
       {children}
     </code>
   );
-}
-
-const WHEN = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function formatWhen(iso: string): string {
-  return WHEN.format(new Date(iso));
 }

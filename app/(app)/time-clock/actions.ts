@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { parseWallDateTime, safeTimeZone } from "@/lib/dashboard/zone";
 
 /**
  * The time clock's four writes.
@@ -91,11 +92,15 @@ export async function updateTimeClockEntryAction(
   const { shopId, role } = await requireUser();
   if (role !== "OWNER") return { ok: false, error: "Only an owner can edit the timesheet." };
 
-  const clockInAt = parseLocal(input.clockIn);
+  // The times were typed as the shop's wall clock: read them in its zone, not the server's.
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
+  const zone = safeTimeZone(shop?.timezone);
+
+  const clockInAt = parseLocal(input.clockIn, zone);
   if (!clockInAt) return { ok: false, error: "Give the entry a valid start time." };
 
   const trimmedOut = input.clockOut.trim();
-  const clockOutAt = trimmedOut === "" ? null : parseLocal(trimmedOut);
+  const clockOutAt = trimmedOut === "" ? null : parseLocal(trimmedOut, zone);
   if (trimmedOut !== "" && !clockOutAt) {
     return { ok: false, error: "That end time isn't a valid date and time." };
   }
@@ -140,22 +145,13 @@ export async function deleteTimeClockEntryAction(
 }
 
 /**
- * Reads a `<input type="datetime-local">` value as LOCAL time.
- *
- * `new Date("2026-09-01T09:00")` is implementation-defined for a bare local
- * datetime; splitting the parts and using the multi-arg constructor pins it to
- * the shop's own clock — the same reasoning as `optionalDate` in the ticket
- * actions.
+ * Reads a `<input type="datetime-local">` value ("2026-09-01T09:00") as the
+ * SHOP'S wall clock. The server runs in UTC, so reading it in the server's own
+ * zone (as `new Date(y, m, d, h, mm)` does) would move a 9 AM correction to
+ * 3 AM in Edmonton.
  */
-function parseLocal(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const date = new Date(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3]),
-    Number(match[4]),
-    Number(match[5]),
-  );
-  return Number.isNaN(date.getTime()) ? null : date;
+function parseLocal(value: string, zone: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value.trim())) return null;
+  const at = parseWallDateTime(value, zone);
+  return at === null ? null : new Date(at);
 }

@@ -1,18 +1,28 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, Pause } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  deleteCampaignAction,
   setCampaignActiveAction,
   syncAndSendAction,
   syncCampaignAction,
   type SyncAndSendResult,
 } from "@/app/(app)/marketing/actions";
+import { ConfirmActionDialog } from "@/components/billing/action-form";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ACTIONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
@@ -147,15 +157,21 @@ export function CampaignActiveStrip({
   );
 }
 
-/** Pause / Resume as a labelled button — the detail page has room for words. */
+/**
+ * Pause / Resume as a labelled button — the detail page has room for words.
+ * `big` is Easy mode's one black button: "Pause" while it sends, "Turn on"
+ * while it does not.
+ */
 export function CampaignActiveButton({
   campaignId,
   active,
   campaignName,
+  big = false,
 }: {
   campaignId: string;
   active: boolean;
   campaignName: string;
+  big?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -173,11 +189,110 @@ export function CampaignActiveButton({
     router.refresh();
   }
 
+  if (big) {
+    return (
+      <Button size="lg" disabled={busy} onClick={toggle} className="h-14 px-6 text-base [&_svg]:size-5">
+        {busy ? <Loader2 className="animate-spin" /> : active ? <Pause /> : <ACTIONS.run />}
+        {active ? "Pause" : "Turn on"}
+      </Button>
+    );
+  }
+
   return (
     <Button variant="outline" disabled={busy} onClick={toggle}>
       {busy ? <Loader2 className="animate-spin" /> : active ? <Pause /> : <ACTIONS.run />}
       {active ? "Pause" : "Resume"}
     </Button>
+  );
+}
+
+/**
+ * Easy mode's "More" beside the campaign's one big button: change it, send
+ * what is due now (only while it is on), and, for an owner, delete it behind a
+ * confirmation. Every item says what it does in words.
+ */
+export function CampaignMoreMenu({
+  campaignId,
+  campaignName,
+  active,
+  canDelete,
+  sendCount,
+}: {
+  campaignId: string;
+  campaignName: string;
+  active: boolean;
+  canDelete: boolean;
+  /** Messages it has sent or queued: said in the delete warning. */
+  sendCount: number;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  async function sendNow() {
+    setBusy(true);
+    const outcome = await syncCampaignAction(campaignId);
+    setBusy(false);
+    if (!outcome.ok) {
+      toast.error(outcome.error);
+      return;
+    }
+    report(outcome.result);
+    router.refresh();
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" disabled={busy} className="h-14 px-5 text-base [&_svg]:size-5" aria-label={`More for ${campaignName}`}>
+            {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.more />}
+            More
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-60">
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]">
+            <Link href={`/marketing/${campaignId}/edit`}>
+              <ACTIONS.edit className="size-4 text-muted-foreground" />
+              Change the message or timing
+            </Link>
+          </DropdownMenuItem>
+          {active ? (
+            <DropdownMenuItem className="min-h-12 text-[15px]" onSelect={() => void sendNow()}>
+              <ACTIONS.send className="size-4 text-muted-foreground" />
+              Send what is due now
+            </DropdownMenuItem>
+          ) : null}
+          {canDelete ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="min-h-12 text-[15px] text-destructive focus:bg-destructive-soft"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setDeleting(true);
+                }}
+              >
+                <ACTIONS.delete className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {canDelete ? (
+        <ConfirmActionDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          action={deleteCampaignAction}
+          fields={{ id: campaignId }}
+          triggerLabel="Delete"
+          title={`Delete ${campaignName}?`}
+          description={`It stops for good, with its ${sendCount} message record${sendCount === 1 ? "" : "s"}. Messages already sent stay in each customer's history.`}
+          confirmLabel="Delete"
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -188,6 +303,7 @@ export function CampaignActiveButton({
 export function SyncAndSendButton({
   dueCount,
   quiet = false,
+  plain = false,
 }: {
   dueCount: number;
   /**
@@ -195,6 +311,8 @@ export function SyncAndSendButton({
    * page keeps one primary action ("New campaign") even when messages are due.
    */
   quiet?: boolean;
+  /** Easy mode's words: "Check and send now" rather than "Sync & send due now". */
+  plain?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -214,7 +332,7 @@ export function SyncAndSendButton({
       onClick={run}
     >
       {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.send />}
-      {dueCount > 0 ? `Send ${dueCount} due now` : "Sync & send due now"}
+      {dueCount > 0 ? `Send ${dueCount} due now` : plain ? "Check and send now" : "Sync & send due now"}
     </Button>
   );
 }

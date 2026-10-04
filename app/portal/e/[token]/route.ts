@@ -34,8 +34,9 @@ export async function GET(
   });
 
   if (!estimate) {
-    const failed = new URL("/portal", appOrigin(request.url));
-    failed.searchParams.set("error", "invalid");
+    // Same rule as the invoice link: one destination for every failure.
+    const failed = new URL("/portal/link-expired", appOrigin(request.url));
+    failed.searchParams.set("doc", "estimate");
     return NextResponse.redirect(failed);
   }
 

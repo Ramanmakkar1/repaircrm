@@ -147,14 +147,22 @@ describe("new invoice, Easy mode, first paint", () => {
     expect(hidden(html)).toEqual(["customerId", "date", "taxRateId", "notes", "lines"]);
   });
 
-  it("is the old form, untouched, in Full mode and when editing a saved document", () => {
+  it("is the old form, untouched, in Full mode", () => {
     const full = easy("invoice", { simple: false });
     expect(text(full)).toContain("Line items");
     expect(text(full)).not.toContain("Who is this for?");
     expect(full).not.toContain("Invoice steps");
+  });
+
+  it("changes a saved document with the same builder in Easy mode, posting its id first", () => {
+    // The edit screen used to fall back to the dense Full-mode form in Easy mode.
     const saved = easy("invoice", { initial: { id: "inv_1", customerId: "c1" } });
-    expect(text(saved)).toContain("Use step-by-step");
-    expect(saved).not.toContain("Invoice steps");
+    expect(saved).toContain("Invoice steps");
+    expect(text(saved)).toContain("Save changes");
+    expect(text(saved)).not.toContain("Use step-by-step");
+    // It opens on Check and save, and posts the very fields the update action reads.
+    expect(text(saved)).toContain("Check and save");
+    expect(hidden(saved)).toEqual(["id", "customerId", "date", "taxRateId", "notes", "lines"]);
   });
 
   it("opens on the items for a customer already chosen (from their page)", () => {

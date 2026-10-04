@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { Barcode } from "./barcode";
+import { daysBetweenKeys, shopTodayKey } from "./shop-clock";
 
 /**
  * The pieces every printable Repairs helper document is assembled from.
@@ -252,20 +253,26 @@ export function CutLine({ label = "✂" }: { label?: string }) {
 }
 
 /**
- * "Net 30" / "Due on receipt" — payment terms are not a column in the schema,
- * they are the gap between the issue date and the due date, so they are derived
- * rather than stored (and stay honest when either date is edited).
+ * "Pay within 30 days" / "Due on receipt" — payment terms are not a column in
+ * the schema, they are the gap between the issue date and the due date, so they
+ * are derived rather than stored (and stay honest when either date is edited).
+ *
+ * The issue date is an instant and the due date a calendar day (stored at UTC
+ * midnight), so with the shop's zone the gap is counted between the shop's
+ * issue DAY and the due day: an invoice raised at 9pm on the 3rd and due on the
+ * 17th is 14 days, not 13. Without a zone the old instant arithmetic is kept.
  */
 export function termsLabel(
   issuedAt: Date,
-  dueDate: Date | null | undefined
+  dueDate: Date | null | undefined,
+  zone?: string | null,
 ): string {
   if (!dueDate) return "Due on receipt";
-  const days = Math.round(
-    (dueDate.getTime() - issuedAt.getTime()) / 86_400_000
-  );
+  const days = zone
+    ? daysBetweenKeys(shopTodayKey(issuedAt.getTime(), zone), dueDate.toISOString().slice(0, 10))
+    : Math.round((dueDate.getTime() - issuedAt.getTime()) / 86_400_000);
   if (days <= 0) return "Due on receipt";
-  return `Net ${days}`;
+  return `Pay within ${days} day${days === 1 ? "" : "s"}`;
 }
 
 /** Whole days `date` is in the past; 0 when it is today or later. */

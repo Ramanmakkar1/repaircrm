@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { endOfDay } from "date-fns";
 import type { Prisma } from "@prisma/client";
 
 import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-search";
@@ -49,6 +48,7 @@ import {
 } from "@/components/tickets/ticket-meta";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
+import { dueTodayRange } from "@/lib/sla";
 import { checklistProgress, parseChecklist } from "@/lib/checklist";
 import { listSavedViews } from "@/lib/saved-views-query";
 import { normalizeViewQuery, savedViewHref } from "@/lib/saved-views";
@@ -108,8 +108,15 @@ export default async function TicketsPage({
   const requestNow = new Date();
 
   // Computed for every render, not just the filtered one: the same set draws
-  // the dot on each row, so one query serves both.
-  const needsReply = new Set(await needsReplyTicketIds(shopId, branch.locationId));
+  // the dot on each row, so one query serves both. The shop row is read
+  // alongside it, before the filters: "Due today" ends at midnight in the
+  // shop's time zone (Shop.timezone), not the server's.
+  const [replyIds, shop] = await Promise.all([
+    needsReplyTicketIds(shopId, branch.locationId),
+    db.shop.findUnique({ where: { id: shopId }, select: { settings: true, timezone: true } }),
+  ]);
+  const needsReply = new Set(replyIds);
+  const timeZone = shop?.timezone ?? null;
 
   if (tech === "unassigned") {
     base.assignedToId = null;
@@ -155,7 +162,8 @@ export default async function TicketsPage({
     where.dueDate = { lt: requestNow };
     where.status = { not: RESOLVED_STATUS };
   } else if (due === "today") {
-    where.dueDate = { gte: requestNow, lte: endOfDay(requestNow) };
+    // From now to midnight on the shop's own calendar (the same cut Shop overview makes).
+    where.dueDate = dueTodayRange(requestNow.getTime(), timeZone);
     where.status = { not: RESOLVED_STATUS };
   }
 
@@ -166,8 +174,7 @@ export default async function TicketsPage({
       ? [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }]
       : [{ createdAt: "desc" }];
 
-  const [shop, techs, problems, total, tickets, statusRows, overdueCount, needsReplyCount] = await Promise.all([
-    db.shop.findUnique({ where: { id: shopId }, select: { settings: true } }),
+  const [techs, problems, total, tickets, statusRows, overdueCount, needsReplyCount] = await Promise.all([
     db.user.findMany({
       where: { shopId, active: true },
       orderBy: { name: "asc" },
@@ -349,6 +356,7 @@ export default async function TicketsPage({
         <PickupCounter
           cards={cards}
           now={now}
+          timeZone={timeZone}
           total={total}
           q={q}
           tabs={easyTabs}
@@ -426,6 +434,7 @@ export default async function TicketsPage({
                 <li key={ticket.id}>
                   <RepairCard
                     now={now}
+                    timeZone={timeZone}
                     className="h-full"
                     repair={{
                       ...ticket,
@@ -589,6 +598,7 @@ export default async function TicketsPage({
                 <TicketCard
                   key={ticket.id}
                   now={now}
+                  timeZone={timeZone}
                   ticket={{
                     ...ticket,
                     needsReply: needsReply.has(ticket.id),

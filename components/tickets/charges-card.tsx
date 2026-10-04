@@ -1,12 +1,11 @@
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
-import { deleteChargeAction } from "@/app/(app)/tickets/actions";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { ACTIONS, ICONS } from "@/components/ui/icons";
+import { ICONS } from "@/components/ui/icons";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TBody, THead, Th, Td } from "@/components/ui/table";
 import { AddChargeButton, EditChargeButton, type ProductOption } from "./charge-dialog";
+import { ChargeRemoveButton } from "./charge-remove-button";
 
 export type ChargeRow = {
   id: string;
@@ -82,17 +81,7 @@ export function ChargesCard({
                 {charge.invoiceId === null ? (
                   <div className="flex shrink-0 gap-3">
                     <EditChargeButton ticketId={ticketId} products={products} charge={charge} />
-                    <form action={deleteChargeAction.bind(null, charge.id)}>
-                      <SubmitButton
-                        variant="ghost"
-                        size="icon"
-                        pendingLabel=""
-                        aria-label={`Remove ${charge.description}`}
-                        className="text-faint-foreground hover:text-destructive"
-                      >
-                        <ACTIONS.delete className="size-4" />
-                      </SubmitButton>
-                    </form>
+                    <ChargeRemoveButton chargeId={charge.id} description={charge.description} />
                   </div>
                 ) : (
                   <span className="shrink-0 text-sm text-muted-foreground">Locked</span>
@@ -144,17 +133,7 @@ export function ChargesCard({
                           products={products}
                           charge={charge}
                         />
-                        <form action={deleteChargeAction.bind(null, charge.id)}>
-                          <SubmitButton
-                            variant="ghost"
-                            size="icon"
-                            pendingLabel=""
-                            aria-label={`Remove ${charge.description}`}
-                            className="text-faint-foreground hover:text-destructive"
-                          >
-                            <ACTIONS.delete className="size-4" />
-                          </SubmitButton>
-                        </form>
+                        <ChargeRemoveButton chargeId={charge.id} description={charge.description} />
                       </div>
                     ) : (
                       <span className="text-xs text-faint-foreground">Locked</span>

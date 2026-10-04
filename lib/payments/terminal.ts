@@ -34,11 +34,12 @@
 
 import type { Prisma } from "@prisma/client";
 
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 
 import { currencySupported, paymentsCurrency, paymentsLive } from "./config";
 import { accountFor } from "./account";
+import { invoicePaymentKey } from "./invoice-key";
 import { settleStripePayment, type SettleOutcome } from "./settle";
 import {
   chargeIdOf,
@@ -500,6 +501,7 @@ export async function createTerminalIntent(input: {
       taxRateBps: true,
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
     },
   });
   if (!invoice) return { ok: false, reason: "That invoice no longer exists." };
@@ -507,10 +509,11 @@ export async function createTerminalIntent(input: {
     return { ok: false, reason: "This invoice is void — it cannot take payments." };
   }
 
-  const totals = invoiceTotals(
+  const totals = refundAwareTotals(
     invoice.lines,
     invoice.taxRateBps,
     invoice.payments,
+    invoice.refunds,
   );
   if (totals.balanceCents <= 0) {
     return { ok: false, reason: "There is nothing left to pay on this invoice." };
@@ -530,7 +533,11 @@ export async function createTerminalIntent(input: {
       account,
       // Re-presenting the same card after a dropped connection must not open a
       // second intent for the same money.
-      idempotencyKey: `invoice-${invoice.id}-terminal-${totals.balanceCents}`,
+      idempotencyKey: await invoicePaymentKey(
+        `invoice-${invoice.id}-terminal-${totals.balanceCents}`,
+        invoice.payments.length,
+        invoice.refunds.length,
+      ),
       body: {
         amount: totals.balanceCents,
         currency,

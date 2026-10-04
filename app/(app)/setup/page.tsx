@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import QRCode from "qrcode";
 
 import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/comms";
@@ -59,6 +60,8 @@ export default async function SetupPage() {
   if (!shop) redirect("/dashboard");
 
   const state = readOnboarding(shop.settings);
+  const shopUrl = `${appUrl()}/s/${shop.slug}`;
+  const shopLinkLive = readPublicHub(shop.settings).enabled;
 
   const data: WizardData = {
     initialStep: resumeStep(state),
@@ -81,8 +84,11 @@ export default async function SetupPage() {
     paymentsLive: paymentsLive(),
     stripeConnected: Boolean(shop.stripeAccountId),
     portalUrl: `${appUrl()}/portal`,
-    shopUrl: `${appUrl()}/s/${shop.slug}`,
-    shopLinkLive: readPublicHub(shop.settings).enabled,
+    shopUrl,
+    // Drawn here, on the server, so no QR library reaches the browser; only
+    // when the link is on (the Ready step offers it only then).
+    shopQr: shopLinkLive ? await QRCode.toDataURL(shopUrl, { margin: 1, width: 320 }) : "",
+    shopLinkLive,
     sampleTicket,
   };
 
@@ -90,7 +96,7 @@ export default async function SetupPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Set up your shop"
-        description="Five short steps. Skip anything you'd rather do later — none of it is locked."
+        description="Five short steps. Anything can wait until later."
       />
       <OnboardingWizard data={data} />
     </div>

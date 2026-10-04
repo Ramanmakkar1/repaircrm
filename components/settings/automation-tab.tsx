@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -22,13 +22,19 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { JOB_SOURCE_LABEL, type JobsSummary } from "@/lib/jobs/types";
+import { shopDateTime } from "./shop-time";
+import { useShopZone } from "./shop-zone";
+import { StatusTile } from "./status-tile";
+import { TechnicalDetails } from "./technical-details";
 
 /**
- * Settings → Automation.
+ * Settings → Reminders & follow-ups (the `automation` panel).
  *
- * Answers one question an operator actually asks — "are the follow-ups going
- * out, and when did that last happen?" — and gives them a button for the
- * moment the answer is "apparently not".
+ * Answers one question an owner actually asks — "are the follow-ups going
+ * out, and when did that last happen?" — and gives them a Run now button for
+ * the moment the answer is "apparently not". How the timer is wired (the
+ * variables, the outside scheduler address) is for the installer, under
+ * Technical details.
  *
  * Read-only apart from that button. The schedule is configured by environment
  * (JOBS_INTERVAL_MIN, CRON_SECRET) for the same reason the messaging drivers
@@ -97,115 +103,41 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <Card>
-        <CardHeader
-          icon={ICONS.automation}
-          title={
-            <span className="flex flex-wrap items-center gap-2">
-              Automatic runs
-              <StatusPill
-                size="sm"
-                tone={timerOn ? "success" : "neutral"}
-                label={timerOn ? `Every ${config.intervalMin} min` : "Timer off"}
-              />
-            </span>
-          }
-          description={
-            timerOn
-              ? `Follow-ups and recurring invoices run themselves every ${config.intervalMin} minutes while the app is running.`
-              : "The built-in timer is switched off. Nothing runs on its own unless an outside scheduler calls the web address below."
-          }
-        />
-
-        <CardContent className="flex flex-col gap-4">
-          <VarRow name="JOBS_INTERVAL_MIN" value={String(config.intervalMin)} on={timerOn} />
-          {timerOn ? (
-            <p className="text-[14px] leading-relaxed text-muted-foreground">
-              After a restart the first run waits {config.firstDelayS} seconds
-              (<Env>JOBS_FIRST_DELAY_S</Env>), so a busy boot is not spent on
-              billing. Set <Env>JOBS_INTERVAL_MIN</Env> to <code>0</code> to
-              turn the timer off — for example when an outside scheduler is
-              already calling the address below.
+      <StatusTile
+        photo="/images/home/gears.webp"
+        title="Reminders and follow-ups"
+        state={timerOn ? "Running" : "Not running by itself"}
+        tone={timerOn ? "success" : "active"}
+        detail={
+          <>
+            <p>
+              {timerOn
+                ? `Repeat invoices, review requests and marketing messages go out by themselves, every ${config.intervalMin} minutes.`
+                : "Nothing goes out by itself right now. Press Run now to send what is due, or ask your installer to switch the timer on."}
             </p>
-          ) : (
-            <p className="text-[14px] leading-relaxed text-muted-foreground">
-              Set <Env>JOBS_INTERVAL_MIN</Env> to a number of minutes and
-              restart the app to switch it back on.
+            <p className="mt-1 font-medium text-foreground">
+              Last ran: <LastRunLabel iso={lastRunAt} source={summary?.source} />
             </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader
-          icon={Globe}
-          title={
-            <span className="flex flex-wrap items-center gap-2">
-              Outside scheduler
-              <StatusPill
-                size="sm"
-                tone={config.cronSecretSet ? "success" : "neutral"}
-                label={config.cronSecretSet ? "Open" : "Closed"}
-              />
-            </span>
-          }
-          description={
-            config.cronSecretSet
-              ? "A cron service or uptime checker can trigger a run by calling this address."
-              : "Turned off. Anyone could start a run if this address had no password, so it stays closed until one is set."
-          }
-        />
-
-        <CardContent className="flex flex-col gap-4">
-          <code className="w-fit max-w-full overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
-            {config.cronUrl}
-          </code>
-
-          <VarRow
-            name="CRON_SECRET"
-            value={config.cronSecretSet ? "set" : "not set"}
-            on={config.cronSecretSet}
-          />
-
-          <p className="text-[14px] leading-relaxed text-muted-foreground">
-            {config.cronSecretSet ? (
-              <>
-                Send the secret as{" "}
-                <Env>Authorization: Bearer &lt;secret&gt;</Env>, or add{" "}
-                <Env>?secret=…</Env> to the address if your scheduler cannot
-                send headers. It answers with a summary of what ran.
-              </>
+          </>
+        }
+      >
+        {config.canRun ? (
+          <Button onClick={runNow} disabled={running} className="h-12 px-5 text-base">
+            {running ? (
+              <Loader2 className="animate-spin" />
             ) : (
-              <>
-                Set <Env>CRON_SECRET</Env> in the server environment to open it.
-                Until then the address answers{" "}
-                <span className="font-medium text-foreground">
-                  503 — cron endpoint disabled
-                </span>
-                .
-              </>
+              <RunIcon aria-hidden />
             )}
-          </p>
-        </CardContent>
-      </Card>
+            {running ? "Running…" : "Run now"}
+          </Button>
+        ) : null}
+      </StatusTile>
 
       <Card>
         <CardHeader
           icon={Clock}
-          title="Last run"
+          title="What happened last time"
           description={<LastRunLabel iso={lastRunAt} source={summary?.source} />}
-          action={
-            config.canRun ? (
-              <Button onClick={runNow} disabled={running}>
-                {running ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <RunIcon aria-hidden />
-                )}
-                {running ? "Running…" : "Run all jobs now"}
-              </Button>
-            ) : null
-          }
         />
 
         <CardContent className="flex flex-col gap-4">
@@ -217,8 +149,8 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
               title="Nothing has run yet"
               hint={
                 config.canRun
-                  ? "Recurring invoices, review requests and campaign sends all happen here. Press Run all jobs now to try it."
-                  : "Recurring invoices, review requests and campaign sends all happen here. An owner can start a run by hand."
+                  ? "Repeat invoices, review requests and marketing messages all go out from here. Press Run now to try it."
+                  : "Repeat invoices, review requests and marketing messages all go out from here. An owner can start a run by hand."
               }
               className="rounded-md border border-dashed border-border py-10"
             />
@@ -226,35 +158,129 @@ export function AutomationTab({ config }: { config: AutomationConfig }) {
         </CardContent>
       </Card>
 
-      {config.recentRuns.length > 1 ? (
+      <TechnicalDetails>
         <Card>
           <CardHeader
-            icon={ACTIONS.retry}
-            title="Recent runs"
-            description={`The last ${config.recentRuns.length} runs since the app started. This list is not saved — a restart clears it, while the “last run” above is kept.`}
+            icon={ICONS.automation}
+            title={
+              <span className="flex flex-wrap items-center gap-2">
+                Automatic runs
+                <StatusPill
+                  size="sm"
+                  tone={timerOn ? "success" : "neutral"}
+                  label={timerOn ? `Every ${config.intervalMin} min` : "Timer off"}
+                />
+              </span>
+            }
+            description={
+              timerOn
+                ? `Follow-ups and recurring invoices run themselves every ${config.intervalMin} minutes while the app is running.`
+                : "The built-in timer is switched off. Nothing runs on its own unless an outside scheduler calls the web address below."
+            }
           />
-          <CardContent className="flex flex-col gap-2">
-            {config.recentRuns.map((run, index) => (
-              <div
-                key={`${run.startedAt}-${index}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-hover px-3 py-2 text-[14px]"
-              >
-                <span className="font-medium text-foreground">
-                  <Stamp iso={run.startedAt} />
-                </span>
-                <span className="text-muted-foreground">
-                  {JOB_SOURCE_LABEL[run.source]}
-                </span>
-                <span className="font-mono text-muted-foreground">
-                  {run.skipped
-                    ? `skipped (${run.skipped})`
-                    : `${run.recurring.created} inv · ${run.campaigns.sent} sent · ${run.ms}ms`}
-                </span>
-              </div>
-            ))}
+
+          <CardContent className="flex flex-col gap-4">
+            <VarRow name="JOBS_INTERVAL_MIN" value={String(config.intervalMin)} on={timerOn} />
+            {timerOn ? (
+              <p className="text-[14px] leading-relaxed text-muted-foreground">
+                After a restart the first run waits {config.firstDelayS} seconds
+                (<Env>JOBS_FIRST_DELAY_S</Env>), so a busy boot is not spent on
+                billing. Set <Env>JOBS_INTERVAL_MIN</Env> to <code>0</code> to
+                turn the timer off — for example when an outside scheduler is
+                already calling the address below.
+              </p>
+            ) : (
+              <p className="text-[14px] leading-relaxed text-muted-foreground">
+                Set <Env>JOBS_INTERVAL_MIN</Env> to a number of minutes and
+                restart the app to switch it back on.
+              </p>
+            )}
           </CardContent>
         </Card>
-      ) : null}
+
+        <Card>
+          <CardHeader
+            icon={Globe}
+            title={
+              <span className="flex flex-wrap items-center gap-2">
+                Outside scheduler
+                <StatusPill
+                  size="sm"
+                  tone={config.cronSecretSet ? "success" : "neutral"}
+                  label={config.cronSecretSet ? "Open" : "Closed"}
+                />
+              </span>
+            }
+            description={
+              config.cronSecretSet
+                ? "A cron service or uptime checker can trigger a run by calling this address."
+                : "Turned off. Anyone could start a run if this address had no password, so it stays closed until one is set."
+            }
+          />
+
+          <CardContent className="flex flex-col gap-4">
+            <code className="w-fit max-w-full overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[14px] text-foreground">
+              {config.cronUrl}
+            </code>
+
+            <VarRow
+              name="CRON_SECRET"
+              value={config.cronSecretSet ? "set" : "not set"}
+              on={config.cronSecretSet}
+            />
+
+            <p className="text-[14px] leading-relaxed text-muted-foreground">
+              {config.cronSecretSet ? (
+                <>
+                  Send the secret as{" "}
+                  <Env>Authorization: Bearer &lt;secret&gt;</Env>, or add{" "}
+                  <Env>?secret=…</Env> to the address if your scheduler cannot
+                  send headers. It answers with a summary of what ran.
+                </>
+              ) : (
+                <>
+                  Set <Env>CRON_SECRET</Env> in the server environment to open it.
+                  Until then the address answers{" "}
+                  <span className="font-medium text-foreground">
+                    503 — cron endpoint disabled
+                  </span>
+                  .
+                </>
+              )}
+            </p>
+          </CardContent>
+        </Card>
+
+        {config.recentRuns.length > 1 ? (
+          <Card>
+            <CardHeader
+              icon={ACTIONS.retry}
+              title="Recent runs"
+              description={`The last ${config.recentRuns.length} runs since the app started. This list is not saved — a restart clears it, while the “last run” above is kept.`}
+            />
+            <CardContent className="flex flex-col gap-2">
+              {config.recentRuns.map((run, index) => (
+                <div
+                  key={`${run.startedAt}-${index}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-hover px-3 py-2 text-[14px]"
+                >
+                  <span className="font-medium text-foreground">
+                    <Stamp iso={run.startedAt} />
+                  </span>
+                  <span className="text-muted-foreground">
+                    {JOB_SOURCE_LABEL[run.source]}
+                  </span>
+                  <span className="font-mono text-muted-foreground">
+                    {run.skipped
+                      ? `skipped (${run.skipped})`
+                      : `${run.recurring.created} inv · ${run.campaigns.sent} sent · ${run.ms}ms`}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+      </TechnicalDetails>
     </div>
   );
 }
@@ -277,7 +303,7 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Invoices created" value={summary.recurring.created} />
+        <Stat label="Repeat invoices made" value={summary.recurring.created} />
         <Stat label="Messages queued" value={summary.campaigns.queued} />
         <Stat label="Messages sent" value={summary.campaigns.sent} />
         <Stat
@@ -302,7 +328,7 @@ function SummaryBlock({ summary }: { summary: JobsSummary }) {
 
       <p className="text-[14px] text-muted-foreground">
         {summary.shops} shop{summary.shops === 1 ? "" : "s"} checked ·{" "}
-        {summary.sla?.breached ?? 0} overdue ticket
+        {summary.sla?.breached ?? 0} overdue repair
         {(summary.sla?.breached ?? 0) === 1 ? "" : "s"} flagged ·{" "}
         {summary.tokensPurged} expired portal link
         {summary.tokensPurged === 1 ? "" : "s"} and{" "}
@@ -398,7 +424,7 @@ function LastRunLabel({
   iso: string | null;
   source?: JobsSummary["source"];
 }) {
-  if (!iso) return <>Never — nothing has run on this server yet.</>;
+  if (!iso) return <>Never — nothing has run yet.</>;
   return (
     <>
       <Stamp iso={iso} />
@@ -412,11 +438,13 @@ function LastRunLabel({
  *
  * The server and the browser render this component at measurably different
  * moments, so a relative time computed during SSR is a guaranteed hydration
- * mismatch. The absolute timestamp is rendered first — correct and identical
- * on both sides — and the relative form is swapped in afterwards.
+ * mismatch. The absolute timestamp is rendered first — on the shop's own
+ * clock, so it is correct and identical on both sides — and the relative form
+ * is swapped in afterwards.
  */
 function Stamp({ iso }: { iso: string }) {
   const mounted = useMounted();
+  const zone = useShopZone();
 
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return <>unknown</>;
@@ -425,7 +453,7 @@ function Stamp({ iso }: { iso: string }) {
     <>
       {mounted
         ? `${formatDistanceToNow(date)} ago`
-        : format(date, "d MMM yyyy, h:mm a")}
+        : shopDateTime(date, zone)}
     </>
   );
 }

@@ -10,7 +10,8 @@ describe("touch workspace navigation", () => {
     expect(workspaceBack("/tickets/job123")).toBe("/tickets");
     expect(workspaceBack("/tickets")).toBe("/counter");
     expect(workspaceBack("/counter/repairs")).toBe("/counter");
-    expect(workspaceBack("/inventory/part123/edit")).toBe("/inventory");
+    // Edit goes back to the product it edits (it used to skip to the Stock list).
+    expect(workspaceBack("/inventory/part123/edit")).toBe("/inventory/part123");
     expect(workspaceBack("/settings/assistant")).toBe("/settings");
   });
   it("keeps restricted supplier, import and drawer actions out of staff workspaces", () => {

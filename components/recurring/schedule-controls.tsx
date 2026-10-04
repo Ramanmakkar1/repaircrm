@@ -11,6 +11,14 @@ import {
   setScheduleActiveAction,
 } from "@/app/(app)/invoices/recurring/actions";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
 
@@ -78,12 +86,15 @@ export function ScheduleActiveButton({
   active,
   scheduleName,
   size,
+  tileClassName,
 }: {
   scheduleId: string;
   active: boolean;
   scheduleName: string;
   /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
   size?: ButtonProps["size"];
+  /** Draw it as one of the bill screen's quick tiles (icon over the word). */
+  tileClassName?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
@@ -101,36 +112,63 @@ export function ScheduleActiveButton({
     router.refresh();
   }
 
+  const icon = busy ? (
+    <Loader2 className="animate-spin" aria-hidden />
+  ) : active ? (
+    <ACTIONS.pause aria-hidden />
+  ) : (
+    <ACTIONS.resume aria-hidden />
+  );
+
+  if (tileClassName) {
+    return (
+      <button type="button" className={tileClassName} disabled={busy} onClick={toggle}>
+        {icon}
+        {active ? "Pause" : "Turn back on"}
+      </button>
+    );
+  }
+
   return (
     <Button variant="outline" size={size} disabled={busy} onClick={toggle}>
-      {busy ? (
-        <Loader2 className="animate-spin" />
-      ) : active ? (
-        <ACTIONS.pause />
-      ) : (
-        <ACTIONS.resume />
-      )}
+      {icon}
       {active ? "Pause" : "Resume"}
     </Button>
   );
 }
 
-/** "Run now" — bills this period immediately and links straight to the draft. */
+/**
+ * "Run now" — bills this period immediately and links straight to the draft.
+ *
+ * With `confirm` (Easy mode) it is the one big "Bill now" button: the first tap
+ * says in words what is about to happen (a draft is made; and, when the
+ * schedule does them, it is emailed and the card is charged) and a second tap
+ * does it. Nothing about the action changes.
+ */
 export function RunNowButton({
   scheduleId,
   size,
+  label = "Run now",
+  confirm,
+  className,
 }: {
   scheduleId: string;
   /** Detail-page action rows run at `sm`; everywhere else keeps the default. */
   size?: ButtonProps["size"];
+  label?: string;
+  /** Ask first, with this sentence saying what will happen. */
+  confirm?: string;
+  className?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const [asking, setAsking] = React.useState(false);
 
   async function run() {
     setBusy(true);
     const result = await runRecurringInvoice(scheduleId);
     setBusy(false);
+    setAsking(false);
 
     if (!result.ok) {
       toast.error(result.error);
@@ -145,11 +183,36 @@ export function RunNowButton({
     router.refresh();
   }
 
-  return (
-    <Button size={size} disabled={busy} onClick={run}>
+  const button = (
+    <Button size={size} className={className} disabled={busy} onClick={confirm ? () => setAsking(true) : run}>
       {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.run />}
-      Run now
+      {label}
     </Button>
+  );
+
+  if (!confirm) return button;
+
+  return (
+    <>
+      {button}
+      <Dialog open={asking} onOpenChange={(next) => !busy && setAsking(next)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Make the next bill now?</DialogTitle>
+            <DialogDescription>{confirm}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2.5">
+            <Button type="button" variant="outline" className="h-12 w-full px-5 text-base sm:w-auto" disabled={busy} onClick={() => setAsking(false)}>
+              Not now
+            </Button>
+            <Button type="button" className="h-12 w-full px-5 text-base sm:w-auto" disabled={busy} onClick={run}>
+              {busy ? <Loader2 className="animate-spin" /> : <ACTIONS.run />}
+              {label}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -180,7 +243,7 @@ export function GenerateDueButton({ dueCount }: { dueCount: number }) {
   return (
     <Button disabled={busy} onClick={run}>
       {busy ? <Loader2 className="animate-spin" /> : <ICONS.automation />}
-      Generate {dueCount} due now
+      Make {dueCount} due {dueCount === 1 ? "bill" : "bills"} now
     </Button>
   );
 }

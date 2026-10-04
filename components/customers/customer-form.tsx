@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DuplicateWarning } from "./duplicate-warning";
 import Link from "next/link";
 import { AlertCircle, Building2, FileText, Mail, MapPin, MessageSquareText, Percent } from "lucide-react";
 
@@ -92,6 +93,7 @@ function FullCustomerForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
+      <DuplicateWarning state={state} />
       {customer ? <input type="hidden" name="id" value={customer.id} /> : null}
       {/* Hidden mirrors so switched-off sections keep sensible server values. */}
       {!open.email ? <input type="hidden" name="emailOptIn" value={values.emailOptIn ? "on" : ""} /> : null}

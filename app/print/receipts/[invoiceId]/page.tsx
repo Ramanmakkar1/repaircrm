@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 
 import { getSession, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { formatBps, formatCents, invoiceTotals } from "@/lib/money";
+import { formatBps, formatCents } from "@/lib/money";
 import { Barcode } from "@/components/billing/barcode";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
 import { RECEIPT_CSS } from "@/components/billing/receipt-styles";
+import { receiptSummary } from "@/components/billing/receipt-math";
 import { METHOD_LABELS, type TenderMethod } from "@/components/pos/types";
 
 /**
@@ -79,6 +80,9 @@ export default async function ReceiptPage({
           orderBy: { createdAt: "asc" },
           include: { takenBy: { select: { name: true } } },
         },
+        // Refunds are on the slip too: a returned sale must not reprint as a
+        // clean paid receipt while the invoice screen says otherwise.
+        refunds: { orderBy: { createdAt: "asc" } },
       },
     }),
     db.shop.findUnique({
@@ -91,6 +95,7 @@ export default async function ReceiptPage({
         state: true,
         postalCode: true,
         phone: true,
+        email: true,
         timezone: true,
       },
     }),
@@ -98,8 +103,20 @@ export default async function ReceiptPage({
 
   if (!invoice || !shop) notFound();
 
-  const totals = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
-  const changeDueCents = readChange(query.change);
+  // One summary for every figure below the TOTAL: refund-aware, and the change
+  // read back from the stored "Tendered $X" when the register did not pass it.
+  const totals = receiptSummary({
+    lines: invoice.lines,
+    taxRateBps: invoice.taxRateBps,
+    payments: invoice.payments,
+    refunds: invoice.refunds,
+    changeFromQuery: readChange(query.change),
+  });
+  const changeDueCents = totals.changeCents;
+  const liveRefunds = invoice.refunds.filter((refund) => refund.status !== "failed");
+  // Back to wherever the slip was printed from: the register's end-of-sale
+  // screen passes ?from=pos; everywhere else is the invoice.
+  const fromPos = (Array.isArray(query.from) ? query.from[0] : query.from) === "pos";
 
   const cashier = invoice.payments.find((p) => p.takenBy?.name)?.takenBy?.name ?? null;
   const isWalkIn =
@@ -116,18 +133,19 @@ export default async function ReceiptPage({
       .filter(Boolean)
       .join(" "),
     shop.phone,
+    shop.email,
   ].filter((line): line is string => Boolean(line && String(line).trim()));
 
-  // What the customer physically handed over: what was applied to the invoice
-  // plus whatever came back out of the drawer.
-  const tenderedCents = totals.paidCents + (changeDueCents ?? 0);
+  // What the customer physically handed over: the cash the register wrote down,
+  // or else what was applied to the invoice plus what came back out of the drawer.
+  const tenderedCents = totals.tenderedCents ?? totals.paidCents + (changeDueCents ?? 0);
 
   return (
     <>
       <style>{RECEIPT_CSS}</style>
       <PrintToolbar
-        backHref="/pos"
-        backLabel="Back to POS"
+        backHref={fromPos ? "/pos" : `/invoices/${invoice.id}`}
+        backLabel={fromPos ? "Back to the register" : `Back to invoice #${invoice.number}`}
         title={`Receipt #${invoice.number}`}
       />
 
@@ -215,6 +233,16 @@ export default async function ReceiptPage({
             </>
           ) : null}
 
+          {liveRefunds.map((refund) => (
+            <TotalRow
+              key={refund.id}
+              label={`Refunded · ${METHOD_LABELS[refund.method as TenderMethod] ?? refund.method}${
+                refund.status === "pending" ? " (on its way)" : ""
+              }`}
+              value={`-${formatCents(refund.amountCents)}`}
+            />
+          ))}
+
           {totals.balanceCents > 0 ? (
             <div className="rc-grand rc-owing">
               <span>BALANCE DUE</span>
@@ -229,7 +257,8 @@ export default async function ReceiptPage({
         <div className="rc-center rc-footer">
           <div className="rc-thanks">Thank you!</div>
           <div className="rc-policy">
-            Keep this receipt — it is your proof of purchase and warranty record.
+            Keep this receipt. It is your proof of purchase and your warranty
+            record.
           </div>
           <Barcode value={String(invoice.number)} height={36} width={1.4} />
         </div>
@@ -261,9 +290,9 @@ function TotalRow({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Change is a fact about the drawer at the moment of the sale, not a column on
- * the invoice, so the register passes it here. A reprint days later simply
- * arrives without it and prints no change line — which is the honest outcome.
+ * Change is a fact about the drawer at the moment of the sale, so the register
+ * passes it here. A reprint arrives without it, and the change is then worked
+ * out from the "Tendered $X" stored on the cash payment (receipt-math.ts).
  * Anything malformed is dropped rather than trusted.
  */
 function readChange(raw: string | string[] | undefined): number | null {

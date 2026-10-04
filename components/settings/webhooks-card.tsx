@@ -29,6 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/ui/badge";
 import { Switch } from "./settings-switch";
+import { shopDateTime } from "./shop-time";
+import { useShopZone } from "./shop-zone";
 import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/components/ui/cn";
@@ -239,7 +241,8 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
             checked={active}
             disabled={busy}
             onCheckedChange={toggle}
-            aria-label={`${active ? "Disable" : "Enable"} ${hook.url}`}
+            words
+            aria-label={`Send updates to ${hook.url}`}
           />
           {/*
             Icon-only because it repeats on every row — so it carries both an
@@ -253,9 +256,9 @@ function WebhookRow({ hook }: { hook: WebhookItem }) {
                 aria-label={`Delete ${hook.url}`}
                 disabled={busy}
                 onClick={() => setConfirming(true)}
-                className="rounded-sm p-1.5 text-faint-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-1.5 text-[14px] font-medium text-muted-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
               >
-                <DeleteIcon className="size-3.5" aria-hidden />
+                <DeleteIcon className="size-3.5" aria-hidden /> Delete
               </button>
             </TooltipTrigger>
             <TooltipContent>Delete endpoint</TooltipContent>
@@ -345,6 +348,7 @@ function DeliveriesTable({ deliveries }: { deliveries: WebhookDeliveryItem[] }) 
 
 function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
   const router = useRouter();
+  const zone = useShopZone();
   const [busy, setBusy] = React.useState(false);
   const status = DELIVERY_STATUS_META[asDeliveryStatus(delivery.status)];
 
@@ -391,7 +395,7 @@ function DeliveryRow({ delivery }: { delivery: WebhookDeliveryItem }) {
       </Td>
       <Td className="tabular-nums text-muted-foreground">{delivery.attempts}</Td>
       <Td className="text-muted-foreground">
-        {formatWhen(delivery.lastAttemptAt ?? delivery.createdAt)}
+        {shopDateTime(delivery.lastAttemptAt ?? delivery.createdAt, zone)}
       </Td>
       <Td className="text-right">
         {delivery.status === "delivered" ? null : (
@@ -674,15 +678,4 @@ function CopyableSecret({ value }: { value: string }) {
       </Button>
     </div>
   );
-}
-
-const WHEN = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-function formatWhen(iso: string): string {
-  return WHEN.format(new Date(iso));
 }

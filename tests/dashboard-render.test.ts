@@ -54,6 +54,7 @@ const today: NonNullable<ShopOverview["today"]> = {
     { key: "2026-10-03", initial: "S", dayOfMonth: 3, label: "Saturday, Oct 3", netCents: 10_300, isToday: true, href: "/reports?period=custom&from=2026-10-03&to=2026-10-03" },
   ],
   weekNetCents: 162_759,
+  weekHref: "/reports?period=custom&from=2026-09-27&to=2026-10-03",
   todayHref: "/reports?period=custom&from=2026-10-03&to=2026-10-03",
 };
 
@@ -131,8 +132,9 @@ describe("Takings today", () => {
 describe("Last 7 days", () => {
   const bars = html(React.createElement(WeekBars, { days: today.days, totalCents: today.weekNetCents }));
 
-  it("is one link per day, each to Reports for that day, today last", () => {
-    expect(links(bars)).toEqual(today.days.map((day) => day.href));
+  it("keeps seven readable days and one large link to Reports for the whole week", () => {
+    expect(links(bars)).toEqual([today.weekHref]);
+    expect(bars).toContain("min-h-12");
     expect(bars.match(/<li /g)).toHaveLength(7);
   });
 
@@ -145,12 +147,12 @@ describe("Last 7 days", () => {
   });
 
   it("names each bar by its day and its amount from hidden text, so the printed amount is part of the name", () => {
-    expect(bars).toContain('<span class="sr-only">Monday, Sep 28: $269.59 taken. Open this day in Reports.</span>');
-    expect(text(bars)).toContain("Today, Saturday, Oct 3: $103.00 taken. Open this day in Reports.");
+    expect(bars).toContain('<span class="sr-only">Monday, Sep 28: $269.59 taken.</span>');
+    expect(text(bars)).toContain("Today, Saturday, Oct 3: $103.00 taken.");
     // An aria-label would replace the content as the name, and the visible "$270" would not be in it.
     expect(bars).not.toContain("aria-label");
     // The printed figures, initials and dates are aria-hidden: the sentence above is the one a screen reader gets.
-    expect(bars.match(/aria-hidden="true"/g)).toHaveLength(21);
+    expect(bars.match(/aria-hidden="true"/g)).toHaveLength(22);
   });
 
   it("marks today with aria-current, a filled bar and a bold label, not by colour alone", () => {

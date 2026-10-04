@@ -1,5 +1,19 @@
-export type GroupProduct = { id: string; name: string; category: string | null; stockQty: number };
-export type StockGroup = { key: string; label: string; quantity: number; productIds: string[] };
+export type GroupProduct = {
+  id: string;
+  name: string;
+  category: string | null;
+  stockQty: number;
+  /** A catalog picture someone chose on purpose for this product (lib/catalog key), if any. */
+  catalogImage?: string | null;
+};
+export type StockGroup = {
+  key: string;
+  label: string;
+  quantity: number;
+  productIds: string[];
+  /** The first picture chosen on purpose for a product on this shelf: the shelf can wear it. */
+  chosenImage?: string | null;
+};
 
 /** Recognisable shelf groups, with existing shop categories as the fallback. */
 export function inventoryGroup(product: Pick<GroupProduct, "name" | "category">) {
@@ -17,9 +31,11 @@ export function inventoryGroups(products: GroupProduct[]): StockGroup[] {
   const groups = new Map<string, StockGroup>();
   for (const product of products) {
     const { key, label } = inventoryGroup(product);
-    const group = groups.get(key) ?? { key, label, quantity: 0, productIds: [] };
+    const group: StockGroup = groups.get(key) ?? { key, label, quantity: 0, productIds: [] };
     group.quantity += product.stockQty;
     group.productIds.push(product.id);
+    // No matcher here: only a picture someone already chose is carried, so this stays cheap on every load.
+    if (!group.chosenImage && product.catalogImage) group.chosenImage = product.catalogImage;
     groups.set(key, group);
   }
   const priority = ["screen-guards", "screens", "batteries", "ports", "charging"];

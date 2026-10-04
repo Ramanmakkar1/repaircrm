@@ -37,16 +37,30 @@ export function OwedCard({ owed, className }: { owed: OwedSection; className?: s
           </p>
           <p className="mt-1 text-sm text-muted-foreground">{nothingOwed ? "No unpaid invoices" : `${owed.count} unpaid ${owed.count === 1 ? "invoice" : "invoices"}`}</p>
         </div>
-        <Button asChild className="h-12 min-w-40 flex-1 text-base sm:flex-none">
-          <Link href="/invoices?status=unpaid">Collect payments</Link>
-        </Button>
+        {/* The big black button only when there is something to collect: with nothing owed it would be a loud button that leads to an empty list. */}
+        {nothingOwed ? null : (
+          <Button asChild className="h-12 min-w-40 flex-1 text-base sm:flex-none">
+            <Link href="/invoices?status=unpaid">Collect payments</Link>
+          </Button>
+        )}
       </div>
 
       {nothingOwed ? (
-        <p className="flex items-center gap-2 rounded-xl bg-surface-hover px-3 py-4 text-[15px] font-medium text-muted-foreground">
-          <CircleCheck className="size-5 shrink-0" aria-hidden />
-          Nobody owes you anything right now.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-hover px-3 py-3">
+          <p className="flex items-center gap-2 text-[15px] font-medium text-muted-foreground">
+            <CircleCheck className="size-5 shrink-0" aria-hidden />
+            <span>
+              <span className="font-semibold text-foreground">Nothing owed.</span> Nobody owes you anything right now.
+            </span>
+          </p>
+          <Link
+            href="/invoices"
+            data-touch-control
+            className="inline-flex min-h-12 items-center rounded-lg px-1 text-[15px] font-semibold text-accent-soft-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            All invoices <span aria-hidden className="ml-1">→</span>
+          </Link>
+        </div>
       ) : (
         <ul className="flex flex-col divide-y divide-border" aria-label="Customers who owe the most">
           {owed.customers.map((customer) => (

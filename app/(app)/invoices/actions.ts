@@ -46,6 +46,7 @@ import {
 } from "@/lib/serials";
 import { fromDateInputValue } from "@/components/billing/format";
 import { resolveDocumentTax } from "@/components/billing/queries";
+import { CHARGES_ALREADY_BILLED, parseChargeIds } from "@/components/billing/repair-charges";
 import {
   refundAwareTotals,
   statusForNetPaid,
@@ -186,6 +187,9 @@ function lineCreateData(lines: Line[], warranty?: Map<string, number>) {
   }));
 }
 
+/** A repair charge the new invoice was to bill is already on another one. */
+class ChargesBilledError extends Error {}
+
 // ---------------------------------------------------------------------------
 // Create
 // ---------------------------------------------------------------------------
@@ -200,6 +204,10 @@ export async function createInvoiceAction(
   // on a bad line never leaves a half-made customer behind.
   const parsed = parseLines(formData.get("lines"));
   if (!parsed.ok) return formError(parsed.error);
+
+  // "From repair": the repair charges these lines bill (Easy-mode builder).
+  const chargeIds = parseChargeIds(formData.get("ticketChargeIds"));
+  if (!chargeIds.ok) return formError(chargeIds.error);
 
   const quick = readQuickCustomer(formData);
   if (quick && !quick.ok) return formError(quick.error);
@@ -219,6 +227,10 @@ export async function createInvoiceAction(
   );
 
   const ticketId = await resolveTicketId(shopId, formData.get("ticketId"));
+  // Charges only ever bill against their own repair.
+  if (chargeIds.ids.length > 0 && !ticketId) {
+    return formError("Pick the repair again: its charges can only be billed with it.");
+  }
   const locationId = await newRecordLocationId(shopId, userId);
   const warranty = await warrantyDaysByProduct(
     shopId,
@@ -246,11 +258,25 @@ export async function createInvoiceAction(
           select: { id: true, number: true },
         });
         await settleSerials(tx, shopId, userId, created.id, created.number);
+        // Mark exactly these repair charges billed, in the same transaction as
+        // the invoice. `invoiceId: null` is the race guard (the repair's own
+        // Make invoice, or a second tab, may have billed one meanwhile) and the
+        // count check turns any shortfall into a rollback: a charge is billed
+        // once or not at all. Scoped by shop and repair, so a forged id from
+        // anywhere else matches nothing and fails the count too.
+        if (chargeIds.ids.length > 0 && ticketId) {
+          const stamped = await tx.ticketCharge.updateMany({
+            where: { id: { in: chargeIds.ids }, shopId, ticketId, invoiceId: null },
+            data: { invoiceId: created.id },
+          });
+          if (stamped.count !== chargeIds.ids.length) throw new ChargesBilledError(CHARGES_ALREADY_BILLED);
+        }
         return created.id;
       })
     );
   } catch (error) {
     if (error instanceof SerialError) return formError(error.message);
+    if (error instanceof ChargesBilledError) return formError(error.message);
     throw error;
   }
 
@@ -258,6 +284,8 @@ export async function createInvoiceAction(
 
   revalidatePath("/invoices");
   revalidatePath("/inventory");
+  // The repair's charges now read as billed there.
+  if (ticketId && chargeIds.ids.length > 0) revalidatePath(`/tickets/${ticketId}`);
   redirect(`/invoices/${invoiceId}`);
 }
 
@@ -358,7 +386,7 @@ export async function takePaymentAction(
   const { shopId, userId } = await requireUser();
 
   const method = String(formData.get("method") ?? "CARD").toUpperCase();
-  if (!PAYMENT_METHODS.includes(method as PaymentMethodName)) {
+  if (method !== "SPLIT" && !PAYMENT_METHODS.includes(method as PaymentMethodName)) {
     return formError("Pick a payment method.");
   }
 
@@ -366,11 +394,14 @@ export async function takePaymentAction(
   // and the outbound events — lives in lib/payments/record.ts, because
   // POST /api/v1/payments has to do exactly the same thing and two copies of
   // "what does taking money mean" is how a till and an API start disagreeing.
+  if (method === "SPLIT" && parseCents(String(formData.get("cashPart") ?? "")) <= 0) return formError("Enter the cash part of this payment.");
   const result = await recordPayment({
     shopId,
     invoiceId: String(formData.get("invoiceId") ?? ""),
     amountCents: parseCents(String(formData.get("amount") ?? "")),
-    method: method as PaymentMethodName,
+    method: method === "SPLIT" ? "CARD" : method as PaymentMethodName,
+    cashPartCents: method === "SPLIT" ? parseCents(String(formData.get("cashPart") ?? "")) : undefined,
+    cashReference: method === "SPLIT" ? String(formData.get("cashReference") ?? "") || null : undefined,
     reference: String(formData.get("reference") ?? "").trim() || null,
     takenById: userId,
   });
@@ -949,8 +980,8 @@ async function loadInvoiceForSend(shopId: string, id: string) {
           createdAt: true,
         },
       },
-      refunds: { select: { amountCents: true } },
-      shop: { select: { name: true } },
+      refunds: { select: { amountCents: true, status: true } },
+      shop: { select: { name: true, timezone: true } },
     },
   });
 }
@@ -1022,6 +1053,7 @@ function composeInvoiceMessage(invoice: InvoiceForSend, input: SendRequest) {
 
   const message = invoiceMessage({
     shopName: invoice.shop.name,
+    timeZone: invoice.shop.timezone,
     customerFirstName: invoice.customer.firstName,
     number: invoice.number,
     publicToken: invoice.publicToken,
@@ -1260,6 +1292,7 @@ export async function emailInvoiceReceiptAction(
 
   const message = receiptMessage({
     shopName: invoice.shop.name,
+    timeZone: invoice.shop.timezone,
     customerFirstName: invoice.customer.firstName,
     number: invoice.number,
     publicToken: invoice.publicToken,

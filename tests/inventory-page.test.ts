@@ -113,7 +113,8 @@ describe("Stock page, Easy-mode overview", () => {
     await render();
 
     const [read] = callsTo("product.findMany");
-    expect(read.args.select).toEqual({ id: true, name: true, category: true, stockQty: true });
+    // catalogImage: a shelf can wear a picture chosen for one of its products, with no name matching.
+    expect(read.args.select).toEqual({ id: true, name: true, category: true, stockQty: true, catalogImage: true });
     expect(whereOf("product.findMany")).toMatchObject({ shopId: "shop_1", active: true });
   });
 });

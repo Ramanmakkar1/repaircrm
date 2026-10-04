@@ -36,6 +36,7 @@ import type { SearchCustomer } from "@/lib/customers/search-options";
 import { DEFAULT_DEVICE_KINDS, type DeviceKind, type SaveIntakeOptions } from "@/lib/intake-options";
 
 export type EasyCheckInProps = {
+  timeZone?: string;
   customers: SearchCustomer[];
   assetsByCustomer: Record<string, AssetOption[]>;
   techs: Option[];
@@ -67,6 +68,7 @@ export type EasyCheckInProps = {
  * into have no name of their own; the hidden ones carry the value.
  */
 export function EasyCheckIn({
+  timeZone,
   customers,
   assetsByCustomer,
   techs,
@@ -86,8 +88,8 @@ export function EasyCheckIn({
   const [addedKinds, setAddedKinds] = React.useState<readonly DeviceKind[] | null>(null);
   const kinds = addedKinds ?? deviceKinds;
   const ctx = React.useMemo<CheckInContext>(
-    () => ({ customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, deviceKinds: kinds, problemPictures }),
-    [customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, kinds, problemPictures],
+    () => ({ timeZone, customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, deviceKinds: kinds, problemPictures }),
+    [timeZone, customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, kinds, problemPictures],
   );
 
   const [state, setState] = React.useState<CheckInState>(() => initialState({ customerId: defaultCustomerId, locationId: defaultLocationId }));

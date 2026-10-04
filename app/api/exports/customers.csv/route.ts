@@ -1,5 +1,5 @@
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 import {
   csvAmount,
   csvResponse,
@@ -48,6 +48,7 @@ export async function GET() {
           taxRateBps: true,
           lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
           payments: { select: { amountCents: true } },
+          refunds: { select: { amountCents: true, status: true } },
         },
       },
     },
@@ -69,10 +70,11 @@ export async function GET() {
 
   for (const customer of customers) {
     const balanceCents = customer.invoices.reduce((sum, invoice) => {
-      const { balanceCents: due } = invoiceTotals(
+      const { balanceCents: due } = refundAwareTotals(
         invoice.lines,
         invoice.taxRateBps,
         invoice.payments,
+        invoice.refunds,
       );
       return sum + Math.max(0, due);
     }, 0);

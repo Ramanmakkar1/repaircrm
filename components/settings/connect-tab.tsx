@@ -14,12 +14,14 @@ import { ACTIONS, ICONS } from "@/components/ui/icons";
 import {
   Card,
   CardContent,
-  CardFooter,
   CardHeader,
 } from "@/components/ui/card";
 import { IconChip } from "@/components/ui/chip";
 import { Label } from "@/components/ui/label";
+import { SaveBar, type SaveBarState } from "./save-bar";
+import { ShareLinkActions } from "./share-link";
 import { Switch } from "./settings-switch";
+import { TechnicalDetails } from "./technical-details";
 import { Textarea } from "@/components/ui/textarea";
 import {
   HUB_CARDS,
@@ -89,7 +91,6 @@ export function ConnectTab({ config }: { config: ConnectConfig }) {
   return (
     <div className="flex flex-col gap-5">
       <ShopLinkCard config={config} />
-      <ConnectionsCard config={config} />
     </div>
   );
 }
@@ -98,180 +99,197 @@ export function ConnectTab({ config }: { config: ConnectConfig }) {
 // 1 — Your shop link
 // ---------------------------------------------------------------------------
 
+type HubDraft = Pick<PublicHubSettings, "enabled" | "indexable" | "cards" | "hours">;
+
+const sameHub = (a: HubDraft, b: HubDraft) =>
+  a.enabled === b.enabled &&
+  a.indexable === b.indexable &&
+  a.hours === b.hours &&
+  HUB_CARDS.every((key) => a.cards[key] === b.cards[key]);
+
 function ShopLinkCard({ config }: { config: ConnectConfig }) {
   const router = useRouter();
-  const [enabled, setEnabled] = React.useState(config.hub.enabled);
-  const [indexable, setIndexable] = React.useState(config.hub.indexable);
-  const [cards, setCards] = React.useState(config.hub.cards);
-  const [hours, setHours] = React.useState(config.hub.hours);
+  const initial: HubDraft = {
+    enabled: config.hub.enabled,
+    indexable: config.hub.indexable,
+    cards: config.hub.cards,
+    hours: config.hub.hours,
+  };
+  const [saved, setSaved] = React.useState<HubDraft>(initial);
+  const [draft, setDraft] = React.useState<HubDraft>(initial);
   const [busy, setBusy] = React.useState(false);
+  const [justSaved, setJustSaved] = React.useState(false);
+  const [problem, setProblem] = React.useState<string | null>(null);
+  const dirty = !sameHub(draft, saved);
+
+  function edit(patch: Partial<HubDraft>) {
+    setDraft((current) => ({ ...current, ...patch }));
+    setJustSaved(false);
+    setProblem(null);
+  }
 
   async function save() {
+    if (!dirty) {
+      setJustSaved(true);
+      return;
+    }
     setBusy(true);
-    const result = await updatePublicHubAction({ enabled, indexable, cards, hours });
+    const result = await updatePublicHubAction(draft);
     setBusy(false);
     if (!result.ok) {
+      setProblem(result.error);
       toast.error(result.error);
       return;
     }
-    toast.success("Shop link saved.");
+    setSaved(draft);
+    setJustSaved(true);
+    toast.success("Saved.");
     router.refresh();
   }
 
   const snippet = `<script src="${config.appUrl}/embed.js" data-shop="${config.slug}" data-mode="button"></script>`;
+  const state: SaveBarState = busy ? "saving" : dirty ? "dirty" : justSaved ? "saved" : "clean";
 
   return (
-    <Card>
-      <CardHeader
-        icon={ACTIONS.copyLink}
-        title="Your shop link"
-        description="One link for everything. Put it on your website, your Google listing, your receipts and the sticker in the window."
-      />
+    <>
+      <Card>
+        <CardHeader
+          icon={ACTIONS.copyLink}
+          title={
+            <span className="flex flex-wrap items-center gap-2">
+              Your shop link
+              <StatusPill tone={draft.enabled ? "success" : "neutral"} label={draft.enabled ? "On" : "Off"} />
+            </span>
+          }
+          description="One link for everything: customers check a repair, book a visit, ask for a price and pay a bill. Put it on your website, your Google listing, receipts and the window."
+        />
 
-      <CardContent className="flex flex-col gap-6">
-        <label className="flex items-start justify-between gap-6">
-          <span className="flex flex-col gap-1">
-            <span className="text-[14.5px] font-semibold text-foreground">
-              Your shop link is {enabled ? "live" : "off"}
+        <CardContent className="flex flex-col gap-6">
+          <label className="flex items-center justify-between gap-6">
+            <span className="flex flex-col gap-1">
+              <span className="text-[15px] font-semibold text-foreground">
+                Your shop link is {draft.enabled ? "on" : "off"}
+              </span>
+              <span className="text-[14px] leading-relaxed text-muted-foreground">
+                {draft.enabled
+                  ? "Anyone with the link or the QR code can open your page."
+                  : "While it is off, the link shows nothing, as if the page did not exist."}
+              </span>
             </span>
-            <span className="text-[14px] leading-relaxed text-muted-foreground">
-              While this is off the link returns a 404 — the same answer a shop
-              that has never existed gives.
-            </span>
-          </span>
-          <Switch
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            aria-label="Publish the shop link"
+            <Switch
+              checked={draft.enabled}
+              onCheckedChange={(enabled) => edit({ enabled })}
+              words
+              aria-label="Your shop link is on"
+            />
+          </label>
+
+          <ShareLinkActions
+            url={config.shopUrl}
+            qrDataUrl={config.qrDataUrl}
+            linkName="shop link"
+            signTitle="Scan for repairs, prices and payments"
+            signLine="Check your repair, book a visit, ask for a price or pay a bill."
+            fileName={`${config.slug}-shop-link.png`}
           />
-        </label>
 
-        {/* ------------------------------------------------- link + QR code */}
-        <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface-hover px-4 py-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <CopyRow label="Your link" value={config.shopUrl} openable />
-            <p className="text-[14px] leading-relaxed text-muted-foreground">
-              Everything a customer might want is on it: book a device in, check
-              a repair, ask for a price, pay a bill.
+          {/* --------------------------------------------------- what is on it */}
+          <div className="flex flex-col gap-3">
+            <span className="text-[15px] font-semibold">What&rsquo;s on the page</span>
+
+            <div className="flex items-center justify-between gap-6 rounded-xl border border-border px-4 py-3">
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[15px] font-semibold text-foreground">
+                  Check in a device
+                </span>
+                <span className="text-[14px] leading-relaxed text-muted-foreground">
+                  {config.checkinEnabled
+                    ? "On. Switched on and off under Check-in & reviews."
+                    : "Off. Switch it on under Check-in & reviews to add it here."}
+                </span>
+              </span>
+              <Button variant="outline" className="h-12 px-4" asChild>
+                <Link href="/settings?tab=checkin">Open</Link>
+              </Button>
+            </div>
+
+            {HUB_CARDS.map((key) => (
+              <label
+                key={key}
+                className="flex items-center justify-between gap-6 rounded-xl border border-border px-4 py-3"
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-[15px] font-semibold text-foreground">
+                    {HUB_CARD_LABEL[key]}
+                  </span>
+                  <span className="text-[14px] leading-relaxed text-muted-foreground">
+                    {HUB_CARD_HINT[key]}
+                  </span>
+                </span>
+                <Switch
+                  checked={draft.cards[key]}
+                  onCheckedChange={(next) => edit({ cards: { ...draft.cards, [key]: next } })}
+                  words
+                  aria-label={HUB_CARD_LABEL[key]}
+                />
+              </label>
+            ))}
+          </div>
+
+          {/* --------------------------------------------------------- hours */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="hub-hours" className="text-[15px]">Opening hours (optional)</Label>
+            <Textarea
+              id="hub-hours"
+              rows={3}
+              maxLength={600}
+              value={draft.hours}
+              onChange={(event) => edit({ hours: event.target.value })}
+              placeholder={"Mon–Fri 9am–6pm\nSat 10am–4pm\nSunday closed"}
+              className="text-base"
+            />
+            <p className="text-[14px] text-muted-foreground">
+              Shown under your address. Leave it blank and the line is left out.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-center gap-2">
-            {/* Rendered to a data URL on the server, so no QR library ever
-                reaches the browser for a picture that only changes when the
-                shop's slug does.
-                eslint-disable: next/image cannot optimise a data URL. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={config.qrDataUrl}
-              alt="QR code for your shop link"
-              className="size-32 rounded-lg border border-border bg-white p-1.5"
-            />
-            <Button size="sm" variant="outline" asChild>
-              {/* The data URL IS a PNG, so the download needs no round trip. */}
-              <a href={config.qrDataUrl} download={`${config.slug}-shop-link.png`}>
-                <ACTIONS.download /> Download QR
-              </a>
-            </Button>
-          </div>
-        </div>
-
-        {/* --------------------------------------------------- what is on it */}
-        <div className="flex flex-col gap-3">
-          <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-            What&rsquo;s on the page
-          </span>
-
-          <div className="flex items-start justify-between gap-6 rounded-lg border border-border px-4 py-3">
-            <span className="flex flex-col gap-0.5">
-              <span className="text-[14px] font-semibold text-foreground">
-                Check in a device
-              </span>
-              <span className="text-[14px] leading-relaxed text-muted-foreground">
-                {config.checkinEnabled
-                  ? "On. Switched on and off under Check-in & reviews."
-                  : "Off. Switch it on under Check-in & reviews to add it here."}
-              </span>
-            </span>
-            <Button size="sm" variant="ghost" asChild>
-              <Link href="/settings?tab=checkin">Open</Link>
-            </Button>
-          </div>
-
-          {HUB_CARDS.map((key) => (
-            <label
-              key={key}
-              className="flex items-start justify-between gap-6 rounded-lg border border-border px-4 py-3"
-            >
-              <span className="flex flex-col gap-0.5">
-                <span className="text-[14px] font-semibold text-foreground">
-                  {HUB_CARD_LABEL[key]}
+          {/* --------------------------------------------- for your website */}
+          <TechnicalDetails
+            title="For your website"
+            hint="A Book a repair button for your website, and whether search engines may list your page."
+          >
+            <label className="flex items-center justify-between gap-6">
+              <span className="flex flex-col gap-1">
+                <span className="text-[15px] font-semibold text-foreground">
+                  Let Google and other search engines list this page
                 </span>
                 <span className="text-[14px] leading-relaxed text-muted-foreground">
-                  {HUB_CARD_HINT[key]}
+                  Leave it off until the page says what you want it to say.
                 </span>
               </span>
               <Switch
-                checked={cards[key]}
-                onCheckedChange={(next) =>
-                  setCards((current) => ({ ...current, [key]: next }))
-                }
-                aria-label={HUB_CARD_LABEL[key]}
+                checked={draft.indexable}
+                onCheckedChange={(indexable) => edit({ indexable })}
+                words
+                aria-label="Search engines may list the shop link"
               />
             </label>
-          ))}
-        </div>
 
-        {/* --------------------------------------------------------- hours */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="hub-hours">Opening hours (optional)</Label>
-          <Textarea
-            id="hub-hours"
-            rows={3}
-            maxLength={600}
-            value={hours}
-            onChange={(event) => setHours(event.target.value)}
-            placeholder={"Mon–Fri 9am–6pm\nSat 10am–4pm\nSunday closed"}
-          />
-          <p className="text-[14px] text-muted-foreground">
-            Shown under your address. Leave it blank and the line is left out.
-          </p>
-        </div>
+            <WebsiteSnippet
+              snippet={snippet}
+              slug={config.slug}
+              appUrl={config.appUrl}
+              previewUrl={`${config.shopUrl}?embed=1`}
+              enabled={draft.enabled && saved.enabled}
+            />
+          </TechnicalDetails>
+        </CardContent>
+      </Card>
 
-        <label className="flex items-start justify-between gap-6">
-          <span className="flex flex-col gap-1">
-            <span className="text-[14.5px] font-semibold text-foreground">
-              Let search engines list this page
-            </span>
-            <span className="text-[14px] leading-relaxed text-muted-foreground">
-              Off while you get it right — a half-finished page in a search
-              result is a phone call you did not want. Turn it on when the page
-              says what you want it to say.
-            </span>
-          </span>
-          <Switch
-            checked={indexable}
-            onCheckedChange={setIndexable}
-            aria-label="Allow search engines to list the shop link"
-          />
-        </label>
+      <ConnectionsCard config={config} />
 
-        {/* ------------------------------------------------ website snippet */}
-        <WebsiteSnippet
-          snippet={snippet}
-          slug={config.slug}
-          appUrl={config.appUrl}
-          previewUrl={`${config.shopUrl}?embed=1`}
-          enabled={enabled && config.hub.enabled}
-        />
-      </CardContent>
-
-      <CardFooter className="justify-end">
-        <Button onClick={save} disabled={busy}>
-          {busy ? "Saving…" : "Save shop link"}
-        </Button>
-      </CardFooter>
-    </Card>
+      <SaveBar state={state} onSave={save} onDiscard={() => setDraft(saved)} message={problem} label="Save shop link" />
+    </>
   );
 }
 
@@ -304,7 +322,7 @@ function WebsiteSnippet({
     try {
       await navigator.clipboard.writeText(snippet);
       setCopied(true);
-      toast.success("Copied. Paste it into your website.");
+      toast.success("Copied. Send it to whoever looks after your website.");
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Couldn't copy — select the line and copy it manually.");
@@ -313,28 +331,26 @@ function WebsiteSnippet({
 
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-[14px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-        Put it on your website
-      </span>
+      <span className="text-[15px] font-semibold">A &ldquo;Book a repair&rdquo; button on your website</span>
 
       <p className="text-[14px] leading-relaxed text-muted-foreground">
-        Paste this one line into your website&rsquo;s page, just before the
-        closing <code className="rounded-sm bg-surface-hover px-1 py-0.5 font-mono text-[14px] text-foreground">&lt;/body&gt;</code>{" "}
-        tag — or send it to whoever built your site and ask them to add this one
-        line. It puts a &ldquo;Book a repair&rdquo; button in the corner of every
-        page.
+        Copy the code and send it to whoever looks after your website. It adds a
+        &ldquo;Book a repair&rdquo; button to the corner of every page.
       </p>
 
+      <div>
+        <Button variant="outline" className="h-12 px-4" onClick={copy}>
+          {copied ? <ACTIONS.save aria-hidden /> : <ACTIONS.copy aria-hidden />}
+          {copied ? "Copied" : "Copy the website code"}
+        </Button>
+      </div>
+
       <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-hover px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Your one line
-          </span>
-          <Button size="sm" variant="soft" onClick={copy}>
-            {copied ? <ACTIONS.save /> : <ACTIONS.copy />}
-            {copied ? "Copied" : "Copy"}
-          </Button>
-        </div>
+        <span className="text-[13px] font-semibold text-muted-foreground">
+          For your web person: paste this line just before the closing{" "}
+          <code className="rounded-sm bg-surface px-1 py-0.5 font-mono text-[13px] text-foreground">&lt;/body&gt;</code>{" "}
+          tag of the site.
+        </span>
         <code className="block overflow-x-auto whitespace-pre rounded-md bg-surface px-3 py-2.5 font-mono text-[14px] text-foreground">
           {snippet}
         </code>
@@ -354,7 +370,7 @@ function WebsiteSnippet({
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-border-strong px-4 py-6 text-center text-[14px] text-muted-foreground">
-            Switch your shop link on and save to see the preview.
+            Switch your shop link on and save to see what customers will see.
           </p>
         )}
       </div>
@@ -363,59 +379,12 @@ function WebsiteSnippet({
         <button
           type="button"
           onClick={() => setShowForm((current) => !current)}
-          className="w-fit text-[14px] font-semibold text-accent hover:underline"
+          className="inline-flex min-h-12 w-fit items-center text-[15px] font-semibold text-accent hover:underline"
         >
           {showForm ? "Hide the plain form" : "Rather have a plain form on your page?"}
         </button>
         {showForm ? (
           <EmbedSnippet shopSlug={slug} endpoint={`${appUrl}/api/leads`} />
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function CopyRow({
-  label,
-  value,
-  openable,
-}: {
-  label: string;
-  value: string;
-  openable?: boolean;
-}) {
-  const [copied, setCopied] = React.useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      toast.success(`${label} copied.`);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error("Couldn't copy — select the link and copy it manually.");
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <div className="flex flex-wrap items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-md bg-surface px-3 py-2 font-mono text-[14px] text-foreground">
-          {value}
-        </code>
-        <Button size="sm" variant="soft" onClick={copy}>
-          {copied ? <ACTIONS.save /> : <ACTIONS.copy />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
-        {openable ? (
-          <Button size="sm" variant="outline" asChild>
-            <a href={value} target="_blank" rel="noreferrer">
-              <ACTIONS.openExternal /> Open
-            </a>
-          </Button>
         ) : null}
       </div>
     </div>
@@ -445,9 +414,9 @@ function ConnectionsCard({ config }: { config: ConnectConfig }) {
           : "Connected"
         : payments.live
           ? "Not set up"
-          : "Not available on this server",
+          : "Not set up yet",
       href: "/settings?tab=payments",
-      cta: payments.connected ? "Payment settings" : "Connect in one click",
+      cta: payments.connected ? "Payment settings" : payments.live ? "Connect in one click" : "See what's needed",
       disabled: !payments.live && !payments.connected,
     },
     {
@@ -477,7 +446,7 @@ function ConnectionsCard({ config }: { config: ConnectConfig }) {
     {
       icon: ICONS.message,
       title: "Send email and texts",
-      body: "Ticket updates, invoices and review requests go out under your shop's name.",
+      body: "Repair updates, invoices and review requests go out under your shop's name.",
       status:
         messaging.emailLive && messaging.smsLive
           ? "connected"
@@ -488,12 +457,12 @@ function ConnectionsCard({ config }: { config: ConnectConfig }) {
         messaging.emailLive && messaging.smsLive
           ? "Email and texts are live"
           : messaging.emailLive
-            ? "Email live, texts still logged"
+            ? "Emails go out, texts do not yet"
             : messaging.smsLive
-              ? "Texts live, email still logged"
+              ? "Texts go out, emails do not yet"
               : "Nothing is being sent yet",
       href: "/settings?tab=messaging",
-      cta: "Messaging settings",
+      cta: "Emails & texts",
     },
     {
       icon: ICONS.integration,
@@ -507,30 +476,30 @@ function ConnectionsCard({ config }: { config: ConnectConfig }) {
             : "off",
       statusText:
         accounting.error > 0
-          ? "Last sync failed"
+          ? "Last send failed"
           : accounting.connected > 0
             ? `${accounting.connected} connected`
             : accounting.configured
               ? "Not set up"
-              : "Not available on this server",
+              : "Not set up yet",
       href: "/settings?tab=integrations",
-      cta: accounting.connected > 0 ? "Accounting settings" : "Connect your books",
+      cta: accounting.connected > 0 ? "Accounting settings" : accounting.configured ? "Connect your books" : "See what's needed",
       disabled: !accounting.configured && accounting.connected === 0,
     },
     {
       icon: ICONS.apiKey,
-      title: "Developer",
-      body: "API keys and webhooks, for another system that needs to read or write your data.",
+      title: "Another program (for your web developer)",
+      body: "Only if your web developer connects another program, like a website form or a booking tool.",
       status: developer.keyCount > 0 ? "connected" : "off",
       statusText:
         developer.keyCount === 0
-          ? "No keys yet"
-          : `${developer.keyCount} key${developer.keyCount === 1 ? "" : "s"}` +
+          ? "None connected"
+          : `${developer.keyCount} connected` +
             (developer.webhookCount > 0
-              ? `, ${developer.webhookCount} webhook${developer.webhookCount === 1 ? "" : "s"}`
+              ? `, ${developer.webhookCount} sending updates`
               : ""),
       href: "/settings?tab=api-keys",
-      cta: "API & webhooks",
+      cta: "Developer access",
     },
   ];
 
@@ -538,8 +507,8 @@ function ConnectionsCard({ config }: { config: ConnectConfig }) {
     <Card>
       <CardHeader
         icon={ACTIONS.connect}
-        title="Connect everything else"
-        description="Top to bottom, one button each. Nothing here is set up twice — every row opens the screen that actually owns it."
+        title="Everything else you can connect"
+        description="One row each, with whether it is working and one button. Each button opens the screen that looks after it."
       />
       <CardContent className="px-0 py-0">
         <ul className="divide-y divide-border">
@@ -601,7 +570,7 @@ function ConnectRow({
       </div>
       <Button
         variant={status === "off" && !disabled ? "default" : "outline"}
-        size="sm"
+        className="h-12 px-4"
         asChild
       >
         <Link href={href}>

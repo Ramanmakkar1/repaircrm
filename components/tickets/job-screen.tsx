@@ -173,6 +173,12 @@ export function JobMoneyLinks({
  * What is on the bill so far, as one big link to the Money section. The charges
  * themselves live there; this is the glance a tech wants at the bench ("did I
  * put the part on?") without the table.
+ *
+ *   [$]  On the bill: 2 charges           $546.14
+ *        See Money
+ *
+ * The words stack on the left and the total keeps its own column, so on a phone
+ * neither "On the bill: 2 charges" nor "See Money" breaks across lines.
  */
 export function JobBillLink({
   href,
@@ -191,20 +197,16 @@ export function JobBillLink({
       data-touch-control
       className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex items-center gap-2 text-base font-semibold">
-        <ICONS.invoice aria-hidden className="size-5 text-muted-foreground" />
-        {lines > 0 ? (
-          <>
-            On the bill: {lines} {lines === 1 ? "charge" : "charges"}
-          </>
-        ) : (
-          "Nothing on the bill yet"
-        )}
+      <span className="flex min-w-0 items-center gap-3">
+        <ICONS.invoice aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-base font-semibold">
+            {lines > 0 ? `On the bill: ${lines} ${lines === 1 ? "charge" : "charges"}` : "Nothing on the bill yet"}
+          </span>
+          <span className="text-sm text-accent-soft-foreground">{lines > 0 ? "See Money" : "Add a charge"}</span>
+        </span>
       </span>
-      <span className="flex items-center gap-2 text-base">
-        {total ? <span className="rf-num font-semibold">{total}</span> : null}
-        <span className="text-sm text-accent-soft-foreground">{lines > 0 ? "See Money" : "Add a charge"}</span>
-      </span>
+      {total ? <span className="rf-num shrink-0 text-lg font-semibold">{total}</span> : null}
     </Link>
   );
 }

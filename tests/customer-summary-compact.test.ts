@@ -29,8 +29,9 @@ describe("SummaryStrip on a phone", () => {
   it("puts repairs, owed and last visit on one row and gives store credit the row under them", () => {
     const html = strip(addCredit);
     expect(html).toMatch(/<dl[^>]*\bgrid-cols-3\b/);
-    // Three across on a phone, four from a tablet up, the credit pair wider because of its button.
-    expect(html).toContain("sm:grid-cols-[1fr_1fr_1.6fr_1.15fr]");
+    // Three across on a phone, two by two on a portrait tablet, four from lg up, the credit pair wider because of its button.
+    expect(html).toContain("sm:grid-cols-2");
+    expect(html).toContain("lg:grid-cols-[1fr_1fr_1.6fr_1.15fr]");
     expect(pairTag(html, "Store credit")).toContain("max-sm:order-last");
     expect(pairTag(html, "Store credit")).toContain("max-sm:col-span-3");
     for (const label of ["Open repairs", "Unpaid", "Last visit"]) {
@@ -78,7 +79,7 @@ describe("SummaryStrip on a phone", () => {
   it("works for a technician (no credit control): the credit pair is plain words and the strip is four across", () => {
     const html = strip();
     expect(html).not.toContain("Add Credit");
-    expect(html).toContain("sm:grid-cols-4");
+    expect(html).toContain("lg:grid-cols-4");
     expect(html).not.toContain("1.6fr");
     expect(html).toContain("$37.88 credit");
     expect(html).not.toMatch(/<dd[^>]*><\/dd>/);

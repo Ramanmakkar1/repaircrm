@@ -52,10 +52,14 @@ const EMPTY: VendorActionState = {};
 export function VendorDialog({
   vendor,
   trigger,
+  easy = false,
 }: {
   vendor?: VendorFormValues | null;
   trigger: React.ReactNode;
+  /** Easy mode's words: "supplier", not "vendor". */
+  easy?: boolean;
 }) {
+  const noun = easy ? "supplier" : "vendor";
   const [open, setOpen] = React.useState(false);
   const isEdit = Boolean(vendor);
 
@@ -73,7 +77,7 @@ export function VendorDialog({
         : await createVendorAction(previous, formData);
       if (result.ok) {
         setOpen(false);
-        toast.success(isEdit ? "Vendor updated." : "Vendor added.");
+        toast.success(isEdit ? `${easy ? "Supplier" : "Vendor"} updated.` : `${easy ? "Supplier" : "Vendor"} added.`);
         if (!isEdit) setValues(initial(null));
       }
       return result;
@@ -93,11 +97,11 @@ export function VendorDialog({
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit vendor" : "New vendor"}</DialogTitle>
-          <DialogDescription>
-            Who the shop buys parts from. Only the name is required.
+          <DialogTitle className="text-lg">{isEdit ? `Edit ${noun}` : easy ? "Add a supplier" : "New vendor"}</DialogTitle>
+          <DialogDescription className="text-[15px]">
+            Who you buy parts from. Only the name is needed; the rest helps when you order.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,6 +123,7 @@ export function VendorDialog({
               onChange={(event) => set("name", event.target.value)}
               placeholder="Mobile Sentrix"
               aria-invalid={Boolean(errors.name)}
+              className="h-12 text-base"
             />
           </Field>
 
@@ -130,8 +135,9 @@ export function VendorDialog({
                 type="email"
                 value={values.email}
                 onChange={(event) => set("email", event.target.value)}
-                placeholder="orders@vendor.com"
+                placeholder="orders@supplier.com"
                 aria-invalid={Boolean(errors.email)}
+                className="h-12 text-base"
               />
             </Field>
 
@@ -142,6 +148,8 @@ export function VendorDialog({
                 value={values.phone}
                 onChange={(event) => set("phone", event.target.value)}
                 placeholder="(555) 010-2233"
+                inputMode="tel"
+                className="h-12 text-base"
               />
             </Field>
 
@@ -151,19 +159,20 @@ export function VendorDialog({
                 name="website"
                 value={values.website}
                 onChange={(event) => set("website", event.target.value)}
-                placeholder="vendor.com"
+                placeholder="supplier.com"
+                className="h-12 text-base"
               />
             </Field>
 
             <Field
-              label="Account number"
+              label={easy ? "Your account number with them" : "Account number"}
               htmlFor="vendor-account"
               error={errors.accountNumber}
             >
               <Input
                 id="vendor-account"
                 name="accountNumber"
-                className="font-mono"
+                className="h-12 font-mono text-base"
                 value={values.accountNumber}
                 onChange={(event) => set("accountNumber", event.target.value)}
                 placeholder="RF-40122"
@@ -193,12 +202,12 @@ export function VendorDialog({
             />
           </Field>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button type="button" variant="ghost" className="h-12 px-5 text-base" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <SubmitButton pendingLabel="Saving…">
-              {isEdit ? "Save vendor" : "Add vendor"}
+            <SubmitButton pendingLabel="Saving…" className="h-12 px-6 text-base">
+              {isEdit ? `Save ${noun}` : `Add ${noun}`}
             </SubmitButton>
           </DialogFooter>
         </form>

@@ -22,17 +22,17 @@ export const CHECKIN_OPTIONAL_FIELDS = [
 export type CheckinFieldKey = (typeof CHECKIN_OPTIONAL_FIELDS)[number];
 
 export const CHECKIN_FIELD_LABEL: Record<CheckinFieldKey, string> = {
-  make: "Make",
+  make: "Brand",
   model: "Model",
-  serial: "Serial / IMEI",
-  unlockCode: "Unlock code or passcode",
+  serial: "Serial number",
+  unlockCode: "Passcode",
 };
 
 export const CHECKIN_FIELD_HINT: Record<CheckinFieldKey, string> = {
   make: "Apple, Samsung, Dell…",
   model: "iPhone 14 Pro, XPS 13…",
-  serial: "Helps match the device to the right ticket.",
-  unlockCode: "Needed to test the repair. Stored with the ticket, never shown publicly.",
+  serial: "Helps match the device to the right repair.",
+  unlockCode: "Needed to test the repair. Kept with the repair, never shown publicly.",
 };
 
 export const DEFAULT_CHECKIN_TERMS = [

@@ -27,11 +27,12 @@
  */
 
 import { appUrl } from "@/lib/comms/config";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { invoiceTotals } from "@/lib/money";
 
 import { currencySupported, paymentsCurrency, paymentsLive } from "./config";
 import { accountFor } from "./account";
+import { invoicePaymentKey } from "./invoice-key";
 import { settleStripePayment, type SettleOutcome } from "./settle";
 import { chargeIdOf, stripeFetch, type StripePaymentIntent } from "./stripe";
 
@@ -351,6 +352,7 @@ export async function chargeCardOnFile(input: {
       taxRateBps: true,
       lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
       payments: { select: { amountCents: true } },
+      refunds: { select: { amountCents: true, status: true } },
       customer: {
         select: {
           id: true,
@@ -369,10 +371,11 @@ export async function chargeCardOnFile(input: {
     return { ok: false, reason: "This customer has no card on file." };
   }
 
-  const totals = invoiceTotals(
+  const totals = refundAwareTotals(
     invoice.lines,
     invoice.taxRateBps,
     invoice.payments,
+    invoice.refunds,
   );
   if (totals.balanceCents <= 0) {
     return { ok: false, reason: "There is nothing left to pay on this invoice." };
@@ -389,7 +392,11 @@ export async function chargeCardOnFile(input: {
   const intent = await stripeFetch<StripePaymentIntent>("/v1/payment_intents", {
     method: "POST",
     account,
-    idempotencyKey: `invoice-${invoice.id}-cof-${totals.balanceCents}`,
+    idempotencyKey: await invoicePaymentKey(
+      `invoice-${invoice.id}-cof-${totals.balanceCents}`,
+      invoice.payments.length,
+      invoice.refunds.length,
+    ),
     body: {
       amount: totals.balanceCents,
       currency,

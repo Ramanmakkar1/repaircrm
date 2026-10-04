@@ -177,7 +177,8 @@ const card = (over: Partial<PickupCardData> = {}): PickupCardData => ({
 const render = (data: PickupCardData) => html(React.createElement(PickupCard, { card: data, now }));
 const buttonLabels = (markup: string) =>
   [...markup.matchAll(/<(?:button|a)\b[^>]*data-slot="button"[^>]*>([^]*?)<\/(?:button|a)>/g)].map((match) =>
-    match[1].replace(/<[^>]*>/g, "").trim(),
+    // The visible label: each button also names its repair for screen readers (sr-only), checked in fix-repairs-pickup.
+    match[1].replace(/<span class="sr-only">[^]*?<\/span>/g, "").replace(/<[^>]*>/g, "").trim(),
   );
 
 describe("PickupCard: paid, but charges not billed yet", () => {

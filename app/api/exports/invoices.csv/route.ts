@@ -32,7 +32,9 @@ export async function GET(request: Request) {
   const guard = await requireOwner();
   if ("denied" in guard) return guard.denied;
 
-  const range = parseRange(new URL(request.url));
+  const shop = await db.shop.findUnique({ where: { id: guard.shopId }, select: { timezone: true } });
+  const zone = shop?.timezone ?? "UTC";
+  const range = parseRange(new URL(request.url), new Date(), zone);
 
   const invoices = await db.invoice.findMany({
     where: {
@@ -79,7 +81,8 @@ export async function GET(request: Request) {
   for (const invoice of invoices) {
     const totals = invoiceTotals(invoice.lines, invoice.taxRateBps);
     const name = customerLabel(invoice.customer);
-    const invoiceDate = csvDate(invoice.createdAt);
+    const invoiceDate = csvDate(invoice.createdAt, zone);
+    // Due dates are stored calendar days at UTC midnight, not transaction instants.
     const dueDate = csvDate(invoice.dueDate);
 
     if (invoice.lines.length === 0) {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/components/ui/cn";
+import { LinkPending } from "@/components/ui/link-pending";
 
 export type PictureTileProps = {
   href: string;
@@ -48,6 +49,8 @@ export function PictureTile({ href, title, detail, photo, alert, mark: Mark, cla
       {alert ? (
         <span className="absolute left-3 top-3 rounded-full bg-destructive px-2.5 py-0.5 text-sm font-semibold text-destructive-foreground">{alert}</span>
       ) : null}
+      {/* A tap always shows it took, even while the next screen is still on its way. */}
+      <LinkPending />
     </Link>
   );
 }

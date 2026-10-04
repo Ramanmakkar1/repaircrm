@@ -6,9 +6,7 @@
  * the view tabs.
  */
 
-import { format } from "date-fns";
-
-import { dueChip } from "@/lib/sla";
+import { dueChip, dueDateLabel } from "@/lib/sla";
 import { formatCents } from "@/lib/money";
 import { progressLabel, type ChecklistProgress } from "@/lib/checklist";
 import {
@@ -30,16 +28,18 @@ export type DueWords = { label: string; alert: boolean };
 
 /**
  * "Overdue 2d", "Due in 23h", "Due Oct 12". Nothing for a repair with no date
- * or one that is already closed. `alert` is true only once it is late.
+ * or one that is already closed. `alert` is true only once it is late. The date
+ * is the shop's calendar date (`zone` is Shop.timezone), not the server's.
  */
 export function dueWords(
   dueDate: Date | null | undefined,
   resolved: boolean,
   now: number,
+  zone?: string | null,
 ): DueWords | null {
   const chip = dueChip(dueDate, resolved, now);
   if (!chip || !dueDate) return null;
-  if (chip.tone === "later") return { label: `Due ${format(dueDate, "MMM d")}`, alert: false };
+  if (chip.tone === "later") return { label: dueDateLabel(dueDate, zone), alert: false };
   return { label: chip.label, alert: chip.tone === "overdue" };
 }
 
@@ -153,8 +153,10 @@ export type RepairChips = {
 export function repairChips(
   input: RepairFactsInput & { dueDate?: Date | null },
   now: number,
+  /** The shop's time zone, for the "Due Oct 12" date. */
+  zone?: string | null,
 ): RepairChips {
-  const due = dueWords(input.dueDate, isResolved(input.status), now);
+  const due = dueWords(input.dueDate, isResolved(input.status), now, zone);
   const facts = repairFacts(input);
   if (facts.length <= MAX_FACTS) return { due, shown: facts, more: null };
   const shown = facts.slice(0, MAX_FACTS - 1);

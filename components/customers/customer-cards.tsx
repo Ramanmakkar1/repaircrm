@@ -28,7 +28,16 @@ export type CustomerCardRow = {
  * SIBLING of that link (never inside it: a link in a link is invalid and
  * ambiguous), parked over the space the card reserves on its right edge.
  */
-export function CustomerCards({ rows, now }: { rows: CustomerCardRow[]; now?: Date }) {
+export function CustomerCards({
+  rows,
+  now,
+  timeZone,
+}: {
+  rows: CustomerCardRow[];
+  now?: Date;
+  /** The shop's time zone (Shop.timezone): "Last visit Sep 30" is the shop's calendar day. */
+  timeZone?: string | null;
+}) {
   return (
     <RecordGrid>
       {rows.map((row) => {
@@ -38,6 +47,7 @@ export function CustomerCards({ rows, now }: { rows: CustomerCardRow[]; now?: Da
           owedCents: row.owedCents,
           lastVisit: row.lastVisit,
           now,
+          timeZone,
         });
         const title = row.name || row.businessName || "Unnamed customer";
         const business = row.name && row.businessName ? row.businessName : null;

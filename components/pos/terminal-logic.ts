@@ -84,6 +84,7 @@ export type MoreTender = {
 export function moreTenders(creditCents: number): MoreTender[] {
   const creditReady = creditCents > 0;
   return [
+    { method: "SPLIT", label: METHOD_LABELS.SPLIT, hint: null, disabled: false },
     { method: "CHECK", label: METHOD_LABELS.CHECK, hint: null, disabled: false },
     { method: "OTHER", label: METHOD_LABELS.OTHER, hint: null, disabled: false },
     {

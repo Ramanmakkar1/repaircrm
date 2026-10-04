@@ -225,8 +225,8 @@ describe("VendorEasyCard", () => {
 
     expect(card).toContain('href="/inventory/vendors/v1"');
     expect(card).toContain("(713) 555-0288");
-    expect(card).toContain("1 product");
-    expect(card).toContain("2 open orders");
+    expect(card).toContain("1 part");
+    expect(card).toContain("2 orders open");
     expect(card).not.toContain("<button");
     expect(markup).toContain(">Edit<");
     expect(markup).toContain("Deactivate");
@@ -297,15 +297,15 @@ describe("PurchaseOrderActions in Easy mode", () => {
   it("makes placing the order the one black button on a draft, listed first", () => {
     const markup = render("DRAFT");
     expect(blackButtons(markup)).toEqual(["Mark as ordered"]);
-    expect(markup.indexOf("Mark as ordered")).toBeLessThan(markup.indexOf("Email to Vendor"));
-    // Receiving a draft is allowed, but it is not the next step: still there, not black.
-    expect(markup).toContain("Receive");
+    expect(markup.indexOf("Mark as ordered")).toBeLessThan(markup.indexOf("Email to supplier"));
+    // Booking in a draft is allowed, but it is not the next step: still there, not black.
+    expect(markup).toContain("Book in delivery");
   });
 
-  it("makes Receive the one black button, listed first, once the order is placed", () => {
+  it("makes Book in delivery the one black button, listed first, once the order is placed", () => {
     const markup = render("ORDERED");
-    expect(blackButtons(markup)).toEqual(["Receive"]);
-    expect(markup.indexOf("Receive")).toBeLessThan(markup.indexOf("Email to Vendor"));
+    expect(blackButtons(markup)).toEqual(["Book in delivery"]);
+    expect(markup.indexOf("Book in delivery")).toBeLessThan(markup.indexOf("Email to supplier"));
     expect(markup).not.toContain("Mark as ordered");
   });
 
@@ -317,7 +317,7 @@ describe("PurchaseOrderActions in Easy mode", () => {
 
   it("keeps Cancel order last, after any extra button such as Print", () => {
     const markup = render("ORDERED", { children: createElement("a", { href: "/print" }, "Print") });
-    expect(markup.indexOf("Print")).toBeGreaterThan(markup.indexOf("Email to Vendor"));
+    expect(markup.indexOf("Print")).toBeGreaterThan(markup.indexOf("Email to supplier"));
     expect(markup.indexOf("Cancel order")).toBeGreaterThan(markup.indexOf("Print"));
   });
 

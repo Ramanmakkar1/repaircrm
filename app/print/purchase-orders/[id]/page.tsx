@@ -95,10 +95,11 @@ export default async function PurchaseOrderPrintPage({
 
   const meta: PrintMetaRow[] = [
     { label: "PO #", value: String(order.number) },
-    { label: "Raised", value: formatDate(order.createdAt) },
+    // Instants, so the shop's own day (Shop.timezone); the expected date is a calendar day.
+    { label: "Raised", value: formatDate(order.createdAt, shop.timezone) },
     {
       label: "Placed",
-      value: order.orderedAt ? formatDate(order.orderedAt) : "Not yet placed",
+      value: order.orderedAt ? formatDate(order.orderedAt, shop.timezone) : "Not yet placed",
     },
     {
       label: "Needed by",

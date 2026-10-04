@@ -24,8 +24,11 @@ import {
   cleanProblemPictures,
   cleanProblemRenames,
   defaultPictureKey,
+  describeArrangement,
   deviceKindsFor,
+  joinsArrangeBurst,
   problemPicturesFor,
+  AUDIT_BURST_MINUTES,
   type SaveIntakeOptionsInput,
   type SaveIntakeOptionsResult,
 } from "@/lib/intake-options";
@@ -226,7 +229,7 @@ export async function updateWorkflowAction(input: {
     return { ok: false, error: "Keep at least one problem type." };
   }
   if (ticketStatuses.length === 0) {
-    return { ok: false, error: "Keep at least one ticket status." };
+    return { ok: false, error: "Keep at least one repair step." };
   }
 
   // components/tickets/ticket-meta.ts treats RESOLVED_STATUS as the terminal
@@ -263,7 +266,7 @@ export async function updateWorkflowAction(input: {
     action: "settings.updated",
     entity: "settings",
     entityId: session.shopId,
-    summary: "Problem types and ticket statuses saved",
+    summary: "Problems and repair steps saved",
     meta: {
       section: "workflow",
       problemTypes: problemTypes.length,
@@ -325,6 +328,14 @@ export async function saveIntakeOptionsAction(input: SaveIntakeOptionsInput): Pr
   });
   if (!shop) return { ok: false, error: "Shop not found." };
 
+  // What the lists were before this save, so a tap that only rearranges can join the last entry.
+  const beforeProblems = readProblemTypes(shop.settings);
+  const before = {
+    kinds: deviceKindsFor(shop.settings),
+    problems: beforeProblems,
+    pictures: problemPicturesFor(shop.settings, beforeProblems),
+  };
+
   // Work on a plain copy of the blob; a reset removes a key, which mergeSettings alone cannot do.
   const next: Record<string, unknown> =
     shop.settings && typeof shop.settings === "object" && !Array.isArray(shop.settings) ? { ...(shop.settings as Record<string, unknown>) } : {};
@@ -381,26 +392,59 @@ export async function saveIntakeOptionsAction(input: SaveIntakeOptionsInput): Pr
   }
 
   const deviceKinds = deviceKindsFor(next);
-  await audit({
-    shopId: session.shopId,
-    userId: session.userId,
-    action: "settings.updated",
-    entity: "settings",
-    entityId: session.shopId,
-    summary: asked.addDevice
-      ? `Device “${asked.addDevice.label.trim().slice(0, 40)}” added to the check-in`
-      : asked.reset?.length
-        ? "Devices and problems put back to the standard list"
-        : "Devices and problems saved",
-    meta: {
-      section: "devices-and-problems",
-      devices: deviceKinds.length,
-      hiddenDevices: deviceKinds.filter((kind) => kind.hidden).length,
-      problems: problems.length,
-      ...(asked.reset?.length ? { reset: asked.reset } : {}),
-      ...(moves.length ? { renamedProblems: moves.length, checklistsMoved } : {}),
-    },
-  });
+  // Earlier / Later / Hide save on every tap. A tap that only rearranges joins the rearranging entry
+  // this person started in the last few minutes instead of writing one of its own (lib/intake-options).
+  const arrangement =
+    asked.addDevice || asked.reset?.length || moves.length
+      ? null
+      : describeArrangement(before, { kinds: deviceKinds, problems, pictures });
+  let joinsBurst = false;
+  if (arrangement !== null) {
+    try {
+      const now = Date.now();
+      const last = await db.auditLog.findFirst({
+        where: {
+          shopId: session.shopId,
+          userId: session.userId,
+          action: "settings.updated",
+          entity: "settings",
+          createdAt: { gte: new Date(now - AUDIT_BURST_MINUTES * 60_000) },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, meta: true },
+      });
+      joinsBurst = joinsArrangeBurst(last, now);
+    } catch {
+      // Could not look: write the entry. A spare row beats a missing one.
+      joinsBurst = false;
+    }
+  }
+  if (!joinsBurst) {
+    await audit({
+      shopId: session.shopId,
+      userId: session.userId,
+      action: "settings.updated",
+      entity: "settings",
+      entityId: session.shopId,
+      summary: asked.addDevice
+        ? `Device “${asked.addDevice.label.trim().slice(0, 40)}” added to the check-in`
+        : asked.reset?.length
+          ? "Devices and problems put back to the standard list"
+          : arrangement !== null
+            ? `Check-in boxes rearranged: ${arrangement}`
+            : "Devices and problems saved",
+      meta: {
+        section: "devices-and-problems",
+        kind: arrangement !== null ? "arrange" : "change",
+        ...(arrangement !== null ? { burstMinutes: AUDIT_BURST_MINUTES } : {}),
+        devices: deviceKinds.length,
+        hiddenDevices: deviceKinds.filter((kind) => kind.hidden).length,
+        problems: problems.length,
+        ...(asked.reset?.length ? { reset: asked.reset } : {}),
+        ...(moves.length ? { renamedProblems: moves.length, checklistsMoved } : {}),
+      },
+    });
+  }
 
   // The editor lives on Settings; the boxes are used on the New repair screen.
   revalidatePath("/settings");

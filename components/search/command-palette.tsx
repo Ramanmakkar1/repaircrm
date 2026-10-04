@@ -1,47 +1,44 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ArrowRight, CornerDownLeft, Loader2, type LucideIcon } from "lucide-react";
+import { ArrowRight, ChevronRight, Loader2, Plus, X } from "lucide-react";
 
 import { ScanButton } from "@/components/scan/scan-button";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import { ICONS } from "@/components/ui/icons";
 import { StatusPill } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
-import { NAV_ITEMS } from "@/components/shell/nav-items";
+import { SEARCH_INPUT_PROPS } from "@/components/ui/auto-focus";
 import { resolveScanAction } from "@/app/(app)/scan/actions";
 import type { ScanResult } from "@/lib/scan/types";
-import type { SearchGroup, SearchResponse, SearchType } from "./types";
+import { OPEN_SEARCH } from "./open-search-button";
+import { arrangeResults, TYPE_LABEL, type SearchGroup, type SearchItem, type SearchResponse } from "./types";
+import { HOME, LIST_FOR, localMatches, PLACES, START_TILES, type Row } from "./places";
 
 /* -------------------------------------------------------------------------- */
-/* Static rows                                                                 */
+/* What the sheet offers before anything is typed                              */
 /* -------------------------------------------------------------------------- */
-
-interface Row {
-  id: string;
-  title: string;
-  subtitle?: string;
-  badge?: string;
-  href: string;
-  icon: LucideIcon;
-}
 
 interface Section {
   key: string;
   label: string;
   rows: Row[];
+  /** "See all 'marquez' in Repairs": the full list with the same search. */
+  more?: { label: string; href: string };
+  /** Start tiles are drawn as picture boxes, not rows. */
+  tiles?: boolean;
 }
 
-/** What the search endpoint last said, tagged with the term it answers. */
+/** What the sheet last heard back, tagged with the words it answers. */
 interface Answer {
   query: string;
   groups: SearchGroup[];
   failed: boolean;
 }
 
-/** The arrow-key cursor, carried with the row list it points into. */
 interface Selection {
   rows: Row[];
   index: number;
@@ -49,147 +46,137 @@ interface Selection {
 
 const NO_GROUPS: SearchGroup[] = [];
 const NO_SELECTION: Selection = { rows: [], index: 0 };
-
-/**
- * The four things a front-counter user starts most often, plus POS. These sit
- * at the very top whenever the box is empty, so ⌘K doubles as the app's "start
- * something" menu and not only as a finder.
- */
-const QUICK_ACTIONS: Row[] = [
-  { id: "qa-ticket", title: "New ticket", subtitle: "Check a device in", href: "/tickets/new", icon: ICONS.ticket },
-  { id: "qa-appointment", title: "New appointment", subtitle: "Book a drop-off or pickup", href: "/appointments?new=1", icon: ICONS.appointment },
-  { id: "qa-lead", title: "New lead", subtitle: "Someone rang or messaged to ask", href: "/leads/new", icon: ICONS.lead },
-  { id: "qa-customer", title: "New customer", subtitle: "Add someone to the book", href: "/customers/new", icon: ICONS.customer },
-  { id: "qa-invoice", title: "New invoice", subtitle: "Bill for work done", href: "/invoices/new", icon: ICONS.invoice },
-  { id: "qa-estimate", title: "New estimate", subtitle: "Quote a job first", href: "/estimates/new", icon: ICONS.estimate },
-  { id: "qa-pos", title: "Take payment", subtitle: "Open the register", href: "/pos", icon: ICONS.pos },
-];
-
-const NAV_ROWS: Row[] = NAV_ITEMS.map((item) => ({
-  id: `nav-${item.href}`,
-  title: item.label,
-  href: item.href,
-  icon: item.icon,
-}));
-
-/**
- * Straight off the app-wide map, so a part found here is the same box it is on
- * the inventory list and a lead the same figure it is on the pipeline. (It used
- * to draw a part with the *inventory section's* glyph, which is the exact
- * mismatch `ICONS` exists to stop.)
- */
-const TYPE_ICON: Record<SearchType, LucideIcon> = {
-  customer: ICONS.customer,
-  ticket: ICONS.ticket,
-  invoice: ICONS.invoice,
-  estimate: ICONS.estimate,
-  product: ICONS.product,
-  serial: ICONS.serial,
-  lead: ICONS.lead,
-};
-
 const SearchIcon = ICONS.search;
-
 const DEBOUNCE_MS = 200;
 const MIN_QUERY = 2;
+const RECENT_KEY = "rf_search_recent";
+const RECENT_MAX = 5;
+
+function itemRow(item: SearchItem): Row {
+  return {
+    id: `${item.type}-${item.id}`,
+    title: item.title,
+    subtitle: item.subtitle,
+    badge: item.badge,
+    price: item.price,
+    href: item.href,
+    picture: item.picture,
+    initials: item.initials,
+    icon: item.type === "invoice" ? ICONS.invoice : item.type === "estimate" ? ICONS.estimate : undefined,
+  };
+}
+
+function readRecent(): Row[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((row): row is Row => typeof row?.href === "string" && row.href.startsWith("/") && typeof row?.title === "string").slice(0, RECENT_MAX)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberRecent(row: Row) {
+  try {
+    const next = [
+      { id: `recent-${row.href}`, title: row.title, subtitle: row.subtitle, href: row.href, picture: row.picture, initials: row.initials },
+      ...readRecent().filter((entry) => entry.href !== row.href),
+    ].slice(0, RECENT_MAX);
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    // Not remembered on this device; search still works.
+  }
+}
 
 /* -------------------------------------------------------------------------- */
-/* Palette                                                                     */
+/* The sheet                                                                   */
 /* -------------------------------------------------------------------------- */
 
 export function CommandPalette({
   open,
   onOpenChange,
+  showMoney = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** False for technicians: no invoice or estimate shortcuts. */
+  showMoney?: boolean;
 }) {
   const router = useRouter();
 
   const [query, setQuery] = React.useState("");
-  // What the endpoint last said. Tagging it with the term it answers is what
-  // lets "loading" and "failed" be read off it: a keystroke needs no state
-  // reset, because the previous answer simply stops matching what is typed.
+  // The answer is tagged with the words it answers, so "loading" and "failed"
+  // are read off it and a keystroke needs no state reset.
   const [answer, setAnswer] = React.useState<Answer | null>(null);
   const [selection, setSelection] = React.useState<Selection>(NO_SELECTION);
-  const [entered, setEntered] = React.useState(false);
+  const [recent, setRecent] = React.useState<Row[]>([]);
 
   const listRef = React.useRef<HTMLDivElement>(null);
 
-  // ---- what the list shows -------------------------------------------------
   const q = query.trim();
   const searchable = open && q.length >= MIN_QUERY;
-  /** The answer for exactly what is typed; anything older still counts as loading. */
   const answered = answer !== null && answer.query === q ? answer : null;
-
   const loading = searchable && answered === null;
   const failed = searchable && answered !== null && answered.failed;
-  // The previous term's rows stay on screen while the next ones load, so the
+  // The previous words' rows stay on screen while the next ones load, so the
   // list never blinks empty between keystrokes.
-  const groups =
-    searchable && answer !== null && !answer.failed ? answer.groups : NO_GROUPS;
+  const groups = searchable && answer !== null && !answer.failed ? answer.groups : NO_GROUPS;
 
-  // ---- opening and closing -------------------------------------------------
-  // Every way out of the palette funnels through here — Esc, the Esc button,
-  // ⌘K again, picking a row — so the per-session state is cleared by whatever
-  // closed it, rather than by an effect noticing afterwards that it shut.
+  // Every way out (Close, Esc, Ctrl-K again, picking a row) comes through here.
   const setOpen = React.useCallback(
     (next: boolean) => {
       if (!next) {
-        setEntered(false);
         setQuery("");
         setAnswer(null);
         setSelection(NO_SELECTION);
+      } else {
+        setRecent(readRecent());
       }
       onOpenChange(next);
     },
     [onOpenChange],
   );
 
-  // ---- ⌘K / Ctrl+K, from anywhere in the app -------------------------------
+  // Ctrl-K / Cmd-K from anywhere in the app.
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) {
-        return;
-      }
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return;
       event.preventDefault();
       setOpen(!open);
     }
+    // Any screen can open the sheet (a not-found page's "Search the shop").
+    const onOpenRequest = () => setOpen(true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener(OPEN_SEARCH, onOpenRequest);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener(OPEN_SEARCH, onOpenRequest);
+    };
   }, [open, setOpen]);
 
-  // ---- animate in on open --------------------------------------------------
+  // Opened by the Search button (not through setOpen): read the recent list then.
   React.useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reads a browser-only list when the sheet opens
+    if (open) setRecent(readRecent());
   }, [open]);
 
-  // ---- debounced fetch -----------------------------------------------------
+  // Debounced fetch.
   React.useEffect(() => {
     if (!searchable) return;
-
     let cancelled = false;
     const controller = new AbortController();
-
     const timer = setTimeout(() => {
-      fetch(`/api/app-search?q=${encodeURIComponent(q)}`, {
-        signal: controller.signal,
-      })
-        .then((res) =>
-          res.ok ? (res.json() as Promise<SearchResponse>) : Promise.reject(res.status),
-        )
+      fetch(`/api/app-search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+        .then((res) => (res.ok ? (res.json() as Promise<SearchResponse>) : Promise.reject(res.status)))
         .then((data) => {
-          if (!cancelled) {
-            setAnswer({ query: q, groups: data.groups, failed: false });
-          }
+          if (!cancelled) setAnswer({ query: q, groups: data.groups, failed: false });
         })
         .catch(() => {
           if (!cancelled) setAnswer({ query: q, groups: [], failed: true });
         });
     }, DEBOUNCE_MS);
-
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -197,67 +184,47 @@ export function CommandPalette({
     };
   }, [q, searchable]);
 
-  const lower = q.toLowerCase();
-
   const sections = React.useMemo<Section[]>(() => {
-    const out: Section[] = [];
-
     if (q.length === 0) {
-      out.push({ key: "actions", label: "Quick actions", rows: QUICK_ACTIONS });
-      out.push({ key: "nav", label: "Go to", rows: NAV_ROWS });
+      const out: Section[] = [{ key: "start", label: "Start", rows: START_TILES, tiles: true }];
+      if (recent.length > 0) out.push({ key: "recent", label: "Opened lately", rows: recent });
       return out;
     }
-
-    // Local matches answer the first keystroke instantly, before the network
-    // has anything to say — "inv" already offers Invoices and New invoice.
-    const actions = QUICK_ACTIONS.filter((row) =>
-      row.title.toLowerCase().includes(lower),
-    );
-    const nav = NAV_ROWS.filter((row) => row.title.toLowerCase().includes(lower));
-
-    if (actions.length > 0) out.push({ key: "actions", label: "Actions", rows: actions });
-    if (nav.length > 0) out.push({ key: "nav", label: "Go to", rows: nav });
-
-    for (const group of groups) {
+    const out: Section[] = [];
+    const { exact, groups: arranged } = arrangeResults(groups);
+    if (exact.length > 0) out.push({ key: "exact", label: "Top match", rows: exact.map(itemRow) });
+    for (const group of arranged) {
+      const list = LIST_FOR[group.type];
       out.push({
         key: group.type,
-        label: group.label,
-        rows: group.items.map((item) => ({
-          id: `${item.type}-${item.id}`,
-          title: item.title,
-          subtitle: item.subtitle,
-          badge: item.badge,
-          href: item.href,
-          icon: TYPE_ICON[item.type],
-        })),
+        label: TYPE_LABEL[group.type] ?? group.label,
+        rows: group.items.map(itemRow),
+        more: list ? { label: `See all in ${TYPE_LABEL[group.type]}`, href: `${list}?q=${encodeURIComponent(q)}` } : undefined,
       });
     }
-
+    const local = localMatches(q, showMoney);
+    if (local.starts.length > 0) out.push({ key: "start", label: "Start", rows: local.starts });
+    if (local.places.length > 0) out.push({ key: "places", label: "Go to", rows: local.places });
     return out;
-  }, [q, lower, groups]);
+  }, [q, groups, recent, showMoney]);
 
-  /** Flat, in render order — this is what the arrow keys walk. */
-  const rows = React.useMemo(
-    () => sections.flatMap((section) => section.rows),
-    [sections],
-  );
-
-  /** Where the arrow keys are. A fresh row list starts at the top by itself. */
-  const active = selection.rows === rows ? selection.index : 0;
+  /** Flat, in render order: what the arrow keys walk. */
+  const rows = React.useMemo(() => sections.flatMap((section) => section.rows), [sections]);
+  const active = selection.rows === rows ? selection.index : -1;
   const select = (index: number) => setSelection({ rows, index });
 
   React.useEffect(() => {
-    listRef.current
-      ?.querySelector(`[data-index="${active}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    if (active < 0) return;
+    listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
   const go = React.useCallback(
-    (href: string) => {
+    (row: Row | { href: string }) => {
+      if ("title" in row && q.length > 0 && !row.id.startsWith("go-") && !row.id.startsWith("start-")) rememberRecent(row);
       setOpen(false);
-      router.push(href);
+      router.push(row.href);
     },
-    [setOpen, router],
+    [setOpen, router, q],
   );
 
   function onKeyDown(event: React.KeyboardEvent) {
@@ -267,21 +234,18 @@ export function CommandPalette({
       select((active + 1) % rows.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      select((active - 1 + rows.length) % rows.length);
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      select(0);
-    } else if (event.key === "End") {
-      event.preventDefault();
-      select(rows.length - 1);
+      select(active <= 0 ? rows.length - 1 : active - 1);
     } else if (event.key === "Enter") {
-      event.preventDefault();
-      const row = rows[active];
-      if (row) go(row.href);
+      // Enter with nothing picked opens the first answer: what was typed is what was meant.
+      const row = rows[active >= 0 ? active : 0];
+      if (row && (active >= 0 || q.length >= MIN_QUERY)) {
+        event.preventDefault();
+        go(row);
+      }
     }
   }
 
-  let cursor = -1; // running index across sections, so it matches `rows`
+  let cursor = -1; // running index across sections, matching `rows`
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -291,46 +255,53 @@ export function CommandPalette({
           aria-describedby={undefined}
           onKeyDown={onKeyDown}
           className={cn(
-            // full-screen sheet on a phone, floating panel from sm up
-            "fixed inset-0 z-50 flex flex-col bg-surface outline-none",
-            "sm:inset-auto sm:left-1/2 sm:top-[10vh] sm:h-auto sm:max-h-[70vh] sm:w-[92vw] sm:max-w-xl sm:-translate-x-1/2 sm:rounded-2xl sm:border sm:border-border sm:shadow-xl",
-            "transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
-            entered ? "scale-100 opacity-100" : "scale-[0.99] opacity-0",
+            // A full-screen sheet on a phone; a tall panel from the top of a tablet,
+            // so the on-screen keyboard leaves the answers visible.
+            "rf-search-sheet fixed inset-0 z-50 flex flex-col bg-background outline-none",
+            "sm:inset-auto sm:left-1/2 sm:top-[3dvh] sm:max-h-[min(90dvh,860px)] sm:w-[94vw] sm:max-w-3xl sm:-translate-x-1/2 sm:rounded-2xl sm:border sm:border-border sm:shadow-xl",
+            "rf-overlay",
           )}
         >
-          <DialogPrimitive.Title className="sr-only">
-            Search the shop
-          </DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">Search the shop</DialogPrimitive.Title>
 
-          {/* ------------------------------------------------------- input */}
-          <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-            {loading ? (
-              <Loader2 className="size-[18px] shrink-0 animate-spin text-accent" />
-            ) : (
-              <SearchIcon className="size-[18px] shrink-0 text-faint-foreground" />
-            )}
-            <input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              // Kept short enough to survive a 390px phone without clipping —
-              // the full list of what's searched lives in the empty state.
-              placeholder="Search customers, tickets, invoices…"
-              aria-label="Search the shop"
-              role="combobox"
-              aria-expanded
-              aria-controls="rf-command-list"
-              aria-activedescendant={rows[active] ? `rf-cmd-${active}` : undefined}
-              className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-foreground placeholder:text-faint-foreground outline-none"
-            />
-            {/* Scanning anything the shop has printed or stocked — a serial on
-                a handset, a shelf label, the work order stapled to a device —
-                opens that record directly. A code with no exact match falls
-                into the box as a search, which is what ⌘K is for anyway. */}
+          {/* ---------------------------------------------------- the field */}
+          <div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] sm:rounded-t-2xl sm:px-4 sm:pt-3">
+            <label className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-xl border border-border-strong bg-background px-4 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30">
+              {loading ? (
+                <Loader2 aria-hidden className="size-6 shrink-0 animate-spin text-muted-foreground" />
+              ) : (
+                <SearchIcon aria-hidden className="size-6 shrink-0 text-muted-foreground" />
+              )}
+              <input
+                {...SEARCH_INPUT_PROPS}
+                // The person opened Search to type, so the keyboard is wanted here.
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Name, phone or repair #"
+                aria-label="Search the shop: name, phone or number"
+                role="combobox"
+                aria-expanded
+                aria-controls="rf-command-list"
+                aria-activedescendant={active >= 0 && rows[active] ? `rf-cmd-${active}` : undefined}
+                className="h-12 min-w-0 flex-1 bg-transparent text-[18px] text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear what you typed"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <X aria-hidden className="size-5" />
+                </button>
+              ) : null}
+            </label>
+            {/* Scanning a serial, a shelf label or a printed work order opens that record. */}
             <ScanButton
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="size-9"
+              className="size-14 rounded-xl"
               label="Scan a barcode"
               title="Scan to open a record"
               description="A serial, a shelf label, or a printed work order."
@@ -340,109 +311,78 @@ export function CommandPalette({
                   setQuery(result.value);
                   return `No exact match — searching for ${result.value}`;
                 }
-                go(result.href);
+                go({ href: result.href });
                 return openedLabel(result);
               }}
             />
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-semibold text-faint-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex min-h-14 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[15px] font-semibold text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Esc
+              <X aria-hidden className="size-5" />
+              <span className="hidden min-[400px]:inline">Close</span>
+              <span className="sr-only min-[400px]:hidden">Close search</span>
             </button>
           </div>
 
-          {/* ------------------------------------------------------ results */}
+          {/* -------------------------------------------------- the answers */}
           <div
             id="rf-command-list"
             ref={listRef}
             role="listbox"
             aria-label="Search results"
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 sm:max-h-none"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-4"
           >
-            {rows.length === 0 ? (
-              <EmptyState query={q} loading={loading} failed={failed} />
+            {q.length > 0 && rows.length === 0 ? (
+              <NothingFound query={q} loading={loading} failed={failed} />
             ) : (
               sections.map((section) => (
-                <div key={section.key} className="mb-1 last:mb-0">
-                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-                    {section.label}
-                  </p>
-                  {section.rows.map((row) => {
-                    cursor += 1;
-                    const index = cursor;
-                    const isActive = index === active;
-                    const Icon = row.icon;
-                    return (
-                      <button
-                        key={row.id}
-                        id={`rf-cmd-${index}`}
-                        data-index={index}
-                        role="option"
-                        aria-selected={isActive}
-                        type="button"
-                        onMouseMove={() => select(index)}
-                        onClick={() => go(row.href)}
-                        className={cn(
-                          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors",
-                          isActive ? "bg-accent-soft" : "hover:bg-surface-hover",
-                        )}
-                      >
-                        <Icon
-                          className={cn(
-                            "size-[18px] shrink-0",
-                            isActive ? "text-accent" : "text-faint-foreground",
-                          )}
-                        />
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span
-                            className={cn(
-                              "truncate text-[14.5px] font-semibold",
-                              isActive
-                                ? "text-accent-soft-foreground"
-                                : "text-foreground",
-                            )}
-                          >
-                            {row.title}
-                          </span>
-                          {row.subtitle ? (
-                            <span className="truncate text-[12.5px] text-muted-foreground">
-                              {row.subtitle}
-                            </span>
-                          ) : null}
-                        </span>
-                        {row.badge ? (
-                          // The endpoint sends a word, not a tone, so this is
-                          // deliberately the quiet one — the row's own icon and
-                          // title are what the eye is meant to land on.
-                          <StatusPill
-                            size="sm"
-                            dot={false}
-                            tone="neutral"
-                            label={row.badge}
-                            className="shrink-0"
-                          />
-                        ) : null}
-                        {isActive ? (
-                          <ArrowRight className="size-4 shrink-0 text-accent" />
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
+                <section key={section.key} aria-label={section.label} className="mb-4 last:mb-0">
+                  <h3 className="px-1 pb-2 text-[14px] font-semibold text-muted-foreground">{section.label}</h3>
+                  <div className={section.tiles ? "grid grid-cols-2 gap-2.5 sm:grid-cols-4" : "flex flex-col gap-2"}>
+                    {section.rows.map((row) => {
+                      cursor += 1;
+                      const index = cursor;
+                      const props = {
+                        id: `rf-cmd-${index}`,
+                        "data-index": index,
+                        role: "option" as const,
+                        "aria-selected": index === active,
+                        onMouseMove: () => {
+                          if (index !== active) select(index);
+                        },
+                        onClick: () => go(row),
+                      };
+                      return section.tiles ? (
+                        <StartTile key={row.id} {...props} row={row} active={index === active} />
+                      ) : (
+                        <ResultRow key={row.id} {...props} row={row} active={index === active} />
+                      );
+                    })}
+                  </div>
+                  {section.more ? (
+                    <button
+                      type="button"
+                      onClick={() => go({ href: section.more!.href })}
+                      className="mt-1.5 flex min-h-12 w-full items-center justify-center gap-1.5 rounded-xl text-[15px] font-semibold text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {section.more.label}
+                      <ArrowRight aria-hidden className="size-4" />
+                    </button>
+                  ) : null}
+                </section>
               ))
             )}
+            {q.length === 0 ? <Places showMoney={showMoney} onGo={(href) => go({ href })} /> : null}
           </div>
 
-          {/* ------------------------------------------------------- footer */}
-          <div className="flex h-10 shrink-0 items-center gap-4 border-t border-border px-4 text-[11.5px] text-faint-foreground">
-            <Hint keys={["↑", "↓"]}>Navigate</Hint>
-            <Hint icon={CornerDownLeft}>Open</Hint>
-            <Hint keys={["Esc"]}>Close</Hint>
-            <span className="ml-auto hidden font-medium sm:inline">
-              Tip: type a ticket or invoice number
-            </span>
+          {/* Keyboard hints only where there is a keyboard and a mouse. */}
+          <div className="hidden h-10 shrink-0 items-center gap-4 border-t border-border px-4 text-[12.5px] text-muted-foreground pointer-fine:flex">
+            <span>↑ ↓ to move</span>
+            <span>Enter to open</span>
+            <span>Esc to close</span>
+            <span className="ml-auto">Try #1012, INV-1012 or a phone number</span>
           </div>
         </DialogPrimitive.Content>
       </DialogPortal>
@@ -452,71 +392,150 @@ export function CommandPalette({
 
 /* -------------------------------------------------------------------------- */
 
-/** "Opening iPhone 14 Case" — what the scanner shows before it steps aside. */
-function openedLabel(result: Exclude<ScanResult, { kind: "none" }>): string {
-  if (result.kind === "product") return `Opening ${result.product.name}`;
-  if (result.kind === "serial") {
-    return `Opening ${result.serial.productName} · ${result.serial.serial}`;
-  }
-  return `Opening ${result.label}`;
-}
+type OptionProps = {
+  id: string;
+  "data-index": number;
+  role: "option";
+  "aria-selected": boolean;
+  onMouseMove: () => void;
+  onClick: () => void;
+};
 
-function EmptyState({
-  query,
-  loading,
-  failed,
-}: {
-  query: string;
-  loading: boolean;
-  failed: boolean;
-}) {
-  const message = failed
-    ? "Search is unavailable right now. Try again in a moment."
-    : loading
-      ? "Searching…"
-      : query.length < MIN_QUERY
-        ? "Keep typing…"
-        : "No matches — try a ticket number or a customer name.";
-
+/** A start box: a picture you recognise and a plain name, like the Home tiles. */
+function StartTile({ row, active, ...props }: OptionProps & { row: Row; active: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-      <SearchIcon className="size-6 text-faint-foreground" />
-      <p className="text-[14px] font-medium text-muted-foreground">{message}</p>
-      {!loading && !failed && query.length >= MIN_QUERY ? (
-        <p className="text-[12.5px] text-faint-foreground">
-          Customers, tickets, invoices, estimates, parts and leads are all searched.
-        </p>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        "group flex min-h-36 flex-col overflow-hidden rounded-2xl border bg-surface text-left transition-[border-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "border-ring" : "border-border hover:border-ring",
+      )}
+    >
+      <span className="relative block aspect-[16/10] w-full bg-white">
+        {row.picture ? <Image src={row.picture} alt="" fill sizes="(max-width: 640px) 45vw, 180px" className="object-contain p-2" /> : null}
+        {row.add ? (
+          <span className="absolute bottom-1.5 right-1.5 flex size-8 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
+            <Plus aria-hidden className="size-4" />
+          </span>
+        ) : null}
+      </span>
+      <span className="flex flex-col px-3 pb-3 pt-2">
+        <span className="text-[16px] font-semibold leading-tight text-foreground">{row.title}</span>
+        {row.subtitle ? <span className="text-[13px] leading-snug text-muted-foreground">{row.subtitle}</span> : null}
+      </span>
+    </button>
   );
 }
 
-function Hint({
-  keys,
-  icon: Icon,
-  children,
-}: {
-  keys?: string[];
-  icon?: LucideIcon;
-  children: React.ReactNode;
-}) {
+/** One answer: a picture (a device, a product, initials for a person), a title, one line, and its status. */
+function ResultRow({ row, active, ...props }: OptionProps & { row: Row; active: boolean }) {
   return (
-    <span className="flex items-center gap-1.5">
-      {Icon ? (
-        <kbd className="flex h-[18px] min-w-[18px] items-center justify-center rounded-sm border border-border bg-surface-hover px-1 font-sans">
-          <Icon className="size-3" />
-        </kbd>
-      ) : (
-        keys?.map((key) => (
-          <kbd
-            key={key}
-            className="flex h-[18px] min-w-[18px] items-center justify-center rounded-sm border border-border bg-surface-hover px-1 font-sans text-[10.5px] font-semibold"
-          >
-            {key}
-          </kbd>
-        ))
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        "flex min-h-[4.5rem] w-full items-center gap-3.5 rounded-2xl border bg-surface p-2.5 pr-3 text-left transition-colors sm:gap-4",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "border-ring bg-surface-hover" : "border-border hover:border-ring",
       )}
-      <span className="font-medium">{children}</span>
+    >
+      <ResultPicture row={row} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[17px] font-semibold leading-tight text-foreground">{row.title}</span>
+        {row.subtitle ? <span className="truncate text-[14px] leading-snug text-muted-foreground">{row.subtitle}</span> : null}
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        {row.price ? <span className="text-[16px] font-semibold tabular-nums text-foreground">{row.price}</span> : null}
+        {row.badge ? <StatusPill size="sm" dot={false} tone="neutral" label={row.badge} /> : null}
+      </span>
+      <ChevronRight aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
+function ResultPicture({ row }: { row: Row }) {
+  const box = "relative flex size-14 shrink-0 items-center justify-center overflow-hidden";
+  if (row.initials) {
+    return (
+      <span aria-hidden className={cn(box, "rounded-full bg-accent-soft text-[18px] font-semibold text-foreground")}>
+        {row.initials}
+      </span>
+    );
+  }
+  if (row.picture?.startsWith("/files/")) {
+    // A shop's own photo needs the signed-in session, so it cannot use the image optimiser.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <span className={cn(box, "rounded-xl bg-white")}><img src={row.picture} alt="" loading="lazy" className="size-full object-cover" /></span>;
+  }
+  if (row.picture) {
+    return (
+      <span className={cn(box, "rounded-xl bg-white")}>
+        <Image src={row.picture} alt="" fill sizes="56px" className="object-contain p-1.5" />
+      </span>
+    );
+  }
+  const Icon = row.icon ?? ICONS.search;
+  return (
+    <span aria-hidden className={cn(box, "rounded-xl bg-surface-hover text-foreground")}>
+      <Icon className="size-6" strokeWidth={1.75} />
     </span>
+  );
+}
+
+/** Every other place in the app, as big plain-word buttons. */
+function Places({ showMoney, onGo }: { showMoney: boolean; onGo: (href: string) => void }) {
+  return (
+    <section aria-label="Go to" className="mt-4">
+      <h3 className="px-1 pb-2 text-[14px] font-semibold text-muted-foreground">Go to</h3>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {PLACES.filter((place) => (showMoney || !place.money) && !place.id.startsWith("go-new") && place.id !== "go-home").map((place) => {
+          const Icon = place.icon ?? ICONS.search;
+          return (
+            <button
+              key={place.id}
+              type="button"
+              onClick={() => onGo(place.href)}
+              className="flex min-h-12 items-center gap-2.5 rounded-xl border border-border bg-surface px-3 text-left text-[15px] font-semibold text-foreground transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{place.title}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** "Opening iPhone 14 Case" — what the scanner shows before it steps aside. */
+function openedLabel(result: Exclude<ScanResult, { kind: "none" }>): string {
+  if (result.kind === "product") return `Opening ${result.product.name}`;
+  if (result.kind === "serial") return `Opening ${result.serial.productName} · ${result.serial.serial}`;
+  return `Opening ${result.label}`;
+}
+
+function NothingFound({ query, loading, failed }: { query: string; loading: boolean; failed: boolean }) {
+  const title = failed
+    ? "Search isn't working right now"
+    : loading
+      ? "Looking…"
+      : query.length < MIN_QUERY
+        ? "Keep typing…"
+        : `Nothing called “${query}”`;
+  const hint = failed
+    ? "Check the connection and try again in a moment."
+    : loading || query.length < MIN_QUERY
+      ? null
+      : "Try a last name, the last 4 digits of a phone, or a number like #1012.";
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+      <span className="relative size-24 overflow-hidden rounded-2xl bg-white">
+        <Image src={`${HOME}/customers-cards.webp`} alt="" fill sizes="96px" className="object-contain p-2" />
+      </span>
+      <p className="text-[18px] font-semibold text-foreground">{title}</p>
+      {hint ? <p className="max-w-sm text-[15px] text-muted-foreground">{hint}</p> : null}
+    </div>
   );
 }

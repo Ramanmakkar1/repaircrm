@@ -4,7 +4,7 @@ import { Banknote, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/components/ui/cn";
 import { compactCents } from "@/components/reports/charts";
 import { formatCents } from "@/lib/money";
-import { plainMoney, type TakingsComparison } from "@/lib/dashboard/logic";
+import { plainMoney, reportsRangeHref, type TakingsComparison } from "@/lib/dashboard/logic";
 import type { TodaySection } from "@/lib/dashboard/overview";
 import { Panel } from "./panel";
 
@@ -62,7 +62,7 @@ export function TakingsHero({ today, className }: { today: TodaySection; classNa
         </ul>
       </div>
 
-      <WeekBars days={today.days} totalCents={today.weekNetCents} />
+      <WeekBars days={today.days} totalCents={today.weekNetCents} href={today.weekHref} />
     </Panel>
   );
 }
@@ -89,16 +89,24 @@ export function Comparison({ comparison }: { comparison: TakingsComparison }) {
 type WeekDay = TodaySection["days"][number];
 
 /**
- * The last seven days as bars, today last. Each bar is a link to Reports for
- * that day, so its accessible name is the day and the amount (read from hidden
- * text); the printed amount, the weekday initial and the date number are
- * decoration on top of that. Today is the filled bar with the bold label; the others are quieter, so
+ * The last seven days as bars, today last, and ONE link under them that opens
+ * the whole week in Reports.
+ *
+ * The bars used to be seven links of about 34px with 4px between them: well
+ * under the 48px a finger needs. Now each day is a plain list item (the list a
+ * screen reader walks: "Monday, Sep 28: $269.59 taken"), the printed amount,
+ * weekday initial and date number are decoration on top of that sentence, and
+ * the one link is full width and 48px tall. Today's own figure is one tap away
+ * already: "Reports" beside "Takings today".
+ *
+ * Today is the filled bar with the bold label; the others are quieter, so
  * nothing relies on colour alone. Bars grow in once (a short transition that
  * `prefers-reduced-motion` switches off); the final state is the default, so
  * nothing waits on the animation to be visible.
  */
-export function WeekBars({ days, totalCents }: { days: readonly WeekDay[]; totalCents: number }) {
+export function WeekBars({ days, totalCents, href }: { days: readonly WeekDay[]; totalCents: number; /** Reports for these seven days. */ href?: string }) {
   const max = Math.max(1, ...days.map((day) => Math.max(0, day.netCents)));
+  const weekHref = href ?? (days.length > 0 ? reportsRangeHref(days[0].key, days[days.length - 1].key) : "/reports");
   return (
     <figure className="flex min-w-0 flex-col gap-2">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
@@ -109,39 +117,39 @@ export function WeekBars({ days, totalCents }: { days: readonly WeekDay[]; total
         {days.map((day) => {
           const height = day.netCents > 0 ? Math.max(4, (day.netCents / max) * 100) : 0;
           return (
-            <li key={day.key} className="min-w-0">
-              <Link
-                href={day.href}
-                data-touch-control
-                aria-current={day.isToday ? "date" : undefined}
-                className="flex h-full flex-col gap-1 rounded-lg px-0.5 py-1 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {/* The link's name is this sentence, read from its content (not an aria-label, which would hide the printed amount from its own name). */}
-                <span className="sr-only">
-                  {day.isToday ? "Today, " : ""}
-                  {day.label}: {formatCents(day.netCents)} taken. Open this day in Reports.
-                </span>
-                <span aria-hidden className={cn("text-center text-[11px] leading-none tabular-nums", day.isToday ? "font-bold text-foreground" : "font-semibold text-muted-foreground")}>
-                  {compactCents(day.netCents)}
-                </span>
-                <span aria-hidden className="flex min-h-14 flex-1 items-end">
-                  <span
-                    className={cn(
-                      "block min-h-0.5 w-full origin-bottom rounded-t-md transition-transform duration-700 ease-out starting:scale-y-0 motion-reduce:transition-none",
-                      day.isToday ? "bg-accent" : "bg-border-strong",
-                    )}
-                    style={{ height: `${height}%` }}
-                  />
-                </span>
-                <span aria-hidden className="flex flex-col items-center leading-tight">
-                  <span className={cn("text-[13px]", day.isToday ? "font-bold text-foreground" : "font-medium text-muted-foreground")}>{day.initial}</span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">{day.dayOfMonth}</span>
-                </span>
-              </Link>
+            <li key={day.key} aria-current={day.isToday ? "date" : undefined} className="flex min-w-0 flex-col gap-1 px-0.5 py-1">
+              <span className="sr-only">
+                {day.isToday ? "Today, " : ""}
+                {day.label}: {formatCents(day.netCents)} taken.
+              </span>
+              <span aria-hidden className={cn("text-center text-[11px] leading-none tabular-nums", day.isToday ? "font-bold text-foreground" : "font-semibold text-muted-foreground")}>
+                {compactCents(day.netCents)}
+              </span>
+              <span aria-hidden className="flex min-h-14 flex-1 items-end">
+                <span
+                  className={cn(
+                    "block min-h-0.5 w-full origin-bottom rounded-t-md transition-transform duration-700 ease-out starting:scale-y-0 motion-reduce:transition-none",
+                    day.isToday ? "bg-accent" : "bg-border-strong",
+                  )}
+                  style={{ height: `${height}%` }}
+                />
+              </span>
+              <span aria-hidden className="flex flex-col items-center leading-tight">
+                <span className={cn("text-[13px]", day.isToday ? "font-bold text-foreground" : "font-medium text-muted-foreground")}>{day.initial}</span>
+                <span className="text-[11px] tabular-nums text-muted-foreground">{day.dayOfMonth}</span>
+              </span>
             </li>
           );
         })}
       </ol>
+      <Link
+        href={weekHref}
+        data-touch-control
+        className="inline-flex min-h-12 items-center justify-center gap-1 rounded-xl border border-border px-3 text-[15px] font-semibold text-foreground transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        See these 7 days in Reports
+        <span aria-hidden>→</span>
+      </Link>
     </figure>
   );
 }

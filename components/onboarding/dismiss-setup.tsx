@@ -32,13 +32,13 @@ export function DismissSetup() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      className="h-12 px-3"
       onClick={dismiss}
       disabled={busy}
       aria-label="Hide the setup checklist"
       title="Hide this — everything stays in Settings"
     >
-      <X />
+      <X aria-hidden /> Hide
     </Button>
   );
 }

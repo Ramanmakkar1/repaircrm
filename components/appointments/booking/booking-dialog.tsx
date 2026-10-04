@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CalendarPlus, Check } from "lucide-react";
 import { toast } from "sonner";
 
-import { saveAppointmentAction } from "@/app/(app)/appointments/actions";
+import { saveAppointmentAction, searchBookingCustomersAction } from "@/app/(app)/appointments/actions";
+import { wallDate } from "@/lib/dashboard/zone";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -20,6 +21,7 @@ import {
   type AppointmentConflict,
   type AppointmentFormValues,
   type AppointmentPickers,
+  type CustomerSearchResult,
 } from "../appointment-state";
 import { DEFAULT_DURATION, startsWithMoreDetails } from "../dialog-meta";
 import {
@@ -29,6 +31,7 @@ import {
   hasCustomer,
   initialStep,
   kindOfTitle,
+  mergeFound,
   normalizeDuration,
   primaryAction,
   stepDone,
@@ -37,6 +40,7 @@ import {
   summaryParts,
   validate,
   whoHint,
+  withFoundCustomers,
   withKind,
   type VisitKind,
 } from "./flow";
@@ -148,15 +152,33 @@ export function BookingFlow({
   /** The step to open on. Left out, a new booking opens on Who and an existing one on When. */
   startOn?: number;
 }) {
-  const ctx = pickers;
   const isEdit = Boolean(initial.id);
+
+  // People the server search found beyond the ones the page sent.
+  const [found, setFound] = React.useState<CustomerSearchResult>({ customers: [], ticketsByCustomer: {} });
+  const [searching, setSearching] = React.useState(false);
+  const ctx = React.useMemo(() => withFoundCustomers(pickers, found), [pickers, found]);
+  const lookUp = React.useCallback(async (query: string) => {
+    setSearching(true);
+    try {
+      const result = await searchBookingCustomersAction(query);
+      setFound((current) => mergeFound(current, result));
+    } catch {
+      // The local list still works; a failed lookup only means fewer people to pick from.
+    } finally {
+      setSearching(false);
+    }
+  }, []);
 
   const [values, setValues] = React.useState<AppointmentFormValues>(() => normalizeDuration(initial));
   const [kind, setKind] = React.useState<VisitKind | "">(() => kindOfTitle(initial.title));
   const [step, setStep] = React.useState(() => startOn ?? initialStep(initial));
   /** The steps that have been on screen: a tick means "you have been here and it is set", never "it came filled in". */
   const [visited, setVisited] = React.useState<number[]>(() =>
-    initial.id ? STEPS.map((_, index) => index) : [startOn ?? initialStep(initial)],
+    initial.id
+      ? STEPS.map((_, index) => index)
+      : // Came with the customer chosen: Who is settled, so it carries its tick.
+        [...new Set([...(hasCustomer(initial) ? [0] : []), startOn ?? initialStep(initial)])],
   );
   // The length lives on the When step, not behind "More options", so it does not count here.
   const [more, setMore] = React.useState(() =>
@@ -165,7 +187,8 @@ export function BookingFlow({
   const [conflict, setConflict] = React.useState<AppointmentConflict | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [now] = React.useState(() => nowProp ?? new Date());
+  // "Today" and "Tomorrow" are the SHOP'S days, not the device's: the clock is read on the shop's wall.
+  const [now] = React.useState(() => nowProp ?? (pickers.timeZone ? wallDate(new Date().getTime(), pickers.timeZone) : new Date()));
   // A keyboard is at hand: the cursor can go straight to the search box. On a touch screen it
   // would only throw the keyboard up over the people to tap.
   const [finePointer] = React.useState(
@@ -353,6 +376,8 @@ export function BookingFlow({
               onChosen={() => goTo(1)}
               issues={shown}
               focusSearch={finePointer}
+              onSearch={pickers.moreCustomers ? lookUp : undefined}
+              searching={searching}
             />
           ) : null}
           {step === 1 ? <WhenStep values={values} change={change} now={now} issues={shown} /> : null}

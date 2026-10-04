@@ -32,9 +32,10 @@ describe("invoicePrimaryAction", () => {
 describe("estimatePrimaryAction", () => {
   const pick = (status: string, canConvert = true, hasInvoice = false) => estimatePrimaryAction({ status, canConvert, hasInvoice });
 
-  it("a draft or sent quote is sent (or sent again)", () => {
+  it("a draft is sent; once it is out, the next step is the customer saying yes", () => {
     expect(pick("DRAFT")).toBe("send");
-    expect(pick("SENT")).toBe("send");
+    // Send again is a tile; the big button is what happens at the counter next.
+    expect(pick("SENT")).toBe("approve");
   });
 
   it("an approved quote converts to an invoice, or is sent if it has no lines to convert", () => {
@@ -47,7 +48,7 @@ describe("estimatePrimaryAction", () => {
     expect(pick("CONVERTED", false, false)).toBe("none");
   });
 
-  it("a declined quote has no obvious next step; Approve and Edit are under More", () => {
-    expect(pick("DECLINED")).toBe("none");
+  it("a declined quote offers the change of mind (approve); Edit is a tile beside it", () => {
+    expect(pick("DECLINED")).toBe("approve");
   });
 });

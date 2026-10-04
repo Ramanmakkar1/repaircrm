@@ -62,6 +62,7 @@ const SCHEDULE = {
 };
 
 function stubSchedule(over: Partial<typeof SCHEDULE> = {}): void {
+  handlers["shop.findUnique"] ??= () => ({ timezone: "UTC" });
   const row = { ...SCHEDULE, ...over };
   handlers["recurringInvoice.findMany"] = () => [{ id: row.id }];
   handlers["recurringInvoice.findFirst"] = () => row;
@@ -72,6 +73,7 @@ function stubSchedule(over: Partial<typeof SCHEDULE> = {}): void {
 
 beforeEach(() => {
   resetDb();
+  handlers["shop.findUnique"] = () => ({ timezone: "UTC" });
   vi.useFakeTimers();
   // Four days after the schedule was due.
   vi.setSystemTime(new Date("2026-03-05T09:17:00.000Z"));
@@ -82,6 +84,15 @@ afterEach(() => {
 });
 
 describe("generating an invoice", () => {
+  it("waits for the shop's run day and dates terms from that same day", async () => {
+    stubSchedule();
+    handlers["shop.findUnique"] = () => ({ timezone: "America/Edmonton" });
+    vi.setSystemTime(new Date("2026-10-01T03:00:00Z"));
+    await runDueRecurringInvoicesForShop(SHOP);
+    const due = whereOf("recurringInvoice.findMany").nextRunAt as { lte: Date };
+    expect(due.lte.toISOString()).toBe("2026-09-30T00:00:00.000Z");
+    expect((dataOf("invoice.create").dueDate as Date).toISOString()).toBe("2026-10-14T00:00:00.000Z");
+  });
   it("raises one DRAFT invoice per due schedule", async () => {
     stubSchedule();
 

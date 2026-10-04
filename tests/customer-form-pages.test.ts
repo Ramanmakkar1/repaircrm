@@ -116,7 +116,7 @@ describe("/customers/[id]/edit", () => {
     prefs.simple = false;
     const html = await renderEdit();
     expect(html).toContain("max-w-3xl");
-    expect(text(html)).toContain("Changes apply from the next ticket, estimate and invoice on.");
+    expect(text(html)).toContain("Changes apply from the next repair, estimate and invoice on.");
     expect(text(html)).toContain("Phone number");
     expect(text(html)).not.toContain("This customer");
   });

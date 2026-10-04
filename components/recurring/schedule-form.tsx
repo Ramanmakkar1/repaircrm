@@ -148,10 +148,10 @@ export function ScheduleForm({
       ) : null}
 
       <Card>
-        <CardHeader icon={ICONS.recurring} title="Schedule details" />
+        <CardHeader icon={ICONS.recurring} title="Repeat bill" />
         <CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="name">Schedule name</Label>
+            <Label htmlFor="name">Name in your list</Label>
             <Input
               id="name"
               name="name"
@@ -204,7 +204,7 @@ export function ScheduleForm({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="nextRunAt">
-              {initial?.id ? "Next run date" : "First run date"}
+              {initial?.id ? "Next bill on" : "First bill on"}
             </Label>
             <Input
               id="nextRunAt"
@@ -214,12 +214,12 @@ export function ScheduleForm({
               required
             />
             <p className="text-[13.5px] text-muted-foreground">
-              Later runs step forward from this date, not from when you press run.
+              The bills after it follow on from this day.
             </p>
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="dueInDays">Payment terms</Label>
+            <Label htmlFor="dueInDays">Customer pays within</Label>
             <div className="flex items-center gap-2.5">
               <Input
                 id="dueInDays"
@@ -234,7 +234,7 @@ export function ScheduleForm({
               <span className="text-sm text-muted-foreground">days to pay</span>
             </div>
             <p className="text-[13.5px] text-muted-foreground">
-              0 means due on receipt.
+              0 means they pay when they get it.
             </p>
           </div>
 
@@ -243,7 +243,7 @@ export function ScheduleForm({
               rates={taxRates}
               value={tax.taxRateId}
               onChange={setTax}
-              hint="Every invoice this schedule raises is taxed at this rate."
+              hint="Every bill it makes uses this rate."
             />
           ) : null}
 
@@ -257,18 +257,18 @@ export function ScheduleForm({
                 aria-label="Schedule active"
               />
               <span className="text-sm font-semibold text-foreground">
-                {active ? "Active" : "Paused"}
+                {active ? "On" : "Paused"}
               </span>
             </div>
             <p className="text-[13.5px] text-muted-foreground">
-              Paused schedules are skipped by &ldquo;Generate due now&rdquo;.
+              A paused repeat bill makes no bills until it is turned back on.
             </p>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader icon={ICONS.automation} title="What happens on each run" />
+        <CardHeader icon={ICONS.automation} title="Do it for me" />
         <CardContent className="flex flex-col gap-4">
           <ToggleRow
             id="autoSend"
@@ -293,7 +293,7 @@ export function ScheduleForm({
       </Card>
 
       <Card>
-        <CardHeader icon={ICONS.checklist} title="What gets billed each time" />
+        <CardHeader icon={ICONS.checklist} title="What goes on each bill" />
         <CardContent className="px-3 py-3">
           <LineItemsEditor
             products={products}

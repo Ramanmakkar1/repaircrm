@@ -10,11 +10,15 @@ import {
   FILTER_LABELS,
   asFilter,
   marginPct,
+  stockStatus,
   type InventoryFilter,
 } from "@/components/inventory/format";
 import { InventoryFilters } from "@/components/inventory/inventory-filters";
 import { QuickAddProduct } from "@/components/inventory/quick-add-product";
-import { groupDetail } from "@/components/inventory/easy-lists";
+import { groupDetail, stockEmptyState } from "@/components/inventory/easy-lists";
+import { OrderLowButton } from "@/components/inventory/order-low-button";
+import { orderMoreHref } from "@/components/inventory/restock";
+import { RestockRow } from "@/components/inventory/restock-row";
 import { StockBadge } from "@/components/inventory/stock-badge";
 import { StockCard } from "@/components/inventory/stock-card";
 import { groupTiles, StockGroupTiles } from "@/components/inventory/stock-group-tiles";
@@ -70,7 +74,8 @@ export default async function InventoryPage({
 
   const overviewRows = await db.product.findMany({
     where: { ...buildWhere(shopId, query, filter, category), ...(filter === "all" ? { active: true } : {}) },
-    select: { id: true, name: true, category: true, stockQty: true },
+    // catalogImage lets a shelf wear a picture someone chose, without matching every product's name.
+    select: { id: true, name: true, category: true, stockQty: true, catalogImage: true },
   });
   const groups = inventoryGroups(overviewRows);
   const selectedGroup = groups.find(item => item.key === group);
@@ -107,6 +112,8 @@ export default async function InventoryPage({
         costCents: true,
         stockQty: true,
         lowStockAt: true,
+        reorderQty: true,
+        vendorId: true,
         active: true,
         serialized: true,
         attachments: PRODUCT_IMAGE_SELECT,
@@ -136,6 +143,9 @@ export default async function InventoryPage({
   const shelfDetail = shelf ? groupDetail(shelf.quantity, shelf.productIds.length) : null;
   const firstRow = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const lastRow = Math.min(page * PAGE_SIZE, total);
+  // Purchasing is the owner's (the order pages show buying prices), so only the owner gets the way to it.
+  const canOrder = role === "OWNER";
+  const empty = stockEmptyState({ filter, query, category, group });
 
   return (
     <div className="flex flex-col gap-6">
@@ -148,9 +158,10 @@ export default async function InventoryPage({
                 from the sidebar — the rail is already thirteen items long and
                 these are inventory's own sub-pages. Owner only, like the pages
                 themselves. */}
-            {showCost ? (
+            {/* Easy mode keeps ONE button up here: Suppliers and Orders sit in the
+                Restock row below, Import (a rare, set-up job) at the foot of the page. */}
+            {showCost && !prefs.simple ? (
               <>
-                {!prefs.simple ? <>
                 <Button variant="outline" asChild>
                   <Link href="/inventory/vendors">
                     <ICONS.vendor />
@@ -163,7 +174,6 @@ export default async function InventoryPage({
                     Purchase orders
                   </Link>
                 </Button>
-                </> : null}
                 <Button variant="outline" asChild>
                   <Link href="/inventory/import">
                     <ACTIONS.upload />
@@ -227,6 +237,56 @@ export default async function InventoryPage({
 
         <InventoryFilters filter={filter} query={query} category={category} group={group} easy={prefs.simple} />
 
+        {prefs.simple && canOrder ? (
+          <RestockRow
+            links={[
+              // While something is low, the first box says so and opens the shopping list.
+              lowStockCount > 0
+                ? {
+                    key: "low",
+                    title: "Running low",
+                    detail: `${plural(lowStockCount, "item")} to order`,
+                    href: hrefFor("low", "", "", ""),
+                    photo: "/images/home/delivery-boxes.webp",
+                    alert: true,
+                    current: filter === "low",
+                  }
+                : {
+                    key: "new",
+                    title: "Order stock",
+                    detail: "Buy from a supplier",
+                    href: "/inventory/purchase-orders/new",
+                    photo: "/images/home/delivery-boxes.webp",
+                  },
+              {
+                key: "orders",
+                title: "Orders",
+                detail: "On the way and to order",
+                href: "/inventory/purchase-orders",
+                photo: "/images/home/invoice-pad.webp",
+              },
+              {
+                key: "suppliers",
+                title: "Suppliers",
+                detail: "Who you buy from",
+                href: "/inventory/vendors",
+                photo: "/images/home/delivery-van.webp",
+              },
+            ]}
+          />
+        ) : null}
+
+        {prefs.simple && canOrder && filter === "low" && lowStockCount > 0 ? (
+          // The low view is a shopping list: its one big button orders the lot.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+            <p className="text-base">
+              <span className="font-semibold">{plural(lowStockCount, "item")} running low.</span>{" "}
+              <span className="text-muted-foreground">Make a draft order for each supplier, then check and place them.</span>
+            </p>
+            <OrderLowButton count={lowStockCount} />
+          </div>
+        ) : null}
+
         {categories.length > 0 && !prefs.simple ? (
           <FilterChips
             label="Category"
@@ -289,21 +349,20 @@ export default async function InventoryPage({
         products.length === 0 ? (
           <Card>
             <CardContent className="px-0 py-0">
+            {/* An empty Low or Out view is good news, said as such; only a search that finds nothing is "nothing matches". */}
             <EmptyState
               icon={ICONS.inventory}
-              title={filtered ? "Nothing matches those filters" : "No products yet"}
-              hint={
-                filtered
-                  ? "Try a shorter search, or clear the filters to see the whole catalogue."
-                  : "Add the parts and services you sell so they're one click away on tickets and invoices."
-              }
+              title={empty.title}
+              hint={empty.hint}
               action={
-                filtered ? (
-                  <Button variant="outline" asChild>
-                    <Link href="/inventory">Clear filters</Link>
-                  </Button>
-                ) : (
+                empty.action === "add" ? (
                   <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} label={prefs.simple ? "Add product" : undefined} />
+                ) : (
+                  <Button variant="outline" asChild className={prefs.simple ? "h-12 px-5 text-base" : undefined}>
+                    <Link href={empty.action === "everyShelf" ? hrefFor(filter, "", "", "") : "/inventory"}>
+                      {empty.action === "clear" ? "Clear filters" : empty.action === "everyShelf" ? "Look on every shelf" : "See all stock"}
+                    </Link>
+                  </Button>
                 )
               }
             />
@@ -333,6 +392,11 @@ export default async function InventoryPage({
                     imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null,
                     catalogImage: product.catalogImage,
                   }}
+                  orderHref={
+                    canOrder && product.active && ["low", "out"].includes(stockStatus(product))
+                      ? orderMoreHref({ ...product, reorderQty: product.reorderQty ?? null, vendorId: product.vendorId ?? null })
+                      : undefined
+                  }
                 />
               ))}
             </RecordGrid>
@@ -468,6 +532,16 @@ export default async function InventoryPage({
             </CardContent>
           </Card>
         )
+      ) : null}
+
+      {prefs.simple && showCost ? (
+        <p className="text-center text-base text-muted-foreground">
+          Have a product list in a spreadsheet?{" "}
+          <Link href="/inventory/import" data-touch-control className="inline-flex min-h-12 items-center gap-1.5 font-semibold text-foreground underline underline-offset-4">
+            <ACTIONS.upload className="size-4" aria-hidden />
+            Import it
+          </Link>
+        </p>
       ) : null}
     </div>
   );

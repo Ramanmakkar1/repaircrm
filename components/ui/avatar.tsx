@@ -35,7 +35,9 @@ export function AvatarFallback({
   return (
     <AvatarPrimitive.Fallback
       className={cn(
-        "flex size-full items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-soft-foreground",
+        // Dark text on the soft fill: the blue-on-blue initials measured 4.31:1, under
+        // the 4.5:1 that small text needs. Foreground passes in both themes.
+        "flex size-full items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-foreground",
         className,
       )}
       {...props}

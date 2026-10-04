@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // Keep the standalone output for Docker while allowing OpenNext to produce
   // the Worker bundle for Cloudflare.
   output: process.env.CLOUDFLARE_BUILD === "1" ? undefined : "standalone",
-  serverExternalPackages: ["@prisma/client", ".prisma/client"],
+  serverExternalPackages: ["@prisma/client", ".prisma/client", "web-push"],
 
   async headers() {
     return [

@@ -38,7 +38,20 @@ export async function loadRecentCustomerIds(shopId: string, kind: BillKind): Pro
  * (?ticketId=) is always included, open or not, so its link is never lost.
  */
 export async function loadOpenRepairs(shopId: string, includeId?: string | null): Promise<RepairOption[]> {
-  const select = { id: true, number: true, subject: true, customerId: true, status: true } as const;
+  // Each repair carries its charges that are on no invoice yet: "From repair"
+  // puts exactly those on the bill. A charge already billed is never offered.
+  const select = {
+    id: true,
+    number: true,
+    subject: true,
+    customerId: true,
+    status: true,
+    charges: {
+      where: { shopId, invoiceId: null },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, productId: true, description: true, quantity: true, unitPriceCents: true, taxable: true },
+    },
+  } as const;
   const [open, requested] = await Promise.all([
     db.ticket.findMany({
       where: { shopId, status: { not: RESOLVED_STATUS } },

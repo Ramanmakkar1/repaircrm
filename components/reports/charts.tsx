@@ -76,7 +76,10 @@ export function ColumnChart({
         className="flex h-44 items-end gap-1.5 sm:gap-2.5"
       >
         {rows.map((row) => (
-          <div key={row.label} className="flex min-w-0 flex-1 flex-col gap-2">
+          // h-full: the row is `items-end`, so without a height of its own each
+          // column shrank to its label and the bars had 0px to grow into (they
+          // showed as 3px slivers whatever the amount).
+          <div key={row.label} className="flex h-full min-w-0 flex-1 flex-col gap-2">
             {showValues ? (
               <div className="flex justify-center gap-1 text-[11px] font-semibold tabular-nums text-muted-foreground">
                 {format(row.values[0])}
@@ -252,7 +255,7 @@ export function ChartTable({
 }) {
   return (
     <details className="group -mx-1">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-sm px-1 py-1 text-[12.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      <summary className="inline-flex min-h-12 cursor-pointer list-none items-center gap-1.5 rounded-sm px-3 py-2 text-[14px] font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
         <span
           aria-hidden="true"
           className="transition-transform group-open:rotate-90"

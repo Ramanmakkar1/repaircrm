@@ -50,6 +50,19 @@ export type AppointmentPickers = {
   ticketsByCustomer: Record<string, Option[]>;
   techs: Option[];
   locations: Option[];
+  /**
+   * The shop has more customers than the page sent (it sends the first 500), so
+   * the search box also asks the server (`searchBookingCustomersAction`).
+   */
+  moreCustomers?: boolean;
+  /** The shop's time zone: what "Today" and "Tomorrow" mean in the dialog. */
+  timeZone?: string;
+};
+
+/** What the server search hands back: more people, and their repairs to link. */
+export type CustomerSearchResult = {
+  customers: CustomerOption[];
+  ticketsByCustomer: Record<string, Option[]>;
 };
 
 export type AppointmentFormValues = {

@@ -15,14 +15,11 @@ export default async function ImportCustomersPage() {
   await requireRole("OWNER", "FRONT_DESK");
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+    // Same header as the product import: the top bar carries Back, so no breadcrumb trail here.
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <PageHeader
-        breadcrumbs={[
-          { label: "Customers", href: "/customers" },
-          { label: "Import" },
-        ]}
         title="Import customers"
-        description="Bring a customer list over from a spreadsheet or another system, one file at a time."
+        description="Bring your customer list over from a spreadsheet or another system."
       />
 
       <ImportWizard

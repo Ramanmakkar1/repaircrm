@@ -11,11 +11,10 @@
  * whose own page says "Partial".
  */
 
-import { differenceInCalendarDays, format } from "date-fns";
-
 import { primaryPhone } from "@/components/customers/customer-facts";
 import { refundAwareTotals, type RefundLike } from "@/components/billing/refund-math";
 import { formatCents, type LineLike } from "@/lib/money";
+import { formatInZone, sameZonedYear, zonedCalendarDays } from "@/lib/shop-time";
 import { isReadyForPickup } from "./ticket-meta";
 
 // ---------------------------------------------------------------------------
@@ -67,18 +66,18 @@ export type ReadySince = {
 /**
  * "Ready today", "Ready since yesterday", "Ready since Tuesday" (within the
  * week), then a date ("Ready since Sep 18 · 15 days"). Counted in calendar days
- * so a device finished at 11pm last night is "yesterday", not "today".
+ * on the shop's wall (`zone` is Shop.timezone), so a device finished at 11pm
+ * last night is "yesterday", not "today", whatever the server's midnight says.
  */
-export function readySince(since: Date | null | undefined, now: number): ReadySince {
+export function readySince(since: Date | null | undefined, now: number, zone?: string | null): ReadySince {
   if (!since || Number.isNaN(since.getTime())) return { label: "Ready for pickup", long: false };
 
-  const days = differenceInCalendarDays(now, since);
+  const days = zonedCalendarDays(since, now, zone);
   if (days <= 0) return { label: "Ready today", long: false };
   if (days === 1) return { label: "Ready since yesterday", long: false };
-  if (days < 7) return { label: `Ready since ${format(since, "EEEE")}`, long: false };
+  if (days < 7) return { label: `Ready since ${formatInZone(since, "EEEE", zone)}`, long: false };
 
-  const sameYear = since.getFullYear() === new Date(now).getFullYear();
-  const date = format(since, sameYear ? "MMM d" : "MMM d, yyyy");
+  const date = formatInZone(since, sameZonedYear(since, now, zone) ? "MMM d" : "MMM d, yyyy", zone);
   return { label: `Ready since ${date} · ${days} days`, long: days >= 14 };
 }
 
@@ -252,6 +251,18 @@ export function handOverNote(money: PickupMoney, unbilledCharges = 0): string {
         : "";
   return [owes, unbilled, closes].filter(Boolean).join(" ");
 }
+
+/**
+ * The words a screen reader hears after each pickup button's own label, so ten
+ * cards do not read as ten identical "Open repair" buttons: "#1015, Latitude
+ * 5420, Daniel Brooks". The device is left out when there is none on file.
+ */
+export function pickupButtonContext(number: number, device: string | null | undefined, customerName: string): string {
+  return [`#${number}`, device?.trim() || null, customerName.trim() || null].filter(Boolean).join(", ");
+}
+
+/** The id of the pickup counter's title: where focus lands when the last card on screen is handed over. */
+export const PICKUP_TITLE_ID = "pickup-counter-title";
 
 export function handedOverMessage(number: number, customerName: string): string {
   return `#${number} handed over to ${customerName}.`;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { History, Tag } from "lucide-react";
 
-import { formatDateTime, initials } from "@/components/customers/format";
+import { initials } from "@/components/customers/format";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
 import { FlashToast } from "@/components/inventory/flash-toast";
 import {
@@ -37,7 +37,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TBody, Table, Td, Th, THead, Tr } from "@/components/ui/table";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { formatInstant } from "@/lib/inventory/dates";
+import { shopZone } from "@/lib/inventory/shop-zone";
 import { formatCents } from "@/lib/money";
+import { readUiPrefs } from "@/lib/prefs";
 
 const RECENT = 10;
 
@@ -65,9 +68,11 @@ export default async function ProductPage({
   searchParams: Promise<{ flash?: string }>;
 }) {
   const { shopId, role } = await requireUser();
-  const { id } = await params;
-  const { flash } = await searchParams;
+  const [{ id }, { flash }, prefs, zone] = await Promise.all([params, searchParams, readUiPrefs(), shopZone(shopId)]);
   const showCost = role === "OWNER";
+  const easy = prefs.simple;
+  // Every time on this page is the shop's wall clock, never the server's.
+  const formatDateTime = (value: Date | null | undefined) => formatInstant(value, zone);
 
   // Scoped by shopId, so a guessed id from another tenant 404s instead of
   // leaking a row.
@@ -139,7 +144,15 @@ export default async function ProductPage({
             soldAt: true,
             notes: true,
             invoiceLine: {
-              select: { invoice: { select: { id: true, number: true } } },
+              select: {
+                invoice: {
+                  select: {
+                    id: true,
+                    number: true,
+                    customer: { select: { firstName: true, lastName: true, businessName: true } },
+                  },
+                },
+              },
             },
           },
         })
@@ -153,7 +166,8 @@ export default async function ProductPage({
     receivedLabel: formatDateTime(unit.receivedAt),
     soldLabel: unit.soldAt ? formatDateTime(unit.soldAt) : null,
     notes: unit.notes,
-    invoice: unit.invoiceLine?.invoice ?? null,
+    invoice: unit.invoiceLine?.invoice ? { id: unit.invoiceLine.invoice.id, number: unit.invoiceLine.invoice.number } : null,
+    soldTo: buyerName(unit.invoiceLine?.invoice?.customer ?? null),
   }));
 
   const inStockSerials = serials
@@ -170,13 +184,16 @@ export default async function ProductPage({
       <FlashToast flash={flash} />
 
       <div className="flex flex-col gap-1">
-        <Breadcrumbs
-          className="pb-1.5"
-          items={[
-            { label: "Inventory", href: "/inventory" },
-            { label: product.name },
-          ]}
-        />
+        {/* Easy mode has the top bar's Back; the trail is only for the dense layout. */}
+        {easy ? null : (
+          <Breadcrumbs
+            className="pb-1.5"
+            items={[
+              { label: "Inventory", href: "/inventory" },
+              { label: product.name },
+            ]}
+          />
+        )}
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-2.5">
@@ -195,20 +212,20 @@ export default async function ProductPage({
                 <Chip icon={ICONS.serial}>Serialized</Chip>
               ) : null}
               {product.vendor ? (
-                <Chip icon={ICONS.vendor}>{product.vendor.name}</Chip>
+                <Chip icon={ICONS.vendor}>{easy ? `From ${product.vendor.name}` : product.vendor.name}</Chip>
               ) : null}
               {!product.taxable ? <Chip>Non-taxable</Chip> : null}
             </div>
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:justify-end">
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
               <Link href={`/print/labels/${product.id}`}>
                 <ACTIONS.print />
-                Print Labels
+                {easy ? "Shelf labels" : "Print Labels"}
               </Link>
             </Button>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
               <Link href={`/inventory/${product.id}/edit`}>
                 <ACTIONS.edit />
                 Edit
@@ -216,13 +233,14 @@ export default async function ProductPage({
             </Button>
             <AdjustStockDialog
               productId={product.id}
+              productName={product.name}
               stockQty={product.stockQty}
               serialized={product.serialized}
               serials={inStockSerials}
               trigger={
-                <Button>
+                <Button className={easy ? "h-12 px-5 text-base" : undefined}>
                   <ICONS.stockMove />
-                  Adjust Stock
+                  {easy ? "Change stock" : "Adjust Stock"}
                 </Button>
               }
             />
@@ -259,13 +277,14 @@ export default async function ProductPage({
 
             <AdjustStockDialog
               productId={product.id}
+              productName={product.name}
               stockQty={product.stockQty}
               serialized={product.serialized}
               serials={inStockSerials}
               trigger={
-                <Button variant="soft" size="lg" className="w-full">
+                <Button variant="soft" size="lg" className={cn("w-full", easy && "h-12 text-base")}>
                   <ICONS.stockMove />
-                  Adjust Stock
+                  {easy ? "Change stock" : "Adjust Stock"}
                 </Button>
               }
             />
@@ -306,10 +325,10 @@ export default async function ProductPage({
               <Stat label="UPC" value={product.upc ?? "—"} mono />
               <Stat label="Category" value={product.category ?? "Uncategorised"} />
               <Stat label="Taxable" value={product.taxable ? "Yes" : "No"} />
-              <Stat label="Vendor" value={product.vendor?.name ?? "—"} />
-              <Stat label="Vendor SKU" value={product.vendorSku ?? "—"} mono />
+              <Stat label={easy ? "Supplier" : "Vendor"} value={product.vendor?.name ?? "—"} />
+              <Stat label={easy ? "Their part number" : "Vendor SKU"} value={product.vendorSku ?? "—"} mono />
               <Stat
-                label="Reorder qty"
+                label={easy ? "Usually order" : "Reorder qty"}
                 value={product.reorderQty == null ? "Auto" : String(product.reorderQty)}
               />
               <Stat label="Added" value={formatDateTime(product.createdAt)} />
@@ -462,38 +481,21 @@ export default async function ProductPage({
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-soft-foreground">
-              <ICONS.barcode className="size-5" strokeWidth={2.25} />
-            </span>
-            <div className="flex flex-col">
-              <span className="text-[15px] font-bold text-foreground">
-                Shelf labels
-              </span>
-              <span className="text-[13.5px] text-muted-foreground">
-                A printable sheet with the name, price and a Code128 barcode of{" "}
-                <span className="font-mono">
-                  {product.sku ?? product.upc ?? product.id}
-                </span>
-                .
-              </span>
-            </div>
-          </div>
-          <Button variant="outline" asChild>
-            <Link href={`/print/labels/${product.id}`}>
-              <ACTIONS.print />
-              Print Labels
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
+
+/** "Priscilla A." — who bought a unit, short, from the sale's customer. */
+function buyerName(customer: { firstName: string | null; lastName: string | null; businessName: string | null } | null): string | null {
+  if (!customer) return null;
+  if (customer.businessName?.trim()) return customer.businessName.trim();
+  const first = customer.firstName?.trim() ?? "";
+  const last = customer.lastName?.trim() ?? "";
+  if (!first && !last) return null;
+  return last ? `${first} ${last[0]}.`.trim() : first;
+}
 
 /**
  * "Received — 2 boxes from Mobilesentrix" reads as a pill plus the note that

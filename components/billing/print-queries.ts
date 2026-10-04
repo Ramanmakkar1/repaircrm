@@ -1,4 +1,16 @@
 import { db } from "@/lib/db";
+import { safeTimeZone } from "@/lib/dashboard/logic";
+
+/**
+ * The shop's own time zone (`Shop.timezone`), for every "today", day boundary
+ * and printed time a money screen decides on the server. A missing or broken
+ * value reads as UTC rather than breaking the page. One row by primary key,
+ * scoped by the session's shop.
+ */
+export async function loadShopZone(shopId: string): Promise<string> {
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { timezone: true } });
+  return safeTimeZone(shop?.timezone);
+}
 
 /**
  * The shop block every print sheet puts in its masthead.

@@ -16,24 +16,32 @@ import { attentionBorder } from "./card-attention";
 import type { InboundConfig } from "./types";
 
 /**
- * Settings → Messaging → Inbound.
+ * Settings → Emails & texts → replies coming back in.
  *
- * The mirror image of the driver cards above it: those say how messages leave,
- * this says how replies come back. A customer answering an update email or
- * texting the shop's number lands on their ticket as a public comment, and the
- * ticket board grows a "Needs reply" pill until somebody answers.
+ * The mirror image of the sending side: a customer answering an update email
+ * or texting the shop's number lands on their repair as a public comment, and
+ * the repair board grows a "Needs reply" pill until somebody answers. The
+ * owner sees the reply address; the web addresses and secrets are for the
+ * installer and sit under Technical details.
  *
  * Like the rest of this tab, secrets are never rendered — only whether each one
  * is populated.
  */
 const SaveIcon = ACTIONS.save;
 
-export function InboundCard({ config }: { config: InboundConfig }) {
-  const live = config.resendSecretSet || config.inboundTokenSet || config.twilioTokenSet;
+/** Whether replies can come back in at all: at least one secret is set. */
+export function inboundLive(config: InboundConfig): boolean {
+  return config.resendSecretSet || config.inboundTokenSet || config.twilioTokenSet;
+}
+
+/**
+ * The installer's half of "replies come back in": the two web addresses to
+ * register and which secrets are set. Lives inside Technical details.
+ */
+export function InboundTechnical({ config }: { config: InboundConfig }) {
+  const live = inboundLive(config);
 
   return (
-    // Red border when no secret is set: both endpoints reject every request, so
-    // customer replies are being dropped on the floor right now.
     <Card className={live ? undefined : attentionBorder("danger")}>
       <CardHeader
         icon={ICONS.inbound}
@@ -49,17 +57,15 @@ export function InboundCard({ config }: { config: InboundConfig }) {
         }
         description={
           <>
-            Replies from customers land on their ticket as a public update, and
-            the ticket is flagged <strong>Needs reply</strong> until someone
+            Replies from customers land on their repair as a public update, and
+            the repair is flagged <strong>Needs reply</strong> until someone
             answers. A message from a number or address we don&rsquo;t know
-            becomes a lead.
+            becomes an enquiry.
           </>
         }
       />
 
       <CardContent className="flex flex-col gap-6">
-        <InboundAddress config={config} />
-
         <Section title="Webhook URLs">
           <UrlRow label="Email" url={config.emailUrl} />
           <UrlRow label="SMS" url={config.smsUrl} />
@@ -69,8 +75,8 @@ export function InboundCard({ config }: { config: InboundConfig }) {
           <p className="text-[14px] leading-relaxed text-muted-foreground">
             In Resend, add an inbound address on your domain and point it at the
             email URL above, then paste the signing secret it gives you into{" "}
-            <Env>RESEND_WEBHOOK_SECRET</Env>. Set the address you chose in the
-            field above so we know which shop a message is for. Anything
+            <Env>RESEND_WEBHOOK_SECRET</Env>. Set the reply address on this
+            screen so we know which shop a message is for. Anything
             forwarding mail through your own script can post the same JSON to{" "}
             <Env>?token=INBOUND_SECRET</Env> instead.
           </p>
@@ -84,7 +90,7 @@ export function InboundCard({ config }: { config: InboundConfig }) {
             <Warning>
               Neither secret is set, so the email endpoint refuses every request.
               An inbound route that trusted anything would let a stranger write
-              on a customer&rsquo;s ticket.
+              on a customer&rsquo;s repair.
             </Warning>
           ) : null}
         </Section>
@@ -119,7 +125,7 @@ export function InboundCard({ config }: { config: InboundConfig }) {
 
 // ---------------------------------------------------------------------------
 
-function InboundAddress({ config }: { config: InboundConfig }) {
+export function InboundAddress({ config }: { config: InboundConfig }) {
   const router = useRouter();
   const [value, setValue] = React.useState(config.inboundEmail);
   const [busy, setBusy] = React.useState(false);
@@ -135,14 +141,14 @@ function InboundAddress({ config }: { config: InboundConfig }) {
       return;
     }
     toast.success(
-      value.trim() ? "Inbound address saved." : "Inbound address cleared.",
+      value.trim() ? "Saved. Replies to that address land on the right repair." : "Saved. The reply address is cleared.",
     );
     router.refresh();
   }
 
   return (
     <form onSubmit={save} className="flex flex-col gap-2">
-      <Label htmlFor="inbound-email">This shop&rsquo;s inbound address</Label>
+      <Label htmlFor="inbound-email" className="text-[15px]">Your reply address</Label>
       <div className="flex flex-wrap items-center gap-2">
         <Input
           id="inbound-email"
@@ -151,10 +157,10 @@ function InboundAddress({ config }: { config: InboundConfig }) {
           disabled={!config.canEdit || busy}
           onChange={(event) => setValue(event.target.value)}
           placeholder="replies@yourshop.com"
-          className="max-w-sm"
+          className="h-12 max-w-sm text-base"
         />
         {config.canEdit ? (
-          <Button type="submit" variant="outline" disabled={busy}>
+          <Button type="submit" variant="outline" className="h-12 px-5" disabled={busy}>
             {busy ? <Loader2 className="animate-spin" /> : <SaveIcon aria-hidden />}
             {busy ? "Saving…" : "Save"}
           </Button>
@@ -162,8 +168,8 @@ function InboundAddress({ config }: { config: InboundConfig }) {
       </div>
       <p className="text-[14px] leading-relaxed text-muted-foreground">
         {config.singleShop
-          ? "Optional while this is the only shop on the server — anything that arrives is filed here. Set it before adding a second shop."
-          : "Required: a message is filed against the shop whose address it was sent to."}
+          ? "The address customers' email replies go to. Optional for now: every reply already lands in this shop."
+          : "The address customers' email replies go to. Needed so a reply lands in this shop and not another."}
       </p>
     </form>
   );

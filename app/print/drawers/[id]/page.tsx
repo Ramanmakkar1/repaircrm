@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
-
 import { getSession, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { safeTimeZone } from "@/lib/dashboard/logic";
+import { drawerTakings, shopDayLabel } from "@/components/pos/drawer-history";
+import { PAYMENT_METHOD_LABELS } from "@/components/statements/query";
+import { formatDate, formatDateTime } from "@/components/billing/format";
+import { shopTime } from "@/components/billing/shop-clock";
 import {
   Masthead,
   MetaTable,
@@ -19,7 +22,12 @@ import { PrintToolbar } from "@/components/billing/print-toolbar";
 export const dynamic = "force-dynamic";
 
 /**
- * The Z-report: one drawer session, on paper, for the shop's own file.
+ * The end-of-day report: one drawer session, on paper, for the shop's own file.
+ * (Accountants call it a Z-report; the shop does not.)
+ *
+ * Every time is the shop's own clock (`Shop.timezone`), never the server's. Above
+ * the cash count it shows what came in while the drawer was open, split by how
+ * people paid, with the refunds given back.
  *
  * Built from the SAME print chrome as the invoice, estimate and work order
  * (masthead, meta table, section heads, footer) rather than reinventing a
@@ -43,16 +51,16 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const session = await getSession();
-  if (!session) return { title: "Cash drawer Z-report · Repairs helper" };
+  if (!session) return { title: "End-of-day report · Repairs helper" };
 
   const drawer = await db.cashDrawerSession.findFirst({
     where: { id, shopId: session.shopId },
-    select: { openedAt: true },
+    select: { openedAt: true, shop: { select: { timezone: true } } },
   });
   return {
     title: drawer
-      ? `Z-report ${format(drawer.openedAt, "d MMM yyyy")} · Repairs helper`
-      : "Cash drawer Z-report · Repairs helper",
+      ? `End-of-day report ${formatDate(drawer.openedAt, safeTimeZone(drawer.shop.timezone))} · Repairs helper`
+      : "End-of-day report · Repairs helper",
   };
 }
 
@@ -90,11 +98,36 @@ export default async function DrawerZReportPage({
         postalCode: true,
         phone: true,
         logoUrl: true,
+        timezone: true,
       },
     }),
   ]);
 
   if (!session || !shop) notFound();
+  const zone = safeTimeZone(shop.timezone);
+
+  // What came in (and went back out) while this drawer was open, every way
+  // people paid. Payments and refunds are append-only, so a reprint next
+  // month shows the same figures. Scoped by shop like everything here.
+  const window = { gte: session.openedAt, ...(session.closedAt ? { lte: session.closedAt } : {}) };
+  const [methodGroups, refundGroups] = await Promise.all([
+    db.payment.groupBy({
+      by: ["method"],
+      where: { shopId, createdAt: window },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+    db.refund.groupBy({
+      by: ["method"],
+      where: { shopId, createdAt: window, status: { not: "failed" } },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+  ]);
+  const takingsByMethod = drawerTakings(
+    methodGroups.map((group) => ({ method: group.method, cents: group._sum.amountCents ?? 0, count: group._count._all })),
+    refundGroups.map((group) => ({ method: group.method, cents: group._sum.amountCents ?? 0, count: group._count._all })),
+  );
 
   // The takings are derived from the two stored figures rather than re-queried:
   // a report reprinted next month must show what was true at close, not what
@@ -119,12 +152,10 @@ export default async function DrawerZReportPage({
   };
 
   const meta: PrintMetaRow[] = [
-    { label: "Opened", value: format(session.openedAt, "MMM d, yyyy · h:mm a") },
+    { label: "Opened", value: formatDateTime(session.openedAt, zone) },
     {
       label: "Closed",
-      value: session.closedAt
-        ? format(session.closedAt, "MMM d, yyyy · h:mm a")
-        : "Still open",
+      value: session.closedAt ? formatDateTime(session.closedAt, zone) : "Still open",
     },
     { label: "Opened by", value: session.openedBy.name },
     { label: "Closed by", value: session.closedBy?.name ?? "—" },
@@ -134,8 +165,8 @@ export default async function DrawerZReportPage({
     <>
       <PrintToolbar
         backHref="/pos/drawers"
-        backLabel="Back to drawers"
-        title={`Drawer · ${format(session.openedAt, "MMM d")}`}
+        backLabel="Back to cash drawers"
+        title={`End-of-day report · ${shopDayLabel(session.openedAt, zone)}`}
       />
 
       <article className="rf-sheet">
@@ -143,8 +174,8 @@ export default async function DrawerZReportPage({
           <Masthead
             shop={shopParty}
             logoUrl={shop.logoUrl}
-            docLabel="Drawer report"
-            docNumber={format(session.openedAt, "MMM d, yyyy")}
+            docLabel="End of day"
+            docNumber={formatDate(session.openedAt, zone)}
             note={session.closedAt ? null : "Drawer still open"}
           />
 
@@ -152,8 +183,8 @@ export default async function DrawerZReportPage({
             <div className="rf-col">
               <h2 className="rf-eyebrow">Session</h2>
               <div className="rf-party-name">
-                {format(session.openedAt, "h:mm a")} –{" "}
-                {session.closedAt ? format(session.closedAt, "h:mm a") : "open"}
+                {shopTime(session.openedAt, zone)} –{" "}
+                {session.closedAt ? shopTime(session.closedAt, zone) : "still open"}
               </div>
               <div className="rf-party-lines">
                 <div>{shop.name} · counter register</div>
@@ -162,11 +193,46 @@ export default async function DrawerZReportPage({
             <MetaTable rows={meta} />
           </section>
 
-          {/* ---------------------------------------------------- the count -- */}
-          <section className="rf-section">
-            <SectionHead title="Cash reconciliation" aside="Z-report" />
+          {/* ------------------------------------------ takings, and the count -- */}
+          {/* Two columns so the page is used: what came in by method on the
+              left, the cash count on the right. */}
+          <section className="rf-section rf-cols" style={{ marginTop: "0.3in" }}>
+            <div className="rf-col" style={{ flex: 1 }}>
+              <SectionHead title="Money in while open" />
+              <table className="rf-mini">
+                <thead>
+                  <tr>
+                    <th scope="col">How they paid</th>
+                    <th scope="col" style={{ textAlign: "right" }}>Payments</th>
+                    <th scope="col" style={{ textAlign: "right" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {takingsByMethod.rows.map((row) => (
+                    <tr key={row.method}>
+                      <td>{PAYMENT_METHOD_LABELS[row.method] ?? row.method}</td>
+                      <td className="rf-num">{row.count}</td>
+                      <td className="rf-num">{formatCents(row.cents)}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>Refunds given back</td>
+                    <td className="rf-num">{takingsByMethod.refundCount}</td>
+                    <td className="rf-num">
+                      {takingsByMethod.refundCents > 0 ? `-${formatCents(takingsByMethod.refundCents)}` : formatCents(0)}
+                    </td>
+                  </tr>
+                  <tr className="is-strong">
+                    <td><strong>Total after refunds</strong></td>
+                    <td />
+                    <td className="rf-num"><strong>{formatCents(takingsByMethod.netCents)}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-            <div className="rf-totals-wrap">
+            <div className="rf-col" style={{ flex: "none", width: "3.1in" }}>
+              <SectionHead title="Cash in the drawer" />
               <div className="rf-totals-panel">
                 <table className="rf-totals">
                   <tbody>
@@ -177,7 +243,7 @@ export default async function DrawerZReportPage({
                       </td>
                     </tr>
                     <tr>
-                      <td className="rf-t-label">Cash taken (net of refunds)</td>
+                      <td className="rf-t-label">Cash in, less cash refunds</td>
                       <td className="rf-t-value">
                         {takings === null ? "—" : formatCents(takings)}
                       </td>

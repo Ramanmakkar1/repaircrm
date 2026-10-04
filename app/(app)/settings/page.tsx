@@ -53,6 +53,8 @@ import { readSla } from "@/lib/sla";
 import { parseTemplateItems } from "@/lib/checklist";
 import { readLabourSettings } from "@/lib/labour";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
+import { startOfShopMonth } from "@/components/settings/shop-time";
+import { requestNow } from "@/lib/now";
 
 export const metadata = { title: "Settings · Repairs helper" };
 
@@ -89,7 +91,6 @@ export default async function SettingsPage({
     webhooks,
     deliveries,
     shopCount,
-    reviewsSentThisMonth,
     integrationCards,
   ] = await Promise.all([
     db.shop.findUnique({
@@ -106,6 +107,7 @@ export default async function SettingsPage({
         phone: true,
         email: true,
         timezone: true,
+        logoUrl: true,
         taxRateBps: true,
         settings: true,
         // Read-only here: Stripe Connect onboarding lives in the Payments
@@ -256,16 +258,6 @@ export default async function SettingsPage({
     // Whether the single-shop inbound fallback applies — see
     // app/api/inbound/_lib/shop.ts.
     db.shop.count(),
-    // "Sent this month" on the Reviews card. Counted off the tickets themselves
-    // — `reviewRequestedAt` is the stamp lib/jobs/reviews.ts writes.
-    isOwner
-      ? db.ticket.count({
-          where: {
-            shopId: session.shopId,
-            reviewRequestedAt: { gte: startOfMonth() },
-          },
-        })
-      : Promise.resolve(0),
     // Same owner-only reasoning again: a technician's request never loads the
     // shop's accounting connections.
     isOwner ? loadIntegrationCards(session.shopId) : Promise.resolve([]),
@@ -273,6 +265,19 @@ export default async function SettingsPage({
 
   if (!shop) notFound();
   if (!profile) notFound();
+
+  // "Sent this month" on the Reviews card. Counted off the tickets themselves
+  // — `reviewRequestedAt` is the stamp lib/jobs/reviews.ts writes — from
+  // midnight on the 1st where the SHOP is, not where the server happens to run,
+  // so it waits for the shop's zone.
+  const reviewsThisMonth = isOwner
+    ? await db.ticket.count({
+        where: {
+          shopId: session.shopId,
+          reviewRequestedAt: { gte: startOfShopMonth(requestNow(), shop.timezone) },
+        },
+      })
+    : 0;
 
   const profileValues: ProfileValues = {
     name: profile.name,
@@ -465,7 +470,8 @@ export default async function SettingsPage({
     qrDataUrl: isOwner
       ? await QRCode.toDataURL(checkinUrl, { margin: 1, width: 320 })
       : "",
-    reviewsSentThisMonth,
+    reviewsSentThisMonth: reviewsThisMonth,
+    shopName: shop.name,
   };
 
   const integrations: IntegrationsConfig = {
@@ -531,12 +537,13 @@ export default async function SettingsPage({
           : "flex flex-col gap-6"
       }
     >
-      <PageHeader
-        title="Settings"
-        description="Your shop, team, payments and connections. Pick an area to change it."
-      />
-
       <SettingsTabs
+        header={
+          <PageHeader
+            title="Settings"
+            description="Your shop, team, payments and connections. Tap an area to change it."
+          />
+        }
         role={session.role}
         currentUserId={session.userId}
         activeTab={typeof params.tab === "string" ? params.tab : ""}
@@ -551,6 +558,7 @@ export default async function SettingsPage({
           phone: shop.phone ?? "",
           email: shop.email ?? "",
           timezone: shop.timezone,
+          logoUrl: shop.logoUrl,
           taxRateBps: shop.taxRateBps,
           labourRateCents: labour.rateCents,
           labourRoundingMinutes: labour.roundingMinutes,
@@ -625,12 +633,6 @@ export default async function SettingsPage({
  * Mirrors the parsing in instrumentation.ts so the screen reports what the
  * timer will actually do, not what the raw string says.
  */
-/** First instant of the current calendar month, in the server's own zone. */
-function startOfMonth(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
-}
-
 function envNumber(raw: string | undefined, fallback: number): number {
   const trimmed = raw?.trim();
   if (!trimmed) return fallback;
@@ -658,8 +660,8 @@ function integrationNotice(
       tone: "ok",
       text:
         connected === "xero"
-          ? "Xero connected. Press Sync now, or leave it to the automation timer."
-          : "QuickBooks Online connected. Press Sync now, or leave it to the automation timer.",
+          ? "Xero is connected. Your invoices and payments are sent across by themselves; press Send now to do it straight away."
+          : "QuickBooks Online is connected. Your invoices and payments are sent across by themselves; press Send now to do it straight away.",
     };
   }
 
@@ -669,9 +671,9 @@ function integrationNotice(
   const detail = one("detail");
   const text: Record<string, string> = {
     cancelled: "Connection cancelled — nothing was changed.",
-    "owner-only": "Only an owner can connect an accounting account.",
+    "owner-only": "Only an owner can connect your accounting.",
     "not-configured":
-      "That integration is not configured on this server. The card below lists the environment variables it needs.",
+      "That one is not set up for your shop yet. Ask your installer to turn it on (the details for them are under Technical details below).",
     "bad-callback":
       "That sign-in link had expired or was incomplete. Start the connection again.",
     "no-tenant":

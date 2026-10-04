@@ -251,7 +251,16 @@ const ACTIVITY_ICON: Record<ActivityKind, React.ComponentType<{ className?: stri
 };
 
 /** The feed, newest first: an icon, the sentence, when, and what came of it in words. */
-export function ActivityList({ items, empty }: { items: ReadonlyArray<ActivityItem>; empty?: string }) {
+export function ActivityList({
+  items,
+  empty,
+  zone,
+}: {
+  items: ReadonlyArray<ActivityItem>;
+  empty?: string;
+  /** The shop's time zone: each "when" is the shop's clock, not the server's. */
+  zone?: string | null;
+}) {
   if (items.length === 0) {
     return empty ? <p className="text-base text-muted-foreground">{empty}</p> : null;
   }
@@ -268,7 +277,7 @@ export function ActivityList({ items, empty }: { items: ReadonlyArray<ActivityIt
               <p className="break-words text-base font-semibold leading-snug text-foreground">{item.title}</p>
               {item.detail ? <p className="break-words text-sm leading-snug text-muted-foreground">{item.detail}</p> : null}
               <p className="text-sm text-muted-foreground">
-                {formatDateTime(item.at)}
+                {formatDateTime(item.at, zone)}
                 {item.outcome ? (
                   <>
                     {" · "}

@@ -62,7 +62,9 @@ export function CustomerHeader({
         <div className="flex min-w-0 items-center gap-4 sm:gap-5">
           <span className="shrink-0">{visual}</span>
           <div className="flex min-w-0 flex-col gap-0.5">
-            <h1 className="min-w-0 text-balance break-words text-2xl font-semibold leading-tight tracking-tight sm:text-4xl">{name}</h1>
+            {/* 30px on a portrait tablet, 36px from lg: a long name ("Maximilian Okonkwo-Fitzgerald") breaks
+                into two even lines instead of one word hanging alone under a 36px line. */}
+            <h1 className="min-w-0 text-balance break-words text-2xl font-semibold leading-tight tracking-tight sm:text-3xl lg:text-4xl">{name}</h1>
             {business ? <p className="break-words text-lg leading-snug text-muted-foreground">{business}</p> : null}
             {email ? (
               <a

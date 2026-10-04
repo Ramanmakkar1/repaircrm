@@ -26,7 +26,7 @@ export type LeadCardRow = {
  * three facts. The phone's tap-to-call button is a sibling of the card link,
  * never inside it.
  */
-export function LeadCards({ rows, now }: { rows: LeadCardRow[]; now?: Date }) {
+export function LeadCards({ rows, now, zone }: { rows: LeadCardRow[]; now?: Date; /** The shop's time zone, for dates. */ zone?: string }) {
   return (
     <RecordGrid>
       {rows.map((lead) => {
@@ -60,7 +60,7 @@ export function LeadCards({ rows, now }: { rows: LeadCardRow[]; now?: Date }) {
               meta={
                 <>
                   <span className="sm:hidden">{pill}</span>
-                  {leadFacts({ ...lead, now }).map((fact) => (
+                  {leadFacts({ ...lead, now, zone }).map((fact) => (
                     <MetaChip key={fact}>{fact}</MetaChip>
                   ))}
                 </>

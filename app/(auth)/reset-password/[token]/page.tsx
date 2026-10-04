@@ -52,7 +52,7 @@ export default async function ResetPasswordPage({
           </p>
         </div>
 
-        <Button asChild size="lg" className="w-full">
+        <Button asChild size="lg" className="h-12 min-h-12 w-full text-[15px]">
           <Link href="/forgot-password">Send me a new link</Link>
         </Button>
       </>
@@ -66,8 +66,8 @@ export default async function ResetPasswordPage({
           Choose a new password
         </h1>
         <p className="text-[15px] text-muted-foreground">
-          Signing in as {resolved.email}. You&apos;ll be taken straight to your
-          dashboard.
+          Signing in as {resolved.email}. You&apos;ll go straight to your shop
+          afterwards.
         </p>
       </div>
 

@@ -1,9 +1,9 @@
-import { format } from "date-fns";
-
 import type { FilterTab } from "@/components/ui/filter-tabs";
 import { invoiceCardLine, invoiceMoneyLine, overdueLabel, type CardLine, type MoneyLine } from "@/components/billing/record-format";
 import { deviceName } from "@/components/tickets/repair-card-facts";
-import { formatCents, invoiceTotals } from "@/lib/money";
+import { refundAwareTotals, type RefundLike } from "@/components/billing/refund-math";
+import { formatCents } from "@/lib/money";
+import { formatInZone, shortDateIn } from "@/lib/shop-time";
 import { smsHref } from "./customer-facts";
 import { plural } from "./format";
 
@@ -93,9 +93,12 @@ export type SummaryItem = {
   tone: SummaryTone;
 };
 
-/** "Sep 29" this year; "Sep 29, 2025" once the year differs, so an old visit never reads as a recent one. */
-export function shortDate(date: Date, now: Date): string {
-  return format(date, date.getFullYear() === now.getFullYear() ? "MMM d" : "MMM d, yyyy");
+/**
+ * "Sep 29" this year; "Sep 29, 2025" once the year differs, so an old visit never
+ * reads as a recent one. Read on the shop's calendar (`zone` is Shop.timezone).
+ */
+export function shortDate(date: Date, now: Date, zone?: string | null): string {
+  return shortDateIn(date, now.getTime(), zone);
 }
 
 export function customerSummary({
@@ -106,6 +109,7 @@ export function customerSummary({
   lastVisit,
   customerSince,
   now = new Date(),
+  timeZone,
 }: {
   openRepairs: number;
   totalRepairs: number;
@@ -114,6 +118,8 @@ export function customerSummary({
   lastVisit: Date | null | undefined;
   customerSince?: Date | null;
   now?: Date;
+  /** The shop's time zone (Shop.timezone): dates are the shop's calendar days. */
+  timeZone?: string | null;
 }): SummaryItem[] {
   const visit = lastVisit && !Number.isNaN(lastVisit.getTime()) ? lastVisit : null;
   const since = customerSince && !Number.isNaN(customerSince.getTime()) ? customerSince : null;
@@ -136,8 +142,8 @@ export function customerSummary({
     {
       key: "visit",
       label: "Last visit",
-      value: visit ? shortDate(visit, now) : "No visits yet",
-      detail: since ? `Customer since ${format(since, "MMM d, yyyy")}` : undefined,
+      value: visit ? shortDate(visit, now, timeZone) : "No visits yet",
+      detail: since ? `Customer since ${formatInZone(since, "MMM d, yyyy", timeZone)}` : undefined,
       tone: visit ? "neutral" : "muted",
     },
   ];
@@ -218,6 +224,7 @@ export type InvoiceRowInput = {
   paidAt: Date | null;
   lines: { quantity: number; unitPriceCents: number; taxable: boolean }[];
   payments: { amountCents: number }[];
+  refunds?: RefundLike[];
 };
 
 export type InvoiceRowFigures = {
@@ -230,7 +237,7 @@ export type InvoiceRowFigures = {
 
 /** The money a customer-screen invoice row shows: total, then the balance in words ("$27.05 due", "Paid"). */
 export function invoiceRowFigures(invoice: InvoiceRowInput, now: number): InvoiceRowFigures {
-  const { totalCents, balanceCents } = invoiceTotals(invoice.lines, invoice.taxRateBps, invoice.payments);
+  const { totalCents, balanceCents } = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
   const late = invoice.status !== "VOID" ? overdueLabel(invoice.dueDate, balanceCents, now) : null;
   return {
     totalCents,

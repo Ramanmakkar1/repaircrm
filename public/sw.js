@@ -34,7 +34,7 @@
  * Without the bump a browser would keep serving whatever the old worker cached.
  */
 
-const VERSION = "v3";
+const VERSION = "v4";
 const CACHE = `repairpilot-${VERSION}`;
 
 /** Fetched during install, alongside whatever the offline page itself needs. */
@@ -169,3 +169,20 @@ async function navigateOrOffline(request) {
     );
   }
 }
+
+self.addEventListener("push", event => {
+ let data = {}; try {data = event.data?.json() ?? {};} catch {}
+ event.waitUntil(self.registration.showNotification(data.title || "Repairs helper", {
+  body: data.body || "Something needs your attention.", icon: "/icons/helper-192.png",
+  badge: "/icons/helper-192.png", tag: "staff-attention", data: {url: "/"},
+ }));
+});
+self.addEventListener("notificationclick", event => {
+ event.notification.close();
+ event.waitUntil((async () => {
+  const windows = await self.clients.matchAll({type: "window", includeUncontrolled: true});
+  const window = windows.find(client => new URL(client.url).origin === self.location.origin);
+  if (window) {await window.navigate("/"); return window.focus();}
+  return self.clients.openWindow("/");
+ })());
+});

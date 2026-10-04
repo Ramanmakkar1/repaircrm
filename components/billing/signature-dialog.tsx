@@ -37,6 +37,7 @@ export function SignatureDialog({
   triggerLabel,
   triggerVariant = "outline",
   triggerSize,
+  triggerClassName,
   extraFields,
 }: ControlledDialog & {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -49,6 +50,8 @@ export function SignatureDialog({
   triggerSize?: ButtonProps["size"];
   /** Extra hidden fields, e.g. the approve action's `approve=1`. */
   extraFields?: Record<string, string>;
+  /** Draw the trigger as one of the bill screen's quick tiles (icon over the word). */
+  triggerClassName?: string;
 }) {
   const [dataUrl, setDataUrl] = React.useState("");
   // Declared after `dataUrl` so the reset below can reach its setter.
@@ -90,9 +93,16 @@ export function SignatureDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       {controlled ? null : (
         <DialogTrigger asChild>
-          <Button variant={triggerVariant} size={triggerSize}>
-            <ICONS.signature /> {triggerLabel}
-          </Button>
+          {triggerClassName ? (
+            <button type="button" data-touch-control className={triggerClassName}>
+              <ICONS.signature aria-hidden />
+              {triggerLabel}
+            </button>
+          ) : (
+            <Button variant={triggerVariant} size={triggerSize}>
+              <ICONS.signature /> {triggerLabel}
+            </Button>
+          )}
         </DialogTrigger>
       )}
 

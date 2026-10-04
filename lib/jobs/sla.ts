@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { appUrl } from "@/lib/comms/config";
 import { deliverEmail } from "@/lib/comms/drivers";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import { formatInZone } from "@/lib/shop-time";
 
 /**
  * SLA breaches: the job that notices a promise was missed.
@@ -37,7 +38,7 @@ export async function runSlaChecksForShop(shopId: string): Promise<SlaRunResult>
 
   const shop = await db.shop.findUnique({
     where: { id: shopId },
-    select: { name: true },
+    select: { name: true, timezone: true },
   });
   if (!shop) return result;
 
@@ -93,7 +94,7 @@ export async function runSlaChecksForShop(shopId: string): Promise<SlaRunResult>
     const customer =
       ticket.customer.businessName ||
       `${ticket.customer.firstName} ${ticket.customer.lastName}`.trim();
-    const due = ticket.dueDate ? ticket.dueDate.toLocaleString() : "an earlier date";
+    const due = ticket.dueDate ? formatInZone(ticket.dueDate, "MMM d, yyyy h:mm a", shop.timezone) : "an earlier date";
     const link = `${appUrl()}/tickets/${ticket.id}`;
 
     const subject = `Overdue: ticket #${ticket.number} — ${ticket.subject}`;

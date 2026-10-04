@@ -181,7 +181,7 @@ describe("setTicketFieldAction — tenancy", () => {
 
     const result = await setTicketFieldAction("tkt_from_shop_2", "priority", "LOW");
 
-    expect(result).toEqual({ error: "Ticket not found." });
+    expect(result).toEqual({ error: "Repair not found." });
   });
 
   it("scopes the assignee check, so another shop's user cannot be attached", async () => {
@@ -234,6 +234,8 @@ describe("setTicketFieldAction — tenancy", () => {
 describe("setTicketFieldAction — validation", () => {
   it("stores a date-only due date as LOCAL midnight, not UTC", async () => {
     stubScopedUpdate("ticket.updateMany");
+    // The day is placed in the shop's zone; a shop row with no zone falls back to the runtime's, which is what this reads back through.
+    handlers["shop.findUnique"] = () => ({ timezone: null });
 
     await setTicketFieldAction("tkt_1", "dueDate", "2026-09-08");
 

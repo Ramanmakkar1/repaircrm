@@ -1,26 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Phone, Printer } from "lucide-react";
 
-import { formatDate } from "@/components/billing/format";
-import { InvoiceStatusBadge } from "@/components/billing/status-badge";
-import { ACTIONS } from "@/components/ui/icons";
+import { LineRows, TotalsBlock } from "@/components/public/line-rows";
+import { HUGE_BUTTON, TOUCH_LINK } from "@/components/public/sizes";
+import { StatusPill } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
+import { refundAwareTotals } from "@/components/billing/refund-math";
 import { db } from "@/lib/db";
-import { formatCents, invoiceTotals } from "@/lib/money";
-import { taxLabel } from "@/lib/tax";
+import { formatCents } from "@/lib/money";
+import { requestNow } from "@/lib/now";
 import { isStripeReference, paymentsLive } from "@/lib/payments";
 import { squareConnectionStatus } from "@/lib/payments/square";
+import { dayWords, dueWords, invoiceWords, itemCount, telHref } from "@/lib/portal-display";
 import { getPortalSession, requirePortalCustomer } from "@/lib/portal-session";
+import { taxLabel } from "@/lib/tax";
 import { warrantyLabel } from "@/lib/warranty";
 import { PayOnlineButton } from "../../_components/pay-online";
-import {
-  BackLink,
-  PortalCard,
-  PortalCardHeader,
-  PortalShell,
-} from "../../_components/shell";
-
-const PrintIcon = ACTIONS.print;
+import { BackLink, PortalCard, PortalShell } from "../../_components/shell";
+import { loadPortalShop } from "../../_components/shop";
 
 const METHOD_LABELS: Record<string, string> = {
   CASH: "Cash",
@@ -37,12 +36,8 @@ function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
-/** Scoped through the cookie, like the render — see the ticket page for why. */
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+/** Scoped through the cookie, like the render; see the repair page for why. */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getPortalSession();
   if (!session) return { title: "Invoice · Repairs helper" };
@@ -57,13 +52,15 @@ export async function generateMetadata({
     },
     select: { number: true },
   });
-  return {
-    title: invoice
-      ? `Invoice #${invoice.number} · Repairs helper`
-      : "Invoice · Repairs helper",
-  };
+  return { title: invoice ? `Invoice #${invoice.number} · Repairs helper` : "Invoice · Repairs helper" };
 }
 
+/**
+ * A bill, like a receipt: the amount to pay in huge type, when it is due in
+ * words, and ONE button: Pay online when the shop takes cards here, otherwise
+ * Call the shop. Paid bills say so with a tick. The items are simple rows that
+ * wrap on a phone, and the PDF is a quiet link, not the first button.
+ */
 export default async function PortalInvoicePage({
   params,
   searchParams,
@@ -75,281 +72,220 @@ export default async function PortalInvoicePage({
   const query = await searchParams;
   const customer = await requirePortalCustomer(`/portal/invoices/${id}`);
 
-  const invoice = await db.invoice.findFirst({
-    where: {
-      id,
-      customerId: customer.id,
-      shopId: customer.shopId,
-      // Unsent means invisible — a draft 404s rather than rendering.
-      status: { not: "DRAFT" },
-    },
-    select: {
-      id: true,
-      shopId: true,
-      number: true,
-      status: true,
-      createdAt: true,
-      dueDate: true,
-      paidAt: true,
-      notes: true,
-      taxRateBps: true,
-      taxRate: { select: { name: true } },
-      lines: {
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true,
-          description: true,
-          quantity: true,
-          unitPriceCents: true,
-          taxable: true,
-          serial: true,
-          warrantyDays: true,
+  const [shop, invoice] = await Promise.all([
+    loadPortalShop(customer.shopId),
+    db.invoice.findFirst({
+      where: {
+        id,
+        customerId: customer.id,
+        shopId: customer.shopId,
+        // Unsent means invisible: a draft 404s rather than rendering.
+        status: { not: "DRAFT" },
+      },
+      select: {
+        id: true,
+        shopId: true,
+        number: true,
+        status: true,
+        createdAt: true,
+        dueDate: true,
+        notes: true,
+        taxRateBps: true,
+        taxRate: { select: { name: true } },
+        lines: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            unitPriceCents: true,
+            taxable: true,
+            serial: true,
+            warrantyDays: true,
+          },
+        },
+        refunds: { select: { amountCents: true, status: true } },
+        payments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, createdAt: true, amountCents: true, method: true, reference: true },
         },
       },
-      payments: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          createdAt: true,
-          amountCents: true,
-          method: true,
-          reference: true,
-        },
-      },
-    },
-  });
+    }),
+  ]);
   if (!invoice) notFound();
 
-  const totals = invoiceTotals(
-    invoice.lines,
-    invoice.taxRateBps,
-    invoice.payments,
-  );
+  const totals = refundAwareTotals(invoice.lines, invoice.taxRateBps, invoice.payments, invoice.refunds);
   const balance = Math.max(totals.balanceCents, 0);
   const square = await squareConnectionStatus(invoice.shopId);
+  const now = requestNow();
+  const zone = shop.timezone;
 
   // The button only exists when a real processor is behind it, the invoice is
   // one the customer has been shown, and something is actually owed.
-  const canPayOnline =
-    (paymentsLive() || square.connected) && balance > 0 && PAYABLE.has(invoice.status);
+  const canPayOnline = (paymentsLive() || square.connected) && balance > 0 && PAYABLE.has(invoice.status);
+  const isVoid = invoice.status === "VOID";
+  const owing = !isVoid && balance > 0;
+
+  const words = invoiceWords({
+    status: invoice.status,
+    totalCents: totals.totalCents,
+    paidCents: totals.netPaidCents,
+    dueDate: invoice.dueDate,
+    nowMs: now,
+    zone,
+  });
+  const due = invoice.dueDate && owing ? dueWords(invoice.dueDate, now, zone) : null;
 
   const justPaid = first(query.paid) === "1";
   const canceled = first(query.canceled) === "1";
   const payError = first(query.payerror);
 
   return (
-    <PortalShell
-      shopName={customer.shop.name}
-      customerName={`${customer.firstName} ${customer.lastName}`}
-    >
-      <BackLink href="/portal/home">Back to your portal</BackLink>
-
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight">
-              Invoice #{invoice.number}
-            </h1>
-            <InvoiceStatusBadge status={invoice.status} />
-          </div>
-          <p className="mt-1.5 text-[14px] text-muted-foreground">
-            Issued {formatDate(invoice.createdAt)}
-            {invoice.dueDate ? ` · due ${formatDate(invoice.dueDate)}` : ""}
-          </p>
-        </div>
-
-        {/*
-          Named for what it does. Nothing is downloaded here — the link opens
-          the printable sheet, whose own button hands the browser's print dialog
-          (and its "Save as PDF") to the customer. A "Download PDF" button that
-          never puts a file in the downloads folder is a support call.
-        */}
-        <Link
-          href={`/portal/invoices/${invoice.id}/print`}
-          className="inline-flex h-11 items-center gap-2 rounded-xl border border-border-strong bg-surface px-4 text-[14px] font-semibold text-foreground shadow-sm transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <PrintIcon className="size-4" aria-hidden />
-          Print or save as PDF
-        </Link>
-      </div>
+    <PortalShell shop={shop} customerName={`${customer.firstName} ${customer.lastName}`.trim()}>
+      <BackLink href="/portal/home">Back to your repairs</BackLink>
 
       <div className="flex flex-col gap-6">
         {/*
-          `?paid=1` is only a hint from the browser Stripe sent back — the money
-          is not ours until the webhook says so. So the banner reports what the
-          BALANCE says, not what the query string claims: still owing means the
-          confirmation is in flight, not that the payment failed.
+          `?paid=1` is only a hint from the browser the card page sent back: the
+          money is not ours until the webhook says so. So the banner reports
+          what the BALANCE says, not what the query string claims: still owing
+          means the confirmation is in flight, not that the payment failed.
         */}
         {justPaid ? (
           balance > 0 ? (
             <Banner
-              tone="pending"
               icon={Clock}
               title="Payment processing"
-              body="Your card has been submitted. This page will show it as received within a minute or two — there is nothing more for you to do."
+              body="Your card has been submitted. This page will show it as received within a minute or two. There is nothing more for you to do."
             />
           ) : (
-            <Banner
-              tone="good"
-              icon={CheckCircle2}
-              title="Payment received — thank you!"
-              body={`${customer.shop.name} has your payment in full.`}
-            />
+            <Banner icon={CheckCircle2} title="Payment received, thank you" body={`${shop.name} has your payment in full.`} />
           )
         ) : null}
+        {canceled ? <Banner icon={AlertCircle} title="Payment cancelled" body="Nothing was charged. You can pay whenever you are ready." /> : null}
+        {payError ? <Banner icon={AlertCircle} title="That payment could not start" body={payError} /> : null}
 
-        {canceled ? (
-          <Banner
-            tone="quiet"
-            icon={AlertCircle}
-            title="Payment canceled"
-            body="Nothing was charged. You can pay whenever you're ready."
-          />
-        ) : null}
+        {/* --------------------------------------- the number that matters -- */}
+        <PortalCard className="flex flex-col gap-4 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill size="md" tone={words.tone} label={words.label} />
+            <span className="text-[14px] text-muted-foreground">
+              Invoice #{invoice.number} · {dayWords(invoice.createdAt, now, zone)}
+            </span>
+          </div>
 
-        {payError ? (
-          <Banner tone="quiet" icon={AlertCircle} title="Couldn't start that payment" body={payError} />
-        ) : null}
-
-        {/* The number that actually matters, said once, in large type. */}
-        <PortalCard className="flex flex-col gap-5 px-5 py-5 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          {owing ? (
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-faint-foreground">
-                {balance > 0 ? "Balance due" : "Balance"}
-              </div>
-              <div className="mt-1 font-mono text-3xl font-bold tracking-tight">
-                {formatCents(balance)}
+              <p className="text-[15px] font-semibold text-muted-foreground">To pay</p>
+              <h1 className="text-[44px] font-bold leading-none tracking-tight tabular-nums">{formatCents(balance)}</h1>
+              {due ? <p className={cn("mt-2 text-[15px] font-semibold", due.state === "overdue" ? "text-destructive" : "text-foreground")}>{due.text}</p> : null}
+            </div>
+          ) : (
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className={cn("mt-1 size-8 shrink-0", isVoid ? "text-muted-foreground" : "text-status-resolved")} aria-hidden />
+              <div>
+                <h1 className="text-[28px] font-bold leading-tight tracking-tight">
+                  {isVoid ? "Cancelled, nothing to pay" : "Paid, thank you"}
+                </h1>
+                <p className="mt-1 text-[15px] text-muted-foreground">
+                  {isVoid ? "The shop cancelled this invoice." : `Total ${formatCents(totals.totalCents)}, paid in full.`}
+                </p>
               </div>
             </div>
-            <p className="max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-              {invoice.status === "VOID"
-                ? "This invoice has been voided — nothing is owed."
-                : balance > 0
-                  ? canPayOnline
-                    ? `Payable to ${customer.shop.name}. Pay by card below, or settle up when you collect your device.`
-                    : `Payable to ${customer.shop.name}. Give the shop a call or pay when you collect your device.`
-                  : "Paid in full — thank you!"}
-            </p>
-          </div>
+          )}
 
-          {canPayOnline ? (
-            <div className="border-t border-border pt-5">
-              <PayOnlineButton
-                invoiceId={invoice.id}
-                amountLabel={formatCents(balance)}
-              />
-            </div>
+          {owing ? (
+            canPayOnline ? (
+              <PayOnlineButton invoiceId={invoice.id} amountLabel={formatCents(balance)} />
+            ) : shop.phone ? (
+              <div className="flex flex-col gap-2">
+                <Button asChild size="lg" className={HUGE_BUTTON}>
+                  <a href={telHref(shop.phone)}>
+                    <Phone aria-hidden />
+                    Call {shop.phone} to pay
+                  </a>
+                </Button>
+                <p className="text-[15px] text-muted-foreground">Or pay at the counter when you collect your device.</p>
+              </div>
+            ) : (
+              <p className="text-[15px] text-muted-foreground">Pay at the counter when you collect your device.</p>
+            )
           ) : null}
+
+          {/*
+            Named for what it does. Nothing is downloaded here: the link opens the
+            printable sheet, whose own button hands the browser's print dialog
+            (and its "Save as PDF") to the customer.
+          */}
+          <Link href={`/portal/invoices/${invoice.id}/print`} className={cn(TOUCH_LINK, "self-start text-muted-foreground")}>
+            <Printer className="size-5" aria-hidden />
+            Print or save as PDF
+          </Link>
         </PortalCard>
 
-        <PortalCard>
-          <PortalCardHeader title="What you're being charged for" />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse text-[14px]">
-              <thead>
-                <tr className="border-b border-border text-left text-[12px] uppercase tracking-wider text-muted-foreground">
-                  <th className="px-5 py-2.5 font-semibold sm:px-6">Item</th>
-                  <th className="w-16 px-3 py-2.5 text-right font-semibold">Qty</th>
-                  <th className="w-24 px-3 py-2.5 text-right font-semibold">Rate</th>
-                  <th className="w-28 px-5 py-2.5 text-right font-semibold sm:px-6">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.lines.map((line) => (
-                  <tr key={line.id} className="border-b border-border last:border-0">
-                    <td className="px-5 py-3 sm:px-6">
-                      {line.description}
-                      {line.serial ? (
-                        <span className="ml-2 font-mono text-[12px] text-muted-foreground">
-                          {line.serial}
-                        </span>
-                      ) : null}
-                      {line.warrantyDays ? (
-                        <span className="mt-0.5 block text-[12.5px] text-muted-foreground">
-                          Warranty: {warrantyLabel(line.warrantyDays)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      {line.quantity}
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono">
-                      {formatCents(line.unitPriceCents)}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono sm:px-6">
-                      {formatCents(line.quantity * line.unitPriceCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-end border-t border-border px-5 py-4 sm:px-6">
-            <dl className="w-full max-w-xs space-y-2 text-[14px]">
-              <TotalRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
-              <TotalRow
-                label={taxLabel(invoice.taxRate?.name, invoice.taxRateBps)}
-                value={formatCents(totals.taxCents)}
-              />
-              <TotalRow
-                label="Total"
-                value={formatCents(totals.totalCents)}
-                strong
-              />
-              {totals.paidCents > 0 ? (
-                <TotalRow
-                  label="Payments received"
-                  value={`-${formatCents(totals.paidCents)}`}
-                />
-              ) : null}
-              <TotalRow label="Balance due" value={formatCents(balance)} emphasis />
-            </dl>
-          </div>
-        </PortalCard>
+        {/* ------------------------------------------------ what it is for -- */}
+        <section aria-labelledby="items-title" className="flex flex-col gap-3">
+          <h2 id="items-title" className="text-xl font-semibold">
+            What you are paying for <span className="text-muted-foreground">({itemCount(invoice.lines.length)})</span>
+          </h2>
+          <PortalCard className="overflow-hidden">
+            <LineRows
+              lines={invoice.lines.map((line) => ({
+                ...line,
+                warranty: line.warrantyDays ? warrantyLabel(line.warrantyDays) : null,
+              }))}
+            />
+            <TotalsBlock
+              rows={[
+                { label: "Subtotal", value: formatCents(totals.subtotalCents) },
+                { label: taxLabel(invoice.taxRate?.name, invoice.taxRateBps), value: formatCents(totals.taxCents) },
+                ...(totals.paidCents > 0
+                  ? [
+                      { label: "Total", value: formatCents(totals.totalCents) },
+                      { label: "Paid so far", value: `-${formatCents(totals.paidCents)}` },
+                    ]
+                  : []),
+                ...(totals.refundedCents > 0 ? [{ label: "Money returned", value: formatCents(totals.refundedCents) }] : []),
+                {
+                  label: isVoid ? "Total (cancelled)" : totals.paidCents > 0 ? "Left to pay" : "Total",
+                  value: formatCents(totals.paidCents > 0 ? balance : totals.totalCents),
+                  strong: true,
+                },
+              ]}
+            />
+          </PortalCard>
+        </section>
 
         {invoice.payments.length > 0 ? (
-          <PortalCard>
-            <PortalCardHeader title="Payments received" />
-            <ul className="divide-y divide-border">
-              {invoice.payments.map((payment) => (
-                <li
-                  key={payment.id}
-                  className="flex items-center justify-between gap-4 px-5 py-3.5 text-[14px] sm:px-6"
-                >
-                  <div>
-                    <div className="font-medium">
-                      {isStripeReference(payment.reference)
-                        ? "Card (online)"
-                        : (METHOD_LABELS[payment.method] ?? payment.method)}
+          <section aria-labelledby="payments-title" className="flex flex-col gap-3">
+            <h2 id="payments-title" className="text-xl font-semibold">Payments received</h2>
+            <PortalCard>
+              <ul className="divide-y divide-border">
+                {invoice.payments.map((payment) => (
+                  <li key={payment.id} className="flex items-center justify-between gap-4 px-4 py-3.5 text-[15px] sm:px-6">
+                    <div className="min-w-0">
+                      <div className="font-medium">
+                        {isStripeReference(payment.reference) ? "Card (online)" : (METHOD_LABELS[payment.method] ?? payment.method)}
+                      </div>
+                      <div className="text-[14px] text-muted-foreground [overflow-wrap:anywhere]">
+                        {dayWords(payment.createdAt, now, zone)}
+                        {/* A card processor's session id means nothing to a customer. */}
+                        {payment.reference && !isStripeReference(payment.reference) ? ` · ${payment.reference}` : ""}
+                      </div>
                     </div>
-                    <div className="text-[13px] text-muted-foreground">
-                      {formatDate(payment.createdAt)}
-                      {/* A Stripe session id means nothing to a customer. */}
-                      {payment.reference && !isStripeReference(payment.reference)
-                        ? ` · ${payment.reference}`
-                        : ""}
-                    </div>
-                  </div>
-                  <span className="font-mono font-semibold">
-                    {formatCents(payment.amountCents)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </PortalCard>
+                    <span className="shrink-0 font-semibold tabular-nums">{formatCents(payment.amountCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </PortalCard>
+          </section>
         ) : null}
 
         {invoice.notes ? (
-          <PortalCard className="px-5 py-5 sm:px-6">
-            <h2 className="text-[13px] font-semibold">Notes from the shop</h2>
-            <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-muted-foreground">
-              {invoice.notes}
-            </p>
-          </PortalCard>
+          <section aria-labelledby="notes-title" className="flex flex-col gap-2">
+            <h2 id="notes-title" className="text-xl font-semibold">Notes from the shop</h2>
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">{invoice.notes}</p>
+          </section>
         ) : null}
       </div>
     </PortalShell>
@@ -357,80 +293,25 @@ export default async function PortalInvoicePage({
 }
 
 /**
- * A one-line status message above the balance. Three tones, no dismiss button:
- * these appear because of something the customer just did, and they disappear
- * on the next navigation.
+ * A one-line message above the amount, because of something the customer just
+ * did (came back from the card page). It goes away on the next navigation.
  */
 function Banner({
-  tone,
   icon: Icon,
   title,
   body,
 }: {
-  tone: "good" | "pending" | "quiet";
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   body: string;
 }) {
-  const tones = {
-    good: "border-status-resolved/30 bg-status-resolved-bg text-status-resolved-fg",
-    pending: "border-status-in-progress/30 bg-status-in-progress-bg text-status-in-progress-fg",
-    quiet: "border-border-strong bg-surface text-muted-foreground",
-  } as const;
-
   return (
-    <div
-      role="status"
-      className={`flex items-start gap-3 rounded-2xl border px-5 py-4 shadow-sm ${tones[tone]}`}
-    >
+    <div role="status" className="flex items-start gap-3 rounded-2xl border border-border-strong bg-surface px-5 py-4">
       <Icon className="mt-0.5 size-5 shrink-0" />
       <div>
-        <div className="text-[14.5px] font-semibold">{title}</div>
-        <p className="mt-0.5 text-[13.5px] leading-relaxed opacity-90">{body}</p>
+        <div className="text-[15px] font-semibold">{title}</div>
+        <p className="mt-0.5 text-[15px] leading-relaxed text-muted-foreground">{body}</p>
       </div>
-    </div>
-  );
-}
-
-function TotalRow({
-  label,
-  value,
-  strong,
-  emphasis,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-  emphasis?: boolean;
-}) {
-  return (
-    <div
-      className={
-        emphasis
-          ? "flex items-baseline justify-between border-t border-border-strong pt-2.5"
-          : "flex items-baseline justify-between"
-      }
-    >
-      <dt
-        className={
-          strong || emphasis
-            ? "font-semibold text-foreground"
-            : "text-muted-foreground"
-        }
-      >
-        {label}
-      </dt>
-      <dd
-        className={
-          emphasis
-            ? "font-mono text-[17px] font-bold"
-            : strong
-              ? "font-mono font-semibold"
-              : "font-mono text-muted-foreground"
-        }
-      >
-        {value}
-      </dd>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
@@ -11,6 +10,7 @@ import { activeLocations } from "@/lib/location";
 import { calcTotals, formatCents } from "@/lib/money";
 import { customerWarranties } from "@/lib/warranty";
 import { readUiPrefs } from "@/lib/prefs";
+import { formatInZone } from "@/lib/shop-time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
@@ -304,7 +304,7 @@ export default async function TicketDetailPage({
   ] = await Promise.all([
     db.shop.findUnique({
       where: { id: shopId },
-      select: { settings: true, taxRateBps: true },
+      select: { settings: true, taxRateBps: true, timezone: true },
     }),
     db.user.findMany({
       where: { shopId, active: true },
@@ -354,6 +354,10 @@ export default async function TicketDetailPage({
   // Components; this is a Server Component that renders once per request.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
+  // Every date on this screen is read on the shop's wall (Shop.timezone), never
+  // the server's: "Opened Oct 4" and "Due Oct 4" are the shop's calendar days.
+  const timeZone = shop?.timezone ?? null;
+  const format = (at: Date, pattern: string) => formatInZone(at, pattern, timeZone);
   const statuses = ticketStatuses(shop?.settings);
   const level = stalenessLevel(ticket.updatedAt, ticket.status, now);
   const uninvoicedCount = ticket.charges.filter((c) => c.invoiceId === null).length;
@@ -541,9 +545,9 @@ export default async function TicketDetailPage({
       value={ticket.dueDate ? format(ticket.dueDate, "yyyy-MM-dd") : ""}
       resolved={isResolved(ticket.status)}
       nowMs={now}
-      // Easy mode shows the due time in two places (the header chip and this field);
-      // both measure from the exact time, as the repair list does.
-      exactDue={easy ? (ticket.dueDate?.toISOString() ?? null) : undefined}
+      timeZone={timeZone}
+      // The chip measures from the exact time, as the repair list and the Easy header chip do.
+      exactDue={ticket.dueDate?.toISOString() ?? null}
     />
   );
 
@@ -632,7 +636,7 @@ export default async function TicketDetailPage({
   );
 
   const timelineCard = (
-    <Timeline now={now} statuses={statuses} entries={timelineEntries} easy={easy} />
+    <Timeline now={now} statuses={statuses} entries={timelineEntries} easy={easy} timeZone={timeZone} />
   );
 
   const customFieldsCard = (
@@ -740,6 +744,12 @@ export default async function TicketDetailPage({
       jobActions({ status: ticket.status, pickedUp: handedOver, unbilled: !nothingToBill, invoice }).primary ===
       "invoice";
     const firstName = ticket.customer.firstName.trim() || customerName;
+    // The statuses this repair has really been in: every status move it was given
+    // (each one is logged with the status it moved to) and where it is now.
+    const visitedStatuses = [
+      ticket.status,
+      ...ticket.comments.flatMap((comment) => (comment.updateType ? [comment.updateType] : [])),
+    ];
     const dialLinks = phoneLinks(ticket.customer.mobile ?? ticket.customer.phone);
     const primaryProps = {
       pickedUp: handedOver,
@@ -778,7 +788,7 @@ export default async function TicketDetailPage({
                     ) : null}
                   </>
                 }
-                due={dueWords(ticket.dueDate, isResolved(ticket.status), now)}
+                due={dueWords(ticket.dueDate, isResolved(ticket.status), now, timeZone)}
                 priority={ticket.priority}
                 customer={{
                   id: ticket.customer.id,
@@ -789,7 +799,7 @@ export default async function TicketDetailPage({
                 more={moreActions(!showsInvoiceButton)}
               />
             }
-            steps={<StatusSteps statuses={statuses} />}
+            steps={<StatusSteps statuses={statuses} visited={visitedStatuses} />}
             side={
               <>
                 <JobPrimaryAction {...primaryProps} placement="side" />
