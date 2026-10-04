@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { ArrowUpRight, Check } from "lucide-react";
 import { BrandMark } from "./brand";
 import { SHOTS } from "./media";
@@ -42,7 +43,7 @@ function Detail({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="site-detail">
@@ -65,7 +66,8 @@ export function DropoffSection() {
       <div id="check-in" className="site-split site-container">
         <figure className="site-scene">
           <Image
-            {...SHOP_SCENES.dropoff}
+            src={SHOP_SCENES.dropoff.src}
+            alt={SHOP_SCENES.dropoff.alt}
             width={1536}
             height={1024}
             unoptimized
@@ -181,7 +183,8 @@ export function HandoffSection() {
         </div>
         <figure className="site-scene">
           <Image
-            {...SHOP_SCENES.pickup}
+            src={SHOP_SCENES.pickup.src}
+            alt={SHOP_SCENES.pickup.alt}
             width={1536}
             height={1024}
             unoptimized
