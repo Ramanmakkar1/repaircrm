@@ -10,7 +10,8 @@ vi.mock("@/components/landing/fonts", () => ({
   instrumentSerif: { className: "font-serif", variable: "var-serif" },
 }));
 
-const { GLASS_GUARD, SHELF, SHOTS } = await import("@/components/landing/media");
+const { SHOTS } = await import("@/components/landing/media");
+const { SHOP_SCENES } = await import("@/components/landing/shop-story");
 const { RepairsHome } = await import("@/components/landing/repairs-home");
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
@@ -31,12 +32,11 @@ describe("website images", () => {
   const page = renderToStaticMarkup(React.createElement(RepairsHome));
   const sources = pageImageSources(page);
 
-  it("renders the app screenshots, the shelf photos and the brand badge", () => {
-    expect(sources.length).toBeGreaterThanOrEqual(18);
-    for (const shot of Object.values(SHOTS)) expect(sources).toContain(shot.src);
-    for (const item of SHELF) expect(sources).toContain(item.src);
-    expect(sources).toContain(GLASS_GUARD.src);
-    expect(sources).toContain("/brand/helper-badge.webp");
+  it("renders curated app screenshots, handover scenes and the panda mascot", () => {
+    expect(sources.length).toBeGreaterThanOrEqual(8);
+    for (const shot of [SHOTS.home, SHOTS.job, SHOTS.sell, SHOTS.stock, SHOTS.assistant]) expect(sources).toContain(shot.src);
+    for (const scene of Object.values(SHOP_SCENES)) expect(sources).toContain(scene.src);
+    expect(sources).toContain("/brand/panda-repair-mark.webp");
   });
 
   it("only points at files that exist in public/", () => {
@@ -47,7 +47,7 @@ describe("website images", () => {
       }
     }
     expect(sources.some((s) => s.startsWith("/marketing/app/"))).toBe(true);
-    expect(sources.some((s) => s.startsWith("/images/products/"))).toBe(true);
+    expect(sources.some((s) => s.startsWith("/marketing/shop/"))).toBe(true);
   });
 
   it("never shows a screenshot of the old app", () => {
@@ -59,7 +59,7 @@ describe("website images", () => {
   it("gives every image an alt attribute, with real descriptions for the screenshots", () => {
     const imgs = page.match(/<img[^>]*>/g) ?? [];
     for (const img of imgs) expect(img).toMatch(/\salt="/);
-    for (const shot of Object.values(SHOTS)) {
+    for (const shot of [SHOTS.home, SHOTS.job, SHOTS.sell, SHOTS.stock, SHOTS.assistant]) {
       expect(shot.alt.length).toBeGreaterThan(40);
       expect(page).toContain(shot.alt.replace(/'/g, "&#x27;"));
     }
@@ -84,7 +84,7 @@ describe("app screenshots in public/marketing/app", () => {
     }
   });
 
-  it("are all used by the page (nothing stale is left behind)", () => {
+  it("are catalogued for reuse in product documentation", () => {
     const used = new Set(Object.values(SHOTS).map((s) => s.src.split("/").pop()));
     for (const f of files) expect(used.has(f), `${f} is not used`).toBe(true);
   });

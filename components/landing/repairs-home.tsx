@@ -6,16 +6,13 @@ import { Faq } from "./faq";
 import { SiteFooter } from "./footer";
 import { HeroSection } from "./hero/hero-section";
 import { Pricing } from "./pricing";
-import { ShelfSection } from "./shelf";
 import {
-  AssistantSection,
-  BenchSection,
-  CheckInSection,
-  CounterSection,
-  ModesSection,
-  PaymentsSection,
-  PickupSection,
-} from "./story";
+  DropoffSection,
+  BenchOverview,
+  HandoffSection,
+  ShopToolsSection,
+  HelperSection,
+} from "./shop-story";
 
 /** Public product story. Landing styles remain scoped away from the app. */
 export function RepairsHome() {
@@ -27,16 +24,13 @@ export function RepairsHome() {
       <a href="#main" className="site-skip">
         Skip to content
       </a>
-      <div className="p-3 sm:p-4"><HeroSection /></div>
+      <HeroSection />
       <main id="main" className="flex flex-col">
-        <CounterSection />
-        <CheckInSection />
-        <BenchSection />
-        <PickupSection />
-        <PaymentsSection />
-        <ModesSection />
-        <ShelfSection />
-        <AssistantSection />
+        <DropoffSection />
+        <BenchOverview />
+        <HandoffSection />
+        <ShopToolsSection />
+        <HelperSection />
         <Pricing />
         <Faq />
         <FinalCta />

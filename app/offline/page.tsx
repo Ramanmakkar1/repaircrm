@@ -25,7 +25,7 @@ export default function OfflinePage() {
         <div className="mx-auto flex min-h-12 items-center gap-2.5 px-2 text-foreground">
           {/* The one image the service worker precaches with this page. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/helper-192.png" alt="" className="size-10 rounded-xl" />
+          <img src="/icons/panda-192.png" alt="" className="size-10 rounded-xl" />
           <span className="text-xl tracking-tight">
             <span className="font-medium">Repairs </span>
             <span className="font-bold">helper</span>

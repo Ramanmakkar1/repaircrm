@@ -106,7 +106,7 @@ describe("the whole page", () => {
 
   it("gives every section one h2 that names it", () => {
     const sections = page.match(/<section[^>]*aria-labelledby="([^"]+)"/g) ?? [];
-    expect(sections.length).toBeGreaterThanOrEqual(10);
+    expect(sections.length).toBeGreaterThanOrEqual(8);
     for (const s of sections) {
       const id = s.match(/aria-labelledby="([^"]+)"/)![1];
       expect(page).toMatch(new RegExp(`<h2 id="${id}"`));

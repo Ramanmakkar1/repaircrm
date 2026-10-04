@@ -37,38 +37,38 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Check in a repair",
         short_name: "New repair",
         url: "/tickets/new",
-        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/panda-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Take a payment",
         short_name: "Register",
         url: "/pos",
-        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/panda-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
         name: "Find a repair",
         short_name: "Repairs",
         url: "/tickets",
-        icons: [{ src: "/icons/helper-192.png", sizes: "192x192", type: "image/png" }],
+        icons: [{ src: "/icons/panda-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],
     icons: [
       {
-        src: "/icons/helper-192.png",
+        src: "/icons/panda-192.png",
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icons/helper-512.png",
+        src: "/icons/panda-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       // The same art declared maskable: Android crops icons to the launcher's
-      // shape, and the glyph is inside the safe zone (see public/icons/icon.svg).
+      // shape, and the glyph is inside the safe zone (padded to 76% of the icon canvas).
       {
-        src: "/icons/helper-512.png",
+        src: "/icons/panda-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

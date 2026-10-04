@@ -30,11 +30,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/helper-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/helper-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/panda-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/panda-512.png", sizes: "512x512", type: "image/png" },
     ],
     // iOS ignores the manifest for this one and reads the tag.
-    apple: [{ url: "/icons/helper-192.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/panda-apple.png", sizes: "180x180" }],
   },
 };
 

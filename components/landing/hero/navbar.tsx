@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, Menu, X } from "lucide-react";
 
+import { RepairPilotWordmark } from "@/components/brand/repairpilot";
 import { BrandMark } from "../brand";
 
 /** Where the website links go. Kept as data so tests (and the footer) can read them. */
@@ -17,7 +18,7 @@ export const SIGN_IN_HREF = "/login";
 export const SIGN_UP_HREF = "/signup";
 
 const item =
-  "inline-flex min-h-11 items-center rounded-full px-3 text-sm text-neutral-900 transition-colors hover:bg-neutral-100 md:min-h-9 md:px-1 md:hover:bg-transparent md:hover:text-black";
+  "inline-flex min-h-11 items-center rounded-full px-3 text-sm text-neutral-900 transition-colors hover:bg-neutral-100 lg:min-h-9 lg:px-1 lg:hover:bg-transparent lg:hover:text-black";
 
 /** In-page anchors are plain links; real routes use next/link. */
 function NavLink({
@@ -46,8 +47,8 @@ function NavLink({
 }
 
 /**
- * Floating white pill. Under `md` the links collapse into a hamburger that
- * opens a panel under the pill; it closes on a link click, on Escape (focus
+ * Responsive brand navigation. Under `lg` the links collapse into a hamburger that
+ * opens a panel under the navigation; it closes on a link click, on Escape (focus
  * returns to the button) and on a click outside.
  */
 export function Navbar() {
@@ -82,17 +83,18 @@ export function Navbar() {
       <nav
         ref={wrapRef}
         aria-label="Main"
-        className="relative flex w-full max-w-[760px] items-center rounded-full border border-neutral-200 bg-white py-2 pl-2 pr-2 shadow-sm"
+        className="site-navbar relative flex w-full max-w-[1240px] items-center py-2"
       >
         <a
           href="#top"
           aria-label="Repairs helper home"
-          className="flex h-11 shrink-0 items-center rounded-full px-1.5 sm:h-10"
+          className="site-nav-brand flex h-11 shrink-0 items-center gap-2"
         >
-          <BrandMark priority className="h-7 w-7 sm:h-8 sm:w-8" />
+          <BrandMark priority className="h-10 w-10" />
+          <RepairPilotWordmark className="text-lg" />
         </a>
 
-        <ul className="hidden items-center gap-6 pl-5 md:flex">
+        <ul className="hidden items-center gap-6 pl-10 lg:flex">
           {NAV_ITEMS.map((link) => (
             <li key={link.label}>
               <NavLink href={link.href} className={item} current={"current" in link}>
@@ -134,7 +136,7 @@ export function Navbar() {
             aria-expanded={open}
             aria-controls={panelId}
             onClick={() => setOpen((v) => !v)}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-900 hover:bg-neutral-100 md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-900 hover:bg-neutral-100 lg:hidden"
           >
             {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
           </button>
@@ -143,7 +145,7 @@ export function Navbar() {
         <div
           id={panelId}
           hidden={!open}
-          className="absolute left-2 right-2 top-full z-20 mt-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg md:hidden"
+          className="absolute left-2 right-2 top-full z-20 mt-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg lg:hidden"
         >
           <ul className="flex flex-col gap-1">
             {NAV_ITEMS.map((link) => (

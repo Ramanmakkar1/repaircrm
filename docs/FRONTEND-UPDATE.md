@@ -54,3 +54,31 @@ credential, payment, logo or notification submission was used for this release.
 Core solid-surface text/action combinations have contrast of at least 6.5:1
 (blue button 6.53:1; muted slate copy 7.34:1; navy section copy 11.96:1).
 This is palette verification, not a claim of a complete accessibility audit.
+
+## Panda branding and landing-page rebuild — October 4, 2026
+
+The owner requested a substantial reorganization, keeping the approved hero
+headline and typography but removing the sky/video background. The page now
+uses a solid pale blue hero and an eight-section story: customer drop-off,
+repair work, pickup, sales and stock, assistant, pricing, questions and signup.
+Two generated photoreal handover scenes are labeled as illustrative. Actual
+app screenshots retain demo-data captions. No customer endorsements or metrics
+were invented.
+
+The new transparent panda repair mascot holds a screwdriver and wrench. Shared
+website/app marks, browser favicon, install icons and offline branding use it.
+Customer-uploaded shop logos are unaffected. PNG/WebP assets and exact generation
+prompts are documented in `BRAND-ASSET-PROMPTS.md`.
+
+Validation before release:
+- 202 test files, 4,490 tests passed with catalog-image verification enabled.
+- TypeScript and ESLint passed; production build passed.
+- Production browser preview had no console errors. Layouts fit at 320, 390,
+  768, 1024 and 1440 pixels with no horizontal overflow. Mobile navigation
+  opens, closes on selection, and returns focus to Menu after Escape.
+- Counter login-entry regression tests remain passing. This redesign does not
+  change authentication or entry routing.
+
+The smaller test count reflects removal of obsolete sky-video, ornamental gauge
+and exact old layout assertions; remaining landing tests cover the new page,
+links, landmarks, imagery, pricing caveats and signup behavior.

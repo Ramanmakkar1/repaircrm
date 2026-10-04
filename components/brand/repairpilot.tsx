@@ -1,7 +1,7 @@
 import { cn } from "@/components/ui/cn";
 import Image from "next/image";
 
-/** Shared repair badge, on a transparent background. */
+/** Shared panda repair mascot, on a transparent background. */
 export function RepairPilotMark({ className }: { className?: string }) {
   return (
     <span
@@ -11,7 +11,7 @@ export function RepairPilotMark({ className }: { className?: string }) {
         className,
       )}
     >
-      <Image src="/brand/helper-badge.webp" alt="" fill sizes="64px" className="object-contain" />
+      <Image src="/brand/panda-repair-mark.webp" alt="" fill sizes="64px" className="object-contain" />
     </span>
   );
 }
