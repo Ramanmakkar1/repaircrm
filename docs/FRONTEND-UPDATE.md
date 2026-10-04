@@ -82,3 +82,20 @@ Validation before release:
 The smaller test count reflects removal of obsolete sky-video, ornamental gauge
 and exact old layout assertions; remaining landing tests cover the new page,
 links, landmarks, imagery, pricing caveats and signup behavior.
+
+Release verification:
+- Live source: `73090ba8f75a11595d4bb0e2e40352e8cf1bad16` at
+  https://repairshelper.com.
+- CI passed: https://github.com/Ramanmakkar1/repaircrm/actions/runs/37231815623
+  (4,490 unit tests, 8 real PostgreSQL transaction checks, migrations, types,
+  lint and build).
+- Server release `/srv/repairshelper/releases/73090ba/.next/standalone` is active
+  and healthy. All 21 migrations were already applied.
+- Backup: `/var/backups/repairshelper/20261004T203118Z.dump`.
+- Twelve live HTTP checks passed: public page, health, login, legal routes,
+  handover photos, panda mark, icon, favicon, manifest and authenticated-API
+  rejection. The anonymous live browser showed the new brand and page without
+  console errors. Authenticated entry remains verified by regression tests.
+- Live proof images are saved in the workspace `verification/` directory as
+  `panda-homepage-hero-2026-10-04.jpg` and
+  `panda-homepage-shop-2026-10-04.jpg`.
