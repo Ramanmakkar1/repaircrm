@@ -52,6 +52,7 @@ jobs:
       # build or a test run.
       JOBS_INTERVAL_MIN: "0"
       NEXT_TELEMETRY_DISABLED: "1"
+      CHECK_CATALOG_IMAGES: "1"
 
     steps:
       - uses: actions/checkout@v7.0.1

@@ -16,12 +16,12 @@ import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { PrismaClient, type Prisma } from "@prisma/client";
+import type { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const seedDatabaseUrl = process.env.DATABASE_URL;
 if (!seedDatabaseUrl) throw new Error("Set DATABASE_URL before seeding; Prisma’s generated-client fallback is not used.");
-const db = new PrismaClient({ datasourceUrl: seedDatabaseUrl });
+let db: PrismaClient;
 
 const SHOP_SLUG = "demo";
 const PASSWORD = "demo1234";
@@ -95,6 +95,11 @@ async function main() {
       "Refusing to seed demo accounts and data in production. Use a non-production database.",
     );
   }
+
+  // Importing the generated client can itself load its original .env file.
+  // Capture and require the caller's URL above, before that import happens.
+  const { PrismaClient } = await import("@prisma/client");
+  db = new PrismaClient({ datasourceUrl: seedDatabaseUrl });
 
   console.log("Seeding RepairPilot demo data…");
 
@@ -3990,5 +3995,5 @@ main()
     process.exit(1);
   })
   .finally(async () => {
-    await db.$disconnect();
+    await db?.$disconnect();
   });

@@ -4,10 +4,10 @@ Started 4 October 2026. The owner stopped the other implementation sessions and
 asked this session to take over every fix and build all section D features.
 This report separates local evidence from release and physical-device checks.
 
-**Latest local result:** 199 test files, **4,494 unit tests passed (1 skipped)**;
+**Latest local result:** 200 test files, **4,496 unit tests passed (no skips)**;
 **8 real PostgreSQL integration checks passed**; TypeScript, lint, production build
 and `git diff --check` passed. The isolated credential-free production build covers the real job instrumentation.
-All 1,450 captured source-file hashes match the shared working tree.
+All 1,451 captured source-file hashes match the shared working tree.
 Release status is recorded below. Historical runs follow for traceability.
 
 ## Initial checks
@@ -194,6 +194,7 @@ declined. No PDF was exported, and no alternate export path was attempted.
 - Added normalized phone duplicate warnings, password-confirmed six-digit PIN setup and scoped switching, decoded/resized owner logo uploads, and opt-in encrypted phone push. Unit coverage checks ownership, tenant boundaries, PIN/session invalidation, invalid image files, cleanup on storage/database failure, push provider endpoints, role-aware counts and inactive/expired devices.
 - Added live PIN-session validation to nullable read-only API guards as well as page/action guards. Seven regressions cover role changes, PIN removal/version changes, inactive accounts, password changes and two-step/setup requirements.
 - Fixed Node-only job instrumentation so the push dependency does not enter the Edge build graph.
+- Enabled the catalog image-on-disk check in CI and verified the complete local suite with CHECK_CATALOG_IMAGES=1.
 - Added the independent PostgreSQL suite and CI step. It refuses databases outside a local `verification` database and tests real transactions; authentication/cookie/event infrastructure is mocked, not browser-authenticated end to end.
 - Updated Next.js and its ESLint config to 16.3.8 and applied compatible dependency patches. `npm audit --omit=dev` reports zero vulnerabilities. Five high-severity development dependency findings remain in the braces/micromatch ESLint chain; the registry has no compatible patched braces release, and the suggested forced fix downgrades Next’s ESLint config to 14.2.35. No forced downgrade was applied. Advisory: [Next.js ImageResponse](https://github.com/advisories/GHSA-vcvr-r3jv-pc5j).
 
@@ -219,7 +220,7 @@ database. Its old demo records were replaced; they were not restored. The user
 was informed immediately. Production was not targeted. All following database
 commands passed an explicit isolated URL. The seed entry point now loads the
 working directory’s environment, requires `DATABASE_URL` and constructs Prisma
-with that explicit URL, preventing the generated-client fallback. A credential-free child process with no DATABASE_URL now exits before constructing Prisma, as expected.
+with that explicit URL, preventing the generated-client fallback. The URL is captured before dynamically importing Prisma, because importing its generated client can itself populate environment variables. A subprocess regression proves an absent caller URL exits before that import; the independent production seed guard also prevents writes if the URL guard regresses. The first guard check encountered the old development schema on its initial read and made no changes.
 
 ## Release and remaining verification
 
