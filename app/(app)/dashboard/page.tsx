@@ -162,7 +162,7 @@ export default async function DashboardPage({ searchParams }: {
         </section>
 
         <aside className="flex min-w-0 flex-col gap-4">
-          <AssistantPanel overdueCount={overdueCount} />
+          <AssistantPanel />
           <Card id="attention" className="scroll-mt-6 p-4 shadow-none">
             <h2 className="mb-3 text-lg font-semibold">Needs attention</h2>
             <AttentionRow href="/tickets?due=overdue" icon={TriangleAlert} label={`${overdueCount} repair${overdueCount === 1 ? "" : "s"} overdue`} tone="text-destructive" />
