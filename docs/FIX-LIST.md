@@ -21,7 +21,7 @@ Status words: **Fixed** (done and live), **Fixing now** (being built and reviewe
 
 The other implementation sessions were stopped and this session took over the remaining work.
 Independent findings, corrections and evidence are in [FIX-VERIFICATION.md](FIX-VERIFICATION.md).
-All seven packages are implemented locally. The latest checks pass 4,496 unit tests
+All seven packages are implemented locally. The latest checks pass 4,498 unit tests
 (no skips), 8 real PostgreSQL integration checks, types, lint and a production build.
 The list below records the original problems addressed by these packages.
 Deployment and live smoke verification will be recorded separately below.

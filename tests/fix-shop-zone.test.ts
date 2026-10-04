@@ -56,14 +56,18 @@ describe("zone primitives", () => {
     expect(timeLabelIn(ms, EDMONTON)).toBe("8:30 PM");
   });
 
-  it("turns a wall reading into the right instant, either side of a clock change", () => {
-    expect(new Date(zonedInstant(2026, 10, 4, 9, 0, EDMONTON)).toISOString()).toBe("2026-10-04T15:00:00.000Z");
-    // After the clocks go back (Nov 1, 2026) Edmonton is UTC-7.
-    expect(new Date(zonedInstant(2026, 11, 2, 9, 0, EDMONTON)).toISOString()).toBe("2026-11-02T16:00:00.000Z");
-    expect(new Date(startOfZonedDay(2026, 10, 4, EDMONTON)).toISOString()).toBe("2026-10-04T06:00:00.000Z");
-    // The day the clocks go back is 25 hours long.
-    const day = dayWindow("2026-11-01", EDMONTON);
+  it("turns historical wall readings into the right instant across a clock change", () => {
+    expect(new Date(zonedInstant(2025, 10, 4, 9, 0, EDMONTON)).toISOString()).toBe("2025-10-04T15:00:00.000Z");
+    expect(new Date(zonedInstant(2025, 11, 3, 9, 0, EDMONTON)).toISOString()).toBe("2025-11-03T16:00:00.000Z");
+    expect(new Date(startOfZonedDay(2025, 10, 4, EDMONTON)).toISOString()).toBe("2025-10-04T06:00:00.000Z");
+    const day = dayWindow("2025-11-02", EDMONTON);
     expect((day.toExclusive - day.from) / 3_600_000).toBe(25);
+  });
+
+  it("keeps Alberta on permanent UTC-6 after November 2026", () => {
+    expect(new Date(zonedInstant(2026, 11, 2, 9, 0, EDMONTON)).toISOString()).toBe("2026-11-02T15:00:00.000Z");
+    const day = dayWindow("2026-11-01", EDMONTON);
+    expect((day.toExclusive - day.from) / 3_600_000).toBe(24);
   });
 
   it("parses a typed date and time as the shop's wall clock", () => {

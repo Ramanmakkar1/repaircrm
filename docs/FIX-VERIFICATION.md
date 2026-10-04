@@ -4,10 +4,10 @@ Started 4 October 2026. The owner stopped the other implementation sessions and
 asked this session to take over every fix and build all section D features.
 This report separates local evidence from release and physical-device checks.
 
-**Latest local result:** 200 test files, **4,496 unit tests passed (no skips)**;
+**Latest local result:** 200 test files, **4,498 unit tests passed (no skips)**;
 **8 real PostgreSQL integration checks passed**; TypeScript, lint, production build
 and `git diff --check` passed. The isolated credential-free production build covers the real job instrumentation.
-All 1,451 captured source-file hashes match the shared working tree.
+All 1,453 captured source-file hashes match the shared working tree.
 Release status is recorded below. Historical runs follow for traceability.
 
 ## Initial checks
@@ -188,6 +188,7 @@ declined. No PDF was exported, and no alternate export path was attempted.
 
 ## Takeover corrections and section D implementation
 
+- CI found six test expectations assuming an Alberta fall-back in November 2026. The Mac had Node 22.22.3 / tz2026a; production and CI have Node 22.23.3 / tz2026c. Alberta stays at UTC-6 from November 2026. Historical DST checks now use November 2025, with explicit November 2026 permanent-time regressions. Verification uses an official SHA-256-checked temporary Node 22.23.3 installation; CI and `.nvmrc` pin the same version, and the package documents the minimum runtime. Sources: [Government of Alberta](https://www.alberta.ca/albertas-new-time-system-abt), [IANA 2026c](https://www.iana.org/time-zones/releases/2026c). Earlier local passes on the older runtime did not certify those future dates.
 - Completed the shop-time sweep through assistant lookups, document emails, POS drawer labels, labour charges, recurring calendar dates, accounting exports and promised pickup. Date-only billing fields remain calendar dates. Existing DST and Edmonton/UTC boundary checks pass.
 - Fixed invoice creation claims for repair charges and stopped billable time. Conditional writes prevent a competing cashier from billing a charge twice; a real PostgreSQL reproduction confirms rollback of the losing invoice.
 - Added split cash/card payments to POS and invoice payments. Both rows commit together; the real database suite proves a failed second tender rolls back the first cash row and the POS invoice. A successful POS sale stores one PAID invoice, two tender rows and cash-only change.

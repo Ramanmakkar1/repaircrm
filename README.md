@@ -19,7 +19,7 @@ customer communication and a customer portal alongside it.
 
 ## Run locally
 
-Use Node.js 22 and PostgreSQL 16 or later. Docker Compose starts PostgreSQL and the app:
+Use Node.js 22.23.3 (see `.nvmrc`) or a newer release with current timezone data, and PostgreSQL 16 or later. Older Node timezone data incorrectly applies a November 2026 clock change in Alberta. Docker Compose starts PostgreSQL and the app:
 
 ```sh
 cp .env.example .env

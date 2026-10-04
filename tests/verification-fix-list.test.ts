@@ -43,7 +43,7 @@ describe("independent fix-list verification: money and shop dates", () => {
   });
 
   it.each([
-    ["2026-03-08", 23], ["2026-11-01", 25],
+    ["2026-03-08", 23], ["2025-11-02", 25],
   ])("report day %s follows the shop's clock change", (key, hours) => {
     const period = resolveReportPeriod({ period: "custom", from: key, to: key }, at, zone);
     expect((period.toExclusive.getTime() - period.from.getTime()) / 3600000).toBe(hours);

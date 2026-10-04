@@ -104,7 +104,7 @@ describe("statements, dates and terms on the shop's clock", () => {
     expect(shopWall(SATURDAY_9PM, ZONE)?.toISOString()).toBe("2026-10-03T21:10:00.000Z");
     expect(shopWall(null, ZONE)).toBeNull();
     expect(shopTodayKey(SATURDAY_9PM.getTime(), ZONE)).toBe("2026-10-03");
-    expect(shopDayRange("2026-11-01", "2026-11-01", ZONE).toExclusive.getTime() - shopDayRange("2026-11-01", "2026-11-01", ZONE).from.getTime()).toBe(25 * 3_600_000);
+    expect(shopDayRange("2025-11-02", "2025-11-02", ZONE).toExclusive.getTime() - shopDayRange("2025-11-02", "2025-11-02", ZONE).from.getTime()).toBe(25 * 3_600_000);
     expect(daysBetweenKeys("2026-10-03", "2026-10-17")).toBe(14);
   });
 });

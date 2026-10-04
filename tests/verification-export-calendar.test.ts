@@ -13,7 +13,7 @@ describe("accounting export shop calendar", () => {
     expect(range.from.toISOString()).toBe("2026-10-03T06:00:00.000Z");
     expect(range.toExclusive.toISOString()).toBe("2026-10-04T06:00:00.000Z");
   });
-  it.each([["2026-03-08", 23], ["2026-11-01", 25]])("uses real day boundaries for %s", (day, hours) => {
+  it.each([["2026-03-08", 23], ["2025-11-02", 25], ["2026-11-01", 24]])("uses real day boundaries for %s", (day, hours) => {
     const range = parseRange(url(`from=${day}&to=${day}`), now, zone);
     expect((range.toExclusive.getTime() - range.from.getTime()) / 3_600_000).toBe(hours);
   });

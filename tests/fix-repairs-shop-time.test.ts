@@ -58,8 +58,8 @@ describe("formatInZone", () => {
 
   it("reads the weekday and the date across the November clock change", () => {
     // 1:30 AM MDT, then 1:30 AM MST an hour later: the same wall date, two instants.
-    expect(wallClockIn(Date.UTC(2026, 10, 1, 7, 30), EDMONTON)).toMatchObject({ month: 11, day: 1, hour: 1, weekday: 0 });
-    expect(wallClockIn(Date.UTC(2026, 10, 1, 8, 30), EDMONTON)).toMatchObject({ month: 11, day: 1, hour: 1, weekday: 0 });
+    expect(wallClockIn(Date.UTC(2025, 10, 2, 7, 30), EDMONTON)).toMatchObject({ month: 11, day: 2, hour: 1, weekday: 0 });
+    expect(wallClockIn(Date.UTC(2025, 10, 2, 8, 30), EDMONTON)).toMatchObject({ month: 11, day: 2, hour: 1, weekday: 0 });
   });
 });
 
@@ -90,9 +90,9 @@ describe("today and calendar days on the shop's wall", () => {
 
 describe("parseZonedDateInput: a typed day is that day in the shop", () => {
   it("starts the day at midnight in the shop's zone, either side of the clock change", () => {
-    expect(parseZonedDateInput("2026-10-05", EDMONTON)?.getTime()).toBe(Date.UTC(2026, 9, 5, 6, 0));
-    expect(parseZonedDateInput("2026-11-01", EDMONTON)?.getTime()).toBe(Date.UTC(2026, 10, 1, 6, 0));
-    expect(parseZonedDateInput("2026-11-02", EDMONTON)?.getTime()).toBe(Date.UTC(2026, 10, 2, 7, 0));
+    expect(parseZonedDateInput("2025-10-05", EDMONTON)?.getTime()).toBe(Date.UTC(2025, 9, 5, 6, 0));
+    expect(parseZonedDateInput("2025-11-02", EDMONTON)?.getTime()).toBe(Date.UTC(2025, 10, 2, 6, 0));
+    expect(parseZonedDateInput("2025-11-03", EDMONTON)?.getTime()).toBe(Date.UTC(2025, 10, 3, 7, 0));
   });
 
   it("reads back as the same day on every screen", () => {
