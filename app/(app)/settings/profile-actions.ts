@@ -69,6 +69,7 @@ export async function updateProfileNameAction(
   // The name is baked into the session cookie (it renders in the app shell),
   // so the cookie is re-issued rather than left showing the old one.
   await setSessionCookie({
+    ...(session.pinv ? { pinv: session.pinv, pinExpiresAt: session.pinExpiresAt } : {}),
     userId: user.id,
     shopId: user.shopId,
     role: user.role,

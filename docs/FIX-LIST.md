@@ -21,7 +21,7 @@ Status words: **Fixed** (done and live), **Fixing now** (being built and reviewe
 
 The other implementation sessions were stopped and this session took over the remaining work.
 Independent findings, corrections and evidence are in [FIX-VERIFICATION.md](FIX-VERIFICATION.md).
-All seven packages are deployed. The latest checks pass 4,498 unit tests
+All seven packages are deployed. The latest checks pass 4,502 unit tests
 (no skips), 8 real PostgreSQL integration checks, types, lint and a production build.
 The list below records the original problems addressed by these packages.
 CI and deployment succeeded; live health, public HTTP checks and authenticated Settings checks passed.
@@ -119,3 +119,5 @@ Work-order PDF page count remains unverified because browser debugging permissio
 Release **f28e30b** deployed on 4 October 2026. [CI passed](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37225579996): types, lint, 4,498 unit tests, 8 PostgreSQL checks, migrations and production build. The deploy script completed its database backup and applied the counter-feature migration. The service is active and `/api/health` returns `{"ok":true}`.
 
 Live HTTP checks passed for the landing page, sign-in, Privacy, Terms and expired-link page; unauthenticated attention returns 401 and an unknown logo returns 404. An existing signed-in owner browser also confirmed the Shop overview, staff-switch menu, PIN/push settings and logo upload form, with no console errors. No production sale, PIN change, notification opt-in or logo upload was submitted.
+
+A PIN-session renewal follow-up preserves its original expiry when a display name changes. Local checks pass; its CI/deployment record will replace this note.

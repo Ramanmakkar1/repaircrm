@@ -4,10 +4,10 @@ Started 4 October 2026. The owner stopped the other implementation sessions and
 asked this session to take over every fix and build all section D features.
 This report separates local evidence from release and physical-device checks.
 
-**Latest local result:** 200 test files, **4,498 unit tests passed (no skips)**;
+**Latest local result:** 201 test files, **4,502 unit tests passed (no skips)**;
 **8 real PostgreSQL integration checks passed**; TypeScript, lint, production build
 and `git diff --check` passed. The isolated credential-free production build covers the real job instrumentation.
-All 1,453 captured source-file hashes match the shared working tree.
+All 1,454 captured source-file hashes match the shared working tree.
 Release status is recorded below. Historical runs follow for traceability.
 
 ## Initial checks
@@ -194,6 +194,7 @@ declined. No PDF was exported, and no alternate export path was attempted.
 - Added split cash/card payments to POS and invoice payments. Both rows commit together; the real database suite proves a failed second tender rolls back the first cash row and the POS invoice. A successful POS sale stores one PAID invoice, two tender rows and cash-only change.
 - Added normalized phone duplicate warnings, password-confirmed six-digit PIN setup and scoped switching, decoded/resized owner logo uploads, and opt-in encrypted phone push. Unit coverage checks ownership, tenant boundaries, PIN/session invalidation, invalid image files, cleanup on storage/database failure, push provider endpoints, role-aware counts and inactive/expired devices.
 - Added live PIN-session validation to nullable read-only API guards as well as page/action guards. Seven regressions cover role changes, PIN removal/version changes, inactive accounts, password changes and two-step/setup requirements.
+- Corrected display-name session renewal: it retains the PIN credential and the original JWT expiry. Signing/cookie helpers also cap every PIN session at eight hours. Four real JWT/cookie/action regressions prove rename cannot upgrade the session or extend its deadline; full password sessions retain seven days. This follow-up is locally checked and awaits its CI/deploy result below.
 - Fixed Node-only job instrumentation so the push dependency does not enter the Edge build graph.
 - Enabled the catalog image-on-disk check in CI and verified the complete local suite with CHECK_CATALOG_IMAGES=1.
 - Added the independent PostgreSQL suite and CI step. It refuses databases outside a local `verification` database and tests real transactions; authentication/cookie/event infrastructure is mocked, not browser-authenticated end to end.

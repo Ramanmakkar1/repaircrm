@@ -14,6 +14,7 @@ export const SESSION_COOKIE = "rf_session";
 
 /** 7 days, in seconds. */
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+export const PIN_SESSION_MAX_AGE = 8 * 60 * 60;
 
 export type SessionRole = "OWNER" | "TECH" | "FRONT_DESK";
 
@@ -32,6 +33,8 @@ export type SessionUser = {
   pv?: number;
   /** PIN sessions are short-lived and invalidated whenever the PIN changes. */
   pinv?: string;
+  /** Original JWT deadline, preserved when a PIN session's display name changes. */
+  pinExpiresAt?: number;
 };
 
 const ROLES: readonly SessionRole[] = ["OWNER", "TECH", "FRONT_DESK"];
@@ -58,10 +61,11 @@ const secretKey = authSecretKey;
 
 export async function signSession(user: SessionUser, maxAge = SESSION_MAX_AGE): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
+  const lifetime = sessionLifetime(user, maxAge, now);
   return new SignJWT({ ...user } as unknown as JWTPayload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt(now)
-    .setExpirationTime(now + maxAge)
+    .setExpirationTime(now + lifetime)
     .setSubject(user.userId)
     .sign(secretKey());
 }
@@ -95,7 +99,7 @@ export async function verifySession(
       name,
       email,
       pv: typeof pv === "number" ? pv : 0,
-      ...(typeof pinv === "string" ? { pinv } : {}),
+      ...(typeof pinv === "string" ? { pinv, pinExpiresAt: payload.exp } : {}),
     };
   } catch {
     // Expired, tampered with, or signed by a different AUTH_SECRET.
@@ -108,6 +112,7 @@ export async function verifySession(
  * Route Handler — Next.js forbids mutating cookies during a render.
  */
 export async function setSessionCookie(user: SessionUser, maxAge = SESSION_MAX_AGE): Promise<void> {
+  maxAge = sessionLifetime(user, maxAge, Math.floor(Date.now() / 1000));
   const token = await signSession(user, maxAge);
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
@@ -117,6 +122,12 @@ export async function setSessionCookie(user: SessionUser, maxAge = SESSION_MAX_A
     path: "/",
     maxAge,
   });
+}
+
+function sessionLifetime(user: SessionUser, requested: number, now: number): number {
+  if (!user.pinv) return requested;
+  return Math.max(0, Math.min(requested, PIN_SESSION_MAX_AGE,
+    (user.pinExpiresAt ?? now + PIN_SESSION_MAX_AGE) - now));
 }
 
 /** Clears the session cookie. Server Action / Route Handler only. */
