@@ -121,7 +121,7 @@ export async function destroySession(): Promise<void> {
  * so the trail does not depend on which one the operator happened to click.
  */
 export async function signOutCurrentUser(): Promise<void> {
-  const session = await getSession();
+  const session = await readSessionCookie();
   if (session) {
     await clearPushDevice(session.shopId, session.userId);
     await audit({
@@ -141,7 +141,15 @@ export async function signOutCurrentUser(): Promise<void> {
  * Safe to call anywhere on the server (layouts, pages, actions).
  */
 export async function getSession(): Promise<SessionUser | null> {
-  return readSessionCookie();
+  const session = await readSessionCookie();
+  if (!session?.pinv) return session;
+  // Read-only APIs use this nullable guard instead of requireUser's redirects.
+  // They must revoke a switched session too, and use the account's current role.
+  const account = await liveAccount(session.userId, session.shopId);
+  if (!account?.active || session.pinv !== account.pinVersion || !account.pinHash ||
+      account.totpEnabledAt || account.mustChangePassword ||
+      (session.pv ?? 0) < passwordVersion(account.passwordChangedAt)) return null;
+  return { ...session, role: account.role as SessionRole, email: account.email };
 }
 
 /**
@@ -171,7 +179,7 @@ const liveAccount = cache(async (userId: string, shopId: string) =>
  * cookie for its full life.
  */
 export async function requireUser(): Promise<SessionUser> {
-  const session = await getSession();
+  const session = await readSessionCookie();
   if (!session) redirect("/login");
 
   const account = await liveAccount(session.userId, session.shopId);
