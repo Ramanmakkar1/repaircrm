@@ -20,7 +20,7 @@ export default async function FeedbackPage() {
       </header>
       <main className="site-container site-feedback-layout">
         <div className="site-feedback-intro">
-          <h1>Help us improve<br />RepairsHelper.</h1>
+          <h1>Help us improve<br /> RepairsHelper.</h1>
           <p>Found a bug? Missing a feature? Tell us what would make your working day easier.</p>
           <p>For a repair update, please contact your repair shop or <Link href="/portal">check your repair in the customer portal</Link>.</p>
         </div>
