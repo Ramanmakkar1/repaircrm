@@ -52,7 +52,7 @@ export const SHOTS = {
     alt: "The Stock screen: big picture groups such as Screen guards, Screens and Batteries, each with how many are in stock.",
   },
   assistant: {
-    src: `${app}/assistant-panda-tablet.webp`,
+    src: `${app}/assistant-husky-tablet.webp`,
     alt: "The shop assistant open over Home: suggestions such as What's ready for pickup, Which repairs are late and How did we do today, with a box to type and a microphone button.",
   },
 } as const;

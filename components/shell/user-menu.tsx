@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
+import { MessageSquare, Monitor, Moon, Rows2, Rows3, Sun } from "lucide-react";
 import { setDensityAction, setThemeAction } from "@/app/(app)/prefs-actions";
 import { cn } from "@/components/ui/cn";
 import type { Density, Theme } from "@/lib/prefs";
@@ -101,6 +101,9 @@ export function UserMenu({
           <DropdownMenuItem asChild className="min-h-12 text-[15px]"><Link href="/staff-switch"><ProfileIcon className="size-5" />Switch staff</Link></DropdownMenuItem>
           {/* Offers a native prompt when supported, otherwise installation steps. */}
           <InstallAppItem />
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]">
+            <Link href="/feedback"><MessageSquare aria-hidden="true" className="size-5 text-muted-foreground" />Report an issue or idea</Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {/* The whole row signs out: selecting it submits the form below. */}
           <DropdownMenuItem

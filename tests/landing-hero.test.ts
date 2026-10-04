@@ -38,8 +38,8 @@ describe("hero", () => {
 
 describe("navigation", () => {
   const out = html(React.createElement(Navbar));
-  it("shows the panda identity and all product and account destinations", () => {
-    expect(out).toContain("panda-symbol.svg");
+  it("shows the husky identity and all product and account destinations", () => {
+    expect(out).toContain("husky-mark-blue.webp");
     expect(out).toContain("Repairs ");
     for (const link of NAV_ITEMS) expect(out).toContain(`href="${link.href}"`);
     expect(out).toContain('href="/login"');

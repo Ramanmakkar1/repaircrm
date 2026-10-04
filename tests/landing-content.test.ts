@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 // next/font only works inside the Next compiler; the page only needs the class names.
 vi.mock("@/components/landing/fonts", () => ({
   manrope: { className: "font-manrope", variable: "var-manrope" },
-  heroDisplay: { className: "font-serif", variable: "var-serif" },
 }));
 
 const { FAQS, Faq } = await import("@/components/landing/faq");
@@ -77,7 +76,7 @@ describe("footer", () => {
 
   it("keeps the existing links and the copyright year", () => {
     const hrefs = FOOTER_GROUPS.flatMap((g) => g.links.map((l) => l.href));
-    for (const href of ["/login", "/portal", "/privacy", "/terms", "#pricing", "#assistant", "#payments"]) {
+    for (const href of ["/login", "/portal", "/privacy", "/terms", "#pricing", "#assistant", "#payments", "/feedback", "#splitforms", "#features"]) {
       expect(hrefs).toContain(href);
       expect(out).toContain(`href="${href}"`);
     }
@@ -97,7 +96,7 @@ describe("the whole page", () => {
     expect(page).toContain('id="main"');
     expect(page.match(/<header/g)).toHaveLength(1);
     expect(page.match(/<footer/g)).toHaveLength(1);
-    for (const id of ["product", "assistant", "pricing", "payments", "stock", "faq", "check-in"]) {
+    for (const id of ["product", "assistant", "pricing", "payments", "stock", "faq", "check-in", "devices", "features", "splitforms"]) {
       expect(page).toContain(`id="${id}"`);
     }
     const anchors = [...page.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]).filter((id) => id !== "main");
@@ -113,7 +112,7 @@ describe("the whole page", () => {
     }
   });
 
-  it("uses one serif-italic word or phrase per heading, at most", () => {
+  it("keeps heading treatments consistent", () => {
     for (const h of page.match(/<h2[\s\S]*?<\/h2>/g) ?? []) {
       expect((h.match(/site-serif/g) ?? []).length).toBeLessThanOrEqual(1);
     }

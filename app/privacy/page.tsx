@@ -29,6 +29,11 @@ export default function PrivacyPage() {
             payments, appointments, notes and uploaded files.
           </li>
           <li>
+            <strong>Feedback and support:</strong> reports, feature requests,
+            page references and optional follow-up contact details you submit,
+            plus your account identifiers when signed in.
+          </li>
+          <li>
             <strong>Usage and device information:</strong> IP address, browser,
             device type, timestamps, security events, error logs and the parts
             of Repairs helper you use.

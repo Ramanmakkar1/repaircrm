@@ -126,8 +126,9 @@ export function ProductExplorer() {
             From one workspace.
           </h2>
           <p>
-            Check in a device, find the right part and collect the balance. Keep
-            the counter, the bench and the back office working together.
+            Repair management, point of sale and inventory in one connected
+            workspace. Check in a device, find the right part and collect the
+            balance, with your team working from the same records.
           </p>
         </div>
         <div className="site-anchor-targets" aria-hidden="true">

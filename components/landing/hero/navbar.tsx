@@ -11,6 +11,7 @@ import { BrandMark } from "../brand";
 export const NAV_ITEMS = [
   { label: "Home", href: "#top", current: true },
   { label: "Product", href: "#product" },
+  { label: "Features", href: "#features" },
   { label: "AI assistant", href: "#assistant" },
   { label: "Pricing", href: "#pricing" },
 ] as const;

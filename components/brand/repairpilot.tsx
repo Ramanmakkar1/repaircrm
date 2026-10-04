@@ -1,7 +1,7 @@
 import { cn } from "@/components/ui/cn";
 import Image from "next/image";
 
-/** Shared panda repair mascot, on a transparent background. */
+/** Shared husky repair mascot, on a transparent background. */
 export function RepairPilotMark({ className }: { className?: string }) {
   return (
     <span
@@ -12,9 +12,10 @@ export function RepairPilotMark({ className }: { className?: string }) {
       )}
     >
       <Image
-        src="/brand/panda-symbol.svg"
+        src="/brand/husky-mark-blue.webp"
         alt=""
         fill
+        unoptimized
         sizes="64px"
         className="object-contain"
       />
@@ -27,7 +28,7 @@ export function RepairPilotWordmark({ className }: { className?: string }) {
   return (
     <span className={cn("tracking-tight", className)}>
       <span className="font-medium">Repairs </span>
-      <span className="font-bold">helper</span>
+      <span className="font-bold text-[#2563eb]">helper</span>
     </span>
   );
 }

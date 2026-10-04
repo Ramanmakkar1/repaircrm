@@ -27,11 +27,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/symbol-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/symbol-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/husky-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/husky-512.png", sizes: "512x512", type: "image/png" },
     ],
     // iOS ignores the manifest for this one and reads the tag.
-    apple: [{ url: "/icons/symbol-apple.png", sizes: "180x180" }],
+    apple: [{ url: "/icons/husky-apple.png", sizes: "180x180" }],
   },
 };
 

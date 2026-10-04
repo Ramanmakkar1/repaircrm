@@ -1,6 +1,9 @@
 import "./site.css";
 
-import { heroDisplay, manrope } from "./fonts";
+import { manrope } from "./fonts";
+import { DeviceExperience } from "./device-experience";
+import { Features } from "./features";
+import { SplitformsPartner } from "./splitforms-partner";
 import { FinalCta } from "./final-cta";
 import { Faq } from "./faq";
 import { SiteFooter } from "./footer";
@@ -14,7 +17,7 @@ export function RepairsHome() {
   return (
     <div
       id="top"
-      className={`${manrope.className} ${manrope.variable} ${heroDisplay.variable} site min-h-screen w-full bg-(--site-page) p-0`}
+      className={`${manrope.className} ${manrope.variable} site min-h-screen w-full bg-(--site-page) p-0`}
     >
       <a href="#main" className="site-skip">
         Skip to content
@@ -22,7 +25,10 @@ export function RepairsHome() {
       <HeroSection />
       <main id="main" className="flex flex-col">
         <ProductExplorer />
+        <Features />
         <CustomerExperience />
+        <DeviceExperience />
+        <SplitformsPartner />
         <ShopAssistant />
         <Pricing />
         <Faq />

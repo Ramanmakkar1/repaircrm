@@ -16,9 +16,9 @@ export function HeroSection() {
             Built for your counter.
           </h1>
           <p className="site-hero-description">
-            Manage repairs, sales, stock and customer updates in one workspace.
-            Give your team a clear view of the work and your customers a
-            smoother drop-off and pickup.
+            Manage repair tickets, counter sales, inventory and customer updates
+            in one workspace. Get a helping hand from your AI helper, on your
+            phone, tablet or computer.
           </p>
           <div className="site-hero-actions">
             <Link href={SIGN_UP_HREF} className="site-button">

@@ -80,16 +80,17 @@ export function ShopAssistant() {
         <div className="site-assistant-copy">
           <div className="site-assistant-identity">
             <BrandMark className="size-9" />
-            <span>Your shop assistant</span>
+            <span>Your AI helper</span>
           </div>
           <h2 id="assistant-title">
-            Find the answer.
+            AI help for your shop.
             <br />
             Keep the day moving.
           </h2>
           <p>
-            Find a repair, check what’s ready for pickup or get a quick view of
-            the day. A little help, right inside your workspace.
+            AI tools help you summarise repair tickets and draft customer replies.
+            Use your shop helper to find repairs, check what’s ready for pickup
+            and get a quick view of the day.
           </p>
           <div className="site-assistant-questions">
             <p>“What’s ready for pickup?”</p>

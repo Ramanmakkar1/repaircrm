@@ -18,7 +18,7 @@ export const FAQS = [
   },
   {
     q: "What can the AI assistant do?",
-    a: "Look up shop information, summarise repair tickets, draft customer replies and help with everyday tasks. Type a request or use voice input. It asks you to confirm changes and respects shop permissions. Free-form requests need a connected AI provider, and voice depends on your browser and your shop’s setup.",
+    a: "Your shop helper finds repairs, customers, stock and daily sales information, and helps with supported everyday commands. AI tools on repair tickets can summarise notes and draft customer replies. Type a request or use voice input. It asks you to confirm changes and respects shop permissions. Free-form requests need a connected AI provider, and voice depends on your browser and your shop’s setup.",
   },
   {
     q: "Do I need a credit card to start?",
@@ -42,7 +42,7 @@ export const FAQS = [
   },
   {
     q: "Where do website enquiries go?",
-    a: "Into Leads. Connect a Splitforms form on your website to collect the device, the problem and the customer’s contact details.",
+    a: "Into Leads. Connect a Splitforms form on your website to collect the device, the problem and the customer’s contact details. Create the connection in RepairsHelper’s Leads page and add its webhook URL to your Splitforms form. Splitforms webhooks require a paid plan.",
   },
   {
     q: "Is my data mine?",

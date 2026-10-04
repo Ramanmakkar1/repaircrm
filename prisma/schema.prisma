@@ -1632,3 +1632,20 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([shopId, userId])
 }
+
+/// Product feedback is platform-owned, not shop data. Only the platform admin
+/// console can read or manage it. Optional reporter IDs come from the session.
+model ProductFeedback {
+  id String @id @default(cuid())
+  kind String
+  title String
+  detail String
+  email String?
+  page String?
+  reporterUserId String?
+  reporterShopId String?
+  status String @default("NEW")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, createdAt])
+}

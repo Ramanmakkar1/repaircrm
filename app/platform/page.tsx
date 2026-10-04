@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Activity,
   ArrowUpRight,
@@ -160,6 +161,7 @@ export default async function PlatformPage() {
             </span>
             {/* No "return to workspace": an operator is not a member of any
                 shop, and the console never links into a shop's app. */}
+            <Link href="/platform/feedback" className="inline-flex min-h-11 items-center font-medium underline underline-offset-4">Product feedback</Link>
             <form action={platformLogoutAction}>
               <button
                 type="submit"

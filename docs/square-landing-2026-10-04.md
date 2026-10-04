@@ -1,5 +1,7 @@
 # Public landing page and panda symbol — 4 October 2026
 
+This records the earlier release. The user subsequently supplied their actual husky logo and requested sans-serif typography, a new footer and expanded copy; see [the refinement](husky-landing-2026-10-04.md).
+
 The user requested a professionally organized landing page inspired by Square and Stripe, then specifically chose Square’s centered hero with a video beneath the headline. Signed-in users continue to enter Counter at `/counter?tab=counter`.
 
 ## References inspected
@@ -62,4 +64,4 @@ Validation and release evidence are recorded below after verification.
 - Reduced-motion/data-saver/slow-network decisions passed automated tests. Browser emulation of reduced motion was not performed: the browser permission review rejected the raw debugging command. No bypass was attempted.
 - Signed-in demo login entered `/counter?tab=counter`; public landing behavior was checked while signed out.
 
-Release and live smoke evidence follows after deployment.
+Release `59e0eb4` was deployed and verified healthy. [CI](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37234684522) passed, including 8 PostgreSQL checks. Live smoke verification passed 21 endpoints and two MP4 range responses. Backup: `/var/backups/repairshelper/20261004T211207Z.dump`.

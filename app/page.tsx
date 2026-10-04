@@ -4,12 +4,12 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { homePath } from "@/lib/prefs";
 import { RepairsHome } from "@/components/landing/repairs-home";
-import { WEBSITE_SCHEMA } from "@/lib/public-site";
+import { WEBSITE_SCHEMA, SOFTWARE_SCHEMA } from "@/lib/public-site";
 
 const TITLE =
-  "Repair Shop Software for Repairs, Sales & Stock | Repairs helper";
+  "Repair Shop Software & AI Helper | RepairsHelper";
 const DESCRIPTION =
-  "Manage repairs, sales, inventory and customer updates with Repairs helper. Built for independent phone, computer and device repair shops. Free during early access.";
+  "Manage repairs, sales, inventory and customer updates with RepairsHelper and its AI helper. Works on mobile, tablet and desktop. Free during early access.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -17,13 +17,13 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   openGraph: {
     type: "website",
-    siteName: "Repairs helper",
+    siteName: "RepairsHelper",
     title: TITLE,
     description: DESCRIPTION,
     url: "/",
     images: [
       {
-        url: "/marketing/repair-shop-software-og.png",
+        url: "/marketing/repair-shop-software-husky-og.png",
         width: 1200,
         height: 630,
         alt: "Repairs helper — repair shop software built for your counter",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
-    images: ["/marketing/repair-shop-software-og.png"],
+    images: ["/marketing/repair-shop-software-husky-og.png"],
   },
   alternates: { canonical: "/" },
 };
@@ -57,6 +57,12 @@ export default async function RootPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(WEBSITE_SCHEMA).replace(/</g, "\\u003c"),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(SOFTWARE_SCHEMA).replace(/</g, "\\u003c"),
         }}
       />
       <RepairsHome />
