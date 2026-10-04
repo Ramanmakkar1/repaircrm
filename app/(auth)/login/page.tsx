@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { getSession } from "@/lib/auth";
+import { HOME_PATH } from "@/lib/prefs";
 import { googleConfigured } from "@/lib/google/config";
 import { googleNotice, offersSignup } from "@/lib/google/messages";
 import {
@@ -37,10 +38,10 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; notice?: string; google?: string }>;
 }) {
   const session = await getSession();
-  if (session) redirect("/counter");
+  if (session) redirect(HOME_PATH);
 
   const { next, notice, google } = await searchParams;
-  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/counter";
+  const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : HOME_PATH;
   const noticeText = notice ? NOTICES[notice] : undefined;
   const googleOn = googleConfigured();
 

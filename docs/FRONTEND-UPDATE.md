@@ -6,6 +6,8 @@ existing sessions, and improve the public homepage while preserving its hero.
 ## Behavior
 
 - Root and Login send existing sessions to Counter in both display modes.
+  Entry uses `/counter?tab=counter` so a remembered Stock/Shop tab cannot
+  replace the pictured Counter screen. Other returns can still remember a tab.
 - Normal sign-in defaults to Counter. Two-factor verification carries that
   destination through. An explicit repair/document deep link stays intact.
 - Full view and Shop overview remain available as deliberate tools.

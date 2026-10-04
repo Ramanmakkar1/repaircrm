@@ -3,13 +3,14 @@
 import { redirect } from "next/navigation";
 
 import { login, signOutCurrentUser, signup } from "@/lib/auth";
+import { HOME_PATH } from "@/lib/prefs";
 
 export type AuthFormState = { error?: string } | undefined;
 
 function safeRedirectTarget(value: FormDataEntryValue | null): string {
   const target = typeof value === "string" ? value : "";
   // Only allow same-origin, non-protocol-relative paths.
-  return target.startsWith("/") && !target.startsWith("//") ? target : "/counter";
+  return target.startsWith("/") && !target.startsWith("//") ? target : HOME_PATH;
 }
 
 export async function loginAction(

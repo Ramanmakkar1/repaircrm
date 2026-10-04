@@ -79,9 +79,11 @@ export async function readUiPrefs(): Promise<UiPrefs> {
   return parse(jar.get(UI_COOKIE)?.value);
 }
 
-/** Counter is the shared home in both Easy mode and Full view. */
-export async function homePath(): Promise<"/counter"> {
-  return "/counter";
+/** Entry always selects Counter, even if this device last used another tab. */
+export const HOME_PATH = "/counter?tab=counter";
+
+export async function homePath(): Promise<typeof HOME_PATH> {
+  return HOME_PATH;
 }
 
 /**

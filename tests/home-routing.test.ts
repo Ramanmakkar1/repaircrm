@@ -9,22 +9,22 @@ describe("where signing in lands", () => {
   beforeEach(() => { jar.raw = undefined; });
 
   it("sends a new device to the box home, not the old dashboard", async () => {
-    expect(await homePath()).toBe("/counter");
+    expect(await homePath()).toBe("/counter?tab=counter");
   });
 
   it("keeps Counter as home after an explicit Full view choice", async () => {
     jar.raw = JSON.stringify({ simple: false, taskHomeVersion: 1 });
-    expect(await homePath()).toBe("/counter");
+    expect(await homePath()).toBe("/counter?tab=counter");
   });
 
   it("treats an older cookie (from before the task home) as Easy mode", async () => {
     jar.raw = JSON.stringify({ simple: false });
-    expect(await homePath()).toBe("/counter");
+    expect(await homePath()).toBe("/counter?tab=counter");
   });
 
   it("falls back to the box home when the cookie is unreadable", async () => {
     jar.raw = "{not json";
-    expect(await homePath()).toBe("/counter");
+    expect(await homePath()).toBe("/counter?tab=counter");
   });
 });
 
