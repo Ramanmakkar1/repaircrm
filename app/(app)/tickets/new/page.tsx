@@ -3,6 +3,9 @@ import { format } from "date-fns";
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { deviceKindsFor, problemPicturesFor } from "@/lib/intake-options";
+import { saveIntakeOptionsAction } from "@/app/(app)/settings/actions";
+import { EasyCheckIn } from "@/components/tickets/intake/checkin";
 import { activeLocations, newRecordLocationId } from "@/lib/location";
 import { readSla } from "@/lib/sla";
 import { readUiPrefs } from "@/lib/prefs";
@@ -28,7 +31,7 @@ export default async function NewTicketPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { shopId, userId } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   const params = await searchParams;
 
   const rawCustomerId = params.customerId;
@@ -113,6 +116,31 @@ export default async function NewTicketPage({
     ? prefillId
     : undefined;
 
+  const shared = {
+    customers: customers.map((customer) => ({
+      id: customer.id,
+      phone: customer.phone,
+      mobile: customer.mobile,
+      email: customer.email,
+      label: customerLabel(customer),
+    })),
+    assetsByCustomer,
+    techs: techs.map((tech) => ({ value: tech.id, label: tech.name })),
+    problemTypes: problemTypes(shop?.settings),
+    defaultCustomerId,
+    locations: locations.map((location) => ({
+      value: location.id,
+      label: location.name,
+    })),
+    defaultLocationId: defaultLocationId ?? undefined,
+    checklists: checklists.map((checklist) => ({
+      value: checklist.id,
+      label: checklist.name,
+    })),
+    warrantiesByCustomer,
+    slaHint: `Leave blank and we'll promise ${sla.NORMAL} calendar hours at Normal priority — set per priority in Settings → Workflow.`,
+  };
+
   return (
     // Easy mode is a register: choices on the left, "This repair" on the right, so it needs the width.
     <div className={uiPrefs.simple ? "mx-auto flex w-full max-w-6xl flex-col gap-4" : "mx-auto flex w-full max-w-3xl flex-col gap-4"}>
@@ -121,31 +149,18 @@ export default async function NewTicketPage({
         title={uiPrefs.simple ? "New repair" : "New ticket"}
         description={uiPrefs.simple ? undefined : "Check a device in and start the repair clock."}
       />
-      <TicketForm
-        simple={uiPrefs.simple}
-        customers={customers.map((customer) => ({
-          id: customer.id,
-          phone: customer.phone,
-          mobile: customer.mobile,
-          email: customer.email,
-          label: customerLabel(customer),
-        }))}
-        assetsByCustomer={assetsByCustomer}
-        techs={techs.map((tech) => ({ value: tech.id, label: tech.name }))}
-        problemTypes={problemTypes(shop?.settings)}
-        defaultCustomerId={defaultCustomerId}
-        locations={locations.map((location) => ({
-          value: location.id,
-          label: location.name,
-        }))}
-        defaultLocationId={defaultLocationId ?? undefined}
-        checklists={checklists.map((checklist) => ({
-          value: checklist.id,
-          label: checklist.name,
-        }))}
-        warrantiesByCustomer={warrantiesByCustomer}
-        slaHint={`Leave blank and we'll promise ${sla.NORMAL} calendar hours at Normal priority — set per priority in Settings → Workflow.`}
-      />
+      {uiPrefs.simple ? (
+        // The Easy check-in is rendered straight from here (it is what TicketForm renders in Easy mode) so
+        // it can also be handed the shop's device and problem boxes and, for the owner, the action that saves them.
+        <EasyCheckIn
+          {...shared}
+          deviceKinds={deviceKindsFor(shop?.settings)}
+          problemPictures={problemPicturesFor(shop?.settings, shared.problemTypes)}
+          saveOptions={role === "OWNER" ? saveIntakeOptionsAction : undefined}
+        />
+      ) : (
+        <TicketForm simple={false} {...shared} />
+      )}
     </div>
   );
 }

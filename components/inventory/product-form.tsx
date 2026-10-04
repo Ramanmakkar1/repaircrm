@@ -322,8 +322,8 @@ export function ProductForm({
         {product ? <input type="hidden" name="id" value={product.id} /> : null}
         {errorBanner}
 
-        <div className="grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-6">
-          <section aria-labelledby="pf-picture" className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 lg:sticky lg:top-2">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-6">
+          <section aria-labelledby="pf-picture" className="flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-surface p-4 lg:sticky lg:top-2">
             <h2 id="pf-picture" className="sr-only">Picture</h2>
             {picker(false)}
           </section>
@@ -381,6 +381,12 @@ export function ProductForm({
                 )}
               </div>
               {quick ? <p className="text-sm text-muted-foreground">A product code is generated automatically. Extra details can be added now or later.</p> : null}
+              {/* A scanned code arrives filled in under More details: say so, so nobody retypes it. */}
+              {quick && defaults?.upc && values.upc.trim() ? (
+                <p className="text-sm text-muted-foreground">
+                  Barcode <span className="font-mono text-foreground">{values.upc.trim()}</span> from your scan is saved with this product.
+                </p>
+              ) : null}
             </section>
 
             <details ref={extraDetails} className="group overflow-hidden rounded-2xl border border-border bg-surface">
@@ -399,7 +405,7 @@ export function ProductForm({
                   <CategoryField api={api} />
                   <DescriptionField api={api} />
                 </Section>
-                <Section title="Your own photo" hint="Optional. Your own photo is always used instead of the picture.">
+                <Section title="Your own photo" hint="A photo of this exact item, if you have one.">
                   {photoBox}
                 </Section>
                 <Section title="Codes">

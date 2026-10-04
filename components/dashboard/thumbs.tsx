@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Package, Wrench } from "lucide-react";
+import { Package, Settings2, Wrench } from "lucide-react";
 
 import { cn } from "@/components/ui/cn";
 import { InitialsVisual } from "@/components/ui/record-card";
@@ -48,6 +48,8 @@ export function ProductThumb({
   className?: string;
 }) {
   const source = productImageSource({ name, category, catalogImage, imageUrl });
+  // No picture: work gets a spanner, parts a cog, everything else a box (the same placeholders as the Stock list).
+  const Fallback = source.kind === "service" ? Wrench : ["part", "display", "port"].includes(source.kind) ? Settings2 : Package;
   return (
     <span aria-hidden className={cn(FRAME, !source.src && "bg-surface-hover", className ?? "size-14")}>
       {source.src ? (
@@ -55,7 +57,7 @@ export function ProductThumb({
         <Image src={source.src} alt="" fill sizes="64px" unoptimized={source.src.startsWith("/files/")} className="object-contain p-1" />
       ) : (
         <span className="flex size-full items-center justify-center text-muted-foreground">
-          <Package className="size-1/2" strokeWidth={1.5} />
+          <Fallback className="size-1/2" strokeWidth={1.5} />
         </span>
       )}
     </span>
@@ -68,5 +70,5 @@ export function RowVisual({ visual }: { visual: NeedsYouVisual }) {
   if (visual.kind === "product") {
     return <ProductThumb name={visual.name} category={visual.category} catalogImage={visual.catalogImage} imageUrl={visual.imageUrl} />;
   }
-  return <InitialsVisual name={visual.name} className="size-14 text-lg sm:size-14 sm:text-lg" />;
+  return <InitialsVisual name={visual.name} className="size-14 text-lg text-foreground sm:size-14 sm:text-lg" />;
 }

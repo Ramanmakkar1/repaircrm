@@ -49,8 +49,8 @@ export default async function NewEstimatePage({
       ])
     : [undefined, undefined];
 
-  // Easy mode hands the title to the builder, which draws it at the top of the choices so that
-  // "This estimate" can start at the very top of the page; Full mode keeps it above the form.
+  // Easy mode hands the title to the builder, which draws it at the top of the choices, so that
+  // "This estimate" can start at the very top of the page. Full mode keeps it above the form.
   const header = (
     <PageHeader
       breadcrumbs={uiPrefs.simple ? [{ label: "Estimates", href: "/estimates" }, { label: "New estimate" }] : undefined}

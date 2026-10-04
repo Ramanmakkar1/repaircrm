@@ -95,11 +95,14 @@ export function SellingCard({ selling, className }: { selling: NonNullable<ShopO
             const body = (
               <>
                 <ProductThumb name={row.name} category={row.category} catalogImage={row.catalogImage} imageUrl={row.imageUrl} className="size-12" />
-                <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                  <span className="truncate text-[15px] font-semibold">{row.name}</span>
-                  <span className="text-sm text-muted-foreground">{row.units} sold</span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
+                  {/* The name gets the whole width (up to three lines); the count and the money share the line below. */}
+                  <span className="line-clamp-3 break-words text-[15px] font-semibold">{row.name}</span>
+                  <span className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{row.units} sold</span>
+                    <span className="rf-num text-[15px] font-semibold">{formatCents(row.cents)}</span>
+                  </span>
                 </span>
-                <span className="rf-num shrink-0 text-[15px] font-semibold">{formatCents(row.cents)}</span>
               </>
             );
             const style = "flex min-h-14 items-center gap-3 rounded-xl px-1.5 py-1";

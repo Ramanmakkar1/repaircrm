@@ -183,10 +183,11 @@ describe("1 Customer", () => {
 describe("2 Device", () => {
   const withCustomer = { ...initialState({ customerId: "cus_2" }) };
 
-  it("shows the eight kinds as picture tiles with the photos from public/images/products", () => {
+  it("shows the first seven kinds as picture tiles, then a More devices box (the standard list has more than eight)", () => {
     const html = render(DeviceStep, withDifferent(withCustomer));
-    for (const label of ["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Watch", "Other"]) expect(text(html)).toContain(label);
-    for (const photo of ["phone", "tablet", "laptop", "desktop-computer", "game-console", "television", "smartwatch", "repair-tools"]) expect(html).toContain(`${photo}.webp`);
+    for (const label of ["Phone", "Tablet", "Laptop", "Computer", "Game console", "TV", "Watch"]) expect(text(html)).toContain(label);
+    for (const photo of ["phone", "tablet", "laptop", "desktop-computer", "game-console", "television", "smartwatch"]) expect(html).toContain(`${photo}.webp`);
+    expect(text(html)).toContain("More devices");
     expect(text(html)).toContain("No device");
     expect(text(html)).toContain("Skip, I'll add it later");
   });

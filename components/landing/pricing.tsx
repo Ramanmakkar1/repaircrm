@@ -1,121 +1,87 @@
-import Link from "next/link";
+import { Check } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { ArrowRightIcon, CheckIcon } from "./icons";
+import { DarkCta, Panel, Serif } from "./ui";
 
 /**
- * One card, one price, and a plain list of what is genuinely not built yet.
- *
- * There are no invented tiers here because there is no billing in the product:
- * signing up creates a shop and nothing ever asks for a card. Naming the gaps
- * next to the price is the point — a shop owner finding out about the missing
- * card processing on day three is worse than reading it here.
+ * One plan, one price, and a plain list of what is not finished next to it.
+ * There are no invented tiers because there is no billing in the product:
+ * signing up creates a shop and nothing ever asks for a card.
  */
 
-const INCLUDED = [
-  "All core repair, inventory, customer and invoicing tools",
+export const PRICE = "$0";
+
+export const INCLUDED = [
+  "Easy mode counter, Sell screen and step-by-step repair check-in",
   "Your whole team, with owner, tech and front-desk roles",
-  "Customer portal and the wall display included",
-  "CSV import for customer and product lists",
+  "Customer portal and shop display",
+  "Spreadsheet and CSV import for customers and products",
   "CSV exports for customers, invoices and payments",
-  "No feature tiers or per-seat charges during early access",
+  "No feature tiers and no per-seat charges during early access",
 ];
 
-const NOT_YET = [
-  "One-click migration with repair history from another system; customers and products can be imported by CSV",
-  "Stripe and Square connections need provider credentials and test verification before activation",
-  "Email and SMS need provider setup; the current test configuration logs messages instead of delivering them",
+export const NOT_YET = [
+  "One-click migration with repair history from another system is not available; customers and products can be imported from a spreadsheet or CSV.",
+  "Stripe and Square connections need your own account, provider credentials and test verification before they go live.",
+  "Email and SMS need a provider set up for your shop before real messages are delivered.",
+  "Connected providers (AI, SMS, card processing) may charge their own usage fees.",
 ];
 
 export function Pricing() {
   return (
-    <section
-      id="pricing"
-      aria-labelledby="pricing-heading"
-      className="scroll-mt-16 border-t border-border py-20 sm:py-28"
-    >
-      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
-        <div className="grid items-start gap-12 lg:grid-cols-2 lg:gap-16">
-          <div>
-            <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-accent">
-              Pricing
-            </p>
-            <h2
-              id="pricing-heading"
-              className="mt-3 text-[32px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-[44px]"
-            >
-              Free while it&rsquo;s early.
-            </h2>
-            <p className="mt-5 text-[16.5px] leading-relaxed text-muted-foreground">
-              Repairs helper is new. Rather than guess at a price for software that
-              is still growing, it costs nothing while it&rsquo;s in early
-              access. Paid plans will come later, once it has earned them —
-              we&rsquo;ll tell you well before anything changes, and your data
-              stays exportable the whole time.
-            </p>
+    <Panel id="pricing" labelledBy="pricing-title">
+      <div className="mx-auto grid max-w-[1120px] items-start gap-12 lg:grid-cols-12 lg:gap-14">
+        <div className="lg:col-span-6">
+          <h2 id="pricing-title" className="site-h2">
+            Free while it’s <Serif>early</Serif>
+          </h2>
+          <p className="site-lede mt-5">
+            Repairs helper is new. Rather than guess at a price for software that is still
+            growing, it costs nothing during early access. Paid plans will come later, and we’ll
+            announce them well before anything changes. Your data stays exportable the whole time.
+          </p>
+          <h3 className="mt-10 text-[17px] font-semibold tracking-tight text-neutral-900">
+            Before you rely on these workflows
+          </h3>
+          <ul className="mt-3 border-t border-neutral-200">
+            {NOT_YET.map((item) => (
+              <li key={item} className="border-b border-neutral-200 py-3.5 text-[15px] leading-relaxed text-neutral-700">
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
 
-            <div className="mt-8 rounded-lg border border-border bg-surface-hover p-5">
-              <p className="text-[13px] font-bold tracking-tight text-foreground">
-                Before you rely on these workflows
-              </p>
-              <ul className="mt-3 space-y-2">
-                {NOT_YET.map((item) => (
-                  <li
-                    key={item}
-                    className="flex gap-2.5 text-[13.5px] leading-relaxed text-muted-foreground"
-                  >
-                    <span className="mt-[9px] size-1 shrink-0 rounded-full bg-faint-foreground" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="rounded-2xl bg-(--site-tray) p-6 sm:p-9 lg:col-span-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[17px] font-semibold tracking-tight text-neutral-900">Early access</p>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[13px] text-neutral-800">
+              <span aria-hidden="true" className="h-2 w-2 rounded-full bg-(--site-accent)" />
+              Open now
+            </span>
           </div>
-
-          <div className="rounded-xl border border-border bg-surface p-7 shadow-lg sm:p-8">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[15px] font-bold tracking-tight text-foreground">
-                Early access
-              </p>
-              <span className="flex items-center gap-1.5 rounded-full bg-status-ready-bg px-2.5 py-1 text-[11.5px] font-semibold text-status-ready-fg">
-                <span className="size-1.5 rounded-full bg-status-ready" />
-                Open now
-              </span>
-            </div>
-
-            <p className="mt-5 flex items-baseline gap-2">
-              <span className="rf-nums text-[56px] font-bold leading-none tracking-[-0.04em] text-foreground">
-                $0
-              </span>
-              <span className="text-[14px] text-muted-foreground">
-                per shop, per month
-              </span>
-            </p>
-
-            <ul className="mt-7 space-y-3 border-t border-border pt-7">
-              {INCLUDED.map((item) => (
-                <li
-                  key={item}
-                  className="flex gap-3 text-[14.5px] leading-relaxed text-foreground"
-                >
-                  <CheckIcon className="mt-0.5 size-[18px] shrink-0 text-accent" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-
-            <Button asChild size="lg" className="mt-8 w-full">
-              <Link href="/signup">
-                Start free
-                <ArrowRightIcon className="size-4" />
-              </Link>
-            </Button>
-            <p className="mt-3 text-center text-[13px] text-faint-foreground">
-              No credit card. Nothing in Repairs helper asks for one.
-            </p>
+          <p className="mt-6 flex items-end gap-3">
+            <span
+              className="font-medium leading-none text-neutral-900"
+              style={{ fontSize: "clamp(64px, 11vw, 104px)", letterSpacing: "-0.04em" }}
+            >
+              {PRICE}
+            </span>
+            <span className="pb-2 text-[15px] text-neutral-700">per shop, per month</span>
+          </p>
+          <ul className="mt-8 space-y-3 border-t border-neutral-300/70 pt-8">
+            {INCLUDED.map((item) => (
+              <li key={item} className="flex gap-3 text-[15px] leading-relaxed text-neutral-900">
+                <Check aria-hidden="true" className="mt-0.5 h-[18px] w-[18px] shrink-0 text-(--site-accent-ink)" />
+                {item}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-9">
+            <DarkCta href="/signup">Start free</DarkCta>
+            <p className="mt-3 text-[13px] text-neutral-600">No credit card. Nothing in Repairs helper asks for one.</p>
           </div>
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }

@@ -1,59 +1,22 @@
 "use client";
 
 import * as React from "react";
-import {
-  Activity,
-  AppWindow,
-  Bug,
-  Camera,
-  Cpu,
-  DatabaseBackup,
-  Disc3,
-  Droplets,
-  Ellipsis,
-  Hammer,
-  Keyboard,
-  MonitorOff,
-  PowerOff,
-  SprayCan,
-  Volume2,
-  type LucideIcon,
-} from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, IconTile, IssueLines, MoreToggle, NextButton, PhotoTile } from "./tiles";
+import { Field, IconTile, IssueLines, MoreToggle, NextButton, OwnerLink, PhotoTile } from "./tiles";
+import { PROBLEM_ICONS } from "./visuals";
 import {
   deviceTypeOf,
   effectiveSubject,
   isOtherProblem,
   problemOptions,
-  problemVisual,
+  problemVisualFor,
   withProblem,
   type CheckInContext,
   type CheckInState,
   type Issue,
-  type ProblemIcon,
 } from "./flow";
-
-const ICONS: Record<ProblemIcon, LucideIcon> = {
-  water: Droplets,
-  software: AppWindow,
-  virus: Bug,
-  data: DatabaseBackup,
-  power: PowerOff,
-  picture: MonitorOff,
-  sound: Volume2,
-  keyboard: Keyboard,
-  disc: Disc3,
-  damage: Hammer,
-  intermittent: Activity,
-  maintenance: SprayCan,
-  hardware: Cpu,
-  camera: Camera,
-  other: Ellipsis,
-};
 
 /**
  * Step 3: what's wrong. A box per problem (the ones common for this kind of
@@ -67,6 +30,7 @@ export function ProblemStep({
   onChosen,
   onNext,
   issues,
+  canEditOptions = false,
 }: {
   state: CheckInState;
   ctx: CheckInContext;
@@ -75,6 +39,8 @@ export function ProblemStep({
   onChosen: () => void;
   onNext: () => void;
   issues: Issue[];
+  /** The owner: shows the quiet "Add more problems" link to Settings. */
+  canEditOptions?: boolean;
 }) {
   const [noteOpen, setNoteOpen] = React.useState(false);
   const type = deviceTypeOf(state, ctx);
@@ -87,7 +53,7 @@ export function ProblemStep({
       <IssueLines messages={messages} />
       <div role="group" aria-label="Problems" className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
         {options.map((label) => {
-          const visual = problemVisual(label);
+          const visual = problemVisualFor(label, ctx.problemPictures);
           const selected = state.problemType === label;
           const choose = () => {
             setState((current) => withProblem(current, label));
@@ -97,7 +63,7 @@ export function ProblemStep({
           return visual.kind === "photo" ? (
             <PhotoTile key={label} photo={visual.src} title={isOtherProblem(label) ? "Other" : label} selected={selected} onClick={choose} />
           ) : (
-            <IconTile key={label} icon={ICONS[visual.icon]} title={isOtherProblem(label) ? "Other" : label} selected={selected} onClick={choose} />
+            <IconTile key={label} icon={PROBLEM_ICONS[visual.icon]} title={isOtherProblem(label) ? "Other" : label} selected={selected} onClick={choose} />
           );
         })}
       </div>
@@ -150,6 +116,8 @@ export function ProblemStep({
           </div>
         ) : null}
       </div>
+
+      {canEditOptions ? <OwnerLink href="/settings?tab=workflow">Add more problems</OwnerLink> : null}
 
       {state.problemType ? <NextButton onClick={onNext}>Next: Details</NextButton> : null}
     </div>

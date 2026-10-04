@@ -136,7 +136,7 @@ export default async function AppointmentsPage({
         where: { shopId },
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
         take: PICKER_LIMIT,
-        select: { id: true, firstName: true, lastName: true, businessName: true },
+        select: { id: true, firstName: true, lastName: true, businessName: true, phone: true, mobile: true, email: true },
       }),
       db.ticket.findMany({
         where: { shopId },
@@ -176,6 +176,9 @@ export default async function AppointmentsPage({
       label:
         customer.businessName ||
         `${customer.firstName} ${customer.lastName}`.trim(),
+      // A returning customer is found by the number they give at the counter.
+      phone: customer.mobile || customer.phone,
+      email: customer.email,
     })),
     ticketsByCustomer,
     techs: techs.map((tech) => ({ value: tech.id, label: tech.name })),

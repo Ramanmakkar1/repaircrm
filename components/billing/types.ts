@@ -17,6 +17,8 @@ export type ProductOption = {
   priceCents: number;
   taxable: boolean;
   category?: string | null;
+  /** A picture from the on-server library chosen on purpose (null = automatic). */
+  catalogImage?: string | null;
   imageUrl?: string | null;
   /** True when every unit is tracked by serial number. */
   serialized?: boolean;

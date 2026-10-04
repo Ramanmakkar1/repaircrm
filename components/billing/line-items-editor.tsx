@@ -280,7 +280,7 @@ export function LineItemsEditor({
           <div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-base font-semibold">Item {index + 1}</h3><Button type="button" variant="ghost" className="min-h-12 min-w-12 text-destructive" onClick={() => remove(draft.key)} aria-label={"Remove item " + (index + 1)}><ACTIONS.delete /> Remove</Button></div>
           {draft.productId !== CUSTOM ? (() => {
             const product = products.find((item) => item.id === draft.productId);
-            return product ? <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-surface p-3"><ProductImage productId={product.id} name={product.name} category={product.category} imageUrl={product.imageUrl} sizes="80px" className="size-20 shrink-0 rounded-md border border-border" /><span className="min-w-0 break-words text-base font-semibold">{product.name}</span></div> : null;
+            return product ? <div className="mb-4 flex items-center gap-4 rounded-lg border border-border bg-surface p-3"><ProductImage productId={product.id} name={product.name} category={product.category} catalogImage={product.catalogImage} imageUrl={product.imageUrl} sizes="80px" className="size-20 shrink-0 rounded-md border border-border" /><span className="min-w-0 break-words text-base font-semibold">{product.name}</span></div> : null;
           })() : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-sm font-medium sm:col-span-2">Product or service

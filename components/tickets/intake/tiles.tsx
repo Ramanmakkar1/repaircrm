@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Check, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Check, ExternalLink, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Label } from "@/components/ui/label";
@@ -13,16 +14,16 @@ import { Label } from "@/components/ui/label";
  * over 48px. Same family as the Home PictureTile and the Sell screen's tiles.
  */
 
-const TILE =
+export const TILE =
   "group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface text-left transition-[border-color,transform] duration-150 " +
   "active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-function tone(selected: boolean) {
+export function tone(selected: boolean) {
   return selected ? "border-accent ring-1 ring-accent" : "border-border hover:border-ring";
 }
 
-function Tick() {
+export function Tick() {
   return (
     <span aria-hidden className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
       <Check className="size-4" strokeWidth={3} />
@@ -30,12 +31,60 @@ function Tick() {
   );
 }
 
-function Caption({ title, detail }: { title: string; detail?: string }) {
+export function Caption({ title, detail }: { title: string; detail?: string }) {
   return (
     <span className="flex flex-col gap-0.5 px-2 pb-3 pt-2 sm:px-3">
       <span className="text-[15px] font-semibold leading-tight [overflow-wrap:anywhere] sm:text-base lg:text-sm">{title}</span>
       {detail ? <span className="text-[13px] leading-snug text-muted-foreground [overflow-wrap:anywhere]">{detail}</span> : null}
     </span>
+  );
+}
+
+/**
+ * The picture half of a box: a photo on its white canvas (shot on white in every theme), or a clear
+ * icon in a soft square when there is no photo. Shared by the check-in tiles and by the editor in
+ * Settings, so the owner sees exactly what staff will see.
+ */
+export function TileFace({ photo, icon: Icon }: { photo?: string | null; icon?: LucideIcon }) {
+  if (photo) {
+    return (
+      <span className="relative block aspect-[3/2] w-full bg-white">
+        <Image src={photo} alt="" fill sizes="(max-width: 640px) 45vw, 180px" className="object-contain p-1.5" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex aspect-[3/2] w-full items-center justify-center bg-surface-hover text-foreground">
+      {Icon ? <Icon aria-hidden className="size-10" strokeWidth={1.5} /> : null}
+    </span>
+  );
+}
+
+/**
+ * The box that opens a longer list in place ("More devices"). A disclosure, not a choice: it says
+ * aria-expanded rather than aria-pressed, and never shows a tick.
+ */
+export function MoreTile({
+  icon,
+  title,
+  detail,
+  expanded,
+  onClick,
+  className,
+  ...rest
+}: {
+  icon: LucideIcon;
+  title: string;
+  detail?: string;
+  expanded: boolean;
+  onClick: () => void;
+  className?: string;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "title">) {
+  return (
+    <button type="button" aria-expanded={expanded} onClick={onClick} className={cn(TILE, "border-dashed border-border-strong hover:border-ring", "min-h-36", className)} {...rest}>
+      <TileFace icon={icon} />
+      <Caption title={title} detail={detail} />
+    </button>
   );
 }
 
@@ -57,9 +106,7 @@ export function PhotoTile({
 }) {
   return (
     <button type="button" aria-pressed={selected} onClick={onClick} className={cn(TILE, tone(selected), "min-h-36", className)}>
-      <span className="relative block aspect-[3/2] w-full bg-white">
-        <Image src={photo} alt="" fill sizes="(max-width: 640px) 45vw, 180px" className="object-contain p-1.5" />
-      </span>
+      <TileFace photo={photo} />
       <Caption title={title} detail={detail} />
       {selected ? <Tick /> : null}
     </button>
@@ -84,9 +131,7 @@ export function IconTile({
 }) {
   return (
     <button type="button" aria-pressed={selected} onClick={onClick} className={cn(TILE, tone(selected), "min-h-36", className)}>
-      <span className="flex aspect-[3/2] w-full items-center justify-center bg-surface-hover text-foreground">
-        <Icon aria-hidden className="size-10" strokeWidth={1.5} />
-      </span>
+      <TileFace icon={Icon} />
       <Caption title={title} detail={detail} />
       {selected ? <Tick /> : null}
     </button>
@@ -254,5 +299,24 @@ export function NextButton({ children, onClick }: { children: React.ReactNode; o
     <div className="hidden lg:block">
       <Button type="button" onClick={onClick} className="h-14 px-8 text-base">{children}</Button>
     </div>
+  );
+}
+
+/**
+ * A quiet link to Settings, Workflow, where the owner adds boxes. It opens in a new tab so the
+ * repair being checked in is not lost.
+ */
+export function OwnerLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noopener"
+      className="inline-flex min-h-12 items-center gap-1.5 self-start rounded-xl px-1 text-[15px] font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+      <ExternalLink aria-hidden className="size-3.5" />
+      <span className="sr-only">(opens in a new tab)</span>
+    </Link>
   );
 }

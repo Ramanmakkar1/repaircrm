@@ -3,7 +3,17 @@ import { Toaster } from "sonner";
 import { readUiPrefs } from "@/lib/prefs";
 import "./globals.css";
 
+/** Relative metadata URLs (canonical, social image) resolve against the public origin. */
+const siteOrigin = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://repairshelper.com");
+  } catch {
+    return new URL("https://repairshelper.com");
+  }
+})();
+
 export const metadata: Metadata = {
+  metadataBase: siteOrigin,
   title: "Repairs helper",
   description: "Repair shop management, done right.",
   // The manifest lives at app/manifest.ts; naming it here is what puts the

@@ -132,7 +132,7 @@ export function ProductPicturePicker({
   }
 
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-4", className)}>
       <input type="hidden" name={fieldName} value={choice.chosenKey} />
       {/* Phone and tablet standing up: the picture beside its words. Tablet lying down: stacked in a narrow column. */}
       <div className="flex items-center gap-4 lg:flex-col lg:items-stretch">
@@ -170,7 +170,7 @@ export function ProductPicturePicker({
             className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-2 [&::-webkit-scrollbar]:hidden"
           >
             {offered.map((entry) => (
-              <PictureTile key={entry.key} entry={entry} size="small" className="w-[6.75rem] shrink-0 sm:w-auto" onPick={() => onChange(entry.key)} />
+              <PictureTile key={entry.key} entry={entry} size="small" className="w-[6.25rem] shrink-0 sm:w-auto" onPick={() => onChange(entry.key)} />
             ))}
           </div>
         </div>

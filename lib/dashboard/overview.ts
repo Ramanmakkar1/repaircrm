@@ -31,14 +31,15 @@ import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 import { pickupMoney } from "@/components/tickets/pickup-card-facts";
 import { READY_FOR_PICKUP_STATUS, RESOLVED_STATUS, ticketStatuses } from "@/components/tickets/ticket-meta";
 import {
-  DAY_MS,
   averageFinish,
   benchSentence,
   buildNeedsYou,
   buildPipeline,
   buildWorkload,
   compareTakings,
+  countNeedsYou,
   dailyTakings,
+  dayKeyIn,
   dayWords,
   finishWords,
   firstNameOf,
@@ -140,6 +141,8 @@ export type ShopOverview = {
     open: number;
     late: number;
     dueToday: number;
+    /** Customers who wrote in and have not been answered: the Repairs list's "Needs reply" count. */
+    needsReply: number;
     sentence: string;
     /** null when nothing was finished in the last 30 days. */
     finish: { words: string; count: number } | null;
@@ -179,11 +182,14 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
   const locationId = branch.locationId;
   const now = new Date(nowMs);
 
-  // "Today" and the windows around it are Reports' (UTC) days, so every figure here is a figure there.
-  const today = todayWindow(nowMs);
-  const days = reportDays(today.from, 8);
+  // "Today" is the shop's own day, so the shop's time zone is read before any window is cut. One row by primary key.
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { name: true, timezone: true, settings: true } });
+  const zone = safeTimeZone(shop?.timezone);
+  const month = reportDays(nowMs, zone, 30);
+  const days = month.slice(-8);
+  const today = todayWindow(nowMs, zone);
   const weekFrom = days[1].from;
-  const monthFrom = today.from - 29 * DAY_MS;
+  const monthFrom = month[0].from;
 
   // Open work is "not resolved", exactly as the Repairs list reads it.
   const open = { shopId, ...branch, status: { not: RESOLVED_STATUS } } satisfies Prisma.TicketWhereInput;
@@ -193,7 +199,6 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
 
   // ------------------------------------------------------------------ wave 1
   const [
-    shop,
     location,
     statusGroups,
     lateGroups,
@@ -215,7 +220,6 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
     productLines,
     myRepairs,
   ] = await Promise.all([
-    db.shop.findUnique({ where: { id: shopId }, select: { name: true, timezone: true, settings: true } }),
     locationId ? db.location.findFirst({ where: { id: locationId, shopId }, select: { name: true } }) : Promise.resolve(null),
     db.ticket.groupBy({ by: ["status"], where: { shopId, ...branch }, _count: { _all: true } }),
     db.ticket.groupBy({ by: ["status"], where: late, _count: { _all: true } }),
@@ -242,6 +246,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
         id: true,
         number: true,
         updatedAt: true,
+        dueDate: true,
         customer: cardCustomer,
         asset: cardAsset,
         // The newest "moved to Ready for pickup" entry on the timeline, as the pickup counter reads it.
@@ -283,8 +288,6 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
     isTech ? loadMyQueue(shopId, userId, branch) : Promise.resolve([] as MyQueueRow[]),
   ]);
 
-  const zone = safeTimeZone(shop?.timezone);
-
   // ------------------------------------------------------------------ wave 2
   const counts = byStatus(statusGroups);
   const lateCounts = byStatus(lateGroups);
@@ -293,7 +296,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
   const topLines = showMoney ? topProducts(productLines, 5) : [];
   const topIds = topLines.flatMap((line) => (line.productId ? [line.productId] : []));
 
-  const [deviceLists, replyTickets, productRows] = await Promise.all([
+  const [deviceLists, replyTickets, lateReplies, productRows] = await Promise.all([
     // The oldest repairs with a device on each status that has any: one query per status of the pipeline, never per repair.
     Promise.all(
       populated.map((status) =>
@@ -313,9 +316,12 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
           select: { id: true, number: true, lastInboundAt: true, customer: cardCustomer, asset: cardAsset },
         })
       : Promise.resolve([]),
+    // How many of the waiting replies are also late: one repair is one thing to do, not two.
+    replyIds.length ? db.ticket.count({ where: { ...late, id: { in: replyIds.slice(0, 500) } } }) : Promise.resolve(0),
     topIds.length
       ? db.product.findMany({
           where: { shopId, id: { in: topIds } },
+          take: topIds.length,
           select: { id: true, category: true, catalogImage: true, attachments: PRODUCT_IMAGE_SELECT },
         })
       : Promise.resolve([]),
@@ -407,6 +413,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
       callHref: phone ? telHref(phone) : null,
       dueCents: money ? (money.kind === "due" ? money.dueCents : 0) : null,
       invoiceId: money?.invoiceId ?? null,
+      dueAt: ticket.dueDate ? ticket.dueDate.getTime() : null,
     };
   });
   const overdueRepairs: OverdueRepair[] = overdueTickets.flatMap((ticket) =>
@@ -430,7 +437,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
     imageUrl: row.attachments[0] ? `/files/${row.attachments[0].id}` : null,
   }));
 
-  const needsYou = buildNeedsYou({
+  const built = buildNeedsYou({
     now: nowMs,
     showMoney,
     canOrder,
@@ -440,6 +447,23 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
     replies,
     lowStock,
   });
+  // "N more can wait" counts everything that needs you, not only the rows fetched to rank: the lists above are cut to a few.
+  const needsYou = {
+    rows: built.rows,
+    candidates: Math.max(
+      built.candidates,
+      countNeedsYou({
+        now: nowMs,
+        showMoney,
+        lateRepairs: lateTotal,
+        replyIds,
+        lateReplies,
+        readyRepairs,
+        lateInvoices: owedSection?.overdueCount ?? 0,
+        lowStock: lowTotal,
+      }),
+    ),
+  };
 
   // -------------------------------------------------------------- team and demand
   const openByUser = byAssignee(openByAssignee);
@@ -469,6 +493,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
       open: openTotal,
       late: lateTotal,
       dueToday,
+      needsReply: replyIds.length,
       sentence: benchSentence(openTotal, lateTotal),
       finish: finish.count > 0 ? { words: finishWords(finish.meanMs), count: finish.count } : null,
     },
@@ -483,7 +508,7 @@ export async function loadShopOverview(user: DashboardUser, branch: BranchScope,
       startsAt: appointment.startsAt.getTime(),
       day: dayWords(appointment.startsAt.getTime(), nowMs, zone),
       time: timeIn(appointment.startsAt.getTime(), zone),
-      href: `/appointments?date=${appointment.startsAt.toISOString().slice(0, 10)}`,
+      href: `/appointments?date=${dayKeyIn(appointment.startsAt.getTime(), zone)}`,
     })),
     stockWatch: { total: lowTotal, items: lowStock.slice(0, 4) },
     myQueue: isTech

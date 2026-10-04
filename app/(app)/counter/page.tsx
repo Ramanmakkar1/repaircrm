@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { locationWhere } from "@/lib/location";
 import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { TodayStrip } from "@/components/dashboard/today-strip";
 import { HomeTabs, type HomeTab } from "@/components/counter/home-tabs";
 import { asHomeTab, HOME_TAB_COOKIE } from "@/components/counter/home-tab-cookie";
 import { PictureTile, type PictureTileProps } from "@/components/counter/picture-tile";
@@ -105,7 +106,10 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
           <AttentionList items={attention} />
           <SettingsLink className="mt-auto hidden lg:flex" />
         </aside>
-        <HomeTabs tabs={tabs} initial={initial} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <TodayStrip />
+          <HomeTabs tabs={tabs} initial={initial} />
+        </div>
       </div>
       <SettingsLink className="lg:hidden" />
       <SetupChecklist />

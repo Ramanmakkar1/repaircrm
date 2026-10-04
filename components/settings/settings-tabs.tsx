@@ -31,6 +31,7 @@ import {
 import { ShopTab } from "./shop-tab";
 import { TeamTab } from "./team-tab";
 import { WorkflowTab } from "./workflow-tab";
+import type { DeviceKind } from "@/lib/intake-options";
 import type { ChecklistTemplateItem } from "./checklists-card";
 import type { SlaHours } from "@/lib/sla";
 import type { TaxRateOption } from "@/lib/tax";
@@ -93,6 +94,8 @@ export function SettingsTabs({
   shop,
   taxRates,
   problemTypes,
+  deviceKinds,
+  problemPictures,
   ticketStatuses,
   cannedResponses,
   members,
@@ -125,6 +128,10 @@ export function SettingsTabs({
   /** Owner-only; empty for everyone else because the query never ran. */
   taxRates: TaxRateOption[];
   problemTypes: string[];
+  /** Owner-only: the New repair device boxes. The standard list when left out. */
+  deviceKinds?: readonly DeviceKind[];
+  /** Owner-only: a picture chosen for a problem, by name. */
+  problemPictures?: Record<string, string>;
   ticketStatuses: string[];
   cannedResponses: CannedResponseItem[];
   members: TeamMember[];
@@ -214,6 +221,8 @@ export function SettingsTabs({
         <TabsContent value="workflow">
           <WorkflowTab
             problemTypes={problemTypes}
+            deviceKinds={deviceKinds}
+            problemPictures={problemPictures}
             ticketStatuses={ticketStatuses}
             sla={sla}
             checklists={checklists}

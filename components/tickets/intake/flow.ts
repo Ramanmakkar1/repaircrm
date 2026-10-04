@@ -14,6 +14,8 @@ import { INTAKE_OTHER_TYPE, easyIntakeProfile } from "@/lib/device-intake";
 import { newCustomerSchema, newDeviceSchema, promisedIso, quickPromisedLocal, repairSubject } from "@/lib/intake";
 import { formatCents, parseCents } from "@/lib/money";
 import { deviceImageSource } from "@/lib/inventory/product-images";
+import { catalogEntryByKey } from "@/lib/catalog/match";
+import type { DeviceKind } from "@/lib/intake-options";
 import type { SearchCustomer } from "@/lib/customers/search-options";
 
 // ---------------------------------------------------------------------------
@@ -41,6 +43,10 @@ export type CheckInContext = {
   problemTypes: string[];
   locations: Option[];
   checklists: Option[];
+  /** The shop's own device boxes (Settings, Workflow). Absent: the standard list. */
+  deviceKinds?: readonly DeviceKind[];
+  /** A picture chosen for a problem, by the problem's name. Absent or missing a problem: the guessed picture or icon. */
+  problemPictures?: Record<string, string>;
 };
 
 // ---------------------------------------------------------------------------
@@ -269,6 +275,27 @@ export function problemVisual(label: string): ProblemVisual {
   if (/hardware|board|chip|motherboard/.test(text)) return icon("hardware");
   if (/camera|lens/.test(text)) return icon("camera");
   return photo("repair-tools");
+}
+
+/**
+ * The picture key the shop chose for a problem box. The exact name first, then ignoring case, then
+ * the same box under another wording ("Screen" and "Screen Repair" are one box, see problemKey).
+ */
+export function chosenProblemPicture(label: string, pictures: Record<string, string> | undefined): string {
+  if (!pictures) return "";
+  const names = Object.keys(pictures);
+  const exact = names.find((name) => name === label) ?? names.find((name) => name.toLowerCase() === label.toLowerCase());
+  if (exact) return pictures[exact];
+  const key = problemKey(label);
+  if (!key || key === "other") return "";
+  const alike = names.find((name) => problemKey(name) === key);
+  return alike ? pictures[alike] : "";
+}
+
+/** problemVisual, unless the shop chose a picture for this problem. */
+export function problemVisualFor(label: string, pictures?: Record<string, string>): ProblemVisual {
+  const entry = catalogEntryByKey(chosenProblemPicture(label, pictures));
+  return entry ? { kind: "photo", src: entry.image } : problemVisual(label);
 }
 
 // ---------------------------------------------------------------------------

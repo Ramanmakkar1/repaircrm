@@ -17,10 +17,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const product = await db.product.findFirst({
     where: { id, shopId: session.shopId },
-    select: { name: true, category: true, attachments: PRODUCT_IMAGE_SELECT, automaticPhoto: true },
+    select: { name: true, category: true, catalogImage: true, attachments: PRODUCT_IMAGE_SELECT, automaticPhoto: true },
   });
   if (!product) return missing();
-  const source = productImageSource({ name: product.name, category: product.category, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null });
+  const source = productImageSource({ name: product.name, category: product.category, catalogImage: product.catalogImage, imageUrl: product.attachments[0] ? `/files/${product.attachments[0].id}` : null });
   const row = product.automaticPhoto;
   if (source.src || row?.shopId !== session.shopId || row.status !== "ready" || row.lookupKey !== automaticPhotoLookupKey(product.name) || !row.path || !row.storage || !row.mimeType || !["image/jpeg", "image/png", "image/webp"].includes(row.mimeType)) return missing();
   const object = await readUpload(row.storage, row.path);

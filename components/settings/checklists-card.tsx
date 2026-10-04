@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ACTIONS, ICONS } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,10 @@ const NONE = "none";
  * that type is created; one without is offered in a picker instead. Attaching
  * COPIES the steps, so editing a template here never rewrites a job already in
  * progress.
+ *
+ * The link is by the problem's exact name, so a template whose problem is no
+ * longer on the list (removed, or a list that was reset) attaches to nothing.
+ * Its row says so in words rather than letting it look fine.
  */
 export function ChecklistsCard({
   templates,
@@ -101,6 +106,7 @@ export function ChecklistsCard({
             <TemplateRow
               key={template.id}
               template={template}
+              listed={!template.problemType || problemTypes.includes(template.problemType)}
               onEdit={() => setEditing(template)}
             />
           ))
@@ -125,9 +131,12 @@ export function ChecklistsCard({
 
 function TemplateRow({
   template,
+  listed,
   onEdit,
 }: {
   template: ChecklistTemplateItem;
+  /** False when the template names a problem that is not on the shop's list any more. */
+  listed: boolean;
   onEdit: () => void;
 }) {
   const router = useRouter();
@@ -168,16 +177,26 @@ function TemplateRow({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-hover/50 px-4 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
         <span className="truncate text-[14.5px] font-bold text-foreground">
           {template.name}
         </span>
         <span className="truncate text-[14px] text-muted-foreground">
           {template.items.length} step{template.items.length === 1 ? "" : "s"}
           {template.problemType
-            ? ` · auto-attaches to ${template.problemType}`
+            ? listed
+              ? ` · auto-attaches to ${template.problemType}`
+              : ""
             : " · picked by hand"}
         </span>
+        {template.problemType && !listed ? (
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-muted-foreground">
+            <StatusPill tone="danger" size="sm" label="Not attached" />
+            <span>
+              “{template.problemType}” is not on your problem list, so this checklist is not added to new repairs. Edit it to pick another problem.
+            </span>
+          </span>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -315,6 +334,10 @@ function TemplateDialog({
               </SelectTrigger>
               <SelectContent className="max-h-64">
                 <SelectItem value={NONE}>Nothing — pick it by hand</SelectItem>
+                {/* A problem that left the list is still what this checklist says; show it, and say so. */}
+                {problemType !== NONE && !problemTypes.includes(problemType) ? (
+                  <SelectItem value={problemType}>{problemType} (not on your list)</SelectItem>
+                ) : null}
                 {problemTypes.map((type) => (
                   <SelectItem key={type} value={type}>
                     {type}

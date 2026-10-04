@@ -216,7 +216,7 @@ export function ItemsStep({
                 key={item.key}
                 label={item.label}
                 detail={itemsLabel(item.count)}
-                photo={groupPhoto(item.key, item.label, () => productImageSource({ name: item.first.name, category: item.first.category }).src ?? null)}
+                photo={groupPhoto(item.key, item.label, () => productImageSource({ name: item.first.name, category: item.first.category, catalogImage: item.first.catalogImage }).src ?? null)}
                 onClick={() => setShelf(item.key)}
               />
             ))}
@@ -301,6 +301,7 @@ export function ProductTile({ product, count, onClick, bySerial = false }: { pro
           productId={product.id}
           name={product.name}
           category={product.category}
+          catalogImage={product.catalogImage}
           imageUrl={product.imageUrl}
           className="aspect-[3/2] w-full rounded-none bg-white p-1"
           sizes="(max-width: 639px) 44vw, (max-width: 1023px) 30vw, 160px"

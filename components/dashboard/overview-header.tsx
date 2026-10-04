@@ -48,7 +48,8 @@ function BigLink({ href, icon: Icon, primary, children }: { href: string; icon: 
       href={href}
       data-touch-control
       className={cn(
-        "inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl px-6 text-lg font-semibold sm:min-w-44",
+        // nowrap + a tighter phone padding: "New repair" must stay on one line in a half-width button at 390px.
+        "inline-flex h-14 items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-3 text-lg font-semibold sm:min-w-44 sm:gap-2.5 sm:px-6",
         "transition-[background-color,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         primary ? "bg-accent text-accent-foreground hover:bg-accent-hover" : "border-2 border-accent bg-surface text-foreground hover:bg-surface-hover",

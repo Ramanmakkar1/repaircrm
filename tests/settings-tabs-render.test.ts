@@ -20,6 +20,7 @@ vi.mock("@/app/(app)/settings/actions", () =>
     "resendInviteAction",
     "resetUserTotpAction",
     "saveCannedResponseAction",
+    "saveIntakeOptionsAction",
     "setUserActiveAction",
     "updateCheckinAction",
     "updatePublicHubAction",

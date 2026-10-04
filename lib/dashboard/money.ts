@@ -3,8 +3,9 @@
  *
  * Server-only (it pulls in Prisma). Every query is filtered by the session's
  * `shopId`; the branch follows the document it belongs to, the same way
- * components/reports/query.ts does it, so a number here is the number on
- * /reports for the same day and the same branch.
+ * components/reports/query.ts does it, and the money is counted the way Reports
+ * counts it (payments minus refunds), so for a shop on UTC a number here is the
+ * number on /reports for the same day and branch.
  *
  * Callers must check `canSeeMoney(role)` BEFORE calling anything in this file:
  * a technician's page never runs these queries at all, rather than running them
@@ -14,8 +15,7 @@
 import { db } from "@/lib/db";
 import { customerLabel } from "@/components/customers/format";
 import { primaryPhone, telHref } from "@/components/customers/customer-facts";
-import { resolveReportPeriod } from "@/components/reports/period";
-import { DAY_MS, type OwedInvoice, type PaymentRow, type ProductLine, type RefundRow } from "./logic";
+import { reportDays, type OwedInvoice, type PaymentRow, type ProductLine, type RefundRow } from "./logic";
 
 /** Owners and front desk see money; technicians do not. Same rule as the Reports page. */
 export function canSeeMoney(role: string): boolean {
@@ -23,14 +23,17 @@ export function canSeeMoney(role: string): boolean {
 }
 
 /**
- * Today as Reports defines it: a UTC calendar day. Asking Reports' own period
- * maths (a one-day custom range) is what keeps the two screens in step if that
- * convention ever changes.
+ * Today on the shop's own wall calendar: from its local midnight to the next
+ * one. A sale rung at 10pm on Saturday belongs to Saturday, which is the day the
+ * owner is looking at, not to the UTC Sunday it has already become.
+ *
+ * Reports cuts its days at UTC midnight (components/reports/period.ts), so for a
+ * shop in another zone the same date key opens a window shifted by the zone's
+ * offset there. For a shop on UTC the two windows are identical.
  */
-export function todayWindow(nowMs: number): { key: string; from: number; toExclusive: number } {
-  const key = new Date(nowMs).toISOString().slice(0, 10);
-  const period = resolveReportPeriod({ period: "custom", from: key, to: key }, new Date(nowMs));
-  return { key, from: period.from.getTime(), toExclusive: period.from.getTime() + DAY_MS };
+export function todayWindow(nowMs: number, zone: string): { key: string; from: number; toExclusive: number } {
+  const { key, from, toExclusive } = reportDays(nowMs, zone, 1)[0];
+  return { key, from, toExclusive };
 }
 
 /** Payments and refunds in [from, toExclusive): everything the takings figures are made of. */

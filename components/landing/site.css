@@ -1,0 +1,184 @@
+/*
+ * Repairs helper public website.
+ *
+ * Imported once, from components/landing/repairs-home.tsx. Everything is scoped
+ * under `.site`, so nothing here can leak into the signed-in app.
+ *
+ * THE BRAND ORANGE LIVES ON ONE LINE: `--site-accent` below. Change it there and
+ * the hero gauge, dots, buttons and highlights all follow. The two darker
+ * variants are derived from it so small text and white-on-orange buttons keep
+ * WCAG AA contrast (the raw orange is only about 3.6:1 on white):
+ *   --site-accent       fills, dots, icons, gauge ticks, large text
+ *   --site-accent-fill  background of buttons that carry white 14px text (4.7:1)
+ *   --site-accent-ink   small orange text on white / the light tray (4.8:1+)
+ */
+
+.site {
+  --site-accent: #ef4d23;
+
+  /* Fallbacks for browsers without color-mix(); same maths, written out. */
+  --site-accent-fill: #ce421e;
+  --site-accent-ink: #bf3e1c;
+
+  --site-ink: #0b0f1a; /* dark CTA + headline ink */
+  --site-page: #ededed; /* the frame the whole page sits on */
+  --site-hero: #d9d9d9; /* hero base, shown until the video / poster paints */
+  --site-tray: #f5f2ee; /* warm light panels */
+  --site-poster: url("/marketing/hero/hero-poster.webp");
+
+  color-scheme: light;
+  color: var(--site-ink);
+  background-color: var(--site-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@supports (color: color-mix(in srgb, red 50%, black)) {
+  .site {
+    --site-accent-fill: color-mix(in srgb, var(--site-accent) 86%, black);
+    --site-accent-ink: color-mix(in srgb, var(--site-accent) 80%, black);
+  }
+}
+
+/* The app's global base sets a dark page and 14px text; the website is always light. */
+html:has(.site) {
+  color-scheme: light;
+  background: #ededed;
+  scroll-behavior: smooth;
+}
+body:has(.site) {
+  background: #ededed;
+  color: #0b0f1a;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(.site) {
+    scroll-behavior: auto;
+  }
+}
+
+/*
+ * Real Tailwind corner sizes for the website.
+ *
+ * The signed-in app deliberately caps rounded-xl / 2xl / 3xl at 8 / 12 / 12px
+ * (@theme inline in app/globals.css). The website is meant to have big soft
+ * corners: the hero container is 16px on a phone and 24px from 40rem up, the
+ * dashboard tray and every section panel are 24px, the cards 16px.
+ *
+ * @theme inline writes those caps as literal values, so a variable override on
+ * .site cannot work. These rules sit outside every cascade layer, so they beat
+ * the utilities without needing !important. Keep one rule per utility the
+ * landing code uses, including each responsive variant (tests/landing-hero.test.ts
+ * fails when a class is used without a rule here).
+ */
+.site .rounded-xl {
+  border-radius: 0.75rem; /* 12px */
+}
+.site .rounded-2xl {
+  border-radius: 1rem; /* 16px */
+}
+.site .rounded-3xl {
+  border-radius: 1.5rem; /* 24px */
+}
+@media (min-width: 40rem) {
+  .site .sm\:rounded-3xl {
+    border-radius: 1.5rem;
+  }
+}
+
+/* One emphasised word per heading: Instrument Serif italic, loaded by next/font. */
+.site .site-serif {
+  font-family: var(--site-font-serif), "Instrument Serif", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.site .site-h2 {
+  font-size: clamp(32px, 5.2vw, 56px);
+  line-height: 1.05;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.site .site-lede {
+  font-size: clamp(16px, 0.9vw + 12px, 19px);
+  line-height: 1.55;
+  color: #404040;
+  text-wrap: pretty;
+}
+
+/* Visible focus on every interactive element: a dark ring, offset so it never touches the shape. */
+.site :is(a, button, input, summary, select, textarea):focus-visible {
+  outline: 2px solid var(--site-ink);
+  outline-offset: 3px;
+}
+
+/* Skip link: first thing a keyboard user reaches. */
+.site .site-skip {
+  position: absolute;
+  left: 16px;
+  top: -80px;
+  z-index: 60;
+  border-radius: 9999px;
+  background: var(--site-ink);
+  color: #fff;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: top 0.15s;
+}
+.site .site-skip:focus {
+  top: 16px;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+/*
+ * Base colour, then the poster as a plain CSS background: the first frame of the
+ * same clip, hosted here. The frame therefore never goes empty and never jumps:
+ * it shows while the video loads, if the video fails or is blocked, and (video
+ * hidden) for visitors who prefer reduced motion, and it is the same sky the
+ * dark headline was designed over. While the video plays it covers the poster.
+ */
+.site .site-hero {
+  background: var(--site-hero) var(--site-poster) center / cover no-repeat;
+}
+@media (max-width: 767px) {
+  .site {
+    --site-poster: url("/marketing/hero/hero-poster-mobile.webp");
+  }
+}
+
+/* The spec's calc(100vh - ...) is kept; browsers that know dvh follow the mobile address bar instead. */
+@supports (height: 100dvh) {
+  .site .site-hero {
+    height: calc(100dvh - 24px);
+  }
+  @media (min-width: 40rem) {
+    .site .site-hero {
+      height: calc(100dvh - 32px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site .site-hero-video {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ misc */
+
+.site details > summary {
+  list-style: none;
+}
+.site details > summary::-webkit-details-marker {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

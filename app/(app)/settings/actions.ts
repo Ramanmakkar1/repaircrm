@@ -16,7 +16,19 @@ import {
   issueResetToken,
   sendInviteEmail,
 } from "@/lib/password-reset";
-import { RESOLVED_STATUS } from "@/components/tickets/ticket-meta";
+import { RESOLVED_STATUS, problemTypes as readProblemTypes } from "@/components/tickets/ticket-meta";
+import {
+  addDeviceKind,
+  checkDeviceKinds,
+  checkProblemTypes,
+  cleanProblemPictures,
+  cleanProblemRenames,
+  defaultPictureKey,
+  deviceKindsFor,
+  problemPicturesFor,
+  type SaveIntakeOptionsInput,
+  type SaveIntakeOptionsResult,
+} from "@/lib/intake-options";
 import {
   CHECKIN_OPTIONAL_FIELDS,
   DEFAULT_REVIEW_DELAY_HOURS,
@@ -231,9 +243,18 @@ export async function updateWorkflowAction(input: {
   });
   if (!shop) return { ok: false, error: "Shop not found." };
 
+  // A picture belongs to a problem by name: one whose problem just left the list goes with it.
+  // Only touched when the shop has chosen pictures, so a shop that never did is left exactly as it was.
+  const hasPictures = settingsHasKey(shop.settings, "problemPictures");
   await db.shop.update({
     where: { id: session.shopId },
-    data: { settings: mergeSettings(shop.settings, { problemTypes, ticketStatuses }) },
+    data: {
+      settings: mergeSettings(shop.settings, {
+        problemTypes,
+        ticketStatuses,
+        ...(hasPictures ? { problemPictures: problemPicturesFor(shop.settings, problemTypes) } : {}),
+      }),
+    },
   });
 
   await audit({
@@ -253,6 +274,138 @@ export async function updateWorkflowAction(input: {
   // Both lists feed the ticket pickers and the board columns.
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+function settingsHasKey(settings: Prisma.JsonValue | null | undefined, key: string): boolean {
+  return Boolean(settings && typeof settings === "object" && !Array.isArray(settings) && key in settings);
+}
+
+/**
+ * Only the shape of the request is checked here (zod); what is inside each list is checked, in
+ * words, by lib/intake-options.ts, which the editor and the tests use too.
+ */
+const intakeOptionsInput = z.object({
+  deviceKinds: z.array(z.unknown()).max(200).optional(),
+  problemTypes: z.array(z.unknown()).max(200).optional(),
+  problemPictures: z.record(z.string(), z.unknown()).optional(),
+  reset: z.array(z.enum(["devices", "problems"])).max(2).optional(),
+  addDevice: z.object({ label: z.string().max(200), image: z.string().max(80).optional() }).optional(),
+  // Only the shape: which of these still make sense is decided against the saved list (cleanProblemRenames).
+  renamed: z.array(z.unknown()).max(40).optional(),
+});
+
+/**
+ * "Your devices and your problems": the boxes the New repair check-in shows. ONE action for every
+ * change (add, rename, re-picture, hide, move, remove, reset, and the check-in's quick add), so a
+ * list is always saved whole and in order.
+ *
+ * Stored in Shop.settings (deviceKinds, problemTypes, problemPictures) with mergeSettings, so the
+ * rest of the blob survives and no migration is needed. Removing a problem or a device from a list
+ * never touches a repair or a saved device: those keep their own text.
+ *
+ * A checklist finds its repairs by the problem's exact name (ChecklistTemplate.problemType, matched in
+ * tickets/actions.ts when a repair is created). So a problem that is RENAMED (`renamed`, from the
+ * editor) takes its checklists with it, in the same transaction as the list; a problem that is merely
+ * removed leaves its checklists alone, so Undo (which saves the old list again) links them back.
+ */
+export async function saveIntakeOptionsAction(input: SaveIntakeOptionsInput): Promise<SaveIntakeOptionsResult> {
+  const { session, denied } = await ownerOnly();
+  if (denied) return { ok: false, error: denied };
+
+  const parsed = intakeOptionsInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Those changes could not be read. Reload the page and try again." };
+  const asked = parsed.data;
+  if (!asked.deviceKinds && !asked.problemTypes && !asked.problemPictures && !asked.reset?.length && !asked.addDevice) {
+    return { ok: false, error: "There is nothing to save." };
+  }
+
+  const shop = await db.shop.findUnique({
+    where: { id: session.shopId },
+    select: { settings: true },
+  });
+  if (!shop) return { ok: false, error: "Shop not found." };
+
+  // Work on a plain copy of the blob; a reset removes a key, which mergeSettings alone cannot do.
+  const next: Record<string, unknown> =
+    shop.settings && typeof shop.settings === "object" && !Array.isArray(shop.settings) ? { ...(shop.settings as Record<string, unknown>) } : {};
+  if (asked.reset?.includes("devices")) delete next.deviceKinds;
+  if (asked.reset?.includes("problems")) {
+    delete next.problemTypes;
+    delete next.problemPictures;
+  }
+
+  if (asked.deviceKinds) {
+    const checked = checkDeviceKinds(asked.deviceKinds);
+    if (!checked.ok) return checked;
+    next.deviceKinds = checked.kinds;
+  }
+
+  if (asked.addDevice) {
+    const label = asked.addDevice.label;
+    const added = addDeviceKind(deviceKindsFor(next), { label, image: asked.addDevice.image ?? defaultPictureKey(label) });
+    if (!added.ok) return added;
+    next.deviceKinds = added.value;
+  }
+
+  let problems = readProblemTypes(next);
+  if (asked.problemTypes) {
+    const checked = checkProblemTypes(asked.problemTypes);
+    if (!checked.ok) return checked;
+    problems = checked.problems;
+    next.problemTypes = problems;
+  }
+
+  // Pictures follow the list: the ones sent, else the ones stored, minus any problem no longer there.
+  const pictures = cleanProblemPictures(asked.problemPictures ?? next.problemPictures, problems);
+  if (Object.keys(pictures).length > 0) next.problemPictures = pictures;
+  else delete next.problemPictures;
+
+  const write = db.shop.update({
+    where: { id: session.shopId },
+    data: { settings: next as Prisma.InputJsonValue },
+  });
+  const moves = cleanProblemRenames(asked.renamed, problems);
+  let checklistsMoved = 0;
+  if (moves.length === 0) {
+    await write;
+  } else {
+    // The list and the checklists change together or not at all. `shopId` is the session's, and a
+    // retired checklist moves too, so that undoing its deletion finds it on the right problem.
+    const done = await db.$transaction([
+      write,
+      ...moves.map(({ from, to }) =>
+        db.checklistTemplate.updateMany({ where: { shopId: session.shopId, problemType: from }, data: { problemType: to } }),
+      ),
+    ]);
+    checklistsMoved = (done.slice(1) as { count: number }[]).reduce((sum, result) => sum + result.count, 0);
+  }
+
+  const deviceKinds = deviceKindsFor(next);
+  await audit({
+    shopId: session.shopId,
+    userId: session.userId,
+    action: "settings.updated",
+    entity: "settings",
+    entityId: session.shopId,
+    summary: asked.addDevice
+      ? `Device “${asked.addDevice.label.trim().slice(0, 40)}” added to the check-in`
+      : asked.reset?.length
+        ? "Devices and problems put back to the standard list"
+        : "Devices and problems saved",
+    meta: {
+      section: "devices-and-problems",
+      devices: deviceKinds.length,
+      hiddenDevices: deviceKinds.filter((kind) => kind.hidden).length,
+      problems: problems.length,
+      ...(asked.reset?.length ? { reset: asked.reset } : {}),
+      ...(moves.length ? { renamedProblems: moves.length, checklistsMoved } : {}),
+    },
+  });
+
+  // The editor lives on Settings; the boxes are used on the New repair screen.
+  revalidatePath("/settings");
+  revalidatePath("/tickets/new");
+  return { ok: true, deviceKinds, problemTypes: problems, problemPictures: pictures, ...(checklistsMoved > 0 ? { checklistsMoved } : {}) };
 }
 
 // ---------------------------------------------------------------------------

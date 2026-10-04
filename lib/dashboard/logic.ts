@@ -10,8 +10,11 @@
  *  - Money is integer cents. Whole-dollar amounts read "$40" in a sentence and
  *    every other amount reads "$40.50"; the big figures use `formatCents` so
  *    they match Reports to the cent.
- *  - "Today" is a UTC calendar day, exactly like components/reports/period.ts,
- *    so a number here is the same number on /reports for the same day.
+ *  - "Today" is the shop's own calendar day, in the time zone saved on the shop
+ *    (Settings), the same clock the greeting and the date in the header use. A
+ *    sale rung at 10pm on Saturday is Saturday's takings, whatever UTC says.
+ *    Reports still cuts its days at UTC midnight, so the two agree to the cent
+ *    for a shop on UTC and differ by the zone's offset elsewhere.
  *  - Timestamps are epoch milliseconds, so the whole overview is plain JSON.
  *  - Words, never colour alone: every status or warning has its text here.
  */
@@ -38,19 +41,20 @@ export function plainMoney(cents: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Days (UTC, like Reports)
+// Days, in the shop's own time zone
 // ---------------------------------------------------------------------------
 
+// A calendar date travels as that date at UTC midnight, so these formatters read the date and never shift it.
 const narrowWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "narrow" });
 const longWeekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long" });
 const dayLabelFormat = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "short", day: "numeric" });
 
 export type ReportDay = {
-  /** `yyyy-mm-dd`, the UTC day. */
+  /** `yyyy-mm-dd`, the shop's calendar day. */
   key: string;
-  /** Inclusive start, UTC midnight, epoch ms. */
+  /** The instant the day starts in the shop's zone (epoch ms). */
   from: number;
-  /** Exclusive end. */
+  /** The instant the next day starts: 23 or 25 hours after `from` on a day the clocks change. */
   toExclusive: number;
   /** "S", "M", "T"... */
   initial: string;
@@ -62,22 +66,75 @@ export type ReportDay = {
   isToday: boolean;
 };
 
-/** The last `count` UTC days ending today, oldest first. `todayStart` is UTC midnight of today. */
-export function reportDays(todayStart: number, count: number): ReportDay[] {
-  return Array.from({ length: count }, (_, index) => {
-    const from = todayStart - (count - 1 - index) * DAY_MS;
-    const date = new Date(from);
-    return {
-      key: date.toISOString().slice(0, 10),
-      from,
-      toExclusive: from + DAY_MS,
-      initial: narrowWeekday.format(date),
-      dayOfMonth: date.getUTCDate(),
-      weekday: longWeekday.format(date),
-      label: dayLabelFormat.format(date),
-      isToday: index === count - 1,
-    };
-  });
+const wallFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** The clock on the wall in `zone` at an instant: the calendar date, and the same reading as a UTC timestamp. */
+function wallOf(ms: number, zone: string): { year: number; month: number; day: number; asUtc: number } {
+  let format = wallFormats.get(zone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+    wallFormats.set(zone, format);
+  }
+  const parts = format.formatToParts(new Date(ms));
+  const part = (type: string) => Number(parts.find((entry) => entry.type === type)?.value);
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  return { year, month, day, asUtc: Date.UTC(year, month - 1, day, part("hour") % 24, part("minute"), part("second")) };
+}
+
+const ymd = (date: Date) => date.toISOString().slice(0, 10);
+
+/** `yyyy-mm-dd` of an instant on the shop's wall calendar. */
+export function dayKeyIn(ms: number, zone: string): string {
+  const { year, month, day } = wallOf(ms, safeTimeZone(zone));
+  return ymd(new Date(Date.UTC(year, month - 1, day)));
+}
+
+/**
+ * The instant a calendar day (month 1-12) starts in `zone`: midnight there. The
+ * zone's offset is read where midnight falls, so a day with a clock change is
+ * still cut at the right instant. A day whose midnight does not exist (clocks
+ * jump at 00:00) starts at its first minute.
+ */
+export function startOfZonedDay(year: number, month: number, day: number, zone: string): number {
+  const tz = safeTimeZone(zone);
+  const target = Date.UTC(year, month - 1, day);
+  const dateAt = (ms: number) => {
+    const wall = wallOf(ms, tz);
+    return Date.UTC(wall.year, wall.month - 1, wall.day);
+  };
+  const offsetAt = (ms: number) => wallOf(ms, tz).asUtc - Math.floor(ms / 1000) * 1000;
+  let start = target - offsetAt(target);
+  start = target - offsetAt(start);
+  // Midnight skipped by a clock change: step forward to the first real minute of the day.
+  for (let step = 0; step < 3 && dateAt(start) < target; step++) start += HOUR_MS;
+  // Midnight that happens twice: the day starts at the first one.
+  for (let step = 0; step < 3 && dateAt(start - 1) === target; step++) start -= HOUR_MS;
+  return start;
+}
+
+/**
+ * The last `count` days of the shop's calendar ending today, oldest first.
+ * Days step by calendar date, not by 24 hours, so a clock change cannot slide
+ * a day's edge into its neighbour.
+ */
+export function reportDays(nowMs: number, zone: string, count: number): ReportDay[] {
+  const tz = safeTimeZone(zone);
+  const { year, month, day } = wallOf(nowMs, tz);
+  // count + 1 starts: each day ends where the next one begins.
+  const dates = Array.from({ length: count + 1 }, (_, index) => new Date(Date.UTC(year, month - 1, day - (count - 1) + index)));
+  const starts = dates.map((date) => startOfZonedDay(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), tz));
+  return dates.slice(0, count).map((date, index) => ({
+    key: ymd(date),
+    from: starts[index],
+    toExclusive: starts[index + 1],
+    initial: narrowWeekday.format(date),
+    dayOfMonth: date.getUTCDate(),
+    weekday: longWeekday.format(date),
+    label: dayLabelFormat.format(date),
+    isToday: index === count - 1,
+  }));
 }
 
 /** The Reports page for one day. */
@@ -139,13 +196,14 @@ export function longDateIn(nowMs: number, zone: string): string {
   return new Intl.DateTimeFormat("en-US", { timeZone: safeTimeZone(zone), weekday: "long", month: "long", day: "numeric" }).format(new Date(nowMs));
 }
 
-/** "Today", "Tomorrow" or "Mon, Oct 5", measured in the shop's zone. */
+/** "Today", "Tomorrow" or "Mon, Oct 5", measured on the shop's wall calendar. */
 export function dayWords(at: number, nowMs: number, zone: string): string {
   const timeZone = safeTimeZone(zone);
-  const key = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
-  const target = key(at);
-  if (target === key(nowMs)) return "Today";
-  if (target === key(nowMs + DAY_MS)) return "Tomorrow";
+  const target = dayKeyIn(at, timeZone);
+  const { year, month, day } = wallOf(nowMs, timeZone);
+  if (target === dayKeyIn(nowMs, timeZone)) return "Today";
+  // Tomorrow by calendar date, not "24 hours from now": a day with a clock change is not 24 hours long.
+  if (target === ymd(new Date(Date.UTC(year, month - 1, day + 1)))) return "Tomorrow";
   return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short", month: "short", day: "numeric" }).format(new Date(at));
 }
 
@@ -183,7 +241,7 @@ export type DayTakings = {
 };
 
 /** One entry per day, in the order of `days`; an empty day is all zeros, never missing. */
-export function dailyTakings(days: readonly ReportDay[], payments: readonly PaymentRow[], refunds: readonly RefundRow[]): DayTakings[] {
+export function dailyTakings(days: readonly Pick<ReportDay, "key" | "from" | "toExclusive">[], payments: readonly PaymentRow[], refunds: readonly RefundRow[]): DayTakings[] {
   const rows: DayTakings[] = days.map((day) => ({ key: day.key, grossCents: 0, refundCents: 0, netCents: 0, cashCents: 0, cardCents: 0, otherCents: 0 }));
   const indexOf = (at: number) => days.findIndex((day) => at >= day.from && at < day.toExclusive);
   for (const payment of payments) {
@@ -552,6 +610,8 @@ export type ReadyRepair = {
   /** null when the viewer may not see money, else what is still owed (0 when settled). */
   dueCents: number | null;
   invoiceId: string | null;
+  /** The repair's due date, when it has one: a ready repair past it is already counted as late. */
+  dueAt?: number | null;
 };
 export type ReplyWaiting = { id: string; number: number; customer: string; device: DeviceRef | null; deviceLabel: string | null; since: number };
 export type LowStockItem = {
@@ -580,6 +640,15 @@ export function orderMoreHref(input: { canOrder: boolean; productId: string; ven
 /** "Out of stock" / "2 left". */
 export function stockLeftWords(stockQty: number): string {
   return stockQty <= 0 ? "Out of stock" : `${stockQty} left`;
+}
+
+/**
+ * Does a ready repair earn a row, and which? Unpaid when money is still owed
+ * (and the viewer may see it); otherwise only once it has sat for three days.
+ */
+export function readyRowKind(repair: ReadyRepair, now: number, showMoney: boolean): "ready-unpaid" | "ready-waiting" | null {
+  if (showMoney && repair.dueCents != null && repair.dueCents > 0) return "ready-unpaid";
+  return Math.floor(Math.max(0, now - repair.readySince) / DAY_MS) >= 3 ? "ready-waiting" : null;
 }
 
 export function buildNeedsYou(input: {
@@ -614,25 +683,27 @@ export function buildNeedsYou(input: {
   }
 
   for (const repair of input.readyRepairs) {
-    const waited = Math.max(0, now - repair.readySince);
-    const days = Math.floor(waited / DAY_MS);
+    const kind = readyRowKind(repair, now, showMoney);
+    if (!kind) continue;
+    const days = Math.floor(Math.max(0, now - repair.readySince) / DAY_MS);
     const label = deviceOrRepair(repair.deviceLabel, repair.number);
     const visual: NeedsYouVisual = { kind: "device", device: repair.device, label };
-    if (showMoney && repair.dueCents != null && repair.dueCents > 0) {
+    if (kind === "ready-unpaid") {
+      const dueCents = repair.dueCents ?? 0;
       rows.push({
         key: `ready-unpaid:${repair.id}`,
-        kind: "ready-unpaid",
+        kind,
         ticketId: repair.id,
         tag: "Unpaid",
-        score: 950 + Math.min(days, 30) * 8 + Math.min(Math.floor(repair.dueCents / 10_000), 50),
-        sentence: `${repair.customer} can collect their ${repair.deviceLabel ?? "device"}, but still owes ${plainMoney(repair.dueCents)}.`,
+        score: 950 + Math.min(days, 30) * 8 + Math.min(Math.floor(dueCents / 10_000), 50),
+        sentence: `${repair.customer} can collect their ${repair.deviceLabel ?? "device"}, but still owes ${plainMoney(dueCents)}.`,
         visual,
         action: { label: "Take payment", href: repair.invoiceId ? `/invoices/${repair.invoiceId}` : `/tickets/${repair.id}` },
       });
-    } else if (days >= 3) {
+    } else {
       rows.push({
         key: `ready-waiting:${repair.id}`,
-        kind: "ready-waiting",
+        kind,
         ticketId: repair.id,
         tag: "Ready",
         score: 700 + Math.min(days, 60) * 5,
@@ -686,26 +757,59 @@ export function buildNeedsYou(input: {
   }
 
   // One row per repair: when a repair is both late and ready, say the most pressing thing once.
-  const bestForTicket = new Map<string, NeedsYouRow>();
-  for (const row of rows) {
-    if (!row.ticketId) continue;
-    const best = bestForTicket.get(row.ticketId);
-    if (!best || row.score > best.score) bestForTicket.set(row.ticketId, row);
-  }
-  const unique = rows.filter((row) => !row.ticketId || bestForTicket.get(row.ticketId) === row);
+  const repairs = new Set(rows.flatMap((row) => (row.ticketId ? [row.ticketId] : [])));
+  const candidates = rows.filter((row) => !row.ticketId).length + repairs.size;
 
-  return { rows: rankNeedsYou(unique, input.limit ?? NEEDS_YOU_LIMIT), candidates: unique.length };
+  return { rows: rankNeedsYou(rows, input.limit ?? NEEDS_YOU_LIMIT), candidates };
 }
 
-/** Highest score first, never more than the cap of one kind, at most `limit` rows. */
+/**
+ * How many different things need the owner, counting the ones the lists are too
+ * short to fetch: the figure behind "N more can wait". A repair is one thing
+ * however many reasons it has (late and waiting for a reply, late and ready), so
+ * a reply or a ready repair that is already counted as late adds nothing.
+ */
+export function countNeedsYou(input: {
+  now: number;
+  showMoney: boolean;
+  /** Every open repair past its due date, however many were fetched. */
+  lateRepairs: number;
+  /** Ids of every repair waiting for a reply. */
+  replyIds: readonly string[];
+  /** How many of those are also late. */
+  lateReplies: number;
+  /** The ready repairs that were fetched (the most that are looked at). */
+  readyRepairs: readonly ReadyRepair[];
+  /** Every overdue invoice (0 when the viewer may not see money). */
+  lateInvoices: number;
+  /** Every product at or below its reorder point. */
+  lowStock: number;
+}): number {
+  const waiting = new Set(input.replyIds);
+  const repliesNotLate = Math.max(0, waiting.size - input.lateReplies);
+  const readyNotCounted = input.readyRepairs.filter(
+    (repair) => readyRowKind(repair, input.now, input.showMoney) !== null && !(repair.dueAt != null && repair.dueAt < input.now) && !waiting.has(repair.id),
+  ).length;
+  return input.lateRepairs + repliesNotLate + readyNotCounted + input.lateInvoices + input.lowStock;
+}
+
+/**
+ * Highest score first, never more than the cap of one kind, at most `limit`
+ * rows, and never two rows for one repair. A repair's lesser row still gets its
+ * turn when its best row was left out by a cap: three late repairs fill the
+ * "overdue" quota, but a customer waiting for a reply on a fourth is still shown.
+ */
 export function rankNeedsYou(rows: readonly NeedsYouRow[], limit = NEEDS_YOU_LIMIT): NeedsYouRow[] {
   const sorted = [...rows].sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
   const taken: Record<string, number> = {};
+  const repairs = new Set<string>();
   const out: NeedsYouRow[] = [];
   for (const row of sorted) {
     if (out.length >= limit) break;
+    if (row.ticketId && repairs.has(row.ticketId)) continue;
     if ((taken[row.kind] ?? 0) >= KIND_CAP[row.kind]) continue;
     taken[row.kind] = (taken[row.kind] ?? 0) + 1;
+    if (row.ticketId) repairs.add(row.ticketId);
     out.push(row);
   }
   return out;

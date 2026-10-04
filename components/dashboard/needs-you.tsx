@@ -11,7 +11,9 @@ import { RowVisual } from "./thumbs";
 /**
  * "Needs you now": the few things most worth doing right now, ranked, each one
  * a picture, one plain sentence and ONE big button. When there is nothing, a
- * calm "all caught up" with the next sensible action.
+ * calm "all caught up" with the next sensible action. `candidates` is every
+ * different thing that needs you (a repair counts once), so "N more can wait"
+ * is the true number left off the list.
  */
 export function NeedsYouSection({ rows, candidates }: { rows: readonly NeedsYouRow[]; candidates: number }) {
   const hidden = Math.max(0, candidates - rows.length);
@@ -29,7 +31,7 @@ export function NeedsYouSection({ rows, candidates }: { rows: readonly NeedsYouR
 
 export function NeedsYouList({ rows }: { rows: readonly NeedsYouRow[] }) {
   return (
-    <ul className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+    <ul className="grid gap-3 lg:grid-cols-2">
       {rows.map((row) => (
         <li key={row.key} className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 rounded-2xl border border-border bg-surface p-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_auto]">
           <RowVisual visual={row.visual} />

@@ -70,6 +70,7 @@ export function LineRow({
           productId={product.id}
           name={product.name}
           category={product.category}
+          catalogImage={product.catalogImage}
           imageUrl={product.imageUrl}
           className="mt-0.5 size-10 shrink-0 rounded-md"
           sizes="40px"

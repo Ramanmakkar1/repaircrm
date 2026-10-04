@@ -96,7 +96,7 @@ export function ProductImage({ productId, name, category, imageUrl, catalogImage
           {showFallbackLabel ? <span className="text-center text-xs">{image.kind === "service" ? "Service" : "No product photo"}</span> : null}
         </div>
       )}
-      {showFallbackLabel && image.illustrative && image.src && !failedSources.includes(image.src) ? <span className="absolute bottom-2 rounded bg-white px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Picture</span> : null}
+      {showFallbackLabel && image.illustrative && image.src && !failedSources.includes(image.src) ? <span className="absolute bottom-2 rounded bg-white px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Category image</span> : null}
       {credit && image.src && !failedSources.includes(image.src) ? <span className="absolute inset-x-1 bottom-1 bg-white px-1 text-center text-[10px] leading-tight text-muted-foreground" title={`${credit.title} · ${credit.author} · ${credit.license} · ${credit.sourceUrl}${credit.changes ? ` · ${credit.changes}` : ""}`}>
         {showFallbackLabel ? <span className="mb-0.5 block font-medium">Internet reference</span> : null}
         {showAttributionLinks ? <><a href={credit.sourceUrl} target="_blank" rel="noreferrer" className="underline">{credit.author}</a> · <a href={credit.licenseUrl} target="_blank" rel="noreferrer" className="underline">{credit.license}</a>{credit.changes ? <span className="mt-0.5 block">Resized / WebP</span> : null}</> : <span className="line-clamp-2">{credit.author} · {credit.license}{credit.changes ? " · resized" : ""}</span>}

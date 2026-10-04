@@ -56,7 +56,7 @@ export const OWNER_PANELS: SettingsPanel[] = [
     value: "workflow",
     label: "Workflow",
     blurb:
-      "Problem types, ticket statuses, response targets and repair checklists.",
+      "The devices and problems you repair, ticket statuses, response targets and repair checklists.",
     group: "Shop",
     icon: ListChecks,
   },

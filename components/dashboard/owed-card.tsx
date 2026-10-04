@@ -8,45 +8,49 @@ import type { OwedSection } from "@/lib/dashboard/overview";
 import { Panel } from "./panel";
 
 /**
- * "Owed to you": what customers still owe, who owes the most, and one big
- * button to collect it. The balance of each invoice is the one the invoices
- * list shows (payments in, refunds paid back out), so the total here is the sum
- * of the "due" amounts on /invoices?status=unpaid.
+ * "Owed to you": what customers still owe, who owes the most (each with a Call
+ * button) and one big button to collect it. The balance of each invoice is the
+ * one the invoices list shows (payments in, refunds paid back out), so the total
+ * here is the sum of the "due" amounts on /invoices?status=unpaid.
  */
 export function OwedCard({ owed, className }: { owed: OwedSection; className?: string }) {
   const nothingOwed = owed.count === 0;
   return (
-    <Panel aria-labelledby="owed-title" className={cn("flex flex-col gap-3", className)}>
-      <div className="flex items-start justify-between gap-3">
+    <Panel aria-labelledby="owed-title" className={cn("flex flex-col gap-2 p-4 sm:p-4", className)}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="owed-title" className="text-lg font-semibold leading-tight">
+          Owed to you
+        </h2>
+        {owed.overdueCount > 0 ? (
+          <span className="inline-flex items-center gap-1 rounded-lg bg-status-overdue-bg px-2 py-1 text-sm font-semibold leading-none text-status-overdue-fg">
+            <Clock className="size-3.5" aria-hidden />
+            {owed.overdueCount} {owed.overdueCount === 1 ? "invoice" : "invoices"} overdue
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
-          <h2 id="owed-title" className="text-lg font-semibold">
-            Owed to you
-          </h2>
-          <p className="rf-num mt-1 text-4xl font-semibold leading-none tracking-tight" data-testid="owed-amount">
+          <p className="rf-num text-4xl font-semibold leading-none tracking-tight" data-testid="owed-amount">
             {formatCents(owed.totalCents)}
             {owed.truncated ? "+" : ""}
           </p>
+          <p className="mt-1 text-sm text-muted-foreground">{nothingOwed ? "No unpaid invoices" : `${owed.count} unpaid ${owed.count === 1 ? "invoice" : "invoices"}`}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1 text-right text-sm">
-          <span className="font-medium text-muted-foreground">{nothingOwed ? "No unpaid invoices" : `${owed.count} unpaid ${owed.count === 1 ? "invoice" : "invoices"}`}</span>
-          {owed.overdueCount > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-lg bg-status-overdue-bg px-2 py-1 font-semibold text-status-overdue-fg">
-              <Clock className="size-3.5" aria-hidden />
-              {owed.overdueCount} overdue
-            </span>
-          ) : null}
-        </div>
+        <Button asChild className="h-12 min-w-40 flex-1 text-base sm:flex-none">
+          <Link href="/invoices?status=unpaid">Collect payments</Link>
+        </Button>
       </div>
 
       {nothingOwed ? (
-        <p className="flex flex-1 items-center gap-2 rounded-xl bg-surface-hover px-3 py-4 text-[15px] font-medium text-muted-foreground">
+        <p className="flex items-center gap-2 rounded-xl bg-surface-hover px-3 py-4 text-[15px] font-medium text-muted-foreground">
           <CircleCheck className="size-5 shrink-0" aria-hidden />
           Nobody owes you anything right now.
         </p>
       ) : (
-        <ul className="flex flex-col gap-1.5" aria-label="Customers who owe the most">
+        <ul className="flex flex-col divide-y divide-border" aria-label="Customers who owe the most">
           {owed.customers.map((customer) => (
-            <li key={customer.customerId} className="flex items-center gap-2 rounded-xl border border-border pl-3 pr-1 py-1">
+            <li key={customer.customerId} className="flex items-center gap-2 py-px">
               <Link
                 href={`/customers/${customer.customerId}`}
                 data-touch-control
@@ -69,10 +73,6 @@ export function OwedCard({ owed, className }: { owed: OwedSection; className?: s
           ))}
         </ul>
       )}
-
-      <Button asChild className="mt-auto h-12 w-full text-base">
-        <Link href="/invoices?status=unpaid">Collect payments</Link>
-      </Button>
     </Panel>
   );
 }

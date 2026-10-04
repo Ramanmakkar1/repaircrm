@@ -1,80 +1,87 @@
-import { ChevronIcon } from "./icons";
+import { Plus } from "lucide-react";
+
+import { Panel, Serif } from "./ui";
 
 /**
- * Native <details>/<summary> disclosures: keyboard-operable, findable by the
- * browser's own in-page search, and zero JavaScript — the landing page ships
- * as a pure server component and stays that way.
- *
- * The answers are deliberately the honest ones. Two of the six say "no".
+ * Native <details> disclosures: keyboard-operable, found by the browser's own
+ * in-page search, and no JavaScript. Several answers are honest "not yet"s.
  */
 
-const FAQS = [
+export const FAQS = [
   {
-    q: "Is my data mine?",
-    a: "Your shop's records belong to you. Owners can export customers, invoices, payments and report data to CSV. A complete archive of every record is not available yet. Repairs helper does not sell your shop records.",
+    q: "Do I need new hardware?",
+    a: "No. Repairs helper runs in the browser on the tablet, phone or computer you already have. Take card payments on a supported connected terminal, or record payments from the card machine you already own.",
   },
   {
-    q: "Can customers pay online?",
-    a: "Stripe and Square payment connections are implemented, but they must be configured and tested before activation. Stripe supports our target countries (New Zealand, the US, Canada and the UK); Square supports the US, Canada and UK. Until a provider is connected, record counter payments as cash, card, cheque or store credit.",
+    q: "Can I switch between Easy mode and Full view?",
+    a: "Yes. Easy mode gives you big picture boxes for the counter, with New repair and New sale always one tap away. Full view adds the Shop overview and dense tables. Both use the same records, and every tool stays reachable from Home under More tools.",
   },
   {
-    q: "Will my existing EFTPOS terminal update the invoice automatically?",
-    a: "Only if it is a compatible terminal connected through a supported payment provider. Stripe Terminal and Square Terminal workflows are implemented; a generic EFTPOS machine will not automatically report its payment to Repairs helper. Confirm your provider and reader model before relying on automatic settlement.",
-  },
-  {
-    q: "Does it work on a tablet at the counter?",
-    a: "Yes. Repairs helper runs in the browser with nothing to install, and every screen is laid out to work from a phone up to a shop monitor — so a tablet on the counter is a first-class way to use it. Intake photos use the tablet's own camera, and the wall display has a full-screen mode for a spare monitor.",
+    q: "What can the AI assistant do?",
+    a: "Look up shop information, summarise repair tickets, draft customer replies and help with everyday tasks. Type a request or use voice input. It asks you to confirm changes and respects shop permissions. Free-form requests need a connected AI provider, and voice depends on your browser and your shop’s setup.",
   },
   {
     q: "Do I need a credit card to start?",
-    a: "No. There is no billing anywhere in the product right now. Signing up creates your shop and your owner account, adds a default location, and drops you straight into the dashboard. That's the whole process.",
+    a: "No. There is no billing anywhere in the product right now. Signing up creates your shop and your owner account, and you can start right away.",
   },
   {
-    q: "Can I import my data from RepairShopr or another system?",
-    a: "There is no one-click migration from another repair platform yet. You can import customer and product lists from CSV. Repair tickets and their history must be recreated manually or left in the previous system for now.",
+    q: "Can customers pay online?",
+    a: "Stripe and Square payment connections are implemented, but they must be configured and tested before activation. Until a provider is connected, record counter payments as cash, card, cheque or store credit.",
+  },
+  {
+    q: "Will my existing card machine update the invoice automatically?",
+    a: "Only if it is a compatible terminal connected through a supported payment provider. Stripe Terminal and Square Terminal are supported; a generic bank terminal will not report its payment to Repairs helper by itself, so you record that payment manually. Confirm your provider and reader model before relying on automatic settlement.",
   },
   {
     q: "Do the emails and text messages actually go out?",
-    a: "The messaging workflows are implemented, but email and SMS providers must be configured on the service before real messages leave. The current test setup logs messages instead of delivering them. Verify password recovery, portal links, customer updates and follow-ups after a sender is configured.",
+    a: "The messaging workflows are built, but email and SMS providers must be set up for your shop before real messages leave. Check password recovery, portal links and customer updates after you connect a sender.",
+  },
+  {
+    q: "Can I bring my customers and stock with me?",
+    a: "Yes. Import customers and products from a spreadsheet or CSV, review the preview, then save. There is no one-click migration of repair history from another system yet.",
+  },
+  {
+    q: "Where do website enquiries go?",
+    a: "Into Leads. Connect a Splitforms form on your website to collect the device, the problem and the customer’s contact details.",
+  },
+  {
+    q: "Is my data mine?",
+    a: "Your shop’s records belong to you. Owners can export customers, invoices, payments and report data to CSV. A complete archive of every record is not available yet. Repairs helper does not sell your shop records.",
   },
 ];
 
 export function Faq() {
   return (
-    <section
-      id="faq"
-      aria-labelledby="faq-heading"
-      className="scroll-mt-16 border-t border-border py-20 sm:py-28"
-    >
-      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8">
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)] lg:gap-16">
-          <div>
-            <p className="text-[12.5px] font-bold uppercase tracking-[0.14em] text-accent">
-              Questions
-            </p>
-            <h2
-              id="faq-heading"
-              className="mt-3 text-[32px] font-bold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-[40px]"
+    <Panel id="faq" labelledBy="faq-title" tone="tray">
+      <div className="mx-auto grid max-w-[1120px] gap-10 lg:grid-cols-12 lg:gap-14">
+        <div className="lg:col-span-4">
+          <h2 id="faq-title" className="site-h2">
+            Questions owners ask <Serif>first</Serif>
+          </h2>
+          <p className="site-lede mt-5">Short, honest answers, including the “not yet” ones.</p>
+        </div>
+        <div className="space-y-2 lg:col-span-8">
+          {FAQS.map((faq, i) => (
+            <details
+              key={faq.q}
+              name="faq"
+              open={i === 0}
+              className="group rounded-2xl bg-white px-5 sm:px-6"
             >
-              The ones worth asking first.
-            </h2>
-          </div>
-
-          <div className="divide-y divide-border border-y border-border">
-            {FAQS.map((faq) => (
-              <details key={faq.q} className="group py-1">
-                <summary className="flex cursor-pointer list-none items-center gap-4 rounded-sm py-4 text-[15.5px] font-semibold tracking-tight text-foreground transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-                  <span className="min-w-0 flex-1">{faq.q}</span>
-                  <ChevronIcon className="size-[18px] shrink-0 text-faint-foreground transition-transform duration-200 group-open:-rotate-180" />
-                </summary>
-                <p className="max-w-2xl pb-5 pr-8 text-[14.5px] leading-relaxed text-muted-foreground">
-                  {faq.a}
-                </p>
-              </details>
-            ))}
-          </div>
+              <summary className="flex min-h-14 cursor-pointer items-center gap-4 py-4 text-[17px] font-medium tracking-tight text-neutral-900">
+                <span className="min-w-0 flex-1">{faq.q}</span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-(--site-tray) text-neutral-900 transition-transform group-open:rotate-45"
+                >
+                  <Plus className="h-4 w-4" />
+                </span>
+              </summary>
+              <p className="max-w-2xl pb-5 text-[15px] leading-relaxed text-neutral-700">{faq.a}</p>
+            </details>
+          ))}
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }

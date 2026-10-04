@@ -48,6 +48,7 @@ import type {
 } from "@/components/settings/types";
 import type { ProfileValues } from "@/components/settings/profile-types";
 import { problemTypes, ticketStatuses } from "@/components/tickets/ticket-meta";
+import { deviceKindsFor, problemPicturesFor } from "@/lib/intake-options";
 import { readSla } from "@/lib/sla";
 import { parseTemplateItems } from "@/lib/checklist";
 import { readLabourSettings } from "@/lib/labour";
@@ -559,6 +560,8 @@ export default async function SettingsPage({
         // the built-in defaults otherwise. Editing therefore starts from what
         // the ticket pickers are actually showing today.
         problemTypes={problemTypes(shop.settings)}
+        deviceKinds={deviceKindsFor(shop.settings)}
+        problemPictures={problemPicturesFor(shop.settings, problemTypes(shop.settings))}
         ticketStatuses={ticketStatuses(shop.settings)}
         cannedResponses={cannedResponses}
         profile={profileValues}

@@ -1,11 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Ban, Pencil, Plus } from "lucide-react";
+import { Ban, ChevronUp, Ellipsis, Package, Pencil, Plus } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { INTAKE_DEVICE_KINDS, INTAKE_OTHER_TYPE, easyIntakeProfile, easyModelOptions } from "@/lib/device-intake";
-import { Block, ChipButton, Field, IconTile, IssueLines, MoreToggle, NextButton, PhotoTile, TextTile } from "./tiles";
+import { INTAKE_OTHER_TYPE, easyIntakeProfile, easyModelOptions } from "@/lib/device-intake";
+import {
+  DEFAULT_DEVICE_KINDS,
+  FIRST_SCREEN_BOXES,
+  MAX_KIND_LABEL,
+  kindPicture,
+  tidy,
+  visibleDeviceKinds,
+  type DeviceKind,
+  type SaveIntakeOptions,
+} from "@/lib/intake-options";
+import { Block, ChipButton, Field, IconTile, IssueLines, MoreTile, MoreToggle, NextButton, OwnerLink, PhotoTile, TextTile } from "./tiles";
 import {
   NEW,
   customerName,
@@ -26,6 +36,9 @@ import {
 } from "./flow";
 
 const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4";
+
+/** When the shop has more than this many boxes, the last slot is "More devices", which opens the rest in place. */
+const FIRST_SCREEN = FIRST_SCREEN_BOXES;
 
 /** A choice already made, shown small with a way to change it. */
 function Crumb({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
@@ -55,6 +68,8 @@ export function DeviceStep({
   onAdvance,
   onNext,
   issues,
+  saveOptions,
+  onKindsChanged,
 }: {
   state: CheckInState;
   ctx: CheckInContext;
@@ -64,12 +79,28 @@ export function DeviceStep({
   /** The Next button (the same one the phone's bar has). */
   onNext: () => void;
   issues: Issue[];
+  /** The owner only: saves a new device box ("Add this to my devices") and shows the links to Settings. */
+  saveOptions?: SaveIntakeOptions;
+  /** The shop's device list after "Add this to my devices". */
+  onKindsChanged?: (kinds: DeviceKind[]) => void;
 }) {
   const [more, setMore] = React.useState(false);
+  const [allKinds, setAllKinds] = React.useState(false);
+  const [addedLabel, setAddedLabel] = React.useState("");
+  const gridRef = React.useRef<HTMLDivElement>(null);
+  const toggled = React.useRef(false);
+  // Opening the rest puts the cursor on the first new box; closing it puts it back on the toggle.
+  React.useEffect(() => {
+    if (!toggled.current) return;
+    toggled.current = false;
+    if (allKinds) gridRef.current?.querySelectorAll("button")[FIRST_SCREEN - 1]?.focus();
+    else gridRef.current?.querySelector<HTMLButtonElement>("[data-more-devices]")?.focus();
+  }, [allKinds]);
   const saved = savedAssets(state, ctx);
   const isNew = state.assetId === NEW;
   const stage = state.deviceStage;
-  const kind = INTAKE_DEVICE_KINDS.find((item) => item.type === state.device.type);
+  const kinds = ctx.deviceKinds ?? DEFAULT_DEVICE_KINDS;
+  const kind = kinds.find((item) => item.type === state.device.type);
   const isOther = isNew && (state.device.type === INTAKE_OTHER_TYPE || (!kind && state.device.type !== ""));
   const messages = issues.filter((issue) => issue.step === 1).map((issue) => issue.message);
   const owner = customerName(state, ctx);
@@ -113,10 +144,19 @@ export function DeviceStep({
   }
 
   const chosen = isNew && state.device.type !== "" && stage !== "kind";
+  const addedNote = addedLabel && state.device.type === addedLabel ? `“${addedLabel}” is now one of your devices.` : "";
+  const shown = visibleDeviceKinds(kinds);
+  const folded = shown.length > FIRST_SCREEN;
+  // A box the person already chose from the folded part keeps the list open, so it is never hidden from them.
+  const choseFolded = folded && isNew && shown.slice(FIRST_SCREEN - 1).some((item) => item.type === state.device.type);
+  const open = !folded || allKinds || choseFolded;
+  const tiles = open ? shown : shown.slice(0, FIRST_SCREEN - 1);
 
   return (
     <div className="flex flex-col gap-5">
       <IssueLines messages={messages} />
+      <p role="status" className="sr-only">{addedNote}</p>
+      {addedNote ? <p aria-hidden className="text-[14px] font-medium text-muted-foreground">{addedNote}</p> : null}
       {chosen ? (
         <div className="flex flex-wrap items-center gap-2">
           <Crumb onClick={() => setState((current) => ({ ...current, deviceStage: "kind" }))}>{kind?.label ?? state.device.type}</Crumb>
@@ -128,16 +168,28 @@ export function DeviceStep({
 
       {!chosen ? (
         <div role="group" aria-label="Kind of device" className="flex flex-col gap-3">
-          <div className={GRID}>
-            {INTAKE_DEVICE_KINDS.map((item) => (
-              <PhotoTile
-                key={item.type}
-                photo={`/images/products/${item.photo}.webp`}
-                title={item.label}
+          <div ref={gridRef} className={GRID}>
+            {tiles.map((item) => (
+              <KindTile
+                key={item.id}
+                kind={item}
                 selected={isNew && state.device.type === item.type}
                 onClick={() => setState((current) => withDeviceKind(current, item.type, ctx.problemTypes))}
               />
             ))}
+            {folded && !choseFolded ? (
+              <MoreTile
+                icon={open ? ChevronUp : Ellipsis}
+                title={open ? "Fewer devices" : "More devices"}
+                detail={open ? undefined : `${shown.length - (FIRST_SCREEN - 1)} more`}
+                expanded={open}
+                onClick={() => {
+                  toggled.current = true;
+                  setAllKinds((current) => !current);
+                }}
+                data-more-devices=""
+              />
+            ) : null}
           </div>
           <button
             type="button"
@@ -152,14 +204,19 @@ export function DeviceStep({
             <span>No device</span>
             <span className="text-[15px] font-normal text-muted-foreground">Skip, I&apos;ll add it later</span>
           </button>
-          {saved.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => setState((current) => withSavedDevice(current, ""))}
-              className="min-h-12 self-start rounded-xl px-1 text-[15px] font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Back to saved devices
-            </button>
+          {saved.length > 0 || saveOptions ? (
+            <div className="flex flex-wrap items-center gap-x-6">
+              {saved.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setState((current) => withSavedDevice(current, ""))}
+                  className="min-h-12 self-start rounded-xl px-1 text-[15px] font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Back to saved devices
+                </button>
+              ) : null}
+              {saveOptions ? <OwnerLink href="/settings?tab=workflow">Add more devices</OwnerLink> : null}
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -179,6 +236,17 @@ export function DeviceStep({
                   className="h-14 text-lg"
                 />
               </Field>
+              {saveOptions ? (
+                <AddToDevices
+                  typed={state.device.type}
+                  kinds={kinds}
+                  saveOptions={saveOptions}
+                  onAdded={(label, next) => {
+                    setAddedLabel(label);
+                    onKindsChanged?.(next);
+                  }}
+                />
+              ) : null}
             </Block>
           ) : (
             <Block title="Which brand?" hint="Tap one, or skip it.">
@@ -244,6 +312,73 @@ export function DeviceStep({
       ) : null}
 
       {chosen ? <NextButton onClick={onNext}>{deviceNextLabel(state)}</NextButton> : null}
+    </div>
+  );
+}
+
+/** One device box: its picture, or the neutral icon when the owner chose none. */
+function KindTile({ kind, selected, onClick }: { kind: DeviceKind; selected: boolean; onClick: () => void }) {
+  const picture = kindPicture(kind);
+  return picture ? (
+    <PhotoTile photo={picture.image} title={kind.label} selected={selected} onClick={onClick} />
+  ) : (
+    <IconTile icon={Package} title={kind.label} selected={selected} onClick={onClick} />
+  );
+}
+
+/**
+ * Under the "What is it?" field, for the owner only: a device the shop does not list yet can be
+ * added to the list in one tap, with the best picture the library has for the name. Quiet text,
+ * no navigation; once added the box exists and the offer is gone.
+ */
+function AddToDevices({
+  typed,
+  kinds,
+  saveOptions,
+  onAdded,
+}: {
+  typed: string;
+  kinds: readonly DeviceKind[];
+  saveOptions: SaveIntakeOptions;
+  /** The label that was added and the shop's whole list after it. */
+  onAdded: (label: string, kinds: DeviceKind[]) => void;
+}) {
+  const [phase, setPhase] = React.useState<"idle" | "saving">("idle");
+  const [error, setError] = React.useState("");
+  const label = tidy(typed);
+  const listed = kinds.some((item) => item.label.toLowerCase() === label.toLowerCase() || item.type.toLowerCase() === label.toLowerCase());
+  const offer = label.length >= 2 && label.length <= MAX_KIND_LABEL && label.toLowerCase() !== INTAKE_OTHER_TYPE.toLowerCase() && !listed;
+
+  async function add() {
+    setPhase("saving");
+    setError("");
+    try {
+      const result = await saveOptions({ addDevice: { label } });
+      if (result.ok) {
+        onAdded(label, result.deviceKinds);
+      } else {
+        setError(result.error);
+      }
+    } catch {
+      setError("We could not reach the server. Try again.");
+    }
+    setPhase("idle");
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {offer ? (
+        <button
+          type="button"
+          disabled={phase === "saving"}
+          onClick={add}
+          className="inline-flex min-h-12 items-center gap-1.5 self-start rounded-xl px-1 text-[15px] font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        >
+          <Plus aria-hidden className="size-4" />
+          {phase === "saving" ? "Adding…" : `Add “${label}” to my devices`}
+        </button>
+      ) : null}
+      {error ? <p role="alert" className="text-[14px] font-medium text-destructive">{error}</p> : null}
     </div>
   );
 }

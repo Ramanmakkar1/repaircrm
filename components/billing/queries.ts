@@ -56,6 +56,7 @@ export async function loadDocumentFormData(shopId: string): Promise<{
         priceCents: true,
         taxable: true,
         category: true,
+        catalogImage: true,
         attachments: PRODUCT_IMAGE_SELECT,
         serialized: true,
         // A serialized line picks one of these; anything already sold is

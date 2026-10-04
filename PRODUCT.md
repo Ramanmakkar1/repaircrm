@@ -37,8 +37,11 @@ shop's everyday workspace.
 - Start Easy mode at a Home built like a register: New repair and New sale
   pinned as the two big buttons, a Needs attention list under them, and tabs for
   Counter, Stock & purchasing and Shop management. Settings stays a separate
-  row. Keep every tool reachable: the longer list lives under More tools, which
-  also holds Shop overview (the old dashboard).
+  row. Keep every tool reachable: the longer list lives under More tools. A slim
+  Today strip (takings today, owed to you, ready for pickup) sits above the tabs
+  for owners and front desk and opens Shop overview: the owner's morning page
+  (money today and the last 7 days, who owes, repairs on the bench, what needs
+  you now). Every block on it is something to act on, never decoration.
 - Treat the signed-in experience as a touch application on phones, tablets,
   and counter PCs: no website masthead or footer, clear Home and Back controls,
   and at least 48px controls in Easy mode.

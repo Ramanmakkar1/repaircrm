@@ -33,6 +33,7 @@ import {
   type WarrantyOption,
 } from "./flow";
 import type { SearchCustomer } from "@/lib/customers/search-options";
+import { DEFAULT_DEVICE_KINDS, type DeviceKind, type SaveIntakeOptions } from "@/lib/intake-options";
 
 export type EasyCheckInProps = {
   customers: SearchCustomer[];
@@ -45,6 +46,15 @@ export type EasyCheckInProps = {
   checklists?: Option[];
   warrantiesByCustomer?: Record<string, WarrantyOption[]>;
   slaHint?: string;
+  /** The shop's device boxes (Settings, Workflow). The standard list when left out. */
+  deviceKinds?: readonly DeviceKind[];
+  /** A picture chosen for a problem, by the problem's name. */
+  problemPictures?: Record<string, string>;
+  /**
+   * The owner only: the one action that saves the device and problem boxes. Its presence
+   * switches on "Add this to my devices" and the "Add more devices / problems" links.
+   */
+  saveOptions?: SaveIntakeOptions;
 };
 
 /**
@@ -67,11 +77,17 @@ export function EasyCheckIn({
   checklists = [],
   warrantiesByCustomer = {},
   slaHint,
+  deviceKinds = DEFAULT_DEVICE_KINDS,
+  problemPictures,
+  saveOptions,
 }: EasyCheckInProps) {
   const [server, formAction, pending] = useActionState(createTicketAction, EMPTY_STATE);
+  // "Add this to my devices" changes the list without leaving the check-in; the page's own copy follows on its next load.
+  const [addedKinds, setAddedKinds] = React.useState<readonly DeviceKind[] | null>(null);
+  const kinds = addedKinds ?? deviceKinds;
   const ctx = React.useMemo<CheckInContext>(
-    () => ({ customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists }),
-    [customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists],
+    () => ({ customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, deviceKinds: kinds, problemPictures }),
+    [customers, assetsByCustomer, warrantiesByCustomer, techs, problemTypes, locations, checklists, kinds, problemPictures],
   );
 
   const [state, setState] = React.useState<CheckInState>(() => initialState({ customerId: defaultCustomerId, locationId: defaultLocationId }));
@@ -193,8 +209,10 @@ export function EasyCheckIn({
             </div>
 
             {step === 0 ? <CustomerStep state={state} ctx={ctx} setState={setState} onChosen={() => goTo(1)} onNext={goNext} issues={issues} /> : null}
-            {step === 1 ? <DeviceStep state={state} ctx={ctx} setState={setState} onAdvance={() => goTo(2)} onNext={goNext} issues={issues} /> : null}
-            {step === 2 ? <ProblemStep state={state} ctx={ctx} setState={setState} onChosen={() => goTo(3)} onNext={goNext} issues={issues} /> : null}
+            {step === 1 ? (
+              <DeviceStep state={state} ctx={ctx} setState={setState} onAdvance={() => goTo(2)} onNext={goNext} issues={issues} saveOptions={saveOptions} onKindsChanged={setAddedKinds} />
+            ) : null}
+            {step === 2 ? <ProblemStep state={state} ctx={ctx} setState={setState} onChosen={() => goTo(3)} onNext={goNext} issues={issues} canEditOptions={Boolean(saveOptions)} /> : null}
             {step === 3 ? <DetailsStep state={state} ctx={ctx} setState={setState} issues={issues} slaHint={slaHint} /> : null}
           </section>
 

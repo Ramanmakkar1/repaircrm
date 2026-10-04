@@ -1,96 +1,86 @@
 import Link from "next/link";
 
-import { RepairPilotMark, RepairPilotWordmark } from "@/components/brand/repairpilot";
+import { RepairPilotWordmark } from "@/components/brand/repairpilot";
+
+import { BrandMark } from "./brand";
 
 /**
  * The year is computed on the server at render time. The landing page is
  * already dynamic (it reads the session cookie to decide whether to redirect),
  * so this never bakes a stale year into a static build.
  */
-export function LandingFooter() {
-  const year = new Date().getFullYear();
 
+export const FOOTER_GROUPS = [
+  {
+    title: "Product",
+    links: [
+      { label: "Check-in & repairs", href: "#check-in" },
+      { label: "Payments", href: "#payments" },
+      { label: "Stock pictures", href: "#stock" },
+      { label: "AI assistant", href: "#assistant" },
+    ],
+  },
+  {
+    title: "Shop",
+    links: [
+      { label: "Sign in", href: "/login" },
+      // Customers land on this page too, usually chasing their own repair.
+      { label: "Check your repair", href: "/portal" },
+      { label: "Pricing", href: "#pricing" },
+      { label: "Questions", href: "#faq" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+    ],
+  },
+] as const;
+
+const link =
+  "inline-flex min-h-9 items-center text-[15px] text-neutral-700 transition-colors hover:text-black";
+
+export function SiteFooter() {
+  const year = new Date().getFullYear();
   return (
-    <footer className="border-t border-border bg-surface-hover/50">
-      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
-        <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-sm">
-            <div className="flex items-center gap-2.5">
-              <RepairPilotMark className="size-9" />
-              <span className="flex flex-col leading-tight">
-                <RepairPilotWordmark className="text-base text-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  Repair shop
-                </span>
-              </span>
-            </div>
-            <p className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
-              Built for repair shops — phone and tablet, computer, console,
-              mail-in and on-site IT.
+    <footer className="rounded-2xl bg-(--site-tray) px-5 py-12 sm:rounded-3xl sm:px-10 sm:py-14 lg:px-16">
+      <div className="mx-auto max-w-[1120px]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div>
+            <Link href="/" className="inline-flex items-center gap-2.5">
+              <BrandMark className="size-10" />
+              <RepairPilotWordmark className="text-xl text-neutral-900" />
+            </Link>
+            <p className="mt-4 max-w-xs text-[15px] leading-relaxed text-neutral-700">
+              Made for independent repair shops: phones, computers, consoles, TVs and drones.
             </p>
           </div>
-
-          <nav aria-label="Footer" className="flex flex-col gap-3 sm:items-end">
-            <a
-              href="#features"
-              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Features
-            </a>
-            <a
-              href="#pricing"
-              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Pricing
-            </a>
-            <a
-              href="#faq"
-              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              FAQ
-            </a>
-            <Link
-              href="/login"
-              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Sign in
-            </Link>
-            {/*
-              Customers arrive on this page too — usually chasing their own
-              repair, having typed the shop's software name into a search box.
-              The footer is where they go looking for it.
-            */}
-            <Link
-              href="/portal"
-              className="rounded-sm text-[14px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Customer portal
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-sm text-[14px] font-semibold text-accent transition-colors hover:text-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              Start free
-            </Link>
-          </nav>
+          {FOOTER_GROUPS.map((group) => (
+            <nav key={group.title} aria-label={`Footer ${group.title.toLowerCase()}`}>
+              <p className="text-[13px] font-semibold text-neutral-900">{group.title}</p>
+              <ul className="mt-2">
+                {group.links.map((l) => (
+                  <li key={l.label}>
+                    {l.href.startsWith("#") ? (
+                      <a href={l.href} className={link}>
+                        {l.label}
+                      </a>
+                    ) : (
+                      <Link href={l.href} className={link}>
+                        {l.label}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
-
-        <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] text-faint-foreground">© {year} Repairs helper</p>
-          <nav aria-label="Legal" className="flex gap-5">
-            <Link
-              href="/privacy"
-              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Privacy
-            </Link>
-            <Link
-              href="/terms"
-              className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Terms
-            </Link>
-          </nav>
+        <div className="mt-10 flex flex-col gap-2 border-t border-neutral-300/70 pt-6 text-[13px] text-neutral-600 sm:flex-row sm:justify-between">
+          <span>© {year} Repairs helper · Townmedia Labs</span>
+          <span>Free during early access</span>
         </div>
       </div>
     </footer>
