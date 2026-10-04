@@ -30,4 +30,28 @@ existing sessions, and improve the public homepage while preserving its hero.
 - Browser verification uses local demo imagery; no real payment, credential,
   logo or notification setup is submitted.
 
-Release verification will be recorded after publication.
+## Live release
+
+Release `a01704fc33d2d12deb10986f72eb68b032385ecc` is live at
+https://repairshelper.com. [Release CI](https://github.com/Ramanmakkar1/repaircrm/actions/runs/37228150485)
+passed 4,510 tests and 8 real PostgreSQL checks, migrations, types, lint and build.
+
+The standard server deployment completed successfully. Runtime points to
+`/srv/repairshelper/releases/a01704f/.next/standalone`; the service is active and
+health returns `{ "ok": true }`. No migrations were pending. The deployment
+backup is `/var/backups/repairshelper/20261004T193205Z.dump`.
+
+Nine live HTTP/asset checks passed: health, public homepage, the login form's
+`/counter?tab=counter` destination, privacy, terms, hero video, counter screenshot,
+unauthenticated attention protection, and the new blue landing stylesheet.
+The live public homepage was checked in Chrome and its screenshot saved as
+`verification/homepage-2026-10-04.png` in the parent project folder.
+
+The verification browser was signed out. Authenticated root/Login entry and
+password/two-factor destinations are covered by regression tests; no live
+credential, payment, logo or notification submission was used for this release.
+
+Core solid-surface text/action combinations have contrast of at least 6.5:1
+(blue button 6.53:1; muted slate copy 7.34:1; navy section copy 11.96:1).
+This is palette verification, not a claim of a complete accessibility audit.
+
