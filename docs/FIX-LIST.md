@@ -5,6 +5,8 @@ the independent reviews of every finished package, and checks on the live server
 Status words: **Fixed** (done and live), **Fixing now** (being built and reviewed),
 **You** (only the owner can do it), **Built locally** (implemented and checked; release pending).
 
+Latest application release: **134f7ea**, including the verified seven packages and section D features below, signed-in Counter routing, the redesigned husky-branded landing page, SEO, feature and Splitforms sections, and product feedback reporting. [Release evidence](husky-landing-2026-10-04.md#final-release) records passing CI (4,509 unit tests and 8 PostgreSQL checks), deployment and live checks. Release numbers below preserve the original fix history.
+
 ## A. Fixed and live (repairshelper.com, release 7a2d6fc)
 
 | Item | Status |
