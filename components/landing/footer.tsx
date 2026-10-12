@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUp } from "lucide-react";
 import { RepairPilotWordmark } from "@/components/brand/repairpilot";
@@ -67,6 +68,10 @@ export function SiteFooter() {
         <div className="site-footer-bottom">
           <span>© {year} Repairs helper · Townmedia Labs</span>
           <span>Free during early access. No credit card needed.</span>
+          <a href="https://kiwitechlabs.com" target="_blank" rel="noopener noreferrer" className="kiwitech-credit">
+            <Image src="/assets/brand/kiwitechlabs-logo.webp" width={40} height={40} alt="" unoptimized />
+            <span>Designed by <strong>kiwitechlabs.com</strong></span>
+          </a>
           <a href="#top">Back to top <ArrowUp size={15} aria-hidden="true" /></a>
         </div>
       </div>

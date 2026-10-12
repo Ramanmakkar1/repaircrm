@@ -786,3 +786,20 @@ body:has(.site) {
   .site .site-feedback-layout { padding-block: 40px; gap: 36px; }
   .site .site-feedback-intro h1 br { display: none; }
 }
+
+/* KiwiTechLabs design credit: local logo, readable type and keyboard focus. */
+.site a.kiwitech-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-decoration: none;
+}
+.site a.kiwitech-credit img { flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; }
+.site a.kiwitech-credit strong { font-weight: 600; }
+.site a.kiwitech-credit:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.site a.kiwitech-credit:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 4px; }
