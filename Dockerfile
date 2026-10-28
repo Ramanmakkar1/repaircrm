@@ -9,7 +9,8 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-# postinstall runs `prisma generate`
+COPY scripts/copy-zxing-wasm.mjs ./scripts/
+# postinstall runs `prisma generate` and copies the zxing wasm
 RUN npm ci
 
 FROM node:22-alpine AS build
