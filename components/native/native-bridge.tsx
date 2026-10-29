@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { opensInSystemBrowser } from "@/lib/native-app";
 import { isNativeApp, nativePlatform, nativePlugin } from "@/lib/native/capacitor";
 
 /**
@@ -15,7 +16,12 @@ import { isNativeApp, nativePlatform, nativePlugin } from "@/lib/native/capacito
  *   · keeps the status bar text legible against the current theme;
  *   · opens deep links (https://repairshelper.com/tickets/…) in the WebView;
  *   · runs "Continue with Google" in the system browser tab, because Google
- *     refuses sign-in inside an embedded WebView (lib/google/native-handoff.ts).
+ *     refuses sign-in inside an embedded WebView (lib/google/native-handoff.ts);
+ *   · opens downloads (CSV exports, attachments) and print views in that tab
+ *     too, signed in for that one path, because the Android WebView saves no
+ *     downloads and neither WebView prints (lib/native/browser-pass.ts);
+ *   · keeps same-site target=_blank links in the app (iOS would otherwise
+ *     hand them to Safari, which is signed out).
  *
  * Links to other sites and tel:/mailto:/sms: need nothing here — the shell
  * already sends every navigation off repairshelper.com to the system.
@@ -98,6 +104,41 @@ function openAppUrl(raw: string) {
   }
 }
 
+/**
+ * Opens a same-site download or print path in the system browser tab, with a
+ * one-path pass so the tab is signed in (lib/native/browser-pass.ts).
+ */
+async function openInSystemBrowser(path: string): Promise<void> {
+  const browser = nativePlugin("Browser");
+  if (!browser) {
+    // An old shell without the Browser plugin: the WebView is all there is.
+    window.location.assign(path);
+    return;
+  }
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/native/browser-pass", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path }),
+    });
+  } catch {
+    window.alert("You're offline. Connect to the internet and try again.");
+    return;
+  }
+  if (response.status === 401) {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/login");
+    return;
+  }
+  const data = (await response.json().catch(() => null)) as { ok?: boolean; url?: string } | null;
+  if (!response.ok || !data?.ok || typeof data.url !== "string") {
+    window.alert("That could not be opened. Try again in a moment.");
+    return;
+  }
+  await browser.open({ url: new URL(data.url, window.location.origin).toString(), presentationStyle: "popover" });
+}
+
 function syncStatusBar() {
   const statusBar = nativePlugin("StatusBar");
   if (!statusBar) return;
@@ -169,7 +210,34 @@ export function NativeBridge() {
       const anchor = (event.target as Element | null)?.closest?.("a[href]");
       if (!(anchor instanceof HTMLAnchorElement)) return;
       const target = new URL(anchor.href, window.location.href);
+
+      // A picture made in the page (the QR code): the WebView cannot save it.
+      if ((target.protocol === "data:" || target.protocol === "blob:") && anchor.hasAttribute("download")) {
+        event.preventDefault();
+        event.stopPropagation();
+        window.alert("Saving this picture works on repairshelper.com in a web browser.");
+        return;
+      }
+
       if (target.origin !== window.location.origin) return;
+
+      // Downloads and print views: the system browser tab, signed in for that path.
+      if (opensInSystemBrowser(target.pathname)) {
+        event.preventDefault();
+        event.stopPropagation();
+        void openInSystemBrowser(`${target.pathname}${target.search}`);
+        return;
+      }
+
+      // Any other same-site "new tab" link: stay in the app.
+      if (anchor.target === "_blank" && target.pathname !== "/api/auth/google/start") {
+        event.preventDefault();
+        event.stopPropagation();
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign(`${target.pathname}${target.search}${target.hash}`);
+        return;
+      }
+
       if (target.pathname !== "/api/auth/google/start") return;
 
       event.preventDefault();
@@ -196,7 +264,19 @@ export function NativeBridge() {
     };
     window.addEventListener("click", onClick, true);
 
+    // The Print buttons on /print/* call window.print(), which neither WebView
+    // implements. Inside the app, print from the browser tab instead.
+    const webPrint = window.print;
+    window.print = () => {
+      if (opensInSystemBrowser(window.location.pathname)) {
+        void openInSystemBrowser(`${window.location.pathname}${window.location.search}`);
+      } else {
+        webPrint.call(window);
+      }
+    };
+
     return () => {
+      window.print = webPrint;
       disposed = true;
       removeListener?.();
       media.removeEventListener("change", syncStatusBar);
