@@ -6,6 +6,10 @@
  *
  * public/marketing/app/dashboard.webp is the Shop overview and is re-captured
  * whenever that screen changes; keep the file name.
+ *
+ * /marketing/* is served with a one-year immutable cache (next.config.ts).
+ * After re-capturing a file under the same name, add or bump a `?v=` suffix on
+ * its src below so browsers fetch the new one.
  */
 
 const app = "/marketing/app";

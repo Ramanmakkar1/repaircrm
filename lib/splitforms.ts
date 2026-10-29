@@ -44,7 +44,7 @@ export function newSplitformsToken(): string {
 
 /** Where Repairs helper sends a shop to build its form — tagged so Splitforms can see who referred them. */
 export const SPLITFORMS_SIGNUP_URL =
-  "https://splitforms.com/?ref=repairpilot&utm_source=repairpilot&utm_medium=integration&utm_campaign=leads";
+  "https://splitforms.com/?ref=repairshelper&utm_source=repairshelper&utm_medium=integration&utm_campaign=leads";
 
 // ---------------------------------------------------------------------------
 // Signature

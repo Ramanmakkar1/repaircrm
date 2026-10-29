@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import { SHOTS } from "./media";
@@ -10,7 +9,7 @@ export const PRODUCT_MODULES = [
     key: "counter",
     anchor: "counter",
     label: "Counter",
-    title: "Open your shop. Get straight to work.",
+    title: "New repair and New sale on the first screen",
     description:
       "Your everyday tools are ready as soon as you sign in. Start a repair or sale, arrange a pickup and see what needs your attention.",
     points: [
@@ -19,12 +18,13 @@ export const PRODUCT_MODULES = [
       "Counter is Home in both display modes",
     ],
     shot: SHOTS.home,
+    phone: SHOTS.homePhone,
   },
   {
     key: "repairs",
     anchor: "check-in",
     label: "Repairs",
-    title: "A clear path for every repair.",
+    title: "One ticket holds the device, parts, photos and notes",
     description:
       "Check in the device, record the problem and keep the work moving. Your team gets the same notes, parts and status in one repair record.",
     points: [
@@ -33,12 +33,13 @@ export const PRODUCT_MODULES = [
       "Ready-for-pickup tracking",
     ],
     shot: SHOTS.job,
+    phone: SHOTS.jobPhone,
   },
   {
     key: "sales",
     anchor: "payments",
     label: "Sales & payments",
-    title: "A counter that keeps up.",
+    title: "Sell a case and collect a repair balance on one screen",
     description:
       "Sell an accessory, create an invoice or collect a repair balance. Keep each payment connected to the customer and the job.",
     points: [
@@ -46,14 +47,14 @@ export const PRODUCT_MODULES = [
       "Cash, deposits and split payments",
       "Manual or connected card payments",
     ],
-    note: "Stripe and Square need your own account, provider credentials and test verification. Record existing card-machine payments manually.",
     shot: SHOTS.sell,
+    phone: SHOTS.invoicePhone,
   },
   {
     key: "stock",
     anchor: "stock",
     label: "Stock & purchasing",
-    title: "Know what’s on the shelf.",
+    title: "Stock counts with a picture for every part",
     description:
       "Find the right part without losing your place. Product pictures, quantities and purchasing live alongside the repairs that need them.",
     points: [
@@ -67,7 +68,7 @@ export const PRODUCT_MODULES = [
     key: "overview",
     anchor: "modes",
     label: "Shop overview",
-    title: "See what needs your attention.",
+    title: "Takings, money owed and the bench, at a glance",
     description:
       "Get a clear view of takings, money owed and work on the bench. Move from the overview into the records behind it.",
     points: [
@@ -75,7 +76,6 @@ export const PRODUCT_MODULES = [
       "Repair status across the bench",
       "Easy mode and detailed Full view",
     ],
-    note: "Both display modes start at Counter. Shop overview is a separate destination.",
     shot: SHOTS.dashboard,
   },
 ] as const;
@@ -120,11 +120,7 @@ export function ProductExplorer() {
     >
       <div className="site-container">
         <div className="site-section-heading">
-          <h2 id="product-title">
-            Run your whole repair shop.
-            <br />
-            From one workspace.
-          </h2>
+          <h2 id="product-title">The five screens your counter uses all day</h2>
           <p>
             Repair management, point of sale and inventory in one connected
             workspace. Check in a device, find the right part and collect the
@@ -182,20 +178,32 @@ export function ProductExplorer() {
                   </li>
                 ))}
               </ul>
-              {"note" in item && <p className="site-small">{item.note}</p>}
               <a href="/signup" className="site-text-link">
-                Start your shop <ArrowRight size={17} aria-hidden="true" />
+                Start free <ArrowRight size={17} aria-hidden="true" />
               </a>
             </div>
             <figure>
-              <div className="site-product-image">
-                <Image
-                  src={item.shot.src}
-                  alt={item.shot.alt}
-                  width={2048}
-                  height={1536}
-                  unoptimized
-                />
+              <div
+                className={`site-product-image ${"phone" in item ? "has-phone" : "site-shot-crop"}`}
+              >
+                <picture>
+                  {"phone" in item && (
+                    <source
+                      media="(max-width: 639px)"
+                      srcSet={item.phone.src}
+                      width={1170}
+                      height={2532}
+                    />
+                  )}
+                  <img
+                    src={item.shot.src}
+                    alt={item.shot.alt}
+                    width={2048}
+                    height={1536}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
               </div>
               <figcaption>Actual app · Demo shop data</figcaption>
             </figure>

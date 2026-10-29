@@ -1,6 +1,6 @@
-import { Check } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 
-import { DarkCta, Panel } from "./ui";
+import { Container, DarkCta, Panel } from "./ui";
 
 /**
  * One plan, one price, and a plain list of what is not finished next to it.
@@ -29,33 +29,21 @@ export const NOT_YET = [
 export function Pricing() {
   return (
     <Panel id="pricing" labelledBy="pricing-title">
-      <div className="mx-auto grid max-w-[1120px] items-start gap-12 lg:grid-cols-12 lg:gap-14">
-        <div className="lg:col-span-6">
+      {/* Phones read heading, then the $0 card, then the caveats; desktop puts the card on the right. */}
+      <Container className="grid items-start gap-10 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:gap-y-8">
+        <div className="lg:col-start-1 lg:row-start-1">
           <h2 id="pricing-title" className="site-h2">
-            Free during early access.
+            Free during early access
           </h2>
           <p className="site-lede mt-5">
             Bring your team, customers and stock into one workspace at no cost
             during early access. Paid plans will come later, and we’ll announce
-            them well before anything changes. Your data stays exportable the
-            whole time.
+            them well before anything changes. You can export your records to
+            CSV the whole time.
           </p>
-          <h3 className="mt-10 text-[17px] font-semibold tracking-tight text-neutral-900">
-            Before you rely on these workflows
-          </h3>
-          <ul className="mt-3 border-t border-neutral-200">
-            {NOT_YET.map((item) => (
-              <li
-                key={item}
-                className="border-b border-neutral-200 py-3.5 text-[15px] leading-relaxed text-neutral-700"
-              >
-                {item}
-              </li>
-            ))}
-          </ul>
         </div>
 
-        <div className="rounded-2xl bg-(--site-tray) p-6 sm:p-9 lg:col-span-6">
+        <div className="rounded-2xl bg-(--site-tray) p-6 sm:p-9 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[17px] font-semibold tracking-tight text-neutral-900">
               Early access
@@ -103,7 +91,27 @@ export function Pricing() {
             </p>
           </div>
         </div>
-      </div>
+
+        <details className="group border-y border-neutral-200 lg:col-start-1 lg:row-start-2">
+          <summary className="flex min-h-14 cursor-pointer items-center justify-between gap-4 py-3 text-[17px] font-semibold tracking-tight text-neutral-900">
+            Before you rely on these workflows
+            <Plus
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 transition-transform group-open:rotate-45"
+            />
+          </summary>
+          <ul className="border-t border-neutral-200">
+            {NOT_YET.map((item) => (
+              <li
+                key={item}
+                className="border-b border-neutral-200 py-3.5 text-[15px] leading-relaxed text-neutral-700 last:border-b-0"
+              >
+                {item}
+              </li>
+            ))}
+          </ul>
+        </details>
+      </Container>
     </Panel>
   );
 }

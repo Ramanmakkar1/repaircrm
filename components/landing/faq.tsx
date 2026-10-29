@@ -1,13 +1,23 @@
 import { Plus } from "lucide-react";
 
-import { Panel, Serif } from "./ui";
+import { SUPPORT_EMAIL } from "./trust";
+import { Container, Panel, Serif } from "./ui";
 
 /**
  * Native <details> disclosures: keyboard-operable, found by the browser's own
  * in-page search, and no JavaScript. Several answers are honest "not yet"s.
  */
 
-export const FAQS = [
+export const FAQS: { q: string; a: string; id?: string }[] = [
+  {
+    id: "setup",
+    q: "What needs setup before I rely on it?",
+    a: "Repairs, sales, stock and quick shop lookups work as soon as your shop exists. A few things connect to outside providers first. Free-form helper requests and AI ticket tools need a connected AI provider, and voice input depends on your browser and shop setup. Stripe and Square need your own account, provider credentials and test verification before they take payments; until then, record card-machine payments manually. Customer emails and texts go out once your email or SMS provider is set up. Splitforms website forms need a paid Splitforms plan for webhooks. Adding the app to a home screen depends on your device. Connected providers may charge their own fees.",
+  },
+  {
+    q: "Where is my shop’s data kept?",
+    a: `On our own server in Alberta, Canada, behind Cloudflare. Repairs helper is built by Town Media Labs in Edmonton, Alberta. Questions about your data go to ${SUPPORT_EMAIL}.`,
+  },
   {
     q: "Do I need new hardware?",
     a: "No. Repairs helper runs in the browser on the tablet, phone or computer you already have. Take card payments on a supported connected terminal, or record payments from the card machine you already own.",
@@ -42,7 +52,7 @@ export const FAQS = [
   },
   {
     q: "Where do website enquiries go?",
-    a: "Into Leads. Connect a Splitforms form on your website to collect the device, the problem and the customer’s contact details. Create the connection in RepairsHelper’s Leads page and add its webhook URL to your Splitforms form. Splitforms webhooks require a paid plan.",
+    a: "Into Leads. Connect a Splitforms form on your website to collect the device, the problem and the customer’s contact details. Create the connection on the Leads page in Repairs helper and add its webhook URL to your Splitforms form. Splitforms webhooks require a paid plan.",
   },
   {
     q: "Is my data mine?",
@@ -53,17 +63,24 @@ export const FAQS = [
 export function Faq() {
   return (
     <Panel className="site-faq" id="faq" labelledBy="faq-title" tone="tray">
-      <div className="mx-auto grid max-w-[1120px] gap-10 lg:grid-cols-12 lg:gap-14">
+      <Container className="grid gap-10 lg:grid-cols-12 lg:gap-14">
         <div className="lg:col-span-4">
           <h2 id="faq-title" className="site-h2">
             Questions owners ask <Serif>first</Serif>
           </h2>
           <p className="site-lede mt-5">Short, honest answers, including the “not yet” ones.</p>
+          <p className="mt-5 text-[15px] text-neutral-700">
+            Something else?{" "}
+            <a className="font-semibold text-(--site-accent-ink) underline underline-offset-4" href={`mailto:${SUPPORT_EMAIL}`}>
+              {SUPPORT_EMAIL}
+            </a>
+          </p>
         </div>
         <div className="space-y-2 lg:col-span-8">
           {FAQS.map((faq, i) => (
             <details
               key={faq.q}
+              id={faq.id}
               name="faq"
               open={i === 0}
               className="group rounded-2xl bg-white px-5 sm:px-6"
@@ -81,7 +98,7 @@ export function Faq() {
             </details>
           ))}
         </div>
-      </div>
+      </Container>
     </Panel>
   );
 }

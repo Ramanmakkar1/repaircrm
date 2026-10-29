@@ -12,6 +12,7 @@ export function Serif({ children }: { children: ReactNode }) {
 /**
  * A full-width section. `white` or the cool slate `tray`;
  * sections alternate between the two so the page keeps its rhythm.
+ * Put a <Container> inside for the content column.
  */
 export function Panel({
   id,
@@ -31,13 +32,26 @@ export function Panel({
       id={id}
       aria-labelledby={labelledBy}
       className={cn(
-        "site-panel relative scroll-mt-4 overflow-hidden rounded-2xl px-5 py-14 sm:rounded-3xl sm:px-10 sm:py-20 lg:px-16 lg:py-24",
+        "site-panel relative scroll-mt-4 overflow-hidden py-16 sm:py-20 lg:py-24",
         tone === "white" ? "bg-white" : "bg-(--site-tray)",
         className,
       )}
     >
       {children}
     </section>
+  );
+}
+
+/**
+ * The same column every other landing section uses (.site-container): 20px
+ * gutters on phones, 32px from 768px, at most 1280px wide. Tailwind classes, so
+ * it also works on pages that do not load site.css.
+ */
+export function Container({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div className={cn("mx-auto w-[calc(100%-40px)] max-w-[1280px] md:w-[calc(100%-64px)]", className)}>
+      {children}
+    </div>
   );
 }
 

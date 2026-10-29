@@ -6,10 +6,9 @@ import { homePath } from "@/lib/prefs";
 import { RepairsHome } from "@/components/landing/repairs-home";
 import { WEBSITE_SCHEMA, SOFTWARE_SCHEMA } from "@/lib/public-site";
 
-const TITLE =
-  "Repair Shop Software & AI Helper | RepairsHelper";
+const TITLE = "Repair Shop Software for Check-in, Sales and Stock | Repairs helper";
 const DESCRIPTION =
-  "Manage repairs, sales, inventory and customer updates with RepairsHelper and its AI helper. Works on mobile, tablet and desktop. Free during early access.";
+  "Manage repairs, sales, inventory and customer updates in one app built for phone, computer and device repair shops. Works on phone, tablet and desktop. Free during early access.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -17,7 +16,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   openGraph: {
     type: "website",
-    siteName: "RepairsHelper",
+    siteName: "Repairs helper",
     title: TITLE,
     description: DESCRIPTION,
     url: "/",
@@ -26,7 +25,7 @@ export const metadata: Metadata = {
         url: "/marketing/repair-shop-software-husky-og.png",
         width: 1200,
         height: 630,
-        alt: "Repairs helper — repair shop software built for your counter",
+        alt: "Repairs helper: repair shop software for check-in, the bench and pickup",
       },
     ],
   },

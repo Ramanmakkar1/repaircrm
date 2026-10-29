@@ -11,26 +11,23 @@ const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url)
 
 describe("hero", () => {
   const out = html(React.createElement(HeroSection));
-  it("keeps one clear headline above a wide repair film", () => {
+  it("keeps one clear headline above the real product", () => {
     expect(out.match(/<h1[\s>]/g)).toHaveLength(1);
-    expect(out).toContain("Repair shop software.");
-    expect(out).toContain("Built for your counter.");
-    expect(out.indexOf("<h1")).toBeLessThan(out.indexOf("<video"));
+    expect(out).toContain("Repair shop software");
+    expect(out.indexOf("<h1")).toBeLessThan(out.indexOf("<img"));
+    expect(out).not.toContain("<video");
+    expect(out).not.toMatch(/helping hand|AI helper/);
   });
-  it("shows a responsive poster without requesting video before checking visitor preferences", () => {
-    const video = out.match(/<video[^>]*>/)![0];
-    expect(video).not.toMatch(/\ssrc=/);
-    expect(video).toContain('preload="none"');
-    expect(video).toContain('aria-hidden="true"');
-    expect(out).toContain("/marketing/repair-film/repair-poster.webp");
-    expect(out).toContain("/marketing/repair-film/repair-poster-mobile.webp");
-    expect(out).toContain("Film by Tima Miroshnichenko / Pexels");
-    expect(out).not.toContain("/marketing/hero/");
+  it("leads with app screenshots, using the phone capture on phones", () => {
+    expect(out).toContain("/marketing/app/home-tablet.webp");
+    expect(out).toContain("/marketing/app/home-phone.webp");
+    expect(out).toContain("/marketing/app/job-phone.webp");
+    expect(out).toContain('media="(max-width: 639px)"');
+    expect(out).toContain("Demo shop data");
+    expect(out).not.toContain("/marketing/repair-film/");
   });
-  it("offers working signup and product links in a banner landmark", () => {
-    expect(out).toContain("<header");
-    expect(out).toContain('<nav aria-label="Main"');
-    expect(out).toMatch(/href="\/signup"[^>]*>Get started free/);
+  it("offers one signup verb and an in-page product link", () => {
+    expect(out).toMatch(/href="\/signup"[^>]*>Start free/);
     expect(out).toContain('href="#product"');
     expect(out).toContain("No credit card needed");
   });
@@ -42,8 +39,17 @@ describe("navigation", () => {
     expect(out).toContain("husky-mark-blue.webp");
     expect(out).toContain("Repairs ");
     for (const link of NAV_ITEMS) expect(out).toContain(`href="${link.href}"`);
+    for (const href of ["/features", "/pricing", "/contact", "/compare/repairshopr-alternative"]) {
+      expect(NAV_ITEMS.map((l) => l.href)).toContain(href);
+    }
+    expect(NAV_ITEMS.map((l) => l.label)).not.toContain("Home");
     expect(out).toContain('href="/login"');
     expect(out).toContain('href="/signup"');
+  });
+  it("is sticky and shows Sign in outside the mobile menu", () => {
+    expect(out).toMatch(/class="[^"]*sticky top-0/);
+    const beforePanel = out.slice(0, out.search(/<div id="[^"]+" hidden/));
+    expect(beforePanel).toMatch(/href="\/login"[^>]*>Sign in/);
   });
   it("connects the mobile menu button to a hidden panel", () => {
     const button = out.match(/<button[^>]*>/)![0];

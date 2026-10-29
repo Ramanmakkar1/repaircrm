@@ -5,7 +5,6 @@ import {
   ProductExplorer,
   PRODUCT_MODULES,
 } from "@/components/landing/product-explorer";
-import { shouldLoadHeroVideo } from "@/components/landing/hero/hero-media";
 
 describe("product explorer", () => {
   const out = renderToStaticMarkup(React.createElement(ProductExplorer));
@@ -28,32 +27,12 @@ describe("product explorer", () => {
   });
 });
 
-describe("repair film preferences", () => {
-  it("does not request motion for reduced motion, data saver or slow connections", () => {
-    expect(shouldLoadHeroVideo({ reducedMotion: true, saveData: false })).toBe(
-      false,
-    );
-    expect(shouldLoadHeroVideo({ reducedMotion: false, saveData: true })).toBe(
-      false,
-    );
-    for (const effectiveType of ["slow-2g", "2g", "3g"]) {
-      expect(
-        shouldLoadHeroVideo({
-          reducedMotion: false,
-          saveData: false,
-          effectiveType,
-        }),
-      ).toBe(false);
+describe("product screenshots on phones", () => {
+  const out = renderToStaticMarkup(React.createElement(ProductExplorer));
+  it("swaps in phone captures where they exist and crops the rest", () => {
+    for (const src of ["home-phone.webp", "job-phone.webp", "invoice-phone.webp"]) {
+      expect(out).toContain(`/marketing/app/${src}`);
     }
-    expect(
-      shouldLoadHeroVideo({
-        reducedMotion: false,
-        saveData: false,
-        effectiveType: "4g",
-      }),
-    ).toBe(true);
-    expect(shouldLoadHeroVideo({ reducedMotion: false, saveData: false })).toBe(
-      true,
-    );
+    expect(out.match(/site-shot-crop/g)).toHaveLength(2);
   });
 });

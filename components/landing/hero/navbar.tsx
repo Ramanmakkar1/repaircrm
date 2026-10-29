@@ -7,13 +7,17 @@ import { ChevronRight, Menu, X } from "lucide-react";
 import { RepairPilotWordmark } from "@/components/brand/repairpilot";
 import { BrandMark } from "../brand";
 
-/** Where the website links go. Kept as data so tests (and the footer) can read them. */
+/**
+ * Where the website links go. Kept as data so tests (and the footer) can read them.
+ * Hrefs are root-relative ("/#product", not "#product") so the same bar works
+ * on every public page, not just the home page.
+ */
 export const NAV_ITEMS = [
-  { label: "Home", href: "#top", current: true },
-  { label: "Product", href: "#product" },
-  { label: "Features", href: "#features" },
-  { label: "AI assistant", href: "#assistant" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Product", href: "/#product" },
+  { label: "Features", href: "/features" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Compare", href: "/compare/repairshopr-alternative" },
+  { label: "Contact", href: "/contact" },
 ] as const;
 export const SIGN_IN_HREF = "/login";
 export const SIGN_UP_HREF = "/signup";
@@ -21,26 +25,20 @@ export const SIGN_UP_HREF = "/signup";
 const item =
   "inline-flex min-h-11 items-center rounded-full px-3 text-sm text-neutral-900 transition-colors hover:bg-neutral-100 lg:min-h-9 lg:px-1 lg:hover:bg-transparent lg:hover:text-black";
 
-/** In-page anchors are plain links; real routes use next/link. */
+/** Links with a #fragment are plain anchors (native scrolling); routes use next/link. */
 function NavLink({
   href,
   className,
   onClick,
-  current,
   children,
 }: {
   href: string;
   className: string;
   onClick?: () => void;
-  current?: boolean;
   children: ReactNode;
 }) {
-  const props = {
-    className,
-    onClick,
-    "aria-current": current ? ("page" as const) : undefined,
-  };
-  return href.startsWith("#") ? (
+  const props = { className, onClick };
+  return href.includes("#") ? (
     <a href={href} {...props}>
       {children}
     </a>
@@ -52,7 +50,7 @@ function NavLink({
 }
 
 /**
- * Responsive brand navigation. Under `lg` the links collapse into a hamburger that
+ * Responsive brand navigation, sticky at the top of the page. Under `lg` the links collapse into a hamburger that
  * opens a panel under the navigation; it closes on a link click, on Escape (focus
  * returns to the button) and on a click outside.
  */
@@ -85,57 +83,45 @@ export function Navbar() {
   const close = () => setOpen(false);
 
   return (
-    <div className="flex justify-center px-3 pt-4 sm:px-4 sm:pt-6">
+    <div className="site-nav-bar sticky top-0 z-40 flex justify-center border-b border-[#e3e8ef] bg-white px-3 sm:px-4">
       <nav
         ref={wrapRef}
         aria-label="Main"
-        className="site-navbar relative flex w-full max-w-[1240px] items-center py-2"
+        className="site-navbar relative flex w-full max-w-[1280px] items-center py-2"
       >
-        <a
-          href="#top"
+        <Link
+          href="/"
           aria-label="Repairs helper home"
           className="site-nav-brand flex h-11 shrink-0 items-center gap-2"
         >
-          <BrandMark priority className="h-10 w-10" />
+          <BrandMark priority className="h-9 w-9 sm:h-10 sm:w-10" />
           <RepairPilotWordmark className="text-lg" />
-        </a>
+        </Link>
 
         <ul className="hidden items-center gap-6 pl-10 lg:flex">
           {NAV_ITEMS.map((link) => (
             <li key={link.label}>
-              <NavLink
-                href={link.href}
-                className={item}
-                current={"current" in link}
-              >
-                {"current" in link ? (
-                  <span
-                    aria-hidden="true"
-                    className="mr-1.5 h-1.5 w-1.5 rounded-full bg-black"
-                  />
-                ) : null}
+              <NavLink href={link.href} className={item}>
                 {link.label}
               </NavLink>
             </li>
           ))}
-          <li>
-            <Link
-              href={SIGN_IN_HREF}
-              className="inline-flex min-h-9 items-center gap-1 rounded-full px-1 text-sm font-medium text-(--site-accent-ink)"
-            >
-              Sign in
-              <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-            </Link>
-          </li>
         </ul>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1 sm:gap-2">
+          {/* Visible at every width: returning shops should not have to open a menu to sign in. */}
+          <Link
+            href={SIGN_IN_HREF}
+            className="inline-flex min-h-11 items-center rounded-full px-2 text-sm font-semibold text-(--site-accent-ink) hover:bg-neutral-100 sm:px-3"
+          >
+            Sign in
+          </Link>
           <Link
             href={SIGN_UP_HREF}
-            className="site-button !min-h-11 !px-5 !py-2"
+            className="site-button site-nav-cta !min-h-11 !py-2"
           >
             Start free
-            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            <ChevronRight aria-hidden="true" className="site-nav-cta-icon h-4 w-4" />
           </Link>
           <button
             ref={buttonRef}
@@ -165,29 +151,12 @@ export function Navbar() {
                 <NavLink
                   href={link.href}
                   onClick={close}
-                  current={"current" in link}
                   className={`${item} w-full`}
                 >
-                  {"current" in link ? (
-                    <span
-                      aria-hidden="true"
-                      className="mr-2 h-1.5 w-1.5 rounded-full bg-black"
-                    />
-                  ) : null}
                   {link.label}
                 </NavLink>
               </li>
             ))}
-            <li>
-              <Link
-                href={SIGN_IN_HREF}
-                onClick={close}
-                className="inline-flex min-h-11 w-full items-center gap-1 rounded-full px-3 text-sm font-medium text-(--site-accent-ink) hover:bg-neutral-100"
-              >
-                Sign in
-                <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-              </Link>
-            </li>
           </ul>
         </div>
       </nav>

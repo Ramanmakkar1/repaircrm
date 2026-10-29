@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 const FEATURES = [
@@ -14,14 +15,13 @@ export function Features() {
     <section id="features" className="site-section site-features" aria-labelledby="features-title">
       <div className="site-container">
         <div className="site-section-heading">
-          <h2 id="features-title">More of your day,<br />covered.</h2>
+          <h2 id="features-title">Bookings, staff PINs, printing and imports are in there too</h2>
           <p>From the first enquiry to the final invoice, keep the small tasks that make a repair shop run in the same workspace.</p>
         </div>
         <dl className="site-feature-list">
           {FEATURES.map(([title, description]) => <div key={title}><dt>{title}</dt><dd>{description}</dd></div>)}
         </dl>
-        <a href="/signup" className="site-text-link">Explore the features <ArrowRight size={17} aria-hidden="true" /></a>
-        <p className="site-small">AI, messaging and connected payments require provider setup. Voice and home-screen installation depend on your browser and device.</p>
+        <Link href="/features" className="site-text-link">See every feature <ArrowRight size={17} aria-hidden="true" /></Link>
       </div>
     </section>
   );

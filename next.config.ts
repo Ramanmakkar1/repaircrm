@@ -70,6 +70,16 @@ const nextConfig: NextConfig = {
           { key: "Service-Worker-Allowed", value: "/" },
         ],
       },
+      {
+        // Landing-page media. Files are never edited in place: a changed
+        // screenshot or image gets a new file name (or a ?v= suffix on its
+        // URL in components/landing/media.ts), so browsers and Cloudflare can
+        // keep these for a year.
+        source: "/marketing/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
     ];
   },
 };

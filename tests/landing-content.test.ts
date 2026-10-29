@@ -76,11 +76,13 @@ describe("footer", () => {
 
   it("keeps the existing links and the copyright year", () => {
     const hrefs = FOOTER_GROUPS.flatMap((g) => g.links.map((l) => l.href));
-    for (const href of ["/login", "/portal", "/privacy", "/terms", "#pricing", "#assistant", "#payments", "/feedback", "#splitforms", "#features"]) {
+    for (const href of ["/login", "/signup", "/portal", "/privacy", "/terms", "/pricing", "/features", "/contact", "/compare/repairshopr-alternative", "/#assistant", "/#payments", "/feedback", "/#splitforms", "mailto:support@repairshelper.com"]) {
       expect(hrefs).toContain(href);
       expect(out).toContain(`href="${href}"`);
     }
     expect(out).toContain(`© ${new Date().getFullYear()} Repairs helper`);
+    expect(out).toContain("Town Media Labs");
+    expect(out).not.toContain("kiwitechlabs-logo");
     expect(out).toContain("<footer");
   });
 });
@@ -108,7 +110,7 @@ describe("the whole page", () => {
     expect(sections.length).toBeGreaterThanOrEqual(6);
     for (const s of sections) {
       const id = s.match(/aria-labelledby="([^"]+)"/)![1];
-      expect(page).toMatch(new RegExp(`<h2 id="${id}"`));
+      expect(page).toMatch(new RegExp(`<h[12] id="${id}"`));
     }
   });
 
@@ -118,7 +120,11 @@ describe("the whole page", () => {
     }
   });
 
-  it("keeps the product caveats in plain sight", () => {
+  it("spells the product name one way", () => {
+    expect(page).not.toMatch(/RepairsHelper|repairpilot/);
+  });
+
+  it("keeps the product caveats in one findable place", () => {
     expect(words).toMatch(/connected AI provider/);
     expect(words).toMatch(/voice input depends on your browser/);
     expect(words).toMatch(/Stripe and Square need your own account/);

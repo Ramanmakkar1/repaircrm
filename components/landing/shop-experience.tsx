@@ -2,7 +2,24 @@ import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { SHOTS } from "./media";
 import { BrandMark } from "./brand";
-import { SHOP_SCENES } from "./shop-story";
+
+/**
+ * Drop-off and pickup, shown with the real screens a shop uses at those two
+ * moments. (The earlier staged "customer scene" photos were dropped: they read
+ * as generated images. Real photos from a working shop would be better still.)
+ */
+const HANDOVER = [
+  {
+    shot: SHOTS.newRepair,
+    title: "At drop-off: check the device in",
+    body: "Pick the device type and note the fault while the customer is still at the counter, then print the repair ticket.",
+  },
+  {
+    shot: SHOTS.pickup,
+    title: "At pickup: see what’s paid and hand it over",
+    body: "Ready-for-pickup lists which repairs still need an invoice and which are paid in full, so the balance is collected before the device goes back.",
+  },
+] as const;
 
 export function CustomerExperience() {
   return (
@@ -14,56 +31,35 @@ export function CustomerExperience() {
       <div className="site-container">
         <div className="site-section-heading">
           <h2 id="customers-title">
-            Keep customers in the loop.
-            <br />
-            From drop-off to pickup.
+            Drop-off and pickup, recorded on the same ticket
           </h2>
           <p>
-            Record the details once. Keep customers informed as the repair moves
-            from the counter to the bench and back.
+            Record the details once. Customers can check the repair in the
+            portal while it moves from the counter to the bench and back.
           </p>
         </div>
         <div className="site-customer-grid">
-          <figure>
-            <Image
-              src={SHOP_SCENES.dropoff.src}
-              alt={SHOP_SCENES.dropoff.alt}
-              width={1400}
-              height={933}
-              unoptimized
-            />
-            <figcaption>
-              <h3>A better first hello.</h3>
-              <p>
-                Capture the device, the problem and the estimate while the
-                customer is at the counter.
-              </p>
-            </figcaption>
-          </figure>
-          <figure>
-            <Image
-              src={SHOP_SCENES.pickup.src}
-              alt={SHOP_SCENES.pickup.alt}
-              width={1400}
-              height={933}
-              unoptimized
-            />
-            <figcaption>
-              <h3>A clear final handover.</h3>
-              <p>
-                See what’s ready, collect the balance and return the device with
-                the repair record complete.
-              </p>
-            </figcaption>
-          </figure>
+          {HANDOVER.map((step) => (
+            <figure key={step.title}>
+              <div className="site-shot-frame site-shot-crop">
+                {/* eslint-disable-next-line @next/next/no-img-element -- served as captured */}
+                <img
+                  src={step.shot.src}
+                  alt={step.shot.alt}
+                  width={2048}
+                  height={1536}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+              <figcaption>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </figcaption>
+            </figure>
+          ))}
         </div>
-        <div className="site-customer-note">
-          <p>
-            Customers can check their repair in the portal. Updates are
-            delivered once your email or SMS provider is set up.
-          </p>
-          <span>Illustrative repair-shop scenes</span>
-        </div>
+        <p className="site-shot-note">Actual app · Demo shop data</p>
       </div>
     </section>
   );
@@ -80,39 +76,36 @@ export function ShopAssistant() {
         <div className="site-assistant-copy">
           <div className="site-assistant-identity">
             <BrandMark className="size-9" />
-            <span>Your AI helper</span>
+            <span>The shop helper</span>
           </div>
           <h2 id="assistant-title">
-            AI help for your shop.
-            <br />
-            Keep the day moving.
+            Ask the helper what’s ready for pickup
           </h2>
           <p>
-            AI tools help you summarise repair tickets and draft customer replies.
-            Use your shop helper to find repairs, check what’s ready for pickup
-            and get a quick view of the day.
+            Type or say a question and the helper looks it up in your shop:
+            which repairs are late, what’s waiting to be collected, how the day
+            is going. On a ticket, AI tools can summarise long notes and
+            draft a reply to the customer.
           </p>
           <div className="site-assistant-questions">
             <p>“What’s ready for pickup?”</p>
             <p>“Which repairs are late?”</p>
+            <p>“How did we do today?”</p>
           </div>
-          <p className="site-small">
-            Quick shop lookups work without AI. Free-form requests need a
-            connected AI provider; voice input depends on your browser and shop
-            setup. Changes require confirmation and respect staff permissions.
-          </p>
-          <a className="site-text-link" href="/signup">
-            Meet your helper <ArrowRight size={17} aria-hidden="true" />
+          <a className="site-text-link" href="#setup">
+            What the helper needs to work <ArrowRight size={17} aria-hidden="true" />
           </a>
         </div>
         <figure className="site-assistant-preview">
-          <Image
-            src={SHOTS.assistant.src}
-            alt={SHOTS.assistant.alt}
-            width={1024}
-            height={768}
-            unoptimized
-          />
+          <div className="site-assistant-crop">
+            <Image
+              src={SHOTS.assistant.src}
+              alt={SHOTS.assistant.alt}
+              width={1024}
+              height={768}
+              unoptimized
+            />
+          </div>
           <figcaption>Actual app · Demo shop data</figcaption>
         </figure>
       </div>

@@ -10,7 +10,6 @@ vi.mock("@/components/landing/fonts", () => ({
 }));
 
 const { SHOTS } = await import("@/components/landing/media");
-const { SHOP_SCENES } = await import("@/components/landing/shop-story");
 const { RepairsHome } = await import("@/components/landing/repairs-home");
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
@@ -31,11 +30,14 @@ describe("website images", () => {
   const page = renderToStaticMarkup(React.createElement(RepairsHome));
   const sources = pageImageSources(page);
 
-  it("renders curated app screenshots, handover scenes and the husky mascot", () => {
+  it("renders curated app screenshots and the husky mascot, not staged scenes", () => {
     expect(sources.length).toBeGreaterThanOrEqual(8);
-    for (const shot of [SHOTS.home, SHOTS.job, SHOTS.sell, SHOTS.stock, SHOTS.assistant]) expect(sources).toContain(shot.src);
-    for (const scene of Object.values(SHOP_SCENES)) expect(sources).toContain(scene.src);
+    for (const shot of [SHOTS.home, SHOTS.job, SHOTS.sell, SHOTS.stock, SHOTS.assistant, SHOTS.newRepair, SHOTS.pickup]) expect(sources).toContain(shot.src);
     expect(sources).toContain("/brand/husky-mark-blue.webp");
+    expect(page).not.toContain("/marketing/shop/");
+  });
+  it("uses the Home tablet capture at most twice", () => {
+    expect(page.split(`src="${SHOTS.home.src}"`).length - 1).toBeLessThanOrEqual(2);
   });
 
   it("only points at files that exist in public/", () => {
@@ -46,7 +48,6 @@ describe("website images", () => {
       }
     }
     expect(sources.some((s) => s.startsWith("/marketing/app/"))).toBe(true);
-    expect(sources.some((s) => s.startsWith("/marketing/shop/"))).toBe(true);
   });
 
   it("never shows a screenshot of the old app", () => {

@@ -1,6 +1,8 @@
 import { ChevronRight } from "lucide-react";
 
-import { Panel, Serif } from "./ui";
+import Image from "next/image";
+
+import { Container, Panel, Serif } from "./ui";
 
 /**
  * The email sign-up. It behaves exactly as it always has: a plain GET form to
@@ -48,6 +50,17 @@ export function FinalCta() {
       labelledBy="final-title"
       className="site-final text-center sm:py-24 lg:py-28"
     >
+      <Container>
+      {/* The husky is the product's mascot; the full 256px master, not the 40px nav mark. */}
+      <Image
+        src="/brand/husky-mark-blue.webp"
+        alt=""
+        width={256}
+        height={256}
+        unoptimized
+        loading="lazy"
+        className="site-final-mascot mx-auto mb-6 h-32 w-32 object-contain"
+      />
       <h2 id="final-title" className="site-h2 mx-auto max-w-3xl">
         Start with your <Serif>next repair</Serif>
       </h2>
@@ -61,6 +74,7 @@ export function FinalCta() {
           Free during early access · No card needed
         </p>
       </div>
+      </Container>
     </Panel>
   );
 }
