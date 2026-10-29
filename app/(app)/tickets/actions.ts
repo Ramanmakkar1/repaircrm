@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
+import { canSeeMoney, MONEY_REFUSED } from "@/lib/money-access";
 import { checklistFromTemplate } from "@/lib/checklist";
 import { newRecordLocationId, validLocationId } from "@/lib/location";
 import { warrantyDaysByProduct } from "@/lib/warranty";
@@ -19,7 +20,7 @@ import { applyTicketDeposits } from "@/lib/deposits";
 import { readLabourSettings } from "@/lib/labour";
 import { bulkIds, plural, type BulkResult } from "@/lib/bulk";
 import { calcTotals, parseCents } from "@/lib/money";
-import { labourLinesFor, loadBillableTime } from "@/lib/time-billing";
+import { labourLinesFor, labourTaxable, loadBillableTime } from "@/lib/time-billing";
 import { resolveDocumentTax } from "@/components/billing/queries";
 import {
   asPriority,
@@ -36,6 +37,7 @@ import {
   type PartActionState,
 } from "@/components/tickets/part-meta";
 import type { ActionState } from "@/components/tickets/action-state";
+import { needsCustomerMessage } from "@/components/tickets/job-screen-logic";
 import { newCustomerSchema, newDeviceSchema, splitCustomerName, promisedDate } from "@/lib/intake";
 import { parseZonedDateInput } from "@/lib/shop-time";
 import { samePhoneClause } from "@/lib/customers/phone-search";
@@ -476,6 +478,11 @@ export async function postUpdateAction(
   if (isPublic && !body) {
     return { error: "A customer-facing update needs a message." };
   }
+  // "Waiting on Customer" puts "We need your answer" on their portal: the
+  // question has to be there for them to read.
+  if (statusChanged && needsCustomerMessage(nextStatus, ticket.status) && !(isPublic && body)) {
+    return { error: "Tell the customer what you need from them: write a message to the customer to move it to Waiting on Customer." };
+  }
 
   const subject =
     str(formData, "subject") ||
@@ -568,7 +575,9 @@ export async function addChargeAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
+  if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   const ticket = await findTicket(shopId, ticketId);
   if (!ticket) return { error: "Repair not found." };
 
@@ -614,7 +623,9 @@ export async function updateChargeAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
+  if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
 
   const charge = await db.ticketCharge.findFirst({
     where: { id: chargeId, shopId },
@@ -646,7 +657,9 @@ export async function updateChargeAction(
 }
 
 export async function deleteChargeAction(chargeId: string): Promise<void> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
+  if (!canSeeMoney(role)) return;
 
   const charge = await db.ticketCharge.findFirst({
     where: { id: chargeId, shopId, invoiceId: null },
@@ -684,7 +697,9 @@ export type RemovedCharge = {
 export async function removeChargeAction(
   chargeId: string,
 ): Promise<{ ok: true; removed: RemovedCharge } | { ok?: undefined; error: string }> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
+  if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   if (!chargeId) return { error: "Charge not found." };
 
   const charge = await db.ticketCharge.findFirst({
@@ -736,7 +751,9 @@ const RESTORE_MAX_QUANTITY = 100_000;
  * It is a new row (a new id) with the old values, which is all anything reads.
  */
 export async function restoreChargeAction(removed: RemovedCharge): Promise<ActionState> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
+  if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   const ticket = await findTicket(shopId, typeof removed?.ticketId === "string" ? removed.ticketId : "");
   if (!ticket) return { error: "Repair not found." };
 
@@ -1247,9 +1264,10 @@ class RepairBillingChangedError extends Error {}
 
 export async function makeInvoiceAction(
   ticketId: string,
-  options?: { includeTime?: boolean },
+  options?: { includeTime?: boolean; takePayment?: boolean },
 ): Promise<ActionState> {
-  const { shopId, userId } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
+  if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   const includeTime = options?.includeTime !== false;
 
   const ticket = await db.ticket.findFirst({
@@ -1268,6 +1286,7 @@ export async function makeInvoiceAction(
           quantity: true,
           unitPriceCents: true,
           taxable: true,
+          product: { select: { category: true } },
         },
       },
     },
@@ -1287,7 +1306,7 @@ export async function makeInvoiceAction(
   const timeEntries = includeTime
     ? await loadBillableTime(db, shopId, ticket.id)
     : [];
-  const labourLines = labourLinesFor(timeEntries, labour, shop?.timezone ?? "UTC");
+  const labourLines = labourLinesFor(timeEntries, labour, shop?.timezone ?? "UTC", labourTaxable(shop?.settings, ticket.charges));
 
   const charges = ticket.charges;
   const locationId = await newRecordLocationId(shopId, userId);
@@ -1424,7 +1443,9 @@ export async function makeInvoiceAction(
   revalidateTicket(ticket.id);
   revalidatePath("/invoices");
   revalidatePath(`/customers/${ticket.customerId}`);
-  redirect(`/invoices/${invoice.id}`);
+  // Made at the counter: the invoice opens with Take payment first, and
+  // "Create & take payment" opens the payment straight away.
+  redirect(`/invoices/${invoice.id}?from=repair${options?.takePayment ? "&pay=1" : ""}`);
 }
 
 /** "Invoice #1004 created from 2 charges and 1 time entry." */
@@ -1780,6 +1801,10 @@ export async function bulkTicketStatusAction(
   const allowed = ticketStatuses(shop?.settings);
   const next = allowed.find((candidate) => candidate === status);
   if (!next) return { ok: false, error: "That is not one of this shop's statuses." };
+  // Each customer needs their own question (see postUpdateAction).
+  if (needsCustomerMessage(next, "")) {
+    return { ok: false, error: "Move repairs to Waiting on Customer one at a time, with a message saying what you need." };
+  }
 
   const targets = await db.ticket.findMany({
     where: { id: { in: parsed.ids }, shopId },

@@ -339,6 +339,12 @@ export function DeleteTicketDialog({
  *
  * On success the action redirects to the new invoice, so the only thing to
  * surface here is the "nothing to invoice" case.
+ *
+ * Two ways out: "Create & take payment" (the primary: the customer is at the
+ * counter, so the invoice opens with the payment already up) and "Create
+ * invoice" (just make it). Logged time starts UNticked when the repair already
+ * carries a flat labour charge, so the bench hour is never billed on top of the
+ * price the customer was quoted.
  */
 export function MakeInvoiceButton({
   ticketId,
@@ -346,6 +352,7 @@ export function MakeInvoiceButton({
   unbilledTimeCount,
   unbilledTimeLabel,
   unbilledTimeValue,
+  hasFlatLabour = false,
   trigger,
   label,
   triggerNode,
@@ -358,6 +365,8 @@ export function MakeInvoiceButton({
   unbilledTimeLabel: string;
   /** …and what they are worth, formatted. */
   unbilledTimeValue: string;
+  /** A labour charge is already on the repair: logged time starts unticked. */
+  hasFlatLabour?: boolean;
   trigger?: TriggerLook;
   /** The words on the opening button, when "Make Invoice (3)" is not the right ones for where it sits. */
   label?: string;
@@ -368,11 +377,14 @@ export function MakeInvoiceButton({
   triggerNode?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [includeTime, setIncludeTime] = React.useState(true);
+  const [includeTime, setIncludeTime] = React.useState(!hasFlatLabour);
 
   const [, formAction, pending] = useActionState(
-    async (): Promise<ActionState> => {
-      const result = await makeInvoiceAction(ticketId, { includeTime });
+    async (_previous: ActionState, formData: FormData): Promise<ActionState> => {
+      const result = await makeInvoiceAction(ticketId, {
+        includeTime,
+        takePayment: formData.get("next") === "pay",
+      });
       if (result.error) toast.error(result.error);
       return result;
     },
@@ -389,7 +401,7 @@ export function MakeInvoiceButton({
           <Button type="button" size="sm" disabled={nothingToBill} {...trigger}>
             <ICONS.invoice className="size-4" />
             {label ??
-              (nothingToBill ? "Make Invoice" : `Make Invoice (${chargeCount + unbilledTimeCount})`)}
+              (nothingToBill ? "Make invoice" : `Make invoice (${chargeCount + unbilledTimeCount})`)}
           </Button>
         )}
       </DialogTrigger>
@@ -428,6 +440,11 @@ export function MakeInvoiceButton({
               <span className="text-[13px] text-muted-foreground">
                 {unbilledTimeLabel} of labour · {unbilledTimeValue}
               </span>
+              {hasFlatLabour ? (
+                <span className="text-[13px] font-medium text-status-in-progress-fg">
+                  There is already a labour charge on this repair. Tick this only to bill the time as well.
+                </span>
+              ) : null}
             </span>
           </label>
         ) : (
@@ -436,23 +453,28 @@ export function MakeInvoiceButton({
           </p>
         )}
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={pending}
-            onClick={() => setOpen(false)}
-          >
-            Cancel
-          </Button>
-          <form action={formAction}>
-            <Button type="submit" size="sm" disabled={pending || billable === 0}>
-              <ICONS.invoice />
-              {pending ? "Creating…" : "Create invoice"}
+        {/* One form, two submit buttons: `next` says where to land afterwards. */}
+        <form action={formAction}>
+          <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-12 text-base"
+              disabled={pending}
+              onClick={() => setOpen(false)}
+            >
+              Cancel
             </Button>
-          </form>
-        </DialogFooter>
+            <Button type="submit" name="next" value="invoice" variant="outline" className="h-12 text-base" disabled={pending || billable === 0}>
+              <ICONS.invoice />
+              Create invoice
+            </Button>
+            <Button type="submit" name="next" value="pay" className="h-12 text-base" disabled={pending || billable === 0}>
+              <ACTIONS.pay />
+              {pending ? "Creating…" : "Create & take payment"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

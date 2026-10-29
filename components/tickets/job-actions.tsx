@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { BellRing } from "lucide-react";
+import { BellRing, Phone, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
 } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE } from "./action-state";
 import type { Canned } from "./canned-manager";
-import { sheetShortcut } from "./job-screen-logic";
+import { READY_CALL_REASON, sheetShortcut, type ReadyReach } from "./job-screen-logic";
 import { READY_FOR_PICKUP_STATUS, RESOLVED_STATUS } from "./ticket-meta";
 import { useSetOptimisticStatus, useTicketStatus } from "./ticket-status";
 import { UpdateComposer } from "./update-composer";
@@ -47,6 +47,7 @@ import { UpdateComposer } from "./update-composer";
  */
 
 type JobActionsValue = {
+  ticketId: string;
   /** The status being shown right now (a press paints ahead of the round trip). */
   status: string;
   /** A write is in flight. */
@@ -79,6 +80,8 @@ export function JobActionsProvider({
   customerName,
   customerEmail,
   cannedResponses,
+  reach,
+  handoverWarning = null,
   children,
 }: {
   ticketId: string;
@@ -90,6 +93,16 @@ export function JobActionsProvider({
   customerName: string;
   customerEmail: string | null;
   cannedResponses: Canned[];
+  /**
+   * How "it is ready" would reach the customer (consent and messaging checked
+   * on the server). Without it the dialog offers the message, as it always did.
+   */
+  reach?: ReadyReach;
+  /**
+   * What is not sorted out on the money ("They still owe $120.00."), shown as a
+   * warning in the hand-over dialog, which then says "Hand over anyway".
+   */
+  handoverWarning?: string | null;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -161,6 +174,7 @@ export function JobActionsProvider({
 
   const value = React.useMemo<JobActionsValue>(
     () => ({
+      ticketId,
       status: liveStatus,
       busy,
       changeStatus,
@@ -171,11 +185,19 @@ export function JobActionsProvider({
       openReady: () => setSheet("ready"),
       openHandover: () => setSheet("handover"),
     }),
-    [liveStatus, busy, changeStatus],
+    [ticketId, liveStatus, busy, changeStatus],
   );
 
   const close = () => setSheet(null);
   const shortcut = sheetShortcut(target, status, pickedUp);
+  // Nothing would reach the customer: offer the call, never a message that does not go.
+  const callInstead = reach?.kind === "call" ? reach : null;
+  const sendWord = reach?.kind === "message" ? (reach.channel === "text" ? "text" : "email") : "tell";
+  /** Marks it ready with no message, then dials. The tel: link opens the phone; the move happens beside it. */
+  const markReadyAndCall = () => {
+    setSheet(null);
+    changeStatus(readyStatus);
+  };
 
   return (
     <JobActionsContext.Provider value={value}>
@@ -206,14 +228,15 @@ export function JobActionsProvider({
             </DialogDescription>
           </DialogHeader>
 
-          {shortcut === "notify" ? (
+          {shortcut === "notify" && !callInstead ? (
             <ShortcutBlock
               title="Want the customer told too?"
-              hint={`Marks it ${readyStatus} and sends the shop's pickup message to ${customerName} by text or email.`}
+              hint={`Marks it ${readyStatus} and sends the shop's pickup message to ${customerName}${reach?.kind === "message" ? ` by ${reach.channel} to ${reach.to}` : " by text or email"}.`}
               action={
-                <Button type="button" className="h-12 w-full text-base sm:w-auto" disabled={busy} onClick={notify}>
+                // Outline: the sheet's own button below is the one primary.
+                <Button type="button" variant="outline" className="h-12 w-full text-base sm:w-auto" disabled={busy} onClick={notify}>
                   <BellRing aria-hidden />
-                  Mark ready and tell {customerName}
+                  Mark ready and {sendWord} {customerName}
                 </Button>
               }
             />
@@ -223,7 +246,7 @@ export function JobActionsProvider({
               title="Did the customer collect it?"
               hint="Marks it picked up and closes the repair."
               action={
-                <Button type="button" className="h-12 w-full text-base sm:w-auto" disabled={busy} onClick={handOver}>
+                <Button type="button" variant="outline" className="h-12 w-full text-base sm:w-auto" disabled={busy} onClick={() => setSheet("handover")}>
                   <ACTIONS.receive aria-hidden />
                   Hand over to customer
                 </Button>
@@ -244,28 +267,62 @@ export function JobActionsProvider({
         </DialogContent>
       </Dialog>
 
-      {/* Tell the customer it is ready. */}
+      {/* Tell the customer it is ready, or, when nothing would reach them, mark it and call. ONE primary. */}
       <Dialog open={sheet === "ready"} onOpenChange={(open) => !open && close()}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Tell {customerName} it is ready?</DialogTitle>
-            <DialogDescription className="text-sm">
-              This marks the repair {readyStatus} and sends the shop&rsquo;s pickup message by text
-              or email.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" className="h-12 text-base" onClick={() => {
-                setTarget(readyStatus);
-                setSheet("status");
-              }}>
-              Just change the status
-            </Button>
-            <Button type="button" className="h-12 text-base" disabled={busy} onClick={notify}>
-              <BellRing aria-hidden />
-              Mark ready and tell {customerName}
-            </Button>
-          </DialogFooter>
+          {callInstead ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">Mark it ready and call {customerName}?</DialogTitle>
+                <DialogDescription className="text-sm">
+                  No message will be sent: {READY_CALL_REASON[callInstead.reason]}.
+                  {callInstead.phone ? " Give them a call to say it is ready." : " There is no number to call either; add one on the customer."}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
+                <Button type="button" variant="outline" className="h-12 text-base" onClick={() => {
+                    setTarget(readyStatus);
+                    setSheet("status");
+                  }}>
+                  Add a note first
+                </Button>
+                {callInstead.phone ? (
+                  <Button asChild className="h-12 text-base">
+                    <a href={`tel:${callInstead.phone.replace(/[^\d+]/g, "")}`} onClick={markReadyAndCall} aria-disabled={busy || undefined}>
+                      <Phone aria-hidden />
+                      Mark ready · Call {callInstead.phone}
+                    </a>
+                  </Button>
+                ) : (
+                  <Button type="button" className="h-12 text-base" disabled={busy} onClick={markReadyAndCall}>
+                    Mark ready
+                  </Button>
+                )}
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-xl">Tell {customerName} it is ready?</DialogTitle>
+                <DialogDescription className="text-sm">
+                  This marks the repair {readyStatus} and sends the shop&rsquo;s pickup message
+                  {reach?.kind === "message" ? ` by ${reach.channel} to ${reach.to}.` : " by text or email."}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
+                <Button type="button" variant="outline" className="h-12 text-base" onClick={() => {
+                    setTarget(readyStatus);
+                    setSheet("status");
+                  }}>
+                  Just change the status
+                </Button>
+                <Button type="button" className="h-12 text-base" disabled={busy} onClick={notify}>
+                  <BellRing aria-hidden />
+                  Mark ready and {sendWord} {customerName}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -273,19 +330,33 @@ export function JobActionsProvider({
       <Dialog open={sheet === "handover"} onOpenChange={(open) => !open && close()}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl">Hand this repair over?</DialogTitle>
+            <DialogTitle className="text-xl">
+              {handoverWarning ? "Hand it over before it is paid?" : "Hand this repair over?"}
+            </DialogTitle>
             <DialogDescription className="text-sm">
               This marks it picked up and closes the repair. Do it once the customer has the device in
               their hands.
             </DialogDescription>
           </DialogHeader>
+          {handoverWarning ? (
+            <p role="alert" className="flex items-start gap-2.5 rounded-xl bg-destructive-soft px-4 py-3 text-base font-medium text-destructive">
+              <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" />
+              <span>{handoverWarning}</span>
+            </p>
+          ) : null}
           <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
             <Button type="button" variant="outline" className="h-12 text-base" onClick={close}>
               Not yet
             </Button>
-            <Button type="button" className="h-12 text-base" disabled={busy} onClick={handOver}>
+            <Button
+              type="button"
+              variant={handoverWarning ? "destructive" : "default"}
+              className="h-12 text-base"
+              disabled={busy}
+              onClick={handOver}
+            >
               <ACTIONS.receive aria-hidden />
-              Hand over to customer
+              {handoverWarning ? "Hand over anyway" : "Hand over to customer"}
             </Button>
           </DialogFooter>
         </DialogContent>

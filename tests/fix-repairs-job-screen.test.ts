@@ -74,7 +74,7 @@ describe("status steps: real history, not a tick on every earlier step", () => {
     const out = html(inProvider("Ready for Pickup", h(StatusSteps, { statuses: STATUSES, visited: ["Ready for Pickup", "In Progress"] })));
     const pill = (name: string) => out.match(new RegExp(`<button[^>]*>(?:(?!</button>)[\\s\\S])*?${name}(?:(?!</button>)[\\s\\S])*?</button>`))?.[0] ?? "";
     expect(pill("In Progress")).toContain("lucide-check");
-    expect(pill("In Progress")).toContain(">Done<");
+    expect(pill("In Progress")).toContain(">, done<");
     expect(pill("Waiting for Parts")).not.toContain("lucide-check");
     expect(pill("Waiting for Parts")).toContain("Skipped");
     expect(pill("Waiting for Parts")).toContain("border-dashed");

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { locationWhere } from "@/lib/location";
 import { readUiPrefs } from "@/lib/prefs";
+import { canSeeMoney } from "@/lib/money-access";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -42,10 +43,12 @@ import {
   type TicketFilterValues,
 } from "@/components/tickets/ticket-toolbar";
 import {
+  isResolved,
   NEEDS_REPLY_FILTER,
   RESOLVED_STATUS,
   ticketStatuses,
 } from "@/components/tickets/ticket-meta";
+import { DEFAULT_TICKET_SORT, sortByUrgency, URGENCY_SORT_CAP } from "@/components/tickets/ticket-sort";
 import { OPEN_PART_STATUSES } from "@/components/tickets/part-meta";
 import { needsReplyTicketIds } from "@/lib/needs-reply";
 import { dueTodayRange } from "@/lib/sla";
@@ -70,7 +73,7 @@ export default async function TicketsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const [{ shopId }, params, prefs, branch] = await Promise.all([
+  const [{ shopId, role }, params, prefs, branch] = await Promise.all([
     requireUser(),
     searchParams,
     readUiPrefs(),
@@ -79,13 +82,16 @@ export default async function TicketsPage({
   // Easy mode: picture cards, big tabs with counts. Full mode keeps the dense
   // card board with bulk selection.
   const simple = prefs.simple;
+  // A technician's list carries no money: no deposits on the cards, no pickup
+  // counter with balances (lib/money-access.ts).
+  const showMoney = canSeeMoney(role);
 
   const filters: TicketFilterValues = {
     q: one(params.q, "").trim(),
     status: one(params.status, "open"),
     tech: one(params.tech, "all"),
     problemType: one(params.problemType, "all"),
-    sort: one(params.sort, "created"),
+    sort: one(params.sort, DEFAULT_TICKET_SORT),
     due: one(params.due, "all"),
     customerId: one(params.customerId, ""),
   };
@@ -174,7 +180,26 @@ export default async function TicketsPage({
       ? [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }]
       : [{ createdAt: "desc" }];
 
-  const [techs, problems, total, tickets, statusRows, overdueCount, needsReplyCount] = await Promise.all([
+  // "Most urgent first" (the default) is overdue, then due soonest, then
+  // priority, with Ready for pickup last: an order SQL cannot spell over a
+  // free-text status, so the open set is ordered here (lightweight rows only)
+  // and the page is then loaded by id. A list of finished work has no urgency,
+  // so it keeps the newest first.
+  const byUrgency = sort === DEFAULT_TICKET_SORT && status !== "all" && !isResolved(status);
+  const pageIds = byUrgency
+    ? sortByUrgency(
+        await db.ticket.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: URGENCY_SORT_CAP,
+          select: { id: true, status: true, priority: true, dueDate: true, createdAt: true },
+        }),
+      )
+        .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+        .map((row) => row.id)
+    : null;
+
+  const [techs, problems, total, loaded, statusRows, overdueCount, needsReplyCount] = await Promise.all([
     db.user.findMany({
       where: { shopId, active: true },
       orderBy: { name: "asc" },
@@ -188,9 +213,9 @@ export default async function TicketsPage({
     }),
     db.ticket.count({ where }),
     db.ticket.findMany({
-      where,
+      where: pageIds ? { ...where, AND: [{ id: { in: pageIds } }] } : where,
       orderBy,
-      skip: (page - 1) * PAGE_SIZE,
+      skip: pageIds ? 0 : (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
         id: true,
@@ -246,6 +271,12 @@ export default async function TicketsPage({
       : Promise.resolve(0),
   ]);
 
+  // In urgency order when the page was picked by id, and never a deposit for a technician.
+  const ordered = pageIds
+    ? pageIds.flatMap((id) => loaded.filter((ticket) => ticket.id === id))
+    : loaded;
+  const tickets = ordered.map((ticket) => ({ ...ticket, depositCents: showMoney ? ticket.depositCents : null }));
+
   // Single request-time clock, so every row in this render is measured against
   // the same instant.
   const now = requestNow.getTime();
@@ -262,6 +293,22 @@ export default async function TicketsPage({
   const filterHref = (patch: Partial<TicketFilterValues>) =>
     ticketsHref({ ...filters, ...patch }, 1);
   const pageHref = (target: number) => ticketsHref(filters, target);
+
+  // A search only looks inside the view on screen; one tap widens it to every
+  // repair, finished ones included, so "not found" never just means "wrong tab".
+  const searchAllHref = q && (status !== "all" || due !== "all") ? filterHref({ status: "all", due: "all" }) : null;
+  const searchAll = searchAllHref ? (
+    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+      Searching this view only.
+      <Link
+        href={searchAllHref}
+        data-touch-control
+        className="inline-flex min-h-12 items-center font-semibold text-accent-soft-foreground hover:underline"
+      >
+        Search all repairs for &ldquo;{q}&rdquo;
+      </Link>
+    </p>
+  ) : null;
 
   // The shop's own status list. It feeds both the view tabs and the bulk
   // "Status" menu, so the two can never offer different words.
@@ -350,7 +397,7 @@ export default async function TicketsPage({
 
     // Ready for pickup is the moment a customer collects a device: a pickup
     // counter instead of the list (cards with the money and one big button).
-    if (isPickupView({ status, due })) {
+    if (showMoney && isPickupView({ status, due })) {
       const cards = await loadPickupCards({ shopId, tickets, readyStatus: status });
       return (
         <PickupCounter
@@ -403,6 +450,7 @@ export default async function TicketsPage({
             problemTypes={problems.map((p) => p.problemType)}
             techs={techs}
           />
+          {searchAll}
         </div>
 
         {tickets.length === 0 ? (
@@ -523,6 +571,7 @@ export default async function TicketsPage({
           problemTypes={problems.map((p) => p.problemType)}
           techs={techs}
         />
+        {searchAll}
       </div>
 
       {/*
@@ -691,7 +740,7 @@ function ticketsHref(values: TicketFilterValues, page: number): string {
   if (values.status !== "open") params.set("status", values.status);
   if (values.tech !== "all") params.set("tech", values.tech);
   if (values.problemType !== "all") params.set("problemType", values.problemType);
-  if (values.sort !== "created") params.set("sort", values.sort);
+  if (values.sort !== DEFAULT_TICKET_SORT) params.set("sort", values.sort);
   if (values.due !== "all") params.set("due", values.due);
   if (values.customerId) params.set("customerId", values.customerId);
   if (page > 1) params.set("page", String(page));

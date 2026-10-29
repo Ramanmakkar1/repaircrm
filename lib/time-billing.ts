@@ -110,13 +110,15 @@ export type LabourLine = {
  * amount, so a quantity of 1.5 (which the schema cannot hold anyway) never has
  * to be invented.
  *
- * Labour is taxable — services are taxed in every jurisdiction this app ships
- * to; a shop that disagrees marks the customer exempt or edits the line.
+ * Whether the lines are taxed is `labourTaxable()`: one rule for every route
+ * that bills time, so a repair's flat labour and its logged labour are never
+ * taxed two different ways on the same bill.
  */
 export function labourLinesFor(
   entries: readonly BillableTimeEntry[],
   labour: LabourSettings,
   zone = "UTC",
+  taxable = true,
 ): LabourLine[] {
   return entries.map((entry) => ({
     productId: null,
@@ -128,6 +130,38 @@ export function labourLinesFor(
     ),
     quantity: 1,
     unitPriceCents: labourAmountCents(entry.seconds, labour),
-    taxable: true,
+    taxable,
   }));
+}
+
+/**
+ * A flat labour charge: a line the shop priced the work at (a "Labour" product,
+ * or a typed line that says labour). When one is on the repair, its logged time
+ * is NOT offered pre-ticked on the invoice: the customer was quoted the flat
+ * price, and billing the bench hour on top of it doubles the labour.
+ */
+export function isLabourCharge(charge: { description: string; product?: { category: string | null } | null }): boolean {
+  if (charge.product?.category && /\blabou?r\b/i.test(charge.product.category)) return true;
+  return /\blabou?r\b/i.test(charge.description);
+}
+
+/**
+ * THE labour tax rule, used by every path that turns time into invoice lines.
+ *
+ *   1. The shop said so: `Shop.settings.labourTaxable` (true or false).
+ *   2. Otherwise, labour already on the same bill decides: a flat "Screen
+ *      fitting" line marked non-taxable means the logged hour is non-taxable
+ *      too, so one invoice never taxes labour two ways.
+ *   3. Otherwise taxed, which is what time lines have always been.
+ */
+export function labourTaxable(
+  settings: unknown,
+  sameBill: readonly { description: string; taxable: boolean; product?: { category: string | null } | null }[] = [],
+): boolean {
+  if (settings && typeof settings === "object" && !Array.isArray(settings)) {
+    const explicit = (settings as Record<string, unknown>).labourTaxable;
+    if (typeof explicit === "boolean") return explicit;
+  }
+  const flat = sameBill.find((line) => isLabourCharge(line));
+  return flat ? flat.taxable : true;
 }

@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_TICKET_SORT, TICKET_SORTS } from "./ticket-sort";
 import {
   Select,
   SelectContent,
@@ -48,7 +49,7 @@ export type TicketFilterValues = {
  * a text box and a dialog.
  *
  * The URL stays the single source of truth, so a filtered board is shareable
- * and the back button behaves. Sentinels ("open", "all", "created") are
+ * and the back button behaves. Sentinels ("open", "all", DEFAULT_TICKET_SORT) are
  * stripped when they are the default so the everyday views keep clean URLs,
  * and `customerId` rides through every change — narrowing the status of one
  * customer's tickets must not silently widen the list to the whole shop.
@@ -91,7 +92,7 @@ export function TicketToolbar({
   // taking up a row of the page.
   const advancedCount =
     (values.problemType !== "all" ? 1 : 0) +
-    (values.sort !== "created" ? 1 : 0) +
+    (values.sort !== DEFAULT_TICKET_SORT ? 1 : 0) +
     (values.due !== "all" ? 1 : 0) +
     (values.tech !== "all" ? 1 : 0);
 
@@ -164,7 +165,7 @@ export function TicketToolbar({
                   status: "open",
                   tech: "all",
                   problemType: "all",
-                  sort: "created",
+                  sort: DEFAULT_TICKET_SORT,
                   due: "all",
                   customerId: values.customerId,
                 }),
@@ -194,7 +195,7 @@ function ticketsHref(values: TicketFilterValues): string {
   if (values.status !== "open") params.set("status", values.status);
   if (values.tech !== "all") params.set("tech", values.tech);
   if (values.problemType !== "all") params.set("problemType", values.problemType);
-  if (values.sort !== "created") params.set("sort", values.sort);
+  if (values.sort !== DEFAULT_TICKET_SORT) params.set("sort", values.sort);
   if (values.due !== "all") params.set("due", values.due);
   if (values.customerId) params.set("customerId", values.customerId);
   // Any filter change invalidates the current page offset.
@@ -296,8 +297,11 @@ function AdvancedFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="created">Newest first</SelectItem>
-              <SelectItem value="due">Due soonest</SelectItem>
+              {TICKET_SORTS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </FilterField>
@@ -309,7 +313,7 @@ function AdvancedFilters({
           variant="ghost"
           onClick={() => {
             setProblemType("all");
-            setSort("created");
+            setSort(DEFAULT_TICKET_SORT);
             setDue("all");
             setTech("all");
           }}

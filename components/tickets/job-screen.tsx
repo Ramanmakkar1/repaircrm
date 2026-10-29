@@ -69,10 +69,13 @@ export function JobTabs({
   ticketId,
   active,
   counts,
+  showMoney = true,
 }: {
   ticketId: string;
   active: JobTab;
   counts: JobTabCounts;
+  /** False for a technician: there is no Money tab (lib/money-access.ts). */
+  showMoney?: boolean;
 }) {
   return (
     // The shared row scrolls sideways when it must, with a thin scrollbar; here a tablet fits all five and a
@@ -82,7 +85,7 @@ export function JobTabs({
         aria-label="Repair sections"
         // Tighter than the shared pill (px-4) so all five fit the left column of a tablet without scrolling.
         className="[&>a]:px-3 lg:[&>a]:px-2.5"
-        tabs={JOB_TABS.map((tab) => ({
+        tabs={JOB_TABS.filter((tab) => showMoney || tab.id !== "money").map((tab) => ({
           label: tab.label,
           href: jobTabHref(ticketId, tab.id),
           active: tab.id === active,
@@ -184,12 +187,15 @@ export function JobBillLink({
   href,
   lines,
   total,
+  unbilledTime = null,
 }: {
   href: string;
   /** How many charge lines the repair has. */
   lines: number;
   /** The total those lines foot to, formatted. */
   total: string | null;
+  /** Logged time not on any invoice yet ("0:55 of time not billed · $87.08"), so it is never a surprise on the bill. */
+  unbilledTime?: string | null;
 }) {
   return (
     <Link
@@ -203,6 +209,7 @@ export function JobBillLink({
           <span className="text-base font-semibold">
             {lines > 0 ? `On the bill: ${lines} ${lines === 1 ? "charge" : "charges"}` : "Nothing on the bill yet"}
           </span>
+          {unbilledTime ? <span className="text-sm text-muted-foreground">{unbilledTime}</span> : null}
           <span className="text-sm text-accent-soft-foreground">{lines > 0 ? "See Money" : "Add a charge"}</span>
         </span>
       </span>

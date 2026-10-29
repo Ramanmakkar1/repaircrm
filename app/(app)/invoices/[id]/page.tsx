@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { invoiceTokenPath, portalUrl } from "@/lib/comms";
 import {
   defaultInvoiceMessage,
@@ -131,7 +131,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
   const invoice = await db.invoice.findFirst({
     where: { id, shopId },
@@ -149,9 +149,9 @@ export default async function InvoiceDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string | string[] }>;
+  searchParams: Promise<{ tab?: string | string[]; from?: string | string[]; pay?: string | string[] }>;
 }) {
-  const { shopId, role } = await requireUser();
+  const { shopId, role } = await requireMoneyUser();
   const [{ id }, prefs, query] = await Promise.all([params, readUiPrefs(), searchParams]);
   // Easy mode (the default): one big action chosen by status, the rest under "More".
   const easy = prefs.simple;
@@ -162,7 +162,7 @@ export default async function InvoiceDetailPage({
       customer: true,
       shop: { select: { name: true, settings: true, timezone: true } },
       taxRate: { select: { name: true } },
-      ticket: { select: { id: true, number: true, subject: true } },
+      ticket: { select: { id: true, number: true, subject: true, pickedUpAt: true } },
       estimate: { select: { id: true, number: true } },
       lines: { orderBy: { sortOrder: "asc" } },
       payments: {
@@ -206,6 +206,16 @@ export default async function InvoiceDetailPage({
   const isVoid = invoice.status === "VOID";
   const canEdit = invoice.status === "DRAFT" || invoice.status === "SENT";
   const canTakePayment = !isVoid && totals.balanceCents > 0;
+  // Opened from a repair at the counter (the repair's Take payment, or Make
+  // invoice's "Create & take payment"): payment leads, `?pay=1` opens it at once,
+  // and once it is paid in full the device can be handed over from here.
+  const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+  const atCounter = Boolean(invoice.ticket) && first(query.from) === "repair";
+  const autoPay = atCounter && first(query.pay) === "1" && canTakePayment;
+  const handover =
+    invoice.ticket && invoice.ticket.pickedUpAt === null
+      ? { ticketId: invoice.ticket.id, ticketNumber: invoice.ticket.number }
+      : undefined;
   const hasPayments = invoice.payments.length > 0;
   const hasRefunds = invoice.refunds.length > 0;
   const overdue = isOverdue(invoice.dueDate, totals.balanceCents, wallNow);
@@ -431,10 +441,12 @@ export default async function InvoiceDetailPage({
     />
   );
 
-  const paymentDialog = (size: "sm" | "lg", appearance: "button" | "tile" = "button") =>
+  const paymentDialog = (size: "sm" | "lg", appearance: "button" | "tile" = "button", open = false) =>
     canTakePayment ? (
       <PaymentDialog
         appearance={appearance}
+        defaultOpen={open}
+        handover={handover}
         action={takePaymentAction}
         invoiceId={invoice.id}
         balanceCents={totals.balanceCents}
@@ -560,7 +572,7 @@ export default async function InvoiceDetailPage({
       actions={
         <>
           {actionMenu(false)}
-          {paymentDialog("sm")}
+          {paymentDialog("sm", "button", autoPay)}
 
           {/* The primary action, last so it sits at the end of the row —
               and the only one that both delivers the document and moves it
@@ -588,6 +600,7 @@ export default async function InvoiceDetailPage({
       status: invoice.status,
       voided: isVoid,
       canTakePayment,
+      atCounter,
     });
     const alreadySent = invoice.status !== "DRAFT";
     const primaryLabel = invoicePrimaryLabel(primary, { alreadySent, receiptable });
@@ -609,8 +622,8 @@ export default async function InvoiceDetailPage({
     );
 
     /** The one big button. Built per call so the phone's pinned copy is its own. */
-    const bigAction = (): React.ReactNode => {
-      if (primary === "pay") return <div className={BIG_BUTTON_SLOT}>{paymentDialog("lg")}</div>;
+    const bigAction = (open = false): React.ReactNode => {
+      if (primary === "pay") return <div className={BIG_BUTTON_SLOT}>{paymentDialog("lg", "button", open)}</div>;
       if (primary === "send") {
         return (
           <SendDocumentDialog
@@ -1150,7 +1163,7 @@ export default async function InvoiceDetailPage({
               phone,
             }}
             hero={<BalanceHero block={block} />}
-            primary={bigAction()}
+            primary={bigAction(autoPay)}
             tiles={tiles}
             tileCount={tileKeys.length}
             hint={lastSentHint}

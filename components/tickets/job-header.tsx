@@ -39,7 +39,8 @@ export function JobHeader({
   extras,
   more,
 }: {
-  back: { label: string; href: string };
+  /** Left out in Easy mode, where the shell's own Back is the one way back (never two). */
+  back?: { label: string; href: string } | null;
   number: number;
   /** The device ("Lenovo ThinkPad T14 Gen 3"), or the subject when no device is on file. */
   title: string;
@@ -63,17 +64,21 @@ export function JobHeader({
 
   return (
     <header className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          href={back.href}
-          data-touch-control
-          className="inline-flex min-h-12 w-fit items-center gap-1.5 rounded-lg text-base font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft aria-hidden className="size-5 shrink-0" />
-          {back.label}
-        </Link>
-        {more ? <div className="shrink-0">{more}</div> : null}
-      </div>
+      {back || more ? (
+        <div className={back ? "flex items-center justify-between gap-3" : "flex items-center justify-end gap-3"}>
+          {back ? (
+            <Link
+              href={back.href}
+              data-touch-control
+              className="inline-flex min-h-12 w-fit items-center gap-1.5 rounded-lg text-base font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ArrowLeft aria-hidden className="size-5 shrink-0" />
+              {back.label}
+            </Link>
+          ) : null}
+          {more ? <div className="shrink-0">{more}</div> : null}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-2xl border border-border bg-surface p-4 sm:gap-x-5 sm:p-5">
         <DeviceVisual

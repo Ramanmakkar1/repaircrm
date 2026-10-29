@@ -245,7 +245,7 @@ describe("isPickupView", () => {
 });
 
 describe("pickupSearchFields", () => {
-  const base = { status: "Ready for Pickup", tech: "all", problemType: "all", sort: "created", customerId: "" };
+  const base = { status: "Ready for Pickup", tech: "all", problemType: "all", sort: "urgent", customerId: "" };
 
   it("keeps the view and nothing else when no filter is set", () => {
     expect(pickupSearchFields(base)).toEqual([["status", "Ready for Pickup"]]);

@@ -127,6 +127,27 @@ export function repairWords(status: string, device?: string | null): RepairWords
   };
 }
 
+/**
+ * "We need your answer" only means something next to the question. When the
+ * shop moved the repair to a waiting-on-you state without writing anything the
+ * customer can read, the page says to call instead of pointing at a message
+ * that is not there.
+ */
+export function withAnswerFallback(
+  words: RepairWords,
+  context: { shopMessage: boolean; shopName: string; phone: string | null },
+): RepairWords & { callInstead: boolean } {
+  if (!(words.needsYou && words.stage === 1) || context.shopMessage) return { ...words, callInstead: false };
+  const phone = context.phone?.trim();
+  return {
+    ...words,
+    label: "Please call the shop",
+    headline: "The shop needs to talk to you",
+    next: phone ? `Please call ${context.shopName} on ${phone}.` : `Please call or message ${context.shopName}.`,
+    callInstead: true,
+  };
+}
+
 function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

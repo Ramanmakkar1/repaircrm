@@ -16,6 +16,7 @@ import { refundAwareTotals, type RefundLike } from "@/components/billing/refund-
 import { formatCents, type LineLike } from "@/lib/money";
 import { formatInZone, sameZonedYear, zonedCalendarDays } from "@/lib/shop-time";
 import { isReadyForPickup } from "./ticket-meta";
+import { DEFAULT_TICKET_SORT } from "./ticket-sort";
 
 // ---------------------------------------------------------------------------
 // Which Repairs views are the pickup counter
@@ -31,7 +32,7 @@ export function isPickupView(current: { status: string; due: string }): boolean 
   return isReadyForPickup(current.status) && current.due === "all";
 }
 
-const SEARCH_DEFAULTS: Record<string, string> = { tech: "all", problemType: "all", sort: "created" };
+const SEARCH_DEFAULTS: Record<string, string> = { tech: "all", problemType: "all", sort: DEFAULT_TICKET_SORT };
 
 /**
  * The hidden inputs the big search box posts besides the words typed in it, so

@@ -25,6 +25,7 @@ import { postUpdateAction } from "@/app/(app)/tickets/actions";
 import { EMPTY_STATE, type ActionState } from "./action-state";
 import { CannedManager, type Canned } from "./canned-manager";
 import { useSetOptimisticStatus } from "./ticket-status";
+import { needsCustomerMessage } from "./job-screen-logic";
 
 /**
  * One card, one submit: change the status AND leave the note explaining why.
@@ -66,7 +67,11 @@ export function UpdateComposer({
   onPosted?: () => void;
 }) {
   const [status, setStatus] = React.useState(fixedStatus ?? currentStatus);
-  const [isPublic, setIsPublic] = React.useState(initialPublic);
+  const [chosePublic, setIsPublic] = React.useState(initialPublic);
+  // Moving to Waiting on Customer is a question to the customer, so it is
+  // always a message to them (the server refuses it otherwise).
+  const mustMessage = needsCustomerMessage(status, currentStatus);
+  const isPublic = chosePublic || mustMessage;
   const [body, setBody] = React.useState("");
   const [subject, setSubject] = React.useState("");
   const [cannedValue, setCannedValue] = React.useState("none");
@@ -223,9 +228,11 @@ export function UpdateComposer({
         autoFocus={autoFocus}
         aria-label={isPublic ? "Message to customer" : "Internal note"}
         placeholder={
-          isPublic
-            ? "What should the customer know?"
-            : "What did you find, what did you do?"
+          mustMessage
+            ? "What do you need from them? An answer on the quote, a passcode…"
+            : isPublic
+              ? "What should the customer know?"
+              : "What did you find, what did you do?"
         }
       />
 
@@ -280,13 +287,18 @@ export function UpdateComposer({
     return (
       <section aria-label="Add an update" className="flex flex-col gap-4">
         <div role="group" aria-label="Who is this for" className="grid grid-cols-2 gap-2">
-          <ComposeChoice active={!isPublic} icon={Lock} onClick={() => setIsPublic(false)}>
+          <ComposeChoice active={!isPublic} icon={Lock} onClick={() => setIsPublic(false)} disabled={mustMessage}>
             Private note
           </ComposeChoice>
           <ComposeChoice active={isPublic} icon={Send} onClick={() => setIsPublic(true)}>
             Message to customer
           </ComposeChoice>
         </div>
+        {mustMessage ? (
+          <p className="rounded-xl bg-accent-soft px-4 py-3 text-base text-foreground">
+            Their page will say the shop needs their answer, so tell them what the question is.
+          </p>
+        ) : null}
         {form}
       </section>
     );
@@ -311,6 +323,7 @@ export function UpdateComposer({
             <Switch
               id="isPublic"
               checked={isPublic}
+              disabled={mustMessage}
               onCheckedChange={setIsPublic}
               aria-label="Send this update to the customer"
             />
@@ -328,20 +341,23 @@ function ComposeChoice({
   active,
   icon: Icon,
   onClick,
+  disabled = false,
   children,
 }: {
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
   onClick: () => void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-[15px] font-semibold transition-colors",
+        "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-[15px] font-semibold transition-colors disabled:opacity-50",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "border-accent bg-accent text-accent-foreground"

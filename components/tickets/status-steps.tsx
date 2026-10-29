@@ -70,7 +70,7 @@ export function StatusSteps({
                   </span>
                 ) : null}
               </span>
-              <span className="sr-only">{STEP_WORDS[step.state]}</span>
+              <span className="sr-only">, {STEP_WORDS[step.state]}</span>
             </button>
           </li>
         ))}
@@ -81,10 +81,10 @@ export function StatusSteps({
 
 /** What a screen reader hears after the step's name. */
 const STEP_WORDS: Record<StepState, string> = {
-  done: "Done",
-  skipped: "Skipped",
-  current: "Current step",
-  todo: "Not yet",
+  done: "done",
+  skipped: "skipped",
+  current: "current step",
+  todo: "not reached yet",
 };
 
 const STEP_CLASS: Record<StepState, string> = {

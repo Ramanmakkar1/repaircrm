@@ -117,10 +117,13 @@ export function LiveStatusBadge({ status, className }: { status: string; classNa
 export function LiveStatusProgress({
   statuses,
   current,
+  visited,
 }: {
   statuses: string[];
   current: string;
+  /** The repair's status history, so a skipped step is not drawn as done. */
+  visited?: string[];
 }) {
   const live = useTicketStatus(current);
-  return <StatusProgress statuses={statuses} current={live} />;
+  return <StatusProgress statuses={statuses} current={live} visited={visited ? [...visited, live] : undefined} />;
 }

@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { readLabourSettings } from "@/lib/labour";
-import { labourLinesFor, loadBillableTime } from "@/lib/time-billing";
+import { canSeeMoney, MONEY_REFUSED } from "@/lib/money-access";
+import { labourLinesFor, labourTaxable, loadBillableTime } from "@/lib/time-billing";
 
 /**
  * "That invoice is missing the hour I logged after it was raised."
@@ -30,7 +31,8 @@ class TimeChangedError extends Error {}
 export async function addTimeToInvoiceAction(
   invoiceId: string,
 ): Promise<AddTimeResult> {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  if (!canSeeMoney(role)) return { ok: false, error: MONEY_REFUSED };
 
   if (typeof invoiceId !== "string" || !invoiceId) {
     return { ok: false, error: "That invoice no longer exists." };
@@ -44,6 +46,8 @@ export async function addTimeToInvoiceAction(
       status: true,
       ticketId: true,
       _count: { select: { lines: true } },
+      // The labour already on this bill decides how the time is taxed (labourTaxable).
+      lines: { select: { description: true, taxable: true, product: { select: { category: true } } } },
     },
   });
   if (!invoice) return { ok: false, error: "That invoice no longer exists." };
@@ -69,7 +73,7 @@ export async function addTimeToInvoiceAction(
     return { ok: false, error: "There is no unbilled time on this ticket." };
   }
 
-  const lines = labourLinesFor(entries, labour, shop?.timezone ?? "UTC");
+  const lines = labourLinesFor(entries, labour, shop?.timezone ?? "UTC", labourTaxable(shop?.settings, invoice.lines));
   const startOrder = invoice._count.lines;
 
   try {

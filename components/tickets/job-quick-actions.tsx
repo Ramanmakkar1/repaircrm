@@ -32,12 +32,18 @@ export function JobQuickActions({
   vendors,
   invoice,
   invoiceProps,
+  showMoney = true,
+  offerInvoice = true,
 }: {
   ticketId: string;
   products: PartProductOption[];
   vendors: PartVendorOption[];
   invoice: JobInvoice | null;
   invoiceProps: Omit<InvoiceProps, "trigger" | "label" | "triggerNode">;
+  /** False for a technician: no invoice tile. */
+  showMoney?: boolean;
+  /** False when the big button already is Make invoice: the same action is never on screen twice. */
+  offerInvoice?: boolean;
 }) {
   const nothingToBill = invoiceProps.chargeCount === 0 && invoiceProps.unbilledTimeCount === 0;
 
@@ -61,11 +67,12 @@ export function JobQuickActions({
         <Link href={jobTabHref(ticketId, "updates", "note")} className={TILE} data-touch-control>
           <TileFace icon={StickyNote} label="Add note" />
         </Link>
-        {invoice ? (
+        {!showMoney ? null : invoice ? (
           <Link href={`/invoices/${invoice.id}`} className={TILE} data-touch-control>
             <TileFace icon={Receipt} label={`Invoice #${invoice.number}`} />
           </Link>
-        ) : (
+        ) : !offerInvoice ? null : (
+          // The same Make invoice dialog as the big button, under the same name: one verb, never two.
           <MakeInvoiceButton
             {...invoiceProps}
             triggerNode={
@@ -75,7 +82,7 @@ export function JobQuickActions({
                 disabled={nothingToBill}
                 title={nothingToBill ? "Add a charge or log time first" : undefined}
               >
-                <TileFace icon={Receipt} label="Create invoice" />
+                <TileFace icon={Receipt} label="Make invoice" />
                 {nothingToBill ? <span className="sr-only">Add a charge or log time first</span> : null}
               </button>
             }

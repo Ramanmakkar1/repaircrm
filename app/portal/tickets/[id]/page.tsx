@@ -22,6 +22,7 @@ import {
   estimateWords,
   invoiceWords,
   repairWords,
+  withAnswerFallback,
   telHref,
   whenWords,
 } from "@/lib/portal-display";
@@ -144,7 +145,12 @@ export default async function PortalTicketPage({ params }: { params: Promise<{ i
   const now = requestNow();
   const zone = shop.timezone;
   const device = deviceName(ticket.asset);
-  const words = repairWords(ticket.status, device);
+  // A public comment with an author is something the shop wrote to them.
+  const words = withAnswerFallback(repairWords(ticket.status, device), {
+    shopMessage: ticket.comments.some((comment) => comment.authorId !== null),
+    shopName: shop.name,
+    phone: shop.phone,
+  });
 
   const quotes = estimates.map((estimate) => ({
     ...estimate,
@@ -198,6 +204,7 @@ export default async function PortalTicketPage({ params }: { params: Promise<{ i
           <NextStep
             ready={words.stage === 2}
             needsAnswer={words.needsYou && words.stage === 1}
+            callInstead={words.callInstead}
             quote={quoteToAnswer}
             bill={billToPay}
             phone={shop.phone}
@@ -346,6 +353,7 @@ export default async function PortalTicketPage({ params }: { params: Promise<{ i
 function NextStep({
   ready,
   needsAnswer,
+  callInstead = false,
   quote,
   bill,
   phone,
@@ -353,6 +361,8 @@ function NextStep({
 }: {
   ready: boolean;
   needsAnswer: boolean;
+  /** Waiting on them, with no message from the shop to answer: the button calls. */
+  callInstead?: boolean;
   quote?: { id: string; number: number; totalCents: number };
   bill?: { id: string; owed: number };
   phone: string | null;
@@ -385,8 +395,15 @@ function NextStep({
     }
   } else if (quote) {
     main = <Link href={`/portal/estimates/${quote.id}`}>Review the estimate ({formatCents(quote.totalCents)})</Link>;
+  } else if (needsAnswer && callInstead && phone) {
+    main = (
+      <a href={telHref(phone)}>
+        <Phone aria-hidden />
+        Call {phone}
+      </a>
+    );
   } else if (needsAnswer) {
-    main = <a href="#message">Reply to the shop</a>;
+    main = <a href="#message">{callInstead ? "Message the shop" : "Reply to the shop"}</a>;
   } else if (bill) {
     main = <Link href={`/portal/invoices/${bill.id}`}>Pay {formatCents(bill.owed)}</Link>;
   }

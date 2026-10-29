@@ -11,8 +11,12 @@ import { useJobActions } from "./job-actions";
 import {
   jobActionCopy,
   jobActions,
+  jobMoney,
+  jobTabHref,
   type JobActionKind,
   type JobInvoice,
+  type JobMoney,
+  type ReadyReach,
 } from "./job-screen-logic";
 import { MakeInvoiceButton } from "./ticket-actions";
 
@@ -20,21 +24,23 @@ type InvoiceProps = React.ComponentProps<typeof MakeInvoiceButton>;
 
 const BIG = "h-14 w-full px-6 text-lg [&_svg]:size-6";
 const NEXT = "h-12 w-full px-5 text-base [&_svg]:size-5";
+const INLINE = "h-12 px-6 text-base [&_svg]:size-5";
 
 /**
  * The one big button of the repair screen, chosen by where the repair is, and at
  * most one quieter button beside it.
  *
  *   New .................. Start repair
- *   In Progress .......... Mark ready for pickup (tells the customer)
+ *   In Progress .......... Mark ready for pickup (tells the customer, or says to call)
  *   Waiting ... .......... Resume repair
- *   Ready for Pickup ..... Take payment / Make invoice, then Hand over
+ *   Ready for Pickup ..... Take payment $X / Make invoice / Add a charge, with Hand over anyway;
+ *                          Hand over once it is paid
  *   Resolved ............. View invoice, then Reopen
  *
- * Every one of them is an action the repair page already had; see
- * `jobActions` for the table. It is rendered twice by the screen (in the side
- * column from `lg`, pinned above the tab bar on a phone) and each copy hides
- * itself with CSS, so only one is ever on screen.
+ * `jobActions` is the table, and it is the SAME table for both views: Easy
+ * renders this twice (in the side column from `lg`, pinned above the tab bar on
+ * a phone, each copy hiding itself with CSS) and Full renders it once, inline in
+ * the header.
  */
 export function JobPrimaryAction({
   pickedUp,
@@ -44,6 +50,10 @@ export function JobPrimaryAction({
   invoiceProps,
   inProgress,
   placement,
+  money = null,
+  seesMoney = true,
+  warranty = false,
+  reach,
 }: {
   /** `pickedUpAt` is stamped: the device has gone home. */
   pickedUp: boolean;
@@ -54,16 +64,34 @@ export function JobPrimaryAction({
   invoiceProps: Omit<InvoiceProps, "trigger" | "label" | "triggerNode">;
   /** The state Start / Resume / Reopen move to; null when the shop's pipeline has no step to move to. */
   inProgress: string | null;
-  placement: "side" | "pinned";
+  /** "inline": the Full view's header, both buttons in a row and no hint. */
+  placement: "side" | "pinned" | "inline";
+  /** The repair's balance (`pickupMoney`), for "Take payment $X". */
+  money?: JobMoney | null;
+  /** False for a technician: no money button (lib/money-access.ts). */
+  seesMoney?: boolean;
+  warranty?: boolean;
+  /** How "it is ready" would reach the customer. */
+  reach?: ReadyReach;
 }) {
   // From the status being shown, not the server's: a press moves the buttons the moment it is made.
   const { status } = useJobActions();
-  const actions = jobActions({ status, pickedUp, unbilled, invoice });
+  const actions = jobActions({ status, pickedUp, unbilled, invoice, money, seesMoney, warranty });
   if (!actions.primary) return null;
 
-  const context = { customerName, invoiceNumber: invoice?.number ?? null, inProgress: inProgress ?? undefined };
+  const dueCents = jobMoney({ money, invoice }).dueCents;
+  const context = { customerName, invoiceNumber: invoice?.number ?? null, inProgress: inProgress ?? undefined, dueCents, reach };
   const primary = jobActionCopy(actions.primary, context);
-  const buttonProps = { invoice, invoiceProps, inProgress };
+  const buttonProps = { invoice, invoiceProps, inProgress, dueCents };
+
+  if (placement === "inline") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <ActionButton kind={actions.primary} primary compact {...buttonProps} />
+        {actions.secondary ? <ActionButton kind={actions.secondary} compact {...buttonProps} /> : null}
+      </div>
+    );
+  }
 
   // Pinned: only the big button, fixed just above the phone's tab bar (64px tall, plus the home-bar inset).
   // The shell keeps 7rem free at the bottom of the page, which is room enough for it.
@@ -91,20 +119,25 @@ export function JobPrimaryAction({
 function ActionButton({
   kind,
   primary = false,
+  compact = false,
   invoice,
   invoiceProps,
   inProgress,
+  dueCents,
 }: {
   kind: JobActionKind;
   primary?: boolean;
+  /** The Full header's size: 48px tall, as wide as its words. */
+  compact?: boolean;
   invoice: JobInvoice | null;
   invoiceProps: Omit<InvoiceProps, "trigger" | "label" | "triggerNode">;
   inProgress: string | null;
+  dueCents: number;
 }) {
-  const { busy, changeStatus, openStatus, openReady, openHandover } = useJobActions();
-  const size = primary ? BIG : NEXT;
+  const { ticketId, busy, changeStatus, openStatus, openReady, openHandover } = useJobActions();
+  const size = compact ? INLINE : primary ? BIG : NEXT;
   const variant = primary ? "default" : "outline";
-  const copy = jobActionCopy(kind, { invoiceNumber: invoice?.number ?? null, inProgress: inProgress ?? undefined });
+  const copy = jobActionCopy(kind, { invoiceNumber: invoice?.number ?? null, inProgress: inProgress ?? undefined, dueCents });
 
   switch (kind) {
     case "start":
@@ -122,7 +155,18 @@ function ActionButton({
           {copy.label}
         </Button>
       );
+    case "charge":
+      // The charges live on the Money tab (Easy); in Full they are on the page, under #charges.
+      return (
+        <Button asChild variant={variant} className={size}>
+          <Link href={`${jobTabHref(ticketId, "money")}#charges`}>
+            <ACTIONS.add aria-hidden />
+            {copy.label}
+          </Link>
+        </Button>
+      );
     case "handover":
+    case "handover-anyway":
       return (
         <Button type="button" variant={variant} className={size} disabled={busy} onClick={openHandover}>
           <ACTIONS.receive aria-hidden />
@@ -133,7 +177,8 @@ function ActionButton({
     case "view-invoice":
       return invoice ? (
         <Button asChild variant={variant} className={size}>
-          <Link href={`/invoices/${invoice.id}`}>
+          {/* ?from=repair: the invoice opens with Take payment as its one primary. */}
+          <Link href={kind === "payment" ? `/invoices/${invoice.id}?from=repair` : `/invoices/${invoice.id}`}>
             {kind === "payment" ? <ACTIONS.pay aria-hidden /> : <ICONS.invoice aria-hidden />}
             {copy.label}
           </Link>

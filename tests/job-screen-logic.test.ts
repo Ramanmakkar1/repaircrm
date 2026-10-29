@@ -139,18 +139,23 @@ describe("jobActions: the one big button by status", () => {
 
   describe("Ready for Pickup", () => {
     it("takes payment on an invoice that still owes, and offers the hand-over beside it", () => {
-      expect(pick("Ready for Pickup", { invoice: { status: "SENT" } })).toEqual({ primary: "payment", secondary: "handover" });
-      expect(pick("Ready for Pickup", { invoice: { status: "PARTIAL" } })).toEqual({ primary: "payment", secondary: "handover" });
-      expect(pick("Ready for Pickup", { invoice: { status: "DRAFT" } })).toEqual({ primary: "payment", secondary: "handover" });
+      expect(pick("Ready for Pickup", { invoice: { status: "SENT" } })).toEqual({ primary: "payment", secondary: "handover-anyway" });
+      expect(pick("Ready for Pickup", { invoice: { status: "PARTIAL" } })).toEqual({ primary: "payment", secondary: "handover-anyway" });
+      expect(pick("Ready for Pickup", { invoice: { status: "DRAFT" } })).toEqual({ primary: "payment", secondary: "handover-anyway" });
     });
 
     it("makes the invoice first when there is work nobody has billed", () => {
-      expect(pick("Ready for Pickup", { unbilled: true })).toEqual({ primary: "invoice", secondary: "handover" });
+      expect(pick("Ready for Pickup", { unbilled: true })).toEqual({ primary: "invoice", secondary: "handover-anyway" });
     });
 
     it("hands the device over when nothing is left to pay", () => {
-      expect(pick("Ready for Pickup")).toEqual({ primary: "handover", secondary: null });
       expect(pick("Ready for Pickup", { invoice: { status: "PAID" } })).toEqual({ primary: "handover", secondary: "view-invoice" });
+    });
+
+    it("adds a charge first when nothing is billed at all, never a silent $0 hand-over", () => {
+      expect(pick("Ready for Pickup")).toEqual({ primary: "charge", secondary: "handover-anyway" });
+      // A warranty job is free on purpose.
+      expect(pick("Ready for Pickup", { warranty: true })).toEqual({ primary: "handover", secondary: "charge" });
     });
   });
 

@@ -8,6 +8,9 @@ import { parseChecklist } from "@/lib/checklist";
 import { formatHm, labourAmountCents, readLabourSettings, roundSecondsUp } from "@/lib/labour";
 import { activeLocations } from "@/lib/location";
 import { calcTotals, formatCents } from "@/lib/money";
+import { canSeeMoney } from "@/lib/money-access";
+import { emailDriverName, smsDriverName } from "@/lib/comms/config";
+import { isLabourCharge } from "@/lib/time-billing";
 import { customerWarranties } from "@/lib/warranty";
 import { readUiPrefs } from "@/lib/prefs";
 import { formatInZone } from "@/lib/shop-time";
@@ -31,8 +34,9 @@ import { PartsCard, type PartOrderRow } from "@/components/tickets/parts-card";
 import { isTerminalPartStatus } from "@/components/tickets/part-meta";
 import { MoreActions } from "@/components/tickets/more-actions";
 import { PickupActions } from "@/components/tickets/pickup-actions";
+import { pickupMoney } from "@/components/tickets/pickup-card-facts";
 import { RepairHeader } from "@/components/tickets/repair-header";
-import { deviceName, dueWords, repairNextStep } from "@/components/tickets/repair-card-facts";
+import { deviceName, dueWords } from "@/components/tickets/repair-card-facts";
 import { JobActionsProvider } from "@/components/tickets/job-actions";
 import { JobHeader } from "@/components/tickets/job-header";
 import { JobPrimaryAction } from "@/components/tickets/job-primary-action";
@@ -55,6 +59,7 @@ import {
   parseJobTab,
   phoneLinks,
   pickJobInvoice,
+  readyReach,
 } from "@/components/tickets/job-screen-logic";
 import { JobSummary } from "@/components/tickets/job-summary";
 import { StatusSteps } from "@/components/tickets/status-steps";
@@ -110,9 +115,6 @@ export async function generateMetadata({
   };
 }
 
-/** The one big black button at the top of a repair. */
-const BIG_BUTTON = "h-12 px-6 text-base [&_svg]:size-5";
-
 /** Deposit tenders wear the same names they do on an invoice. */
 const DEPOSIT_METHOD_LABELS: Record<string, string> = {
   CASH: "Cash",
@@ -146,6 +148,10 @@ export default async function TicketDetailPage({
 }) {
   const { shopId, userId, role } = await requireUser();
   const [{ id }, query, prefs] = await Promise.all([params, searchParams, readUiPrefs()]);
+  // A technician sees the repair, its parts and its time, never a price, a
+  // balance or an invoice: the money is not loaded for them at all
+  // (lib/money-access.ts).
+  const showMoney = canSeeMoney(role);
 
   // findFirst (not findUnique) so an id belonging to another shop 404s instead
   // of leaking a row — see the tenancy contract in lib/db.ts.
@@ -185,6 +191,9 @@ export default async function TicketDetailPage({
           email: true,
           phone: true,
           mobile: true,
+          // Whether "it is ready" can reach them, checked before it is offered.
+          smsOptIn: true,
+          emailOptIn: true,
         },
       },
       asset: {
@@ -195,10 +204,21 @@ export default async function TicketDetailPage({
       // links to them and the big button opens the unpaid one.
       invoices: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, number: true, status: true },
+        take: showMoney ? undefined : 0,
+        // Enough to total each one (pickupMoney), so the big button can say "Take payment $X".
+        select: {
+          id: true,
+          number: true,
+          status: true,
+          taxRateBps: true,
+          lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
+          payments: { select: { amountCents: true } },
+          refunds: { select: { amountCents: true, status: true } },
+        },
       },
       estimates: {
         orderBy: { createdAt: "desc" },
+        take: showMoney ? undefined : 0,
         select: { id: true, number: true, status: true },
       },
       comments: {
@@ -216,6 +236,7 @@ export default async function TicketDetailPage({
       },
       charges: {
         orderBy: { createdAt: "asc" },
+        take: showMoney ? undefined : 0,
         select: {
           id: true,
           description: true,
@@ -224,6 +245,7 @@ export default async function TicketDetailPage({
           taxable: true,
           invoiceId: true,
           invoice: { select: { number: true } },
+          product: { select: { category: true } },
         },
       },
       partOrders: {
@@ -261,6 +283,7 @@ export default async function TicketDetailPage({
       },
       deposits: {
         orderBy: { createdAt: "desc" },
+        take: showMoney ? undefined : 0,
         select: {
           id: true,
           amountCents: true,
@@ -317,9 +340,9 @@ export default async function TicketDetailPage({
       select: {
         id: true,
         name: true,
-        priceCents: true,
+        priceCents: showMoney,
         taxable: true,
-        costCents: true,
+        costCents: role === "OWNER",
         vendorId: true,
       },
     }),
@@ -400,7 +423,7 @@ export default async function TicketDetailPage({
     note: entry.note,
     billable: entry.billable,
     invoiceId: entry.invoiceId,
-    amountCents: labourAmountCents(entry.seconds ?? 0, labour),
+    amountCents: showMoney ? labourAmountCents(entry.seconds ?? 0, labour) : 0,
     billableSeconds: roundSecondsUp(entry.seconds ?? 0, labour.roundingMinutes),
   }));
 
@@ -418,18 +441,75 @@ export default async function TicketDetailPage({
     0,
   );
 
-  // The device has gone home: there is nothing left to hand over, so the next
-  // step on this screen is billing.
   const handedOver = ticket.pickedUpAt !== null;
   const nothingToBill = uninvoicedCount === 0 && unbilledTime.length === 0;
-  const nextStep = repairNextStep({ pickedUp: handedOver, nothingToBill });
   const invoiceProps = {
     ticketId: ticket.id,
     chargeCount: uninvoicedCount,
     unbilledTimeCount: unbilledTime.length,
     unbilledTimeLabel: formatHm(unbilledTimeSeconds),
     unbilledTimeValue: formatCents(unbilledTimeCents),
+    // A flat labour charge waiting to be billed: the logged time starts unticked.
+    hasFlatLabour: ticket.charges.some((charge) => charge.invoiceId === null && isLabourCharge(charge)),
   };
+  /** "0:55 of logged time not billed yet · $87.08": shown on the repair, so it never surprises anyone on the bill. */
+  const unbilledTimeWords =
+    showMoney && unbilledTime.length > 0
+      ? `${formatHm(unbilledTimeSeconds)} of logged time not billed yet · ${formatCents(unbilledTimeCents)}`
+      : null;
+
+  // Where the repair stands on money, in the pickup counter's own words, so the
+  // repair and the counter never disagree.
+  const money = showMoney ? pickupMoney(ticket.invoices, { unbilledCharges: uninvoicedCount }) : null;
+  const jobMoney = money ? { kind: money.kind, dueCents: money.dueCents } : null;
+  // What the hand-over dialog warns about when the money is not sorted out.
+  const handoverWarning = !money
+    ? null
+    : [
+        money.kind === "due" ? `They still owe ${formatCents(money.dueCents)}.` : null,
+        uninvoicedCount > 0 ? `${uninvoicedCount} ${uninvoicedCount === 1 ? "charge is" : "charges are"} not billed yet.` : null,
+        unbilledTime.length > 0 ? `${formatHm(unbilledTimeSeconds)} of logged time is not billed yet.` : null,
+        money.kind === "none" && uninvoicedCount === 0 && unbilledTime.length === 0 && !ticket.isWarranty
+          ? "Nothing has been billed on this repair."
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ") || null;
+  // How "it is ready" would reach them: their consent and the shop's messaging, checked now.
+  const reach = readyReach(ticket.customer, { sms: smsDriverName() !== "log", email: emailDriverName() !== "log" });
+  const invoice = showMoney ? pickJobInvoice(ticket.invoices) : null;
+  const inProgress = inProgressTarget(statuses, ticket.status);
+  const firstName = ticket.customer.firstName.trim() || customerLabel(ticket.customer);
+  const primaryProps = {
+    pickedUp: handedOver,
+    unbilled: !nothingToBill,
+    customerName: firstName,
+    invoice,
+    invoiceProps,
+    inProgress,
+    money: jobMoney,
+    seesMoney: showMoney,
+    warranty: ticket.isWarranty,
+    reach,
+  };
+  // The same table decides both views (jobActions): when the big button is
+  // already "Make invoice", the menu and the tiles do not offer it again.
+  const actionPair = jobActions({
+    status: ticket.status,
+    pickedUp: handedOver,
+    unbilled: !nothingToBill,
+    invoice,
+    money: jobMoney,
+    seesMoney: showMoney,
+    warranty: ticket.isWarranty,
+  });
+  const showsInvoiceButton = actionPair.primary === "invoice" || actionPair.secondary === "invoice";
+  // Every status the repair has really been in (each move is logged with the
+  // status it moved to) and where it is now: skipped steps say so in both views.
+  const visitedStatuses = [
+    ticket.status,
+    ...ticket.comments.flatMap((comment) => (comment.updateType ? [comment.updateType] : [])),
+  ];
 
   const deposits: DepositRow[] = ticket.deposits.map((deposit) => ({
     id: deposit.id,
@@ -599,16 +679,19 @@ export default async function TicketDetailPage({
     authorName: comment.author?.name ?? null,
   }));
 
-  const chargesCard = (
-    <ChargesCard
-      ticketId={ticket.id}
-      charges={ticket.charges}
-      products={products}
-      taxRateBps={shop?.taxRateBps ?? 0}
-      warranty={ticket.isWarranty}
-      easy={easy}
-    />
-  );
+  // `#charges`: where "Add a charge" lands. A technician has no charges card at all.
+  const chargesCard = showMoney ? (
+    <div id="charges" className="scroll-mt-4">
+      <ChargesCard
+        ticketId={ticket.id}
+        charges={ticket.charges}
+        products={products.map((product) => ({ ...product, priceCents: product.priceCents ?? 0 }))}
+        taxRateBps={shop?.taxRateBps ?? 0}
+        warranty={ticket.isWarranty}
+        easy={easy}
+      />
+    </div>
+  ) : null;
 
   const checklistCard = (
     <ChecklistCard
@@ -651,6 +734,7 @@ export default async function TicketDetailPage({
       ticketId={ticket.id}
       entries={timeEntries}
       completedSeconds={completedSeconds}
+      showMoney={showMoney}
       myRunningEntry={
         myRunningEntry
           ? (timeEntries.find((e) => e.id === myRunningEntry.id) ?? null)
@@ -660,7 +744,7 @@ export default async function TicketDetailPage({
   );
 
   const depositCard =
-    role === "OWNER" || role === "FRONT_DESK" ? (
+    showMoney ? (
       <DepositCard
         ticketId={ticket.id}
         ticketNumber={ticket.number}
@@ -690,7 +774,7 @@ export default async function TicketDetailPage({
         </Link>
       </Button>
       <SummarizeTicketButton ticketId={ticket.id} />
-      {showInvoice ? (
+      {showInvoice && showMoney ? (
         <MakeInvoiceButton {...invoiceProps} trigger={{ variant: "outline", size: "default" }} />
       ) : null}
       <EditTicketDialog
@@ -735,30 +819,11 @@ export default async function TicketDetailPage({
   // one big next step, quick actions, and one section at a time.
   // ===========================================================================
   if (easy) {
-    const tab = parseJobTab(query.tab);
+    const parsedTab = parseJobTab(query.tab);
+    // No Money tab for a technician: a stale ?tab=money link opens Work.
+    const tab = !showMoney && parsedTab === "money" ? "work" : parsedTab;
     const compose = parseCompose(query.compose);
-    const invoice = pickJobInvoice(ticket.invoices);
-    const inProgress = inProgressTarget(statuses, ticket.status);
-    // When the big button already is "Make invoice", the menu does not offer it a second time.
-    const showsInvoiceButton =
-      jobActions({ status: ticket.status, pickedUp: handedOver, unbilled: !nothingToBill, invoice }).primary ===
-      "invoice";
-    const firstName = ticket.customer.firstName.trim() || customerName;
-    // The statuses this repair has really been in: every status move it was given
-    // (each one is logged with the status it moved to) and where it is now.
-    const visitedStatuses = [
-      ticket.status,
-      ...ticket.comments.flatMap((comment) => (comment.updateType ? [comment.updateType] : [])),
-    ];
     const dialLinks = phoneLinks(ticket.customer.mobile ?? ticket.customer.phone);
-    const primaryProps = {
-      pickedUp: handedOver,
-      unbilled: !nothingToBill,
-      customerName: firstName,
-      invoice,
-      invoiceProps,
-      inProgress,
-    };
 
     return (
       <TicketStatusScope status={ticket.status}>
@@ -770,11 +835,13 @@ export default async function TicketDetailPage({
           customerName={firstName}
           customerEmail={ticket.customer.email}
           cannedResponses={cannedResponses}
+          reach={reach}
+          handoverWarning={handoverWarning}
         >
           <JobScreen
             header={
               <JobHeader
-                back={{ label: "Repairs", href: "/tickets" }}
+                // No "Repairs" link here: the shell's Back is the one way back.
                 number={ticket.number}
                 title={device ?? ticket.subject}
                 subject={device ? ticket.subject : null}
@@ -823,6 +890,8 @@ export default async function TicketDetailPage({
                   vendors={vendors}
                   invoice={invoice}
                   invoiceProps={invoiceProps}
+                  showMoney={showMoney}
+                  offerInvoice={!showsInvoiceButton}
                 />
               </>
             }
@@ -837,15 +906,19 @@ export default async function TicketDetailPage({
                     attachments: ticket.attachments.length,
                     charges: ticket.charges.length,
                   }}
+                  showMoney={showMoney}
                 />
 
                 {tab === "work" ? (
                   <>
-                    <JobBillLink
-                      href={jobTabHref(ticket.id, "money")}
-                      lines={ticket.charges.length}
-                      total={ticket.charges.length > 0 ? formatCents(chargeTotals.totalCents) : null}
-                    />
+                    {showMoney ? (
+                      <JobBillLink
+                        href={jobTabHref(ticket.id, "money")}
+                        lines={ticket.charges.length}
+                        total={ticket.charges.length > 0 ? formatCents(chargeTotals.totalCents) : null}
+                        unbilledTime={unbilledTimeWords}
+                      />
+                    ) : null}
                     {partsCard}
                     {checklistCard}
                     {timerCard}
@@ -986,6 +1059,19 @@ export default async function TicketDetailPage({
       while a write is actually in flight.
     */
     <TicketStatusScope status={ticket.status}>
+      {/* The same provider (and the same sheets) as Easy mode: the big button
+          below is chosen by the same jobActions table. */}
+      <JobActionsProvider
+        ticketId={ticket.id}
+        status={ticket.status}
+        statuses={statuses}
+        pickedUp={handedOver}
+        customerName={firstName}
+        customerEmail={ticket.customer.email}
+        cannedResponses={cannedResponses}
+        reach={reach}
+        handoverWarning={handoverWarning}
+      >
       {/* gap-6 between page sections, gap-5 inside the two card stacks below —
           the same rhythm the customer and lead hubs use. */}
       <div className="flex flex-col gap-6">
@@ -1043,19 +1129,8 @@ export default async function TicketDetailPage({
               </span>
             </>
           }
-          primary={
-            nextStep === "pickup" ? (
-              <PickupActions
-                ticketId={ticket.id}
-                isReady={isReadyForPickup(ticket.status)}
-                pickedUp={false}
-                prominent
-              />
-            ) : nextStep === "invoice" ? (
-              <MakeInvoiceButton {...invoiceProps} trigger={{ size: "lg", className: BIG_BUTTON }} />
-            ) : null
-          }
-          more={moreActions(nextStep !== "invoice")}
+          primary={<JobPrimaryAction {...primaryProps} placement="inline" />}
+          more={moreActions(!showsInvoiceButton)}
           facts={[
             { label: "Device", value: deviceValue },
             { label: "Assigned to", value: assigneeControl },
@@ -1064,7 +1139,7 @@ export default async function TicketDetailPage({
             { label: "Last touched", value: lastTouched },
             // No charges yet, no total: "$0.00" would be the loudest fact on
             // the screen about the emptiest thing on it.
-            ...(ticket.charges.length > 0
+            ...(showMoney && ticket.charges.length > 0
               ? [
                   {
                     label: "Total",
@@ -1082,7 +1157,7 @@ export default async function TicketDetailPage({
         {/* ---------------------------------------------------------- progress */}
         <Card>
           <CardContent className="px-5 py-6">
-            <LiveStatusProgress statuses={statuses} current={ticket.status} />
+            <LiveStatusProgress statuses={statuses} current={ticket.status} visited={visitedStatuses} />
           </CardContent>
         </Card>
 
@@ -1157,6 +1232,7 @@ export default async function TicketDetailPage({
           </aside>
         </div>
       </div>
+      </JobActionsProvider>
     </TicketStatusScope>
   );
 }

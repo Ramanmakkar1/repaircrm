@@ -15,7 +15,9 @@ export type InvoicePrimary = "send" | "pay" | "print" | "none";
 
 /**
  * - Draft: Send. A bill nobody has seen yet goes out first, even though a
- *   payment could technically be taken against it.
+ *   payment could technically be taken against it. EXCEPT when it was opened
+ *   from a repair at the counter (`atCounter`): the customer is standing there
+ *   to pay, so Take payment leads and Send is a tile.
  * - Sent or part-paid with money owing: Take payment.
  * - Nothing owing (paid in full): Print the receipt.
  * - Void: nothing; the page offers no money action on a voided bill.
@@ -24,9 +26,11 @@ export function invoicePrimaryAction(input: {
   status: string;
   voided: boolean;
   canTakePayment: boolean;
+  /** Opened from a repair (`?from=repair`): the customer is at the counter. */
+  atCounter?: boolean;
 }): InvoicePrimary {
   if (input.voided || input.status === "VOID") return "none";
-  if (input.status === "DRAFT") return "send";
+  if (input.status === "DRAFT") return input.atCounter && input.canTakePayment ? "pay" : "send";
   if (input.canTakePayment) return "pay";
   return "print";
 }

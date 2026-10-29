@@ -162,15 +162,15 @@ describe("StatusSteps", () => {
 
   it("ticks the steps behind the current one and says so in words", () => {
     const out = render("Waiting for Parts");
-    expect(out.match(/<span class="sr-only">Done<\/span>/g)).toHaveLength(2);
-    expect(out.match(/<span class="sr-only">Current step<\/span>/g)).toHaveLength(1);
-    expect(out.match(/<span class="sr-only">Not yet<\/span>/g)).toHaveLength(3);
+    expect(out.match(/<span class="sr-only">, done<\/span>/g)).toHaveLength(2);
+    expect(out.match(/<span class="sr-only">, current step<\/span>/g)).toHaveLength(1);
+    expect(out.match(/<span class="sr-only">, not reached yet<\/span>/g)).toHaveLength(3);
     expect(out.match(/lucide-check/g)).toHaveLength(2);
   });
 
   it("ticks every other step once the repair is Resolved", () => {
     const out = render("Resolved");
-    expect(out.match(/<span class="sr-only">Done<\/span>/g)).toHaveLength(5);
+    expect(out.match(/<span class="sr-only">, done<\/span>/g)).toHaveLength(5);
     expect(out.match(/aria-current="step"/g)).toHaveLength(1);
   });
 
@@ -239,7 +239,10 @@ describe("JobPrimaryAction", () => {
     expect(render("In Progress")).toContain("Mark ready for pickup");
     expect(render("Waiting for Parts")).toContain("Resume repair");
     expect(render("Waiting on Customer")).toContain("Resume repair");
-    expect(render("Ready for Pickup")).toContain("Hand over to customer");
+    // Nothing billed: add a charge first, with the hand-over as the quiet "anyway".
+    expect(render("Ready for Pickup")).toContain("Add a charge");
+    expect(render("Ready for Pickup")).toContain("Hand over anyway");
+    expect(render("Ready for Pickup", { invoice: { ...invoice, status: "PAID" } })).toContain("Hand over to customer");
     expect(render("Resolved")).toContain("Reopen repair");
   });
 
@@ -251,8 +254,8 @@ describe("JobPrimaryAction", () => {
   it("takes payment on the invoice that owes, with the hand-over beside it", () => {
     const out = render("Ready for Pickup", { invoice });
     expect(out).toContain("Take payment");
-    expect(out).toContain('href="/invoices/inv1"');
-    expect(out).toContain("Hand over to customer");
+    expect(out).toContain('href="/invoices/inv1?from=repair"');
+    expect(out).toContain("Hand over anyway");
   });
 
   it("makes the invoice when there is unbilled work, with the same dialog as before", () => {
@@ -269,8 +272,8 @@ describe("JobPrimaryAction", () => {
 
   it("makes the big button 56px tall and the quiet one 48px", () => {
     const out = render("Ready for Pickup", { invoice });
-    expect(out).toMatch(/<a[^>]*class="[^"]*\bh-14\b[^"]*"[^>]*href="\/invoices\/inv1"|<a[^>]*href="\/invoices\/inv1"[^>]*class="[^"]*\bh-14\b/);
-    expect(out).toMatch(/<button[^>]*class="[^"]*\bh-12\b[^"]*"[^>]*>[\s\S]*?Hand over to customer/);
+    expect(out).toMatch(/<a[^>]*class="[^"]*\bh-14\b[^"]*"[^>]*href="\/invoices\/inv1\?from=repair"|<a[^>]*href="\/invoices\/inv1\?from=repair"[^>]*class="[^"]*\bh-14\b/);
+    expect(out).toMatch(/<button[^>]*class="[^"]*\bh-12\b[^"]*"[^>]*>[\s\S]*?Hand over anyway/);
   });
 
   it("pins only the big button above the tab bar on a phone, and never on a tablet", () => {
@@ -278,7 +281,7 @@ describe("JobPrimaryAction", () => {
     expect(out).toContain("fixed");
     expect(out).toContain("sm:hidden");
     expect(out).toContain("Take payment");
-    expect(out).not.toContain("Hand over to customer");
+    expect(out).not.toContain("Hand over anyway");
   });
 
   it("keeps the in-page copy off the phone, except a quieter button when there is one", () => {
@@ -308,7 +311,7 @@ describe("JobQuickActions", () => {
 
   it("has the six tiles, each with one plain word", () => {
     const out = html(h(JobQuickActions, props));
-    for (const word of ["Add part", "Add photo", "Message customer", "Add note", "Create invoice", "Print"]) {
+    for (const word of ["Add part", "Add photo", "Message customer", "Add note", "Make invoice", "Print"]) {
       expect(out).toContain(word);
     }
   });
@@ -330,12 +333,12 @@ describe("JobQuickActions", () => {
     const out = html(h(JobQuickActions, { ...props, invoice: { id: "inv1", number: 1014, status: "PAID" } }));
     expect(out).toContain('href="/invoices/inv1"');
     expect(out).toContain("Invoice #1014");
-    expect(out).not.toContain("Create invoice");
+    expect(out).not.toContain("Make invoice");
   });
 
-  it("disables Create invoice, and says why, when there is nothing to bill", () => {
+  it("disables Make invoice, and says why, when there is nothing to bill", () => {
     const out = html(h(JobQuickActions, props));
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*?Create invoice/);
+    expect(out).toMatch(/<button[^>]*disabled[^>]*>[\s\S]*?Make invoice/);
     expect(out).toContain("Add a charge or log time first");
   });
 
