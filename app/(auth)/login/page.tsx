@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 
 import { getSession } from "@/lib/auth";
 import { HOME_PATH } from "@/lib/prefs";
-import { googleConfigured } from "@/lib/google/config";
+import { googleOffered } from "@/lib/google/offer";
 import { googleNotice, offersSignup } from "@/lib/google/messages";
 import {
   AuthDivider,
@@ -43,7 +43,7 @@ export default async function LoginPage({
   const { next, notice, google } = await searchParams;
   const redirectTo = next?.startsWith("/") && !next.startsWith("//") ? next : HOME_PATH;
   const noticeText = notice ? NOTICES[notice] : undefined;
-  const googleOn = googleConfigured();
+  const googleOn = await googleOffered();
 
   return (
     <>

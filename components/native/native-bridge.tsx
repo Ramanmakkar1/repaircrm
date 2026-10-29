@@ -252,6 +252,13 @@ export function NativeBridge() {
         return;
       }
 
+      // Not offered in the iOS app (App Store guideline 4.8, lib/google/offer.ts);
+      // this only catches a stray link.
+      if (nativePlatform() === "ios") {
+        window.alert("Sign in with your email and password, or tap “Email me a sign-in code”.");
+        return;
+      }
+
       const browser = nativePlugin("Browser");
       if (!browser) {
         window.alert("Google sign-in needs an app update. Sign in with your email for now.");

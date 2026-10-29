@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 
 import { Button } from "@/components/ui/button";
 import { getSession } from "@/lib/auth";
-import { googleConfigured } from "@/lib/google/config";
+import { googleOffered } from "@/lib/google/offer";
 import { googleNotice } from "@/lib/google/messages";
 import { resolveResetToken } from "@/lib/password-reset";
 import {
@@ -76,7 +76,7 @@ export default async function ResetPasswordPage({
       {/* An invited colleague can accept with Google instead of choosing a
           password. The callback insists the Google address is the one the
           invite was sent to — see lib/google/account.ts. */}
-      {googleConfigured() ? (
+      {(await googleOffered()) ? (
         <>
           <GoogleButton intent={`invite:${token}`} className="rounded-full" />
           <AuthDivider label="or set a password" />

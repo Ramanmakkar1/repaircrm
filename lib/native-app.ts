@@ -94,3 +94,12 @@ export function opensInSystemBrowser(pathname: string): boolean {
     prefix.endsWith("/") ? pathname.startsWith(prefix) && pathname.length > prefix.length : pathname === prefix,
   );
 }
+
+/**
+ * The iOS shell appends "RepairsHelperApp/<v> ios" to its user agent
+ * (mobile/capacitor.config.json → ios.appendUserAgent). Platform sniffing on
+ * the rest of the string would miss iPads, whose WebView sends a Mac UA.
+ */
+export function isIosAppUserAgent(userAgent: string | null | undefined): boolean {
+  return /\bRepairsHelperApp\/\S+ ios(?:\s|$)/.test(userAgent ?? "");
+}

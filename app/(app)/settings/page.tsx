@@ -29,7 +29,7 @@ import { readAutomation, recentRuns } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { readUiPrefs } from "@/lib/prefs";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
-import { googleConfigured } from "@/lib/google/config";
+import { googleOffered } from "@/lib/google/offer";
 import { googleNotice } from "@/lib/google/messages";
 import { PageHeader } from "@/components/ui/page-header";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
@@ -290,7 +290,7 @@ export default async function SettingsPage({
     lastLoginAt: profile.lastLoginAt ? profile.lastLoginAt.toISOString() : null,
     // Only *whether* the Google client credentials are populated crosses to the
     // browser — the same rule the messaging and payments configs follow.
-    googleAvailable: googleConfigured(),
+    googleAvailable: await googleOffered(),
     googleEmail: profile.googleEmail,
     googleLinkedAt: profile.googleLinkedAt
       ? profile.googleLinkedAt.toISOString()
