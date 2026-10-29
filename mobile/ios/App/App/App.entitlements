@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Push Notifications capability. Xcode switches this to "production"
+	     for App Store / TestFlight archives automatically. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Universal Links: needs /.well-known/apple-app-site-association on
+	     repairshelper.com with the real Team ID (lib/native-app.ts). -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:repairshelper.com</string>
+	</array>
+</dict>
+</plist>

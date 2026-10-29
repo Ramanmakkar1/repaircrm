@@ -4,6 +4,7 @@ import { requireLiveUser } from "@/lib/session-guard";
 import { AppShell } from "@/components/shell/app-shell";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { HardwareScanRouter } from "@/components/scan/hardware-scan-router";
+import { NativePush } from "@/components/native/native-push";
 import { sttEnabled } from "@/lib/ai";
 
 export default async function AppLayout({
@@ -39,6 +40,8 @@ export default async function AppLayout({
       <RegisterServiceWorker />
       {/* USB scan-gun support: resolve a gun scan anywhere and jump to it. */}
       <HardwareScanRouter />
+      {/* Native push registration; renders nothing outside the iOS / Android app. */}
+      <NativePush />
       {children}
     </AppShell>
   );

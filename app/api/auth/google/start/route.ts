@@ -10,6 +10,7 @@ import {
   safeNextPath,
   startFlow,
 } from "@/lib/google/oidc";
+import { validChallenge } from "@/lib/google/native-handoff";
 
 /**
  * GET /api/auth/google/start — step one of the sign-in.
@@ -24,6 +25,8 @@ import {
  *
  *   ?intent=signin | signup | link | invite:<token>   (default: signin)
  *   ?next=/some/path                                  (same-origin paths only)
+ *   ?native=<S256 challenge>                          (the iOS / Android app only;
+ *                                                      see lib/google/native-handoff.ts)
  */
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -60,7 +63,13 @@ export async function GET(request: Request): Promise<NextResponse> {
       ? "/settings?tab=profile"
       : safeNextPath(url.searchParams.get("next"));
 
-  const flow = await startFlow({ intent, next });
+  // The app runs this flow in the system browser tab, whose cookie jar is not
+  // the app's. Connecting Google to a signed-in profile needs the app's
+  // session here, so `link` is web-only; the app never sends it with `native`.
+  const nativeRaw = url.searchParams.get("native");
+  const native = intent.kind !== "link" && validChallenge(nativeRaw) ? nativeRaw : undefined;
+
+  const flow = await startFlow({ intent, next, native });
 
   const response = NextResponse.redirect(flow.authorizeUrl);
   response.cookies.set(GOOGLE_FLOW_COOKIE, flow.flowToken, flowCookieOptions());

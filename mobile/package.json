@@ -1,0 +1,32 @@
+{
+  "name": "repairs-helper-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor shells (iOS + Android) for Repairs helper. They load https://repairshelper.com; www/ is only the offline fallback.",
+  "scripts": {
+    "sync": "cap sync",
+    "sync:ios": "cap sync ios",
+    "sync:android": "cap sync android",
+    "assets": "npx --yes @capacitor/assets@3 generate --ios --android --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#0b0c0e' --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#0b0c0e'",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/camera": "^8.2.6",
+    "@capacitor/core": "^8.6.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.0",
+    "@capacitor/push-notifications": "^8.1.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0"
+  }
+}
