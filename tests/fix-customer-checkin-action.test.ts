@@ -56,7 +56,7 @@ describe("the new check-in screen against the unchanged action", () => {
     const fields = checkinFields(state, { make: true, model: true, serial: true, unlockCode: false });
     const result = await submitCheckinAction("demo", form({ ...fields, website: "" }));
 
-    expect(result).toEqual({ ok: true, ticketNumber: 1042 });
+    expect(result).toEqual({ ok: true, ticketNumber: 1042, messaged: true });
     expect(whereOf("shop.findUnique")).toEqual({ slug: "demo", deletionRequestedAt: null });
     expect(whereOf("ticket.count")).toMatchObject({ shopId: "shop_1", source: "checkin" });
     const ticket = dataOf("ticket.create");
@@ -88,9 +88,17 @@ describe("the new check-in screen against the unchanged action", () => {
     expect(callsTo("ticket.create")).toHaveLength(0);
   });
 
+  it("does not claim a message went when neither the email nor the text did", async () => {
+    // A phone-only walk-in: no email address, and a mobile alone is no yes to texts.
+    sendEmail.mockResolvedValueOnce({ ok: false });
+    sendSms.mockResolvedValueOnce({ ok: false });
+    const result = await submitCheckinAction("demo", form({ ...checkinFields(state, { make: true, model: true, serial: true, unlockCode: false }), website: "" }));
+    expect(result).toEqual({ ok: true, ticketNumber: 1042, messaged: false });
+  });
+
   it("a filled honeypot looks successful and writes nothing", async () => {
     const result = await submitCheckinAction("demo", form({ website: "spam" }));
-    expect(result).toEqual({ ok: true, ticketNumber: 0 });
+    expect(result).toEqual({ ok: true, ticketNumber: 0, messaged: true });
     expect(callsTo("shop.findUnique")).toHaveLength(0);
   });
 });

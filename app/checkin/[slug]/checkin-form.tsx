@@ -81,6 +81,7 @@ export function CheckinForm({
   const [issues, setIssues] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [repairNumber, setRepairNumber] = React.useState<number | null>(null);
+  const [messaged, setMessaged] = React.useState(true);
   const [allKinds, setAllKinds] = React.useState(false);
   const [moreDetails, setMoreDetails] = React.useState(false);
   const [secondsLeft, setSecondsLeft] = React.useState(KIOSK_RESET_SECONDS);
@@ -171,6 +172,7 @@ export function CheckinForm({
     }
     setIssues([]);
     setSecondsLeft(KIOSK_RESET_SECONDS);
+    setMessaged(result.messaged);
     setRepairNumber(result.ticketNumber);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -192,7 +194,10 @@ export function CheckinForm({
             <div className="text-5xl font-bold tabular-nums">#{repairNumber}</div>
           </div>
           <p className="max-w-md text-[15px] leading-relaxed text-muted-foreground">
-            We sent you a message with a link to follow your repair. {shop.name} will contact you before any work that costs money.
+            {messaged
+              ? "We sent you a message with a link to follow your repair. "
+              : "Keep this number: the shop uses it when you ask about your repair. "}
+            {shop.name} will contact you before any work that costs money.
           </p>
           {kiosk ? (
             <div className="flex w-full max-w-sm flex-col gap-2">

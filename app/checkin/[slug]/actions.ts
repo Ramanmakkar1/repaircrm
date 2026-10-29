@@ -30,7 +30,8 @@ import { readCheckinSettings } from "@/components/settings/checkin-meta";
  */
 
 export type CheckinResult =
-  | { ok: true; ticketNumber: number }
+  /** messaged: whether a text or an email with the repair link actually went. */
+  | { ok: true; ticketNumber: number; messaged: boolean }
   | { ok: false; error: string };
 
 const MAX_PER_HOUR = 20;
@@ -74,7 +75,7 @@ export async function submitCheckinAction(
 ): Promise<CheckinResult> {
   // Caught bot: look successful, write nothing. Checked before the shop lookup
   // so a spam run cannot use the response to probe which slugs exist.
-  if (text(formData, "website") !== "") return { ok: true, ticketNumber: 0 };
+  if (text(formData, "website") !== "") return { ok: true, ticketNumber: 0, messaged: true };
 
   const shop = await db.shop.findUnique({
     where: { slug: slug.toLowerCase(), deletionRequestedAt: null },
@@ -224,7 +225,7 @@ export async function submitCheckinAction(
     portalUrl(portalPath),
   ].join("\n\n");
 
-  await sendEmail({
+  const emailed = await sendEmail({
     shopId: shop.id,
     customerId: created.customerId,
     ticketId: created.id,
@@ -234,7 +235,7 @@ export async function submitCheckinAction(
     portalPath,
   });
 
-  await sendSms({
+  const texted = await sendSms({
     shopId: shop.id,
     customerId: created.customerId,
     ticketId: created.id,
@@ -242,7 +243,9 @@ export async function submitCheckinAction(
     portalPath,
   });
 
-  return { ok: true, ticketNumber: created.number };
+  // A mobile alone is not a yes to texts (smsOptIn stays false above), so a
+  // phone-only check-in gets no message: the screen must not say it did.
+  return { ok: true, ticketNumber: created.number, messaged: emailed.ok || texted.ok };
 }
 
 async function findCustomer(shopId: string, email: string, phone: string) {
