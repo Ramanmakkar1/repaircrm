@@ -648,7 +648,7 @@ export default async function CustomerHubPage({
                   label: "Store credit",
                   // The adjust button sits with the figure it changes, not in the header row.
                   value: (
-                    <span className="inline-flex items-center gap-2">
+                    <span className="flex flex-col items-start gap-1.5">
                       <span
                         className={cn(
                           "rf-num",

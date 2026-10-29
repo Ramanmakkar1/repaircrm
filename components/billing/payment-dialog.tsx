@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useActionState } from "react";
 import { AlertCircle, Link2, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button, type ButtonProps } from "@/components/ui/button";
@@ -37,7 +36,6 @@ import { offerReceiptToast, type ReceiptAction } from "./send-receipt";
 import { TILE_CLASS } from "./tile-style";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "./types";
-import { markPickedUpAction } from "@/app/(app)/tickets/actions";
 
 /**
  * The card-machine half of this dialog, or absent when the shop has none.
@@ -103,7 +101,6 @@ export function PaymentDialog({
   size,
   appearance = "button",
   defaultOpen = false,
-  handover,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   invoiceId: string;
@@ -135,17 +132,8 @@ export function PaymentDialog({
   receiptAction?: ReceiptAction;
   /** Open on arrival: the counter came here to take the money (`?pay=1`). */
   defaultOpen?: boolean;
-  /**
-   * The repair this bill is for, while its device is still in the shop. When
-   * the payment clears the balance the next question is "Hand over now?",
-   * one tap, which closes the repair the same way its own Hand over does.
-   */
-  handover?: { ticketId: string; ticketNumber: number };
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(defaultOpen);
-  const [offerHandover, setOfferHandover] = React.useState(false);
-  const [handingOver, startHandover] = React.useTransition();
   // Submitting is what closes the dialog and offers the receipt, so both live
   // in the action itself rather than in an effect waiting for `state.done` to
   // land. Reading `receiptAction` straight from props is safe here for the
@@ -157,7 +145,6 @@ export function PaymentDialog({
       if (!result.done) return result;
 
       setOpen(false);
-      if (result.settled && handover) setOfferHandover(true);
       if (result.settled && receiptAction) {
         offerReceiptToast(
           invoiceId,
@@ -215,43 +202,7 @@ export function PaymentDialog({
     setReceived(text);
   };
 
-  const handOver = () => {
-    if (!handover) return;
-    startHandover(async () => {
-      const result = await markPickedUpAction(handover.ticketId);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      setOfferHandover(false);
-      toast.success(`#${handover.ticketNumber} handed over and closed.`);
-      router.push(`/tickets/${handover.ticketId}`);
-    });
-  };
-
   return (
-    <>
-    {handover ? (
-      <Dialog open={offerHandover} onOpenChange={(next) => !handingOver && setOfferHandover(next)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Paid in full. Hand it over now?</DialogTitle>
-            <DialogDescription className="text-sm">
-              Marks repair #{handover.ticketNumber} picked up and closes it. Do it once {customerName} has the device.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center">
-            <Button type="button" variant="outline" className="h-12 text-base" disabled={handingOver} onClick={() => setOfferHandover(false)}>
-              Not yet
-            </Button>
-            <Button type="button" className="h-12 text-base" disabled={handingOver} onClick={handOver}>
-              <ACTIONS.receive aria-hidden />
-              {handingOver ? "Closing…" : "Hand over now"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    ) : null}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         {appearance === "tile" ? (
@@ -433,7 +384,6 @@ export function PaymentDialog({
         )}
       </DialogContent>
     </Dialog>
-    </>
   );
 }
 

@@ -1398,6 +1398,16 @@ export async function makeInvoiceAction(
         }
       }
 
+      // Time left unticked was a decision ("the flat labour covers it"): it
+      // stays on the repair, marked not billable, so the repair stops asking to
+      // bill it. The timer card's checkbox puts it back.
+      if (!includeTime) {
+        await tx.timeEntry.updateMany({
+          where: { shopId, ticketId: ticket.id, billable: true, invoiceId: null, endedAt: { not: null } },
+          data: { billable: false },
+        });
+      }
+
       const deposit = await applyTicketDeposits(tx, {
         shopId,
         ticketId: ticket.id,

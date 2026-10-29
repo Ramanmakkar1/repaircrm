@@ -79,6 +79,7 @@ import { Table, TBody, THead, Td, Th, Tr } from "@/components/ui/table";
 import { cn } from "@/components/ui/cn";
 import { formatDate, formatDateTime, isOverdue } from "@/components/billing/format";
 import { PaymentDialog } from "@/components/billing/payment-dialog";
+import { HandOverNowButton } from "@/components/billing/hand-over-now";
 import { readCardMachine, resolveCardFlow } from "@/lib/payments/card-machine";
 import {
   InvoiceStatusBadge,
@@ -212,10 +213,11 @@ export default async function InvoiceDetailPage({
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   const atCounter = Boolean(invoice.ticket) && first(query.from) === "repair";
   const autoPay = atCounter && first(query.pay) === "1" && canTakePayment;
-  const handover =
-    invoice.ticket && invoice.ticket.pickedUpAt === null
+  // Paid in full at the counter with the device still here: hand it over next.
+  const handOverNow =
+    atCounter && !isVoid && totals.balanceCents <= 0 && invoice.ticket && invoice.ticket.pickedUpAt === null
       ? { ticketId: invoice.ticket.id, ticketNumber: invoice.ticket.number }
-      : undefined;
+      : null;
   const hasPayments = invoice.payments.length > 0;
   const hasRefunds = invoice.refunds.length > 0;
   const overdue = isOverdue(invoice.dueDate, totals.balanceCents, wallNow);
@@ -446,7 +448,6 @@ export default async function InvoiceDetailPage({
       <PaymentDialog
         appearance={appearance}
         defaultOpen={open}
-        handover={handover}
         action={takePaymentAction}
         invoiceId={invoice.id}
         balanceCents={totals.balanceCents}
@@ -573,6 +574,7 @@ export default async function InvoiceDetailPage({
         <>
           {actionMenu(false)}
           {paymentDialog("sm", "button", autoPay)}
+          {handOverNow ? <HandOverNowButton {...handOverNow} size="sm" /> : null}
 
           {/* The primary action, last so it sits at the end of the row —
               and the only one that both delivers the document and moves it
@@ -623,6 +625,7 @@ export default async function InvoiceDetailPage({
 
     /** The one big button. Built per call so the phone's pinned copy is its own. */
     const bigAction = (open = false): React.ReactNode => {
+      if (handOverNow) return <HandOverNowButton {...handOverNow} />;
       if (primary === "pay") return <div className={BIG_BUTTON_SLOT}>{paymentDialog("lg", "button", open)}</div>;
       if (primary === "send") {
         return (

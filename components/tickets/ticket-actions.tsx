@@ -445,6 +445,9 @@ export function MakeInvoiceButton({
                   There is already a labour charge on this repair. Tick this only to bill the time as well.
                 </span>
               ) : null}
+              {!includeTime ? (
+                <span className="text-[13px] text-muted-foreground">Left unticked, the time stays on the repair as not billed.</span>
+              ) : null}
             </span>
           </label>
         ) : (
