@@ -101,6 +101,9 @@ const FOOTER_GROUPS = [
       { label: SUPPORT_EMAIL, href: `mailto:${SUPPORT_EMAIL}` },
       { label: "Privacy policy", href: "/privacy" },
       { label: "Terms of service", href: "/terms" },
+      // Reachable signed out, from inside the iOS / Android app too (App Store
+      // 5.1.1(v), Google Play account-deletion policy).
+      { label: "Delete your account", href: "/delete-account" },
     ],
   },
 ] as const;

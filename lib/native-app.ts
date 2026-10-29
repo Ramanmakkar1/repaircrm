@@ -65,3 +65,41 @@ export const NATIVE_LINK_PATHS: readonly string[] = [
 export function placeholder(value: string): boolean {
   return value.startsWith("TODO");
 }
+
+/**
+ * Same-site paths the app opens in the system browser tab instead of its own
+ * WebView: file downloads (CSV exports, attachments, import samples) and print
+ * views. The Android WebView saves no downloads and neither WebView prints, but
+ * Chrome Custom Tabs and SFSafariViewController do both. The tab has its own
+ * cookie jar, so it gets a short, path-scoped session through
+ * /api/auth/native/browser (lib/native/browser-pass.ts).
+ *
+ * Prefixes ending in "/" match below them; the others match exactly.
+ */
+export const NATIVE_BROWSER_PATHS: readonly string[] = [
+  "/api/exports/",
+  "/print/",
+  "/files/",
+  "/time-clock/export",
+  "/customers/import/sample",
+  "/inventory/import/sample",
+];
+
+/** Whether a same-site pathname belongs in the system browser (see above). */
+export function opensInSystemBrowser(pathname: string): boolean {
+  if (!pathname.startsWith("/") || pathname.startsWith("//") || pathname.includes("\\") || pathname.includes("..")) {
+    return false;
+  }
+  return NATIVE_BROWSER_PATHS.some((prefix) =>
+    prefix.endsWith("/") ? pathname.startsWith(prefix) && pathname.length > prefix.length : pathname === prefix,
+  );
+}
+
+/**
+ * The iOS shell appends "RepairsHelperApp/<v> ios" to its user agent
+ * (mobile/capacitor.config.json → ios.appendUserAgent). Platform sniffing on
+ * the rest of the string would miss iPads, whose WebView sends a Mac UA.
+ */
+export function isIosAppUserAgent(userAgent: string | null | undefined): boolean {
+  return /\bRepairsHelperApp\/\S+ ios(?:\s|$)/.test(userAgent ?? "");
+}

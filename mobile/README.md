@@ -15,6 +15,10 @@ The web app is server-rendered (sessions, server actions, Postgres), so it canno
 | Android project | `android/` |
 | Page-side glue: splash hide, status bar, deep links, Google hand-off | `../components/native/native-bridge.tsx` |
 | Push registration after sign-in | `../components/native/native-push.tsx`, `../app/api/push/native/route.ts` |
+| Push sending (APNs, FCM HTTP v1) | `../lib/push/apns.ts`, `../lib/push/fcm.ts`, `../lib/push/native.ts`, called from `../lib/jobs/push.ts` |
+| Downloads and print in the browser tab | `../lib/native/browser-pass.ts`, `../app/api/auth/native/browser*`, `NATIVE_BROWSER_PATHS` in `../lib/native-app.ts` |
+| Store listing drafts, privacy answers, screenshot sizes | `STORE-LISTING.md` |
+| Reviewer demo account | `../scripts/create-review-account.mjs` |
 | Native camera for ticket photos, haptics on scan | `../components/tickets/photo-capture-dialog.tsx`, `../components/scan/support.ts` |
 | Deep-link files and their TODO ids | `../lib/native-app.ts`, `../app/.well-known/*` |
 
@@ -24,7 +28,7 @@ The site talks to the plugins through `window.Capacitor` (`../lib/native/capacit
 
 - **Camera:** "Take photo" on a ticket opens the phone's own camera (`@capacitor/camera`). Barcode scanning keeps using `getUserMedia` in the WebView. iOS grants it through Capacitor's WKUIDelegate; Android grants it through Capacitor's WebChromeClient after the runtime CAMERA prompt.
 - **Microphone:** the voice assistant uses `getUserMedia` audio, with `RECORD_AUDIO` on Android and `NSMicrophoneUsageDescription` on iOS.
-- **Push notifications:** registration is wired and stores the token in `NativePushDevice`. Sending is not built yet (see Push below).
+- **Push notifications:** registration stores the token in `NativePushDevice`. The server sends through APNs and FCM once their env is set (see Push below).
 - **Haptics:** a tick on every successful scan.
 - **Splash screen, status bar and safe areas:** the splash hides once the page renders. The status bar follows the light/dark theme. The page uses `viewport-fit=cover` with `env(safe-area-inset-*)`, and on Android `SystemBars.insetsHandling: "css"` supplies those values.
 - **Offline screen:** a bundled page that reconnects by itself.
@@ -45,6 +49,29 @@ Google blocks OAuth inside embedded WebViews (`disallowed_useragent`). In the ap
 An app that hijacks the URL scheme gets the handoff but not the verifier, so it cannot use it. The details are in `../lib/google/native-handoff.ts`, with tests in `../tests/native-handoff.test.ts`. Accounts that use 2FA carry the pending-2FA cookie instead and finish on `/login/verify` in the app. Connecting Google to an existing profile (Settings → My profile) only works on the website. The app says so instead of failing.
 
 No Google Cloud change is needed, because the redirect URI is still `https://repairshelper.com/api/auth/google/callback`.
+
+#### Not on iOS (App Store guideline 4.8)
+
+Guideline 4.8 (Login Services) says an app that uses a third-party login service, such as Google, must also offer an equivalent login that limits data collection to name and email, lets people keep their email private, and does no ad tracking without consent. In practice that means Sign in with Apple. The exemptions (the company's own account system only, education/enterprise accounts, government ID, a client for one specific third-party service) do not fit a shop app that offers Google as a convenience.
+
+The simplest compliant answer is to offer **no third-party login inside the iOS app**:
+
+- The iOS shell appends `RepairsHelperApp/1.0 ios` to its user agent (`capacitor.config.json` → `ios.appendUserAgent`; iPads send a Mac UA, so the platform has to be said explicitly).
+- `../lib/google/offer.ts` (`googleOffered()`) leaves out "Continue with Google" for that user agent on sign-in, create-a-shop, accept-invite and Settings → My profile. `native-bridge.tsx` also refuses a stray Google link on iOS.
+- People sign in with **email and password** or **"Email me a sign-in code"**. The code works for accounts first created with Google too, so nobody is locked out.
+- Android and the website keep Google.
+
+If Google on iOS is wanted later, add Sign in with Apple (a `@capacitor-community/apple-sign-in` style plugin, plus a server route that verifies Apple's id_token), then drop the iOS check in `googleOffered()`.
+
+### Downloads and printing
+
+The Android WebView does nothing with a download. Neither WebView implements `window.print()`. And on iOS a `target="_blank"` link leaves for Safari, which is signed out. Inside the app (`native-bridge.tsx`):
+
+- Links to `NATIVE_BROWSER_PATHS` open in the **in-app browser tab** (Chrome Custom Tab / SFSafariViewController). Those paths are CSV exports `/api/exports/*`, the time-clock export, import sample sheets, attachments `/files/*` and print views `/print/*`. Chrome saves the file to Downloads, Safari shows it with a Share → Save to Files button, and both can print or save as PDF.
+- The tab has its own cookie jar, so the app first asks `POST /api/auth/native/browser-pass` for a 60-second, single-use, encrypted pass. `/api/auth/native/browser?pass=…` turns it into a session cookie that is a **new 15-minute token** and is **scoped to that one path**, then redirects there (`../lib/native/browser-pass.ts`).
+- `window.print()` on a `/print/*` page is rerouted the same way, so the existing Print buttons work.
+- Other same-site `target="_blank"` links simply open in the WebView.
+- Not covered: "Save picture" on a QR code (a `data:` URL) shows a message pointing to the website, and "Print sign" for the QR code (which prints an iframe) does nothing in the app.
 
 ## Commands
 
@@ -75,42 +102,72 @@ cd android && ./gradlew bundleRelease          # AAB for Play (after signing is 
 ### Both stores
 
 1. **Deploy the web changes first.** The handoff routes, `/api/push/native`, the `NativePushDevice` migration (`prisma migrate deploy`) and the `.well-known` routes all ship with the website.
-2. **Demo account for reviewers:** a shop with sample tickets, plus an email and password that need no 2FA.
-3. **Privacy policy URL:** https://repairshelper.com/privacy. Mention camera, microphone and push tokens.
-4. **Account deletion (required by Apple 5.1.1(v), expected by Google Play).** The app lets people create a shop, so it must also let them delete their account from inside the app, or link to a deletion page. **This does not exist yet in the web app**, so build it before submitting.
+2. **Demo account for reviewers:** run `scripts/create-review-account.mjs` (see Reviewer account below) and put the login in both consoles.
+3. **Privacy policy URL:** https://repairshelper.com/privacy. It has a section on the apps (camera, microphone, push tokens, no analytics). The store answers are in `STORE-LISTING.md`.
+4. **Account deletion (Apple 5.1.1(v), Google Play):** in the app, menu → Account → "Delete my login" / "Delete this shop". Public page: https://repairshelper.com/delete-account. It is linked in the footer of every signed-out screen, next to Privacy and Terms, so it is reachable from the app's sign-in screen.
+5. **Set the push env vars** (see Push) and redeploy.
 
 ### Apple App Store
 
 1. Join the Apple Developer Program ($99/yr). Note the **Team ID** (developer.apple.com → Membership).
 2. Put the Team ID in `../lib/native-app.ts` (`APPLE_TEAM_ID`) and deploy. Check that `https://repairshelper.com/.well-known/apple-app-site-association` returns JSON.
 3. Install full **Xcode** from the App Store and run `sudo xcode-select -s /Applications/Xcode.app`. Run `npx cap open ios`, then go to Signing & Capabilities, pick the team, and leave "Automatically manage signing" on. The **Push Notifications** and **Associated Domains** capabilities are already in `App/App.entitlements`.
-4. **APNs key:** developer.apple.com → Keys → "+" → Apple Push Notifications service. Download the `.p8` and keep the Key ID. You will need it for sending (see Push).
+4. **APNs key:** developer.apple.com → Keys → "+" → Apple Push Notifications service. Download the `.p8` and keep the Key ID. Set `APNS_KEY_ID`, `APNS_TEAM_ID` and `APNS_KEY_P8` on the server (see Push).
 5. In App Store Connect, create the app with bundle id `com.repairshelper.app` and SKU `repairshelper-ios`. Category: Business.
 6. Archive in Xcode (Product → Archive), then upload and test through TestFlight.
-7. **App Privacy labels:** contact info (name, email), user content (photos, audio from the voice assistant), identifiers (user id, device push token), all linked to the user, used for app functionality, and not used for tracking. `ITSAppUsesNonExemptEncryption` is already `false` (HTTPS only).
+7. **App Privacy labels:** answer exactly as in `STORE-LISTING.md` → App Privacy. `ITSAppUsesNonExemptEncryption` is already `false` (HTTPS only), so no export-compliance questions come up.
 8. **Screenshots:** 6.9" iPhone (1320×2868) and, because iPad is enabled (`TARGETED_DEVICE_FAMILY = 1,2`), 13" iPad (2064×2752). Also a 1024×1024 icon, which Xcode takes from the asset catalog.
+9. **Listing text and review notes:** copy from `STORE-LISTING.md`.
 
 ### Google Play
 
 1. Create a Google Play Console account ($25 one-time) and the app `com.repairshelper.app`.
 2. **Upload key:** `keytool -genkeypair -v -keystore repairshelper-upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`. Keep it out of git (`*.jks` is ignored). Point `android/app/build.gradle` signing at it, or set `android.buildOptions` in `capacitor.config.json`.
 3. Turn on **Play App Signing**. Copy the **app signing key SHA-256** (Setup → App signing) into `ANDROID_CERT_SHA256` in `../lib/native-app.ts`, along with the upload key's fingerprint if you sideload. Deploy, then check `https://repairshelper.com/.well-known/assetlinks.json`.
-4. **Firebase (push):** create a Firebase project, add the Android app `com.repairshelper.app`, download `google-services.json` into `android/app/` (it is git-ignored, so keep a copy in CI secrets). Then **remove ` push-off` from `android.appendUserAgent` in `capacitor.config.json`** and run `npx cap sync android`. Until then the app never calls `register()`, because on Android it crashes without Firebase.
+4. **Firebase (push):** create a Firebase project, add the Android app `com.repairshelper.app`, download `google-services.json` into `android/app/` (it is git-ignored, so keep a copy in CI secrets). Then **remove ` push-off` from `android.appendUserAgent` in `capacitor.config.json`** and run `npx cap sync android`. Until then the app never calls `register()`, because on Android it crashes without Firebase. In the same Firebase project, go to Project settings → Service accounts → "Generate new private key" and put that JSON in `FCM_SERVICE_ACCOUNT_JSON` on the server.
 5. Build `./gradlew bundleRelease` and upload the AAB to Internal testing.
-6. **Data safety form:** same answers as Apple's privacy labels. Data is encrypted in transit, and deletion is available (once the deletion feature exists).
-7. **Store listing:** a 512×512 icon (`assets/icon-only.png` resized), a 1024×500 feature graphic, and at least 2 phone screenshots (plus 7" and 10" tablet screenshots if you want tablet listing).
+6. **Data safety form and app content:** answer as in `STORE-LISTING.md` → Google Play.
+7. **Store listing:** a 512×512 icon (`assets/icon-only.png` resized), a 1024×500 feature graphic, and 2 to 8 phone screenshots at 1080×1920 (plus 7" and 10" tablet screenshots if you want a tablet listing). Text is in `STORE-LISTING.md`.
 
-### Push: sending (not built)
+### Push notifications
 
-Registration only stores tokens (`NativePushDevice`: platform + token per user). Sending needs:
+**What is sent:** the same "needs attention" alert the website sends by web push. It goes out from the background job (`../lib/jobs/push.ts`, every run of the job timer or `/api/cron`) when a person's counts go up: ready for pickup, customer replies, overdue, new enquiries, unpaid invoices (not for technicians), and low stock. It says "N things need attention", carries no customer data, and `data.url` = `/`. Tapping it opens that path in the app (`native-push.tsx`). A tap that launched the app is kept by the plugin until the page adds its listener, so cold starts work too.
 
-- **iOS:** an APNs HTTP/2 request signed with the `.p8` key (env vars such as `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY_P8`, and topic `com.repairshelper.app`). Alternatively, add the iOS app to the same Firebase project and send both platforms through FCM.
-- **Android:** FCM HTTP v1 with a Firebase service-account key (`FCM_SERVICE_ACCOUNT_JSON`).
+**How:**
 
-Hook it in next to the existing web-push sender (`lib/push/send.ts`). Put `{ url: "/tickets/…" }` in the message data, and the app opens that path when the notification is tapped.
+- iOS: `../lib/push/apns.ts`, HTTP/2 to `api.push.apple.com` (or `api.sandbox.push.apple.com`) with a provider JWT (ES256, signed with `node:crypto`, cached for 50 minutes). `url` sits next to `aps` in the payload, which is where Capacitor's `data` reads it.
+- Android: `../lib/push/fcm.ts`, FCM HTTP v1. The OAuth2 JWT-bearer flow uses the service account key (RS256 via `node:crypto`), the access token is cached, and messages use the `shop` notification channel ("Shop alerts", which the app creates).
+- No SDKs. A platform with missing env sends nothing, quietly; `../lib/preflight.ts` warns at boot about half-set env.
+- Tokens the provider rejects for good (APNs 410 / `BadDeviceToken` / `Unregistered`, FCM `UNREGISTERED`) are deleted. Signing out deletes this phone's token (`rf_native_push` cookie, `../lib/push/device.ts`). So does deleting the login or the shop, and so does deactivating the staff member.
+
+**Env (server):**
+
+| Variable | Value |
+| --- | --- |
+| `APNS_KEY_ID` | Key ID of the `.p8` key |
+| `APNS_TEAM_ID` | Apple Team ID |
+| `APNS_KEY_P8` | Contents of the `.p8` file. One line with `\n` escapes is fine |
+| `APNS_BUNDLE_ID` | `com.repairshelper.app` (the default) |
+| `APNS_ENV` | `production` for TestFlight / App Store builds; `sandbox` only for builds run from Xcode |
+| `FCM_SERVICE_ACCOUNT_JSON` | The Firebase service-account key JSON, on one line |
+
+`APNS_API_BASE`, `FCM_API_BASE` and `FCM_TOKEN_URL` exist only for tests. Leave them unset. The DB migration `20261029120000_native_push_last_counts` must be deployed (`prisma migrate deploy`).
+
+**Test it:** sign in on a phone, allow notifications, then make a count go up (for example, set a ticket to "Ready for Pickup") and run the jobs (`/api/cron` with `CRON_SECRET`, or wait for the timer).
+
+## Reviewer account
+
+Apple and Google need a working login. `../scripts/create-review-account.mjs` creates a **new** shop with an OWNER login that has no 2FA and an already-finished setup wizard. It fills the shop with sample data: 8 customers with devices, 9 tickets across every status with notes, 6 products (one low on stock), 5 invoices (paid, part-paid, sent, draft) and 3 upcoming appointments.
+
+```sh
+# on the server, with the production env loaded
+node --env-file=.env scripts/create-review-account.mjs appreview@repairshelper.com 'a-long-random-password' "Northside Phone Repair"
+```
+
+It only inserts rows that belong to the new shop, all in one transaction. It never updates or deletes anything, and it refuses if the email already has a login, so it is safe against production. To remove the account later, sign in as it and use Account → Delete this shop. Use an email address you control: the shop's "Email me a code" and password-reset mails go there.
 
 ## Known limits
 
-- **File downloads (CSV and Excel exports):** the Android WebView does not save downloads by itself. Test exports on Android. If they do nothing, add a `DownloadListener` in `MainActivity`, or open export links in the browser.
+- **Downloads and printing** go through the in-app browser tab (see Downloads and printing). Not yet tested on a device: whether Chrome sends a redirect to `/time-clock/export` or `/customers/import/sample` back into the app (both sit under App Link prefixes). If it does, those two downloads reopen the app instead of saving.
 - **The site's service worker** registers on Android. On iOS, WKWebView only allows service workers for App-Bound Domains, so the bundled offline page does that job instead.
 - `server.url` is labelled "not intended for production" in Capacitor's docs. That label refers to live reload. Remote-URL shells like this one are a common, supported setup, but every page needs the network, which is why the offline screen exists.

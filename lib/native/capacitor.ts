@@ -45,6 +45,8 @@ type Plugins = {
     checkPermissions(): Promise<PushPermission>;
     requestPermissions(): Promise<PushPermission>;
     register(): Promise<void>;
+    /** Android only. */
+    createChannel(channel: { id: string; name: string; description?: string; importance?: 1 | 2 | 3 | 4 | 5 }): Promise<void>;
     addListener(event: "registration", cb: (token: { value: string }) => void): Promise<Listener>;
     addListener(event: "registrationError", cb: (error: { error: string }) => void): Promise<Listener>;
     addListener(

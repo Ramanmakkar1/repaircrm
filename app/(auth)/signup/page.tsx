@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { getSession } from "@/lib/auth";
-import { googleConfigured } from "@/lib/google/config";
+import { googleOffered } from "@/lib/google/offer";
 import { googleNotice } from "@/lib/google/messages";
 import {
   AuthDivider,
@@ -44,7 +44,7 @@ export default async function SignupPage({
 
       <GoogleNoticeBanner notice={googleNotice(google)} />
 
-      {googleConfigured() ? (
+      {(await googleOffered()) ? (
         <>
           {/* Creates the same Shop + Main location + OWNER a password signup
               does, then lands on the same /setup wizard. */}

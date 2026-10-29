@@ -30,6 +30,9 @@
  * Development is never fatal. Half a `.env` is the normal state of a laptop.
  */
 
+import { apnsConfig } from "@/lib/push/apns";
+import { fcmConfig } from "@/lib/push/fcm";
+
 interface Findings {
   fatal: string[];
   warn: string[];
@@ -192,6 +195,31 @@ function checkStorage(out: Findings): void {
   }
 }
 
+/**
+ * Native push (lib/push/apns.ts, lib/push/fcm.ts) is off, quietly, unless its
+ * env is complete. Complete-but-wrong and half-set are the states nobody
+ * notices: the app asks for notification permission and then never sends one.
+ */
+function checkNativePush(out: Findings): void {
+  const apns = ["APNS_KEY_ID", "APNS_TEAM_ID", "APNS_KEY_P8"];
+  const present = apns.filter(set);
+  if (present.length > 0 && present.length < apns.length) {
+    const missing = apns.filter((key) => !set(key)).join(", ");
+    out.warn.push(`iOS push is half-configured: ${missing} not set — the iOS app will get no notifications.`);
+  } else if (present.length === apns.length && !apnsConfig()) {
+    out.warn.push("APNS_KEY_P8 is not a readable .p8 private key (PEM) — the iOS app will get no notifications.");
+  }
+  const apnsEnv = (process.env.APNS_ENV ?? "").trim();
+  if (apnsEnv && apnsEnv !== "production" && apnsEnv !== "sandbox") {
+    out.warn.push(`APNS_ENV must be "production" or "sandbox" (got "${apnsEnv}"); using production.`);
+  }
+  if (set("FCM_SERVICE_ACCOUNT_JSON") && !fcmConfig()) {
+    out.warn.push(
+      "FCM_SERVICE_ACCOUNT_JSON is set but is not a service-account key (JSON with project_id, client_email, private_key) — the Android app will get no notifications.",
+    );
+  }
+}
+
 export function collectFindings(): Findings {
   const out: Findings = { fatal: [], warn: [] };
   checkAuthSecret(out);
@@ -201,6 +229,7 @@ export function collectFindings(): Findings {
   checkComms(out);
   checkScheduler(out);
   checkStorage(out);
+  checkNativePush(out);
   return out;
 }
 

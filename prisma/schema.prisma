@@ -1651,14 +1651,16 @@ model PushSubscription {
 
 /// A phone running the iOS / Android app (mobile/) that registered for native
 /// push. `token` is an APNs device token (ios) or an FCM registration token
-/// (android). Sending is not wired yet: it needs the APNs key and the Firebase
-/// project the owner has to create (mobile/README.md).
+/// (android). lib/push/native.ts sends to them (APNs / FCM HTTP v1) from the
+/// same staff "needs attention" job as web push (lib/jobs/push.ts).
 model NativePushDevice {
   id        String   @id @default(cuid())
   shopId    String
   userId    String
   platform  String
   token     String   @unique
+  /// The attention counts last notified, as on PushSubscription.
+  lastCounts Json?
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
   shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)

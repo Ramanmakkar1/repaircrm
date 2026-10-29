@@ -3,15 +3,16 @@ import { z } from "zod";
 
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { NATIVE_PUSH_COOKIE } from "@/lib/push/device";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * POST /api/push/native — the iOS / Android app registering this phone for
  * native push (components/native/native-push.tsx).
  *
- * Only the registration is wired. Sending needs the APNs key and the Firebase
- * project, which the owner has to create (mobile/README.md → Push). Until then
- * the rows simply wait.
+ * The staff "needs attention" job (lib/jobs/push.ts) sends to these rows
+ * through APNs / FCM (lib/push/native.ts) once their env is set. The row id
+ * goes in a cookie so sign-out forgets this phone (lib/push/device.ts).
  *
  * JSON only: a cross-site form cannot send `application/json` without a CORS
  * preflight this route never answers, and the session cookie is `lax`.
@@ -40,10 +41,26 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const { platform, token } = parsed.data;
   // A phone handed to a colleague re-registers under them; the token moves.
-  await db.nativePushDevice.upsert({
+  const existing = await db.nativePushDevice.findUnique({ where: { token }, select: { userId: true } });
+  const row = await db.nativePushDevice.upsert({
     where: { token },
     create: { shopId: session.shopId, userId: session.userId, platform, token },
-    update: { shopId: session.shopId, userId: session.userId, platform },
+    update: {
+      shopId: session.shopId,
+      userId: session.userId,
+      platform,
+      // A new person on this phone starts from zero, not the last one's counts.
+      ...(existing && existing.userId !== session.userId ? { lastCounts: {} } : {}),
+    },
+    select: { id: true },
   });
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true });
+  response.cookies.set(NATIVE_PUSH_COOKIE, row.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 400,
+  });
+  return response;
 }

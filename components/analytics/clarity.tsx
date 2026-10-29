@@ -4,6 +4,8 @@ import Script from "next/script";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
+import { NATIVE_UA_MARKER } from "@/lib/native/capacitor";
+
 /**
  * Microsoft Clarity (heatmaps + session replay) for the public website ONLY.
  *
@@ -15,6 +17,9 @@ import { usePathname } from "next/navigation";
  * and preview builds never send sessions to the live project.
  */
 const CLARITY_ID = "z52j9w9ah3";
+// Never inside the iOS / Android app (its user agent carries NATIVE_UA_MARKER):
+// the store privacy answers (mobile/STORE-LISTING.md) say the app has no
+// third-party analytics.
 const CLARITY_HOSTS = ["repairshelper.com", "www.repairshelper.com"];
 
 const PUBLIC_EXACT = new Set([
@@ -51,7 +56,7 @@ export function Clarity() {
   if (!allowed) return null;
   return (
     <Script id="ms-clarity" strategy="afterInteractive">
-      {`if(${JSON.stringify(CLARITY_HOSTS)}.indexOf(location.hostname)!==-1)(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",${JSON.stringify(CLARITY_ID)});`}
+      {`if(${JSON.stringify(CLARITY_HOSTS)}.indexOf(location.hostname)!==-1&&navigator.userAgent.indexOf(${JSON.stringify(NATIVE_UA_MARKER)})===-1)(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script",${JSON.stringify(CLARITY_ID)});`}
     </Script>
   );
 }
