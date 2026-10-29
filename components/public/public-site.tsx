@@ -46,9 +46,10 @@ export function PublicSite({
 
 const NAV = [
   { label: "Product", href: "/#product" },
-  { label: "Features", href: "/#features" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "Questions", href: "/#faq" },
+  { label: "Features", href: "/features" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "Compare", href: "/compare/repairshopr-alternative" },
+  { label: "Contact", href: "/contact" },
 ] as const;
 
 export function PublicHeader({ actions }: { actions?: ReactNode }) {
@@ -78,8 +79,10 @@ const FOOTER_GROUPS = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "/#features" },
-      { label: "Early-access pricing", href: "/#pricing" },
+      { label: "Features", href: "/features" },
+      { label: "Early-access pricing", href: "/pricing" },
+      { label: "Compare with RepairShopr", href: "/compare/repairshopr-alternative" },
+      { label: "Contact", href: "/contact" },
       { label: "Common questions", href: "/#faq" },
     ],
   },
