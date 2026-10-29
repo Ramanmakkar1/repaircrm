@@ -215,3 +215,19 @@ describe("addChargeAction and updateChargeAction move stock", () => {
     expect(dataOf("stockAdjustment.create")).toMatchObject({ delta: -1 });
   });
 });
+
+describe("charge bounds", () => {
+  it("refuses a quantity or price that cannot be stored, as data, writing nothing", async () => {
+    const { addChargeAction, updateChargeAction } = await import("@/app/(app)/tickets/actions");
+    for (const [quantity, unitPrice] of [["3000000000", "1"], ["1", "99999999999"], ["100000", "999"]]) {
+      const form = new FormData();
+      form.set("description", "Big");
+      form.set("quantity", quantity);
+      form.set("unitPrice", unitPrice);
+      expect((await addChargeAction("tkt_1", {}, form)).error, `${quantity} x ${unitPrice}`).toBeTruthy();
+      expect((await updateChargeAction("ch_1", {}, form)).error).toBeTruthy();
+    }
+    expect(callsTo("ticketCharge.create")).toEqual([]);
+    expect(callsTo("ticketCharge.updateMany")).toEqual([]);
+  });
+});

@@ -573,6 +573,18 @@ export async function postUpdateAction(
 // ---------------------------------------------------------------------------
 
 /**
+ * The same bounds Undo applies (RESTORE_MAX_*). Beyond them the row does not
+ * fit the 32-bit columns: Postgres refused it and the action threw a 500
+ * instead of saying what was wrong.
+ */
+function chargeOutOfRange(quantity: number, unitPriceCents: number): string | null {
+  if (quantity > RESTORE_MAX_QUANTITY) return `Enter a quantity of ${RESTORE_MAX_QUANTITY.toLocaleString("en-US")} or less.`;
+  if (Math.abs(unitPriceCents) > RESTORE_MAX_CENTS) return "Enter a price under $1,000,000.";
+  if (Math.abs(quantity * unitPriceCents) > RESTORE_MAX_CENTS) return "That line comes to more than $1,000,000. Check the quantity and price.";
+  return null;
+}
+
+/**
  * A catalogue part charged to a repair is a part off the shelf: adding the
  * charge takes it out of stock, and taking the charge off (or Undo, or a new
  * quantity) moves the difference back, each with its StockAdjustment row. This
@@ -632,6 +644,8 @@ export async function addChargeAction(
   if (!description) return { error: "Describe the charge." };
 
   const quantity = Math.max(1, Math.round(Number(str(formData, "quantity")) || 1));
+  const outOfRange = chargeOutOfRange(quantity, unitPriceCents);
+  if (outOfRange) return { error: outOfRange };
 
   await db.$transaction(async (tx) => {
     await tx.ticketCharge.create({
@@ -681,6 +695,8 @@ export async function updateChargeAction(
   if (!description) return { error: "Describe the charge." };
 
   const quantity = Math.max(1, Math.round(Number(str(formData, "quantity")) || 1));
+  const outOfRange = chargeOutOfRange(quantity, parseCents(str(formData, "unitPrice")));
+  if (outOfRange) return { error: outOfRange };
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.ticketCharge.updateMany({
       where: { id: charge.id, shopId, invoiceId: null },
