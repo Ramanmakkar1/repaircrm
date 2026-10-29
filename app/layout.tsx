@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { readUiPrefs } from "@/lib/prefs";
 import { AppToaster } from "@/components/ui/toaster";
+import { NativeBridge } from "@/components/native/native-bridge";
 import "./globals.css";
 import { PUBLIC_SITE_URL } from "@/lib/public-site";
 
@@ -67,6 +68,8 @@ export default async function RootLayout({
       <body className="flex min-h-full flex-col">
         {children}
         <AppToaster theme={prefs.theme} />
+        {/* Glue for the iOS / Android app shell; a no-op in browsers. */}
+        <NativeBridge />
       </body>
     </html>
   );

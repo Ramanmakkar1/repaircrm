@@ -19,6 +19,16 @@ import {
   type GoogleIntent,
 } from "@/lib/google/oidc";
 import { rateLimit } from "@/lib/rate-limit";
+import { SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/session";
+import { PENDING_2FA_MAX_AGE } from "@/lib/pending-2fa";
+import { cookies } from "next/headers";
+import {
+  HANDOFF_COOKIES,
+  nativeReturnPage,
+  nativeReturnUrl,
+  sealHandoff,
+  type HandoffCookie,
+} from "@/lib/google/native-handoff";
 
 /**
  * GET /api/auth/google/callback — step two, and the only place a Google
@@ -48,12 +58,19 @@ export const runtime = "nodejs";
 const CALLBACK_LIMIT = 20;
 const CALLBACK_WINDOW_MS = 15 * 60 * 1000;
 
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const origin = appOrigin(request.url);
 
+  /**
+   * Set once the signed state says the iOS / Android app started this flow.
+   * From then on every outcome goes back to the app instead of staying in the
+   * system browser tab (lib/google/native-handoff.ts).
+   */
+  const app: { challenge?: string } = {};
+
   /** Where a code lands, which depends on the button that was pressed. */
-  const back = (intent: GoogleIntent | null, code: string) => {
+  const back = (intent: GoogleIntent | null, code: string): Response => {
     const path =
       intent?.kind === "link"
         ? "/settings?tab=profile"
@@ -64,7 +81,33 @@ export async function GET(request: Request): Promise<NextResponse> {
             : "/login";
     const target = new URL(path, origin);
     target.searchParams.set("google", code);
+    if (app.challenge) {
+      return nativeReturnPage(nativeReturnUrl({ next: `${target.pathname}${target.search}` }));
+    }
     return NextResponse.redirect(target);
+  };
+
+  /**
+   * Success, landing on `path` with the cookie sign-in just set (`carry`). For
+   * the app, that cookie is sealed into the handoff and cleared from the
+   * browser tab, which is not where the person is going to use it.
+   */
+  const land = async (path: string, carry: (typeof HANDOFF_COOKIES)[number]): Promise<Response> => {
+    if (!app.challenge) return NextResponse.redirect(new URL(path, origin));
+    const jar = await cookies();
+    const cookie = jar.get(carry);
+    const carried: HandoffCookie[] = cookie?.value
+      ? [{ name: carry, value: cookie.value, maxAge: carry === SESSION_COOKIE ? SESSION_MAX_AGE : PENDING_2FA_MAX_AGE }]
+      : [];
+    jar.set(carry, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+    const handoff = await sealHandoff({ challenge: app.challenge, cookies: carried, next: path });
+    return nativeReturnPage(nativeReturnUrl({ handoff, next: path }));
   };
 
   if (!googleConfigured()) return back(null, "not-configured");
@@ -81,6 +124,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // 2. The signed state. Read before anything else is believed.
   const state = await verifyState(url.searchParams.get("state"));
+  app.challenge = state?.native;
 
   // The person pressed Cancel on Google's account chooser. Not an error, but
   // the flow cookie should not be left lying around either.
@@ -151,8 +195,8 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (outcome.status === "2fa") {
     const verify = new URL("/login/verify", origin);
     verify.searchParams.set("next", state.intent.kind === "signup" ? "/setup" : state.next);
-    return NextResponse.redirect(verify);
+    return land(`${verify.pathname}${verify.search}`, "rf_2fa");
   }
 
-  return NextResponse.redirect(new URL(outcome.next, origin));
+  return land(outcome.next, SESSION_COOKIE);
 }

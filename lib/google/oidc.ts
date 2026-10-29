@@ -147,6 +147,11 @@ export type StartedFlow = { authorizeUrl: string; flowToken: string };
 export async function startFlow(input: {
   intent: GoogleIntent;
   next: string;
+  /**
+   * Set when the flow was started by the iOS / Android app: the S256 challenge
+   * of a verifier only the app holds. See lib/google/native-handoff.ts.
+   */
+  native?: string;
 }): Promise<StartedFlow> {
   const clientId = googleClientId();
   if (!clientId) throw new Error("GOOGLE_CLIENT_ID is not set.");
@@ -162,6 +167,7 @@ export async function startFlow(input: {
     nonce,
     intent: formatIntent(input.intent),
     next: safeNextPath(input.next),
+    ...(input.native ? { native: input.native } : {}),
   } as unknown as JWTPayload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt(now)
@@ -206,6 +212,8 @@ export type VerifiedState = {
   nonce: string;
   intent: GoogleIntent;
   next: string;
+  /** The app's S256 challenge, when the native app started this flow. */
+  native?: string;
 };
 
 /** Verifies the `state` handed back by Google. Null for anything at all wrong. */
@@ -219,7 +227,7 @@ export async function verifyState(
     });
     if (payload.kind !== STATE_KIND) return null;
 
-    const { id, nonce, intent, next } = payload as Record<string, unknown>;
+    const { id, nonce, intent, next, native } = payload as Record<string, unknown>;
     if (typeof id !== "string" || typeof nonce !== "string") return null;
 
     const parsed = parseIntent(typeof intent === "string" ? intent : null);
@@ -230,6 +238,7 @@ export async function verifyState(
       nonce,
       intent: parsed,
       next: safeNextPath(typeof next === "string" ? next : null),
+      ...(typeof native === "string" ? { native } : {}),
     };
   } catch {
     // Expired, tampered with, or signed by a different AUTH_SECRET.

@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { nativePlugin } from "@/lib/native/capacitor";
 
 /** Camera support can't change for the life of the page, so there is nothing
  *  to subscribe to. Hoisted to a constant so the store identity is stable. */
@@ -135,8 +136,45 @@ export function PhotoCaptureDialog({
     setOpen(false);
   }
 
+  /**
+   * Inside the iOS / Android app: the phone's own camera screen (focus, flash,
+   * retake) instead of a webcam preview in a dialog. Cancelling it is not an
+   * error, so it says nothing.
+   */
+  async function nativeCapture(camera: NonNullable<ReturnType<typeof nativePlugin<"Camera">>>) {
+    try {
+      const photo = await camera.getPhoto({
+        resultType: "base64",
+        source: "CAMERA",
+        quality: 85,
+        // Plenty for "that scratch was already there", well inside the upload limit.
+        width: 2400,
+        correctOrientation: true,
+        saveToGallery: false,
+      });
+      if (!photo.base64String) return;
+      const bytes = Uint8Array.from(atob(photo.base64String), (c) => c.charCodeAt(0));
+      const type = photo.format === "png" ? "image/png" : "image/jpeg";
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      onCapture(new File([bytes], `photo-${stamp}.${type === "image/png" ? "png" : "jpg"}`, { type }));
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      if (/cancel/i.test(message)) return;
+      if (/denied|permission/i.test(message)) {
+        toast.error("Camera access is off for Repairs helper. Turn it on in the phone's Settings.");
+        return;
+      }
+      toast.error("The camera didn't open — try again.");
+    }
+  }
+
   /** Opening is what resets the previous attempt — not an effect watching it. */
   function handleOpenChange(next: boolean) {
+    const camera = next ? nativePlugin("Camera") : null;
+    if (camera) {
+      void nativeCapture(camera);
+      return;
+    }
     setOpen(next);
     if (next) {
       setError(null);

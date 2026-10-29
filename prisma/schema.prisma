@@ -127,6 +127,7 @@ model Shop {
   pushPublicKey          String?
   pushPrivateKey         String?
   pushSubscriptions      PushSubscription[]
+  nativePushDevices      NativePushDevice[]
   timezone               String                  @default("America/Edmonton")
   /// Default sales tax in basis points (825 = 8.25%)
   taxRateBps             Int                     @default(0)
@@ -201,6 +202,7 @@ model User {
   pinHash            String?
   pinVersion         String?
   pushSubscriptions  PushSubscription[]
+  nativePushDevices  NativePushDevice[]
   lastLoginAt        DateTime?
   /// Sessions issued before this instant are refused by the (app) layout.
   passwordChangedAt  DateTime?
@@ -1630,6 +1632,24 @@ model PushSubscription {
   createdAt DateTime @default(now())
   shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([shopId, userId])
+}
+
+/// A phone running the iOS / Android app (mobile/) that registered for native
+/// push. `token` is an APNs device token (ios) or an FCM registration token
+/// (android). Sending is not wired yet: it needs the APNs key and the Firebase
+/// project the owner has to create (mobile/README.md).
+model NativePushDevice {
+  id        String   @id @default(cuid())
+  shopId    String
+  userId    String
+  platform  String
+  token     String   @unique
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([shopId, userId])
 }
 

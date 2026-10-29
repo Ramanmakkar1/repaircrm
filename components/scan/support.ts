@@ -1,3 +1,5 @@
+import { nativeHaptic } from "@/lib/native/capacitor";
+
 /**
  * What this browser can actually do, and the DOM types TypeScript is missing.
  *
@@ -86,7 +88,7 @@ export async function hasCamera(): Promise<boolean> {
 }
 
 /**
- * `navigator.vibrate`, guarded.
+ * `navigator.vibrate`, guarded — or the app's native haptics when it has them.
  *
  * Desktop Chrome defines it and does nothing; Safari does not define it at
  * all; and a browser can throw if the page has never been interacted with. A
@@ -94,6 +96,9 @@ export async function hasCamera(): Promise<boolean> {
  */
 export function buzz(ms = 40): void {
   try {
+    // Inside the iOS / Android app, a real haptic tick (iOS WebViews have no
+    // navigator.vibrate at all).
+    if (nativeHaptic("success")) return;
     navigator.vibrate?.(ms);
   } catch {
     // A phone that will not buzz still scanned the barcode.
