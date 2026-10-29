@@ -194,6 +194,7 @@ describe("deleting your own login", () => {
     }
     handlers["productFeedback.updateMany"] = () => ({ count: 0 });
     handlers["auditLog.create"] = () => ({});
+    handlers["$executeRaw"] = () => 3;
 
     await expect(anonymiseUser({ userId: "user_tech", shopId: SHOP })).resolves.toBe(true);
 
@@ -223,6 +224,13 @@ describe("deleting your own login", () => {
     }
     const auditRow = callsTo("auditLog.create")[0].args.data as Record<string, unknown>;
     expect(String(auditRow.summary)).not.toContain("Sam");
+    // Older audit rows about this login lose the name and email, in this shop only.
+    const scrub = callsTo("$executeRaw")[0].args as { sql: string; values: unknown[] };
+    expect(scrub.sql).toContain('UPDATE "AuditLog"');
+    expect(scrub.sql).toMatch(/"shopId" = \? AND entity = 'user' AND "entityId" = \?/);
+    expect(scrub.values.slice(-2)).toEqual([SHOP, "user_tech"]);
+    expect(scrub.values).toEqual(expect.arrayContaining(["sam@example.com", "Deleted user"]));
+    expect(scrub.values.some((value) => typeof value === "string" && value.startsWith("Sam"))).toBe(true);
     expect(emails.sendLoginDeletedEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "sam@example.com" }));
   });
 

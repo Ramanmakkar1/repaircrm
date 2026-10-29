@@ -24,7 +24,9 @@ import { sendLoginDeletedEmail } from "./email";
  *                      passwordChangedAt = now (every JWT is stale)
  *   rows deleted       push subscriptions, saved views, scanner pairings,
  *                      password-reset tokens, email sign-in codes
- *   scrubbed elsewhere ProductFeedback.email for feedback they sent
+ *   scrubbed elsewhere ProductFeedback.email for feedback they sent; their
+ *                      name and email in the summaries of audit rows about
+ *                      their own login (entity "user", their id)
  *   kept, now showing  tickets, comments, time entries, clock-ins, drawers,
  *   "Deleted user"     payments, deposits, refunds, adjustments, audit rows
  *
@@ -114,6 +116,15 @@ export async function anonymiseUser(user: { userId: string; shopId: string }): P
     await tx.passwordResetToken.deleteMany({ where: { userId } });
     await tx.emailAuthCode.deleteMany({ where: { userId } });
     await tx.productFeedback.updateMany({ where: { reporterUserId: userId }, data: { email: null } });
+    // Audit rows ABOUT this login (entity "user", this id) were written with
+    // their name and email in the summary: "Sam signed in", "Invited Sam
+    // (sam@x.com) as TECH". Swap those for "Deleted user" in this shop only.
+    // Rows about other records are left alone: there the name is not the
+    // subject, and guessing at free text would do more harm than good.
+    await tx.$executeRaw`
+      UPDATE "AuditLog"
+      SET summary = replace(replace(replace(summary, ${`${before.name} (${before.email})`}, ${DELETED_USER_NAME}), ${before.email}, ${DELETED_USER_NAME}), ${before.name}, ${DELETED_USER_NAME})
+      WHERE "shopId" = ${shopId} AND entity = 'user' AND "entityId" = ${userId}`;
     // The person's name is deliberately NOT written into this row: the point is
     // that it is gone. The owner can still see that it happened, and when.
     await tx.auditLog.create({

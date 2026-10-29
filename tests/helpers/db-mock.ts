@@ -121,6 +121,20 @@ export const fakeClient: Record<string, unknown> = new Proxy(
         };
       }
 
+      if (property === "$executeRaw") {
+        // Tagged template: the bound values, in order, are what a test asserts on.
+        return async (strings: TemplateStringsArray, ...values: unknown[]) => {
+          calls.push({ path: "$executeRaw", args: { sql: strings.join("?"), values } });
+          const handler = handlers["$executeRaw"];
+          if (!handler) {
+            throw new Error(
+              "db-mock: no handler registered for $executeRaw. Register one in the test.",
+            );
+          }
+          return handler({ sql: strings.join("?"), values });
+        };
+      }
+
       return modelProxy(property);
     },
   },
