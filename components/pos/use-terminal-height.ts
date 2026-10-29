@@ -13,7 +13,7 @@ import { terminalHeight } from "./terminal-logic";
  * the shell's bottom padding, which exists to clear the phone's tab bar).
  * The markup carries fallbacks for the first paint, before this has run.
  *
- * Below `lg` the variables are removed and the register flows as a normal page.
+ * Below `md` the variables are removed and the register flows as a normal page.
  */
 export function useTerminalHeight(
   ref: React.RefObject<HTMLElement | null>,
@@ -24,7 +24,7 @@ export function useTerminalHeight(
     const main = el?.closest("main");
     if (!enabled || !el || !main) return;
 
-    const wide = window.matchMedia("(min-width: 1024px)");
+    const wide = window.matchMedia("(min-width: 768px)");
     const apply = () => {
       if (!wide.matches) {
         el.style.removeProperty("--pos-h");

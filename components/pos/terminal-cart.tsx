@@ -29,6 +29,13 @@ import {
   type TenderMethod,
 } from "./types";
 
+/**
+ * Cash (black) and Card (soft blue) look like the same dead button while the
+ * cart is empty, instead of a grey slab beside a pale-blue one.
+ */
+export const TENDER_DISABLED =
+  "disabled:border disabled:border-border disabled:bg-surface-hover disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none";
+
 const MORE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   CHECK: ScrollText,
   OTHER: ICONS.deposit,
@@ -38,10 +45,10 @@ const MORE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
 /**
  * The cart of the one-screen register.
  *
- * From `lg` it is exactly as tall as the screen area it is given: the header
+ * From `md` it is exactly as tall as the screen area it is given: the header
  * (who is buying, Clear), the quick-add row, the totals and the Pay buttons stay
  * put, and only the lines in the middle scroll. Pay is therefore always visible.
- * Below `lg` it is an ordinary card in the page, under the products, with the
+ * Below `md` it is an ordinary card in the page, under the products, with the
  * same parts in the same order.
  *
  * Same props and same callbacks as `CartPanel`, so the register can swap one
@@ -160,7 +167,7 @@ export function TerminalCart({
       </div>
 
       {/* ------------------------------------------------------------ lines */}
-      <div ref={linesRef} className="max-h-[38vh] min-h-[5.5rem] flex-1 overflow-y-auto lg:max-h-none lg:min-h-0">
+      <div ref={linesRef} className="max-h-[38vh] min-h-[5.5rem] flex-1 overflow-y-auto md:max-h-none md:min-h-0">
         {empty ? (
           <div className="flex min-h-full flex-col items-center justify-center gap-1.5 px-6 py-6 text-center">
             <ShoppingBag className="size-9 text-faint-foreground" strokeWidth={1.5} aria-hidden />
@@ -195,7 +202,7 @@ export function TerminalCart({
                 </div>
                 <ul className="divide-y divide-border">
                   {ticketLines.map((line) => (
-                    <li key={line.key} className="flex items-start justify-between gap-3 px-4 py-2.5 lg:py-2">
+                    <li key={line.key} className="flex items-start justify-between gap-3 px-4 py-2.5 md:py-2">
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-[14px] font-semibold leading-snug text-foreground [overflow-wrap:anywhere]">
                           {repairLineLabel(line)}
@@ -210,7 +217,7 @@ export function TerminalCart({
                     </li>
                   ))}
                 </ul>
-                <div className="flex items-baseline justify-between gap-4 border-t border-border px-4 py-2 lg:py-1.5">
+                <div className="flex items-baseline justify-between gap-4 border-t border-border px-4 py-2 md:py-1.5">
                   <span className="text-[13px] font-semibold text-muted-foreground">Repair subtotal</span>
                   <span className="text-[14px] font-bold tabular-nums text-foreground">
                     {formatCents(ticketTotalCents)}
@@ -248,9 +255,7 @@ export function TerminalCart({
       </div>
 
       {/* ----------------------------------------------------------- totals */}
-      {/* From lg the right edge is pulled in so no amount sits under the round
-          assistant button the shell floats at the bottom-right of this screen. */}
-      <div className="flex shrink-0 flex-col border-t border-border bg-surface-hover/40 px-4 py-2 lg:pr-14 xl:pr-8">
+      <div className="flex shrink-0 flex-col border-t border-border bg-surface-hover/40 px-4 py-2">
         <TotalsRow label="Subtotal" value={formatCents(totals.subtotalCents)} />
         <TotalsRow
           label={`Sales tax (${formatBps(taxRateBps)})`}
@@ -295,7 +300,7 @@ export function TerminalCart({
         <Button
           onClick={() => onTender("CASH")}
           disabled={empty || disabled}
-          className="h-14 text-base"
+          className={cn("h-14 text-base", TENDER_DISABLED)}
         >
           <ICONS.cash />
           Cash
@@ -304,7 +309,7 @@ export function TerminalCart({
           variant="soft"
           onClick={() => onTender("CARD")}
           disabled={empty || disabled}
-          className="h-14 text-base"
+          className={cn("h-14 text-base", TENDER_DISABLED)}
         >
           <ICONS.payment />
           Card
@@ -317,7 +322,7 @@ export function TerminalCart({
 
 function TotalsRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 leading-6 lg:leading-5">
+    <div className="flex items-baseline justify-between gap-4 leading-6 md:leading-5">
       <span className="text-[14px] text-muted-foreground">{label}</span>
       <span className="text-[15px] font-semibold tabular-nums text-foreground">{value}</span>
     </div>

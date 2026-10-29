@@ -13,7 +13,7 @@ export type StaffChip = {
 };
 
 /**
- * "Whose visits": Everyone, Not assigned, then each person as their initials
+ * "Whose appointments": Everyone, Not assigned, then each person as their initials
  * and name. One scrolling row (it never takes a second line on a phone), every
  * chip 48px tall, the chosen one filled and marked `aria-current`.
  */
@@ -22,8 +22,12 @@ export function StaffChips({ chips, className }: { chips: StaffChip[]; className
   return (
     <div
       role="navigation"
-      aria-label="Whose visits"
-      className={cn("flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
+      aria-label="Whose appointments"
+      // A phone scrolls the row sideways (with a fade at the cut edge); from a
+      // tablet up every person fits, wrapping onto a second line if they must,
+      // so nobody's name is cut off at the edge.
+      data-scroll-fade
+      className={cn("flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden", className)}
     >
       <span className="shrink-0 text-[15px] font-medium text-muted-foreground">Staff</span>
       {chips.map((chip) => (

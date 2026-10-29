@@ -90,6 +90,7 @@ export function SplitformsCard({
                 href={SPLITFORMS_SIGNUP_URL}
                 target="_blank"
                 rel="noopener"
+                data-touch-control
                 className="inline-flex items-center gap-1 font-semibold underline underline-offset-2"
               >
                 Open Splitforms <ExternalLink className="size-3.5" />
@@ -173,7 +174,7 @@ export function SplitformsCard({
 
         <p className="text-[12.5px] text-muted-foreground">
           Webhooks are part of Splitforms&rsquo; paid plans.{" "}
-          <a href={SPLITFORMS_SIGNUP_URL} target="_blank" rel="noopener" className="underline underline-offset-2">
+          <a href={SPLITFORMS_SIGNUP_URL} target="_blank" rel="noopener" data-touch-control className="inline-flex items-center underline underline-offset-2">
             Powered by Splitforms
           </a>
         </p>

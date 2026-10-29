@@ -58,7 +58,7 @@ export function AppointmentCards({
   days: Date[];
   appointments: CalendarAppointment[];
   editHref: (id: string) => string;
-  /** The calendar URL that opens the empty "book a visit" dialog. */
+  /** The calendar URL that opens the empty "Book appointment" dialog. */
   newHref: string;
   canDelete: boolean;
   now: Date;
@@ -85,13 +85,13 @@ export function AppointmentCards({
           hint={
             filtered
               ? "Switch Staff back to All to see everyone."
-              : "Book a visit and it will show up here."
+              : "Book an appointment and it will show up here."
           }
           action={
             filtered ? undefined : (
               <Button variant="outline" asChild>
                 <Link href={newHref} scroll={false}>
-                  Book a visit
+                  Book appointment
                 </Link>
               </Button>
             )
@@ -180,7 +180,7 @@ function DaySection({
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-semibold tracking-tight">
           {dayHref ? (
-            <Link href={dayHref(group.key)} className="flex flex-wrap items-baseline gap-x-2 hover:underline">
+            <Link href={dayHref(group.key)} data-touch-control className="-my-2 flex min-h-11 flex-wrap items-center gap-x-2 hover:underline">
               {title}
             </Link>
           ) : (
@@ -292,12 +292,14 @@ export function AppointmentCard({
     );
 
   return (
-    <li className="flex flex-col gap-2">
+    // One box: the card and its Mark done / More buttons share a border, so the
+    // buttons can never read as belonging to the card beside or below them.
+    <li className={cn("flex flex-col overflow-hidden rounded-2xl border border-border bg-surface", parts.settled && "bg-surface-hover/40")}>
       <RecordCard
         href={editHref}
         // The card opens the edit dialog over this page: keep the list where it is.
         scroll={false}
-        className={cn(parts.settled && "bg-surface-hover/40 text-muted-foreground")}
+        className={cn("rounded-none border-0 bg-transparent active:scale-100", parts.settled && "text-muted-foreground")}
         visual={picture}
         title={parts.title}
         subtitle={parts.subtitle}
@@ -315,13 +317,15 @@ export function AppointmentCard({
           </>
         }
       />
-      <AppointmentRowActions
-        layout="buttons"
-        appointmentId={appointment.id}
-        editHref={editHref}
-        status={appointment.status}
-        canDelete={canDelete}
-      />
+      <div className="border-t border-border px-3 py-2.5">
+        <AppointmentRowActions
+          layout="buttons"
+          appointmentId={appointment.id}
+          editHref={editHref}
+          status={appointment.status}
+          canDelete={canDelete}
+        />
+      </div>
     </li>
   );
 }

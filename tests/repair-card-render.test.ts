@@ -97,9 +97,9 @@ describe("RepairCard", () => {
         now,
       }),
     );
+    // The due date is one of the three: Overdue, Urgent, then the rest folded.
     expect(out).toContain("Urgent");
-    expect(out).toContain("Needs reply");
-    expect(out).toContain("+3 more");
+    expect(out).toContain("+4 more");
     expect(out).not.toContain("Deposit $25.00</span>");
   });
 

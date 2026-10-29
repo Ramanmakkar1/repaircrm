@@ -116,7 +116,7 @@ export function CartPanel({
   const creditReady = credit > 0;
 
   return (
-    <Card className="flex flex-col overflow-hidden shadow-none lg:sticky lg:top-0">
+    <Card className="flex flex-col overflow-hidden shadow-none md:sticky md:top-0">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
         <h2 className="text-base font-bold tracking-tight text-foreground">
           Current sale

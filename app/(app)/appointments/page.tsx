@@ -43,7 +43,7 @@ import { formatIn } from "@/lib/dashboard/zone";
 import { locationWhere } from "@/lib/location";
 import { readUiPrefs } from "@/lib/prefs";
 
-export const metadata: Metadata = { title: "Visits · Repairs helper" };
+export const metadata: Metadata = { title: "Appointments · Repairs helper" };
 
 // Reads live shop data on every request; nothing here is safe to prerender.
 export const dynamic = "force-dynamic";
@@ -340,7 +340,7 @@ export default async function AppointmentsPage({
 
   const header = (
     <PageHeader
-      title={simple ? "Visits" : "Appointments"}
+      title="Appointments"
       description={
         simple
           ? "Who is coming in, and when."
@@ -487,7 +487,7 @@ export default async function AppointmentsPage({
         />
       ) : view === "calendar" ? (
         <section aria-label="Calendar" className="flex flex-col gap-2">
-          <p className="text-[15px] text-muted-foreground">Tap an empty hour to book a visit into it. Tap a visit to open it.</p>
+          <p className="text-[15px] text-muted-foreground">Tap an empty hour to book an appointment into it. Tap one to open it.</p>
           <WeekGrid
             days={days}
             appointments={appointments}

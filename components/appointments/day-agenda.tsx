@@ -94,7 +94,7 @@ export function DayAgenda({
               >
                 <Plus className="size-5 shrink-0" aria-hidden />
                 <span>
-                  Free<span className="sr-only">. Book a visit at {row.label}</span>
+                  Free<span className="sr-only">. Book an appointment at {row.label}</span>
                 </span>
               </Link>
             )}

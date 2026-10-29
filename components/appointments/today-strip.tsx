@@ -58,7 +58,7 @@ export function TodayStrip({
             <span className="text-xl font-semibold leading-tight text-foreground">
               {count === 0
                 ? "Nothing booked today"
-                : `${count} ${count === 1 ? "visit" : "visits"} today`}
+                : `${count} booked today`}
             </span>
             <span className="text-sm text-muted-foreground">
               {dateLabel}

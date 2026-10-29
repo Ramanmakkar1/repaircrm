@@ -434,8 +434,8 @@ describe("Coming up and Stock watch", () => {
 
   it("offers to book a visit when none is booked", () => {
     const markup = html(React.createElement(AppointmentsCard, { appointments: [] }));
-    expect(text(markup)).toContain("No visits booked.");
-    expect(text(markup)).toContain("Book a visit");
+    expect(text(markup)).toContain("No appointments booked.");
+    expect(text(markup)).toContain("Book appointment");
   });
 
   const item = { id: "p1", name: "MacBook Pro 13\" Keyboard Assembly", stockQty: 2, lowStockAt: 2, vendorId: "v1", category: "Parts", catalogImage: null, imageUrl: null };

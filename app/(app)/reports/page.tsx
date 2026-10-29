@@ -552,6 +552,17 @@ export default async function ReportsPage({
     </ReportCard>
   );
 
+  // Whole-shop downloads that are not about the period on screen.
+  const otherExports = canExport ? (
+    <p className="flex flex-wrap items-center gap-x-4 text-[14px] text-muted-foreground">
+      Other downloads:
+      <CardLink href="/api/exports/customers.csv" download>
+        <ACTIONS.download className="size-4" />
+        Customer list (CSV)
+      </CardLink>
+    </p>
+  ) : null;
+
   const techNote = !canSeeMoney ? (
     <p className="text-[14px] text-muted-foreground">
       Money figures are for owners and the front desk.{" "}
@@ -567,10 +578,12 @@ export default async function ReportsPage({
       description={`${period.label} · ${period.rangeLabel}${location ? ` · ${location.name}` : ""}`}
       actions={
         canExport ? (
+          // The header's one action is about this report: the period's payments,
+          // the same figures as Money in. The customer list lives at the foot.
           <Button variant="outline" asChild className={simple ? "h-12 px-5 text-base" : undefined}>
-            <a href="/api/exports/customers.csv">
+            <a href={`/api/exports/payments.csv${range}`}>
               <ACTIONS.download />
-              Customers CSV
+              Export payments
             </a>
           </Button>
         ) : undefined
@@ -595,7 +608,8 @@ export default async function ReportsPage({
           <div
             className={cn(
               "grid grid-cols-1 gap-3 sm:grid-cols-2",
-              primaryKpis.length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4",
+              // Three big numbers: the third fills the second row at tablet width, no hole.
+              primaryKpis.length === 3 ? "lg:grid-cols-3 sm:max-lg:[&>*:last-child]:col-span-2" : "lg:grid-cols-4",
             )}
           >
             {primaryKpis.map((kpi) => tile(kpi, "large"))}
@@ -654,6 +668,7 @@ export default async function ReportsPage({
           </div>
         </details>
 
+        {otherExports}
         {techNote}
       </div>
     );
@@ -673,8 +688,10 @@ export default async function ReportsPage({
           figures carry the headline row when the money ones are withheld. */}
       <div
         className={cn(
-          "grid grid-cols-1 gap-4 sm:grid-cols-2",
-          money ? "lg:grid-cols-3 xl:grid-cols-4" : "lg:grid-cols-4",
+          "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4",
+          // Seven tiles: the last spans two columns, so neither the 2- nor the
+          // 4-column grid ends on a hole.
+          kpis.length % 2 === 1 && "sm:[&>*:last-child]:col-span-2",
         )}
       >
         {kpis.map((kpi) => tile(kpi, "stat"))}
@@ -691,6 +708,7 @@ export default async function ReportsPage({
         {leaderboardCard}
       </div>
 
+      {otherExports}
       {techNote}
     </div>
   );

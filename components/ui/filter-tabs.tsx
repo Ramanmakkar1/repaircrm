@@ -47,6 +47,8 @@ export function FilterTabs({
       className={cn("flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}
       role="navigation"
       aria-label={ariaLabel}
+      // Fades the edge that has more tabs behind it (globals.css).
+      data-scroll-fade
     >
       {tabs.map((tab) => (
         <Link

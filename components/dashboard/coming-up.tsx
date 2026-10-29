@@ -22,10 +22,10 @@ export function AppointmentsCard({ appointments, className }: { appointments: Sh
     <Panel aria-labelledby="visits-title" className={className}>
       <div className="flex items-center justify-between gap-3">
         <h2 id="visits-title" className={CARD_TITLE}>
-          Next visits
+          Next appointments
         </h2>
         <Link href="/appointments" data-touch-control className="inline-flex min-h-11 items-center text-[15px] font-semibold text-accent-soft-foreground hover:underline">
-          All visits →
+          All appointments →
         </Link>
       </div>
       {appointments.length === 0 ? (
@@ -34,11 +34,11 @@ export function AppointmentsCard({ appointments, className }: { appointments: Sh
             <Image src="/images/home/diary.webp" alt="" fill sizes="64px" className="object-contain p-1" />
           </span>
           <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-            <p className="text-[15px] font-medium text-muted-foreground">No visits booked.</p>
+            <p className="text-[15px] font-medium text-muted-foreground">No appointments booked.</p>
             <Button asChild variant="outline" className="h-12 text-[15px]">
               <Link href="/appointments?book=1">
                 <Plus aria-hidden />
-                Book a visit
+                Book appointment
               </Link>
             </Button>
           </div>

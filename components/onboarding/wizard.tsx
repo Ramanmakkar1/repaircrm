@@ -240,9 +240,10 @@ function StepRow({
                   {state === "Done" && !active ? <Check className="size-4" strokeWidth={3} /> : index + 1}
                 </span>
                 <span className="flex min-w-0 max-w-full flex-col">
-                  <span className="truncate text-[13px] font-semibold leading-tight sm:text-[15px]">{item.title}</span>
+                  {/* Wraps instead of truncating: "Your s..." told nobody which step it was. */}
+                  <span className="text-balance text-[13px] font-semibold leading-tight sm:text-[15px]">{item.title}</span>
                   {state ? (
-                    <span className={cn("hidden text-[13px] leading-tight sm:block", active ? "text-accent-foreground/80" : "text-muted-foreground")}>
+                    <span className={cn("hidden text-[13px] leading-tight sm:block", active ? "text-accent-foreground" : "text-muted-foreground")}>
                       {state}
                     </span>
                   ) : null}

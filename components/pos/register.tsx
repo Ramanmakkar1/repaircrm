@@ -624,7 +624,7 @@ export function Register({
           ? // One fixed screen from `lg`: the height and the cancelling bottom
             // margin are measured (see useTerminalHeight); these are the
             // first-paint fallbacks.
-            "gap-3 lg:mb-[var(--pos-mb,-7rem)] lg:h-[var(--pos-h,calc(100dvh_-_6.5rem))] lg:min-h-[30rem]"
+            "gap-3 md:mb-[var(--pos-mb,-7rem)] md:h-[var(--pos-h,calc(100dvh_-_6.5rem))] md:min-h-[30rem]"
           : "gap-5",
       )}
     >
@@ -652,10 +652,11 @@ export function Register({
       <div
         className={cn(
           "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]",
-          simple ? "gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-1" : "items-start",
+          // Two columns from md: the products scroll, the cart and its Pay row stay put.
+          simple ? "gap-4 md:min-h-0 md:flex-1 md:grid-cols-[minmax(0,1fr)_340px] md:grid-rows-1 lg:grid-cols-[minmax(0,1fr)_380px]" : "items-start md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_360px]",
         )}
       >
-        <div className={cn("min-w-0", simple && "flex flex-col lg:min-h-0")}>
+        <div className={cn("min-w-0", simple && "flex flex-col md:min-h-0")}>
           <ProductGrid
             products={products}
             onAdd={addProduct}
@@ -687,9 +688,9 @@ export function Register({
         tendersRef={tendersRef}
         onTender={startTender}
         disabled={pending}
-        // The one-screen register pins its own Pay row from lg, so this bar is
-        // only for phones and portrait tablets.
-        className={simple ? "lg:hidden" : undefined}
+        // From md the cart (and its Pay row) is its own column beside the
+        // products, so this bar is for phones only.
+        className="md:hidden"
       />
 
       <PhoneScanDialog

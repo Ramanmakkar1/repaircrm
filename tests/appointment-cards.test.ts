@@ -145,7 +145,7 @@ describe("AppointmentCards", () => {
     const html = cards([]);
     expect(html).toContain("Nothing booked");
     expect(html).toContain('href="/appointments?new=1"');
-    expect(html).toContain("Book a visit");
+    expect(html).toContain("Book appointment");
   });
 
   it("explains a filtered empty list instead of offering to book", () => {
@@ -189,7 +189,7 @@ describe("TodayStrip (Easy mode)", () => {
         simple: true,
       }),
     );
-    expect(html).toContain("2 visits today");
+    expect(html).toContain("2 booked today");
     expect(html).toContain("Next · 2 PM");
     expect(html).toContain("Daniel Brooks");
     expect(html).toContain('href="/appointments?edit=appt_1"');

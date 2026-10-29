@@ -110,7 +110,7 @@ export function RowsSkeleton({ count = 8 }: { count?: number }) {
  */
 export function RecordCardsSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className="flex min-h-28 items-center gap-4 rounded-2xl border border-border bg-surface p-4">
           <Skeleton className="size-20 shrink-0 rounded-xl sm:size-24" />

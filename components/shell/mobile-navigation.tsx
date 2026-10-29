@@ -32,14 +32,20 @@ export function phoneTabs(role: string): Tab[] {
   ];
 }
 
-export function MobileNavigation({ role }: { role: string }) {
+/**
+ * The five tabs along the bottom. Easy mode keeps them up to `lg` (phones and
+ * counter tablets: at 820px the whole app used to lose its navigation), where
+ * the same five become a slim rail (SlimRail). Full view has them on a phone
+ * only; from `md` its grouped rail takes over (GroupedRail).
+ */
+export function MobileNavigation({ role, simple = true }: { role: string; simple?: boolean }) {
   const path = usePathname();
   const attention = useAttention();
   const total = attention?.total ?? 0;
   const tabs = phoneTabs(role);
   const current = activeTab(tabs, path);
   // Side padding clears a landscape notch; in portrait the inset is 0, so it stays 0.5rem.
-  return <nav aria-label="App navigation" className="grid shrink-0 grid-cols-5 border-t border-border bg-surface pl-[max(.5rem,env(safe-area-inset-left))] pr-[max(.5rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] sm:hidden print:hidden">
+  return <nav aria-label="App navigation" className={cn("grid shrink-0 grid-cols-5 border-t border-border bg-surface pl-[max(.5rem,env(safe-area-inset-left))] pr-[max(.5rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] print:hidden", simple ? "lg:hidden" : "md:hidden")}>
     {tabs.map(({ key, label, href, Icon }) => {
       const active = key === current;
       // Home carries the "Needs you" number: Home is where that list lives.

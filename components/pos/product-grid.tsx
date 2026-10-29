@@ -182,7 +182,7 @@ export function ProductGrid({
   const showShelves = category === null && !needle;
   const showBack = category !== null && !needle;
   const gridClass = terminal
-    ? "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:gap-2.5 xl:grid-cols-5"
+    ? "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-2 md:gap-2.5 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
     : "grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 xl:gap-4";
 
   const sortSelect = (
@@ -197,7 +197,7 @@ export function ProductGrid({
   );
 
   return (
-    <div className={cn("flex min-w-0 flex-col", terminal ? "gap-3 lg:min-h-0 lg:flex-1" : "gap-4")}>
+    <div className={cn("flex min-w-0 flex-col", terminal ? "gap-3 md:min-h-0 md:flex-1" : "gap-4")}>
       <form onSubmit={onSubmit} className={terminal ? "shrink-0" : undefined}>
         <div className={cn("flex gap-2", terminal ? "items-stretch" : "items-start")}>
         <div className="relative min-w-0 flex-1">
@@ -220,7 +220,7 @@ export function ProductGrid({
               // The right padding only clears the "Enter adds" hint at the widths
               // that actually render it; below `sm` the field gets the space back.
               terminal
-                ? "h-14 w-full rounded-xl border bg-surface pl-12 pr-4 text-base font-medium text-foreground outline-none transition-colors sm:pr-32 lg:pr-4 xl:pr-32"
+                ? "h-14 w-full rounded-xl border bg-surface pl-12 pr-4 text-base font-medium text-foreground outline-none transition-colors sm:pr-32 md:pr-4 xl:pr-32"
                 : "h-11 w-full rounded-lg border bg-surface pl-12 pr-4 text-sm font-medium text-foreground outline-none transition-colors sm:pr-32",
               "placeholder:font-normal placeholder:text-muted-foreground",
               "focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-ring/30",
@@ -229,7 +229,7 @@ export function ProductGrid({
                 : "border-border-strong",
             )}
           />
-          <span className={cn("pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-md bg-surface-hover px-2 py-1 text-[12px] font-semibold text-muted-foreground sm:inline-flex", terminal && "lg:hidden xl:inline-flex")}>
+          <span className={cn("pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 rounded-md bg-surface-hover px-2 py-1 text-[12px] font-semibold text-muted-foreground sm:inline-flex", terminal && "md:hidden xl:inline-flex")}>
             <ACTIONS.scan className="size-3.5" />
             Enter adds
           </span>
@@ -281,7 +281,7 @@ export function ProductGrid({
             </button>
           ) : null}
           {/* On a phone the count drops under the back button and the sort. */}
-          <span aria-live="polite" className="order-last w-full min-w-0 truncate text-[13px] sm:order-none sm:w-auto sm:flex-1">
+          <span aria-live="polite" className="order-last w-full min-w-0 truncate text-[13px] sm:order-none sm:w-auto sm:flex-1 md:order-last md:w-full lg:order-none lg:w-auto">
             {showBack ? <span className="font-semibold text-foreground">{shelfLabel} · </span> : null}
             {visible.length} {visible.length === 1 ? "product" : "products"}
           </span>
@@ -289,7 +289,7 @@ export function ProductGrid({
         </div>
       ) : null}
 
-      <div className={terminal ? "flex min-h-0 flex-col gap-3 lg:-m-1 lg:flex-1 lg:overflow-y-auto lg:p-1" : "contents"}>
+      <div className={terminal ? "flex min-h-0 flex-col gap-3 md:-m-1 md:flex-1 md:overflow-y-auto md:p-1" : "contents"}>
       {showShelves ? (
         <section aria-label="What are you selling?" className="flex flex-col gap-3">
           <h2 ref={shelvesHeading} tabIndex={-1} className="text-lg font-semibold outline-none">What are you selling?</h2>
@@ -352,7 +352,7 @@ export function ProductGrid({
          * the first screen. On a laptop there is room for both side by side,
          * so the cap comes off.
          */
-        <div className="max-h-[52vh] overflow-y-auto pr-0.5 lg:max-h-none lg:overflow-visible lg:pr-0">
+        <div className="max-h-[52vh] overflow-y-auto pr-0.5 md:max-h-none md:overflow-visible md:pr-0">
           <div className={gridClass}>
             {visible.map((product) => terminal ? (
               <CompactProductTile

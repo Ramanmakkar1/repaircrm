@@ -55,7 +55,7 @@ describe("loading skeletons match the real page", () => {
   });
 
   it("has card and tile skeletons in the grids the finished screens use", () => {
-    expect(html(createElement(RecordCardsSkeleton, { count: 2 }))).toContain("md:grid-cols-2 2xl:grid-cols-3");
+    expect(html(createElement(RecordCardsSkeleton, { count: 2 }))).toContain("lg:grid-cols-2 2xl:grid-cols-3");
     expect(html(createElement(PictureTileGridSkeleton, { count: 2 }))).toContain("grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4");
   });
 

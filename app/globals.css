@@ -20,9 +20,37 @@
 [data-touch-workspace="true"] :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]) { min-height: 48px; }
 /* Easy mode has one way back, the shell's Back button: the 13px breadcrumb trail is Full mode only. */
 [data-touch-workspace="true"] [data-breadcrumbs="full-only"] { display: none; }
+/*
+ * Whole-row targets (Easy). A checkbox or switch inside a <label> makes the
+ * whole row the target, so the row is what gets the 48px floor; a bare one
+ * keeps the invisible ::before above. Links that sit in a table cell or a
+ * card header (an invoice number in stock history, a report's Export CSV, an
+ * appointment day's heading) fill the row's height instead of their 16-20px
+ * line box. `[data-touch-row]` opts any other row in.
+ */
+[data-touch-workspace="true"] :is(label:has(button[role="checkbox"], button[role="switch"], input[type="checkbox"], input[type="radio"]), [data-touch-row]) {
+  min-height: 48px;
+  align-items: center;
+}
+[data-touch-workspace="true"] td > a:only-child { display: inline-flex; align-items: center; min-height: 48px; margin-block: -14px; }
+[data-touch-workspace="true"] input:is([type="checkbox"], [type="radio"]) { width: 22px; height: 22px; }
+
+/*
+ * Touch screens in Full view (a counter tablet someone switched to Full):
+ * Full keeps its Stripe density, but nothing a finger has to hit goes under
+ * 44px and no words go under 12px. A mouse or trackpad never matches this.
+ */
 @media (pointer: coarse) {
   :is([role="menuitem"], [role="option"]) { min-height: 48px; }
   :is(input, select, textarea) { font-size: 16px; }
+  :is(button:not([role="checkbox"]):not([role="switch"]), a[data-slot="button"], a[data-touch-control], [role="tab"], [role="combobox"], input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select) { min-height: 44px; }
+  :is(button[aria-label], button:has(> svg:only-child)):not([role="checkbox"]):not([role="switch"]) { min-width: 44px; }
+  button:is([role="checkbox"], [role="switch"]) { position: relative; }
+  button[role="checkbox"]::before { content: ""; position: absolute; inset: -12px; }
+  button[role="switch"]::before { content: ""; position: absolute; inset: -10px 0; }
+  :is(label:has(button[role="checkbox"], button[role="switch"], input[type="checkbox"]), [data-touch-row]) { min-height: 44px; align-items: center; }
+  td > a:only-child { display: inline-flex; align-items: center; min-height: 44px; }
+  :is([class*="text-[10px]"], [class*="text-[10.5px]"], [class*="text-[11px]"], [class*="text-[11.5px]"]) { font-size: 12px; }
 }
 
 /*
@@ -34,6 +62,24 @@
 :root { --rf-dock-space: 5.25rem; }
 .rf-main { padding-bottom: 7rem; }
 @media (min-width: 40rem) { .rf-main { padding-bottom: calc(var(--rf-dock-space) + 1.5rem); } }
+
+/*
+ * A sideways-scrolling row (FilterTabs, the Staff chips) fades out at the edge
+ * that has more behind it, so a cut-off tab reads as "scroll for more" rather
+ * than a clipped label. Driven by the row's own scroll position; a row that
+ * fits has no scroll timeline, so it never fades. Browsers without scroll-driven
+ * animations simply show the plain row.
+ */
+@property --rf-fade-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --rf-fade-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes rf-scroll-fade { from { --rf-fade-l: 0px; --rf-fade-r: 40px; } to { --rf-fade-l: 40px; --rf-fade-r: 0px; } }
+@supports (animation-timeline: scroll()) {
+  [data-scroll-fade] {
+    mask-image: linear-gradient(to right, transparent, #000 var(--rf-fade-l), #000 calc(100% - var(--rf-fade-r)), transparent);
+    animation: rf-scroll-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
 
 /* A tap always shows something happened: a slim bar across the top while the next screen loads. */
 .rf-nav-progress > span { transform-origin: left center; transform: scaleX(0); opacity: 0; }
@@ -145,10 +191,15 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-c
 }
 
 /*
- * RepairPilot design tokens
+ * Repairs helper design tokens (the signed-in app; the landing page has its
+ * own scoped set under .rf-landing / .rh-home below)
  * ------------------------
- * White and neutral SaaS palette with a solid black action accent
- * and six semantic status colors used consistently across the app:
+ * White and neutral palette with a solid black action accent (--accent
+ * #111111: the one primary button, the active tab, the active rail row),
+ * a darker blue only for small accent text (--accent-soft-foreground) and
+ * focus rings, and six semantic status colors used consistently across the
+ * app. Every small-text foreground below is at least 4.5:1 on the surface it
+ * sits on (WCAG AA at 12-13px) in light and dark:
  *   new         → blue     (fresh, untouched)
  *   in-progress → amber    (actively being worked)
  *   waiting     → violet   (blocked on parts / customer / approval)
@@ -166,9 +217,9 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-c
  */
 
 :root {
-  /* surfaces — light cool canvas, white rail, white cards */
-  --background: #ffffff; /* app canvas: cards sit ON something now */
-  --sidebar-bg: #ffffff; /* rail is white against the gray canvas */
+  /* surfaces — all white: canvas, rail and cards; hairlines do the separating */
+  --background: #ffffff; /* app canvas */
+  --sidebar-bg: #ffffff; /* Full view's rail, divided from the page by its border */
   --surface: #ffffff; /* cards, topbar, popovers */
   --surface-hover: #f1f4f8; /* hovers, chips, table header bands */
   --overlay: rgb(15 18 26 / 0.4);
@@ -179,8 +230,8 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-c
 
   /* text — the cool blue-gray ramp that reads as "financial software" */
   --foreground: #111214;
-  --muted-foreground: #5f6368;
-  --faint-foreground: #7b8088;
+  --muted-foreground: #565a60; /* 6.6:1 on white, 6.0:1 on surface-hover */
+  --faint-foreground: #686d75; /* 5.2:1 on white: AA at 12px */
 
   /*
    * Primary actions and the active page use solid black for a clear,
@@ -191,45 +242,45 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:hover [data-c
   --accent-hover: #333333;
   --accent-foreground: #ffffff;
   --accent-soft: #f3f6ff;
-  --accent-soft-foreground: #006aff;
+  --accent-soft-foreground: #0058d6; /* 5.8:1 on accent-soft (#006aff was 4.3) */
 
   --ring: #006aff;
 
   /* destructive (also doubles as the "overdue" status color) */
-  --destructive: #dc2626;
-  --destructive-hover: #b91c1c;
+  --destructive: #b91c1c; /* 6.5:1 on white, 5.3:1 on destructive-soft (#dc2626 was 4.0) */
+  --destructive-hover: #991b1b;
   --destructive-foreground: #ffffff;
   --destructive-soft: #fde3e2;
 
   /* status: new (blue) */
   --status-new: #2563eb;
   --status-new-bg: #e0ebfe;
-  --status-new-fg: #1d4ed8;
+  --status-new-fg: #1e40af;
 
   /* status: in-progress (amber) */
   --status-in-progress: #d97706;
   --status-in-progress-bg: #fceed3;
-  --status-in-progress-fg: #b45309;
+  --status-in-progress-fg: #92400e; /* 6.2:1 on its tint (#b45309 was 4.4) */
 
   /* status: waiting (violet) */
   --status-waiting: #7c3aed;
   --status-waiting-bg: #eee4fd;
-  --status-waiting-fg: #6d28d9;
+  --status-waiting-fg: #5b21b6;
 
   /* status: ready (teal) */
   --status-ready: #0d9488;
   --status-ready-bg: #d5f1ed;
-  --status-ready-fg: #0f766e;
+  --status-ready-fg: #115e59; /* 6.4:1 (#0f766e was 4.6) */
 
   /* status: resolved (green) */
   --status-resolved: #16a34a;
   --status-resolved-bg: #dbf2e3;
-  --status-resolved-fg: #15803d;
+  --status-resolved-fg: #166534; /* 6.1:1 (#15803d was 4.3) */
 
   /* status: overdue / stale (red) */
   --status-overdue: #dc2626;
   --status-overdue-bg: #fde3e2;
-  --status-overdue-fg: #b91c1c;
+  --status-overdue-fg: #991b1b;
 
   /* cool blue-black, so shadows never muddy the white */
   --shadow-color: 16 24 40;

@@ -182,14 +182,14 @@ export function CardLink({
   // router out of it so the browser handles Content-Disposition itself.
   if (download) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} data-touch-control>
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={href} className={className}>
+    <Link href={href} className={className} data-touch-control>
       {children}
       <ArrowRight className="size-4" />
     </Link>

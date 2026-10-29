@@ -104,8 +104,8 @@ describe("Visits: the day strip", () => {
     expect(markup.match(/<a /g)).toHaveLength(7);
     expect(markup).toContain("min-h-[4.5rem]");
     expect(markup).toContain('aria-current="page"');
-    expect(text(markup)).toContain("Today Oct 4 2 visits");
-    expect(text(markup)).toContain("Tue Sep 29 No visits");
+    expect(text(markup)).toContain("Today Oct 4 2 booked");
+    expect(text(markup)).toContain("Tue Sep 29 None");
     expect(markup).not.toMatch(RAW_COLOUR);
   });
 });
@@ -146,7 +146,7 @@ describe("Visits: the Day view", () => {
     expect(readable).toContain("Now");
     expect(readable).toContain("12:17 PM");
     expect(markup).toContain('href="/appointments?at=2026-10-04T13:00"');
-    expect(readable).toContain("Book a visit at 1 PM");
+    expect(readable).toContain("Book an appointment at 1 PM");
     expect(readable).toContain("Elena Marquez");
     expect(readable).toContain("Next");
     expect(readable).toContain("3 PM – 4 PM");
@@ -275,7 +275,7 @@ describe("Shop overview leftovers", () => {
 
   it("names the visits card differently from its 'Coming up' column, and books from the empty state", () => {
     const markup = html(React.createElement(AppointmentsCard, { appointments: [] }));
-    expect(text(markup)).toContain("Next visits");
+    expect(text(markup)).toContain("Next appointments");
     expect(text(markup)).not.toContain("Coming up");
     expect(markup).toContain('href="/appointments?book=1"');
   });

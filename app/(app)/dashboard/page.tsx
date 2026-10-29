@@ -12,7 +12,7 @@ import { NeedsYouSection } from "@/components/dashboard/needs-you";
 import { OverviewHeader } from "@/components/dashboard/overview-header";
 import { OwedCard } from "@/components/dashboard/owed-card";
 import { TakingsHero } from "@/components/dashboard/takings-hero";
-import { PopularCard, SellingCard, WorkloadCard } from "@/components/dashboard/team-demand";
+import { SellingCard, WorkloadCard } from "@/components/dashboard/team-demand";
 
 export const metadata: Metadata = { title: "Shop overview · Repairs helper" };
 // Every figure is "as of now"; a cached overview is a wrong overview.
@@ -24,8 +24,8 @@ export const dynamic = "force-dynamic";
  * Top to bottom, each block either says something you can act on or opens the
  * screen where you act: a greeting and the two big buttons; today's takings and
  * what is owed (a technician sees their own queue instead: no money); the repair
- * pipeline; the few things that need you now; who is doing what, what sells and
- * what people bring in; and what is coming up.
+ * pipeline; the few things that need you now; who is doing what and what
+ * sells; and what is coming up.
  *
  * It is the same page in Easy and Full mode. The old `?view=due|ready|reply`
  * links still land here: the parameter is ignored, because every one of those
@@ -62,10 +62,12 @@ export default async function DashboardPage() {
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
           <NeedsYouSection rows={overview.needsYou.rows} candidates={overview.needsYou.candidates} />
-          <div className={selling ? "grid gap-4 md:grid-cols-2 lg:grid-cols-3" : "grid gap-4 md:grid-cols-2"}>
+          {/* Who is doing what, and what sells: both open the screen to act on.
+              ("Popular repairs" was a chart with nothing to tap, so it went;
+              one card alone takes the full width, so there is never a hole.) */}
+          <div className={selling ? "grid gap-4 md:grid-cols-2" : "grid gap-4"}>
             <WorkloadCard workload={overview.workload} />
             {selling ? <SellingCard selling={selling} /> : null}
-            <PopularCard popular={overview.popular} />
           </div>
         </div>
         <aside aria-label="Coming up" className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-1">

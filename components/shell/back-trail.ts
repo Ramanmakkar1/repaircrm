@@ -18,6 +18,11 @@ import { isAppScreen, isEntryForm, workspaceBack } from "@/lib/touch-workspace";
  *     ping-pongs between a list and a record.
  *   - Back skips entry forms (new / edit) unless you are in one: after saving
  *     a new repair, Back goes to where you started, not to an empty form.
+ *   - Back never hops sideways to another section's list. Arriving at
+ *     Appointments from the tab bar or the rail while on Purchase orders, Back
+ *     goes to Appointments' own parent (Home), not "Back to Purchase orders".
+ *     A record in another section still counts (a customer's repair returns
+ *     to that customer), and so do Home and its hubs.
  */
 
 const MAX = 30;
@@ -34,6 +39,22 @@ export function visit(trail: readonly string[], href: string): string[] {
   return [...trail, href].slice(-MAX);
 }
 
+/** Which section a screen belongs to: its first segment, with the money screens as one. */
+export function sectionOf(path: string): string {
+  const first = pathOf(path).split("/").filter(Boolean)[0] ?? "";
+  return first === "estimates" || first === "pos" ? "invoices" : first;
+}
+
+/** Home, its hubs and Shop overview sit above every section, so Back may always return to them. */
+function isHub(path: string): boolean {
+  return path === "/counter" || path.startsWith("/counter/") || path === "/dashboard";
+}
+
+/** A screen that is a list (or a list's sub-list), as opposed to one record or form in it. */
+function isList(path: string): boolean {
+  return /^\/[a-z-]+(?:\/(?:vendors|purchase-orders|recurring|drawers|import))?$/.test(path);
+}
+
 /** Where Back goes from `currentPath`, given the trail so far. */
 export function backTarget(trail: readonly string[], currentPath: string): string {
   const current = pathOf(currentPath);
@@ -47,6 +68,8 @@ export function backTarget(trail: readonly string[], currentPath: string): strin
     const path = pathOf(entry);
     if (path === current || !isAppScreen(path)) continue;
     if (!inForm && isEntryForm(path)) continue;
+    // Another section's list is a sideways hop, not "where I came from".
+    if (!isHub(path) && sectionOf(path) !== sectionOf(current) && isList(path)) break;
     return entry;
   }
   return workspaceBack(current);

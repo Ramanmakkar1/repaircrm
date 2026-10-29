@@ -113,11 +113,17 @@ describe("repairFacts and repairChips", () => {
     expect(chips.more).toBeNull();
   });
 
-  it("folds everything past the second fact into one +N more", () => {
+  it("counts the due date as one of the three, and folds the rest into one +N more", () => {
     const chips = repairChips({ ...busy, dueDate: new Date(now - DAY) }, now);
     expect(chips.due).toEqual({ label: "Overdue 1d", alert: true });
+    expect(chips.shown.map((fact) => fact.label)).toEqual(["High priority"]);
+    expect(chips.more).toEqual({ label: "+4 more", detail: "Needs reply, Parts: 1 ordered, Deposit $50.00, Checklist 3 of 8" });
+  });
+
+  it("without a due date, keeps two facts and folds the rest", () => {
+    const chips = repairChips(busy, now);
     expect(chips.shown.map((fact) => fact.label)).toEqual(["High priority", "Needs reply"]);
-    expect(chips.more).toEqual({ label: "+3 more", detail: "Parts: 1 ordered, Deposit $50.00, Checklist 3 of 8" });
+    expect(chips.more?.label).toBe("+3 more");
   });
 
   it("drops the due date for a resolved repair", () => {

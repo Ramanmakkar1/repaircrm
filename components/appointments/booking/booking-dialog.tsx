@@ -105,7 +105,7 @@ export function BookingDialog({
         className={SHEET}
       >
         <DialogHeader className="shrink-0 gap-0.5 px-4 pb-3 pr-16 pt-4 sm:px-6 sm:pt-5">
-          <DialogTitle className="text-xl">{isEdit ? "Edit visit" : "Book a visit"}</DialogTitle>
+          <DialogTitle className="text-xl">{isEdit ? "Edit appointment" : "Book appointment"}</DialogTitle>
           <DialogDescription className="sr-only">
             {isEdit
               ? "Move it, reassign it, or write down what changed."

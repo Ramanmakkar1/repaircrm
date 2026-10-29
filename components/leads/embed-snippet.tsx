@@ -56,7 +56,7 @@ export function EmbedSnippet({ shopSlug, endpoint }: { shopSlug: string; endpoin
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        <pre className="max-h-80 overflow-auto rounded-b-lg bg-surface-hover/70 px-5 py-4 text-[12.5px] leading-relaxed text-muted-foreground">
+        <pre className="max-h-80 overflow-auto rounded-b-lg bg-surface-hover px-5 py-4 text-[13px] leading-relaxed text-foreground">
           <code>{snippet}</code>
         </pre>
       </CardContent>

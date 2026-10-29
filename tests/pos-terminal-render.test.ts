@@ -196,7 +196,7 @@ describe("TerminalCart: a sale with three lines", () => {
 
   it("scrolls the lines inside the cart and pins everything else", () => {
     // Lines: the only scrolling region. Quick-add, totals and pay are shrink-0.
-    expect(html).toMatch(/lg:max-h-none lg:min-h-0[^"]*"/);
+    expect(html).toMatch(/md:max-h-none md:min-h-0[^"]*"/);
     expect(html).toMatch(/overflow-y-auto/);
     expect((html.match(/shrink-0/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
@@ -302,14 +302,15 @@ describe("the one-screen register's layout classes", () => {
       }),
     );
 
-  it("Easy mode: a slim toolbar, two columns that fill the screen from lg, and no clutter", () => {
+  it("Easy mode: a slim toolbar, two columns that fill the screen from md, and no clutter", () => {
     const html = register(true);
     expect(html).toContain("<h1");
     expect(html).toContain('aria-label="Phone scanner"');
     expect(html).toContain("DRAWER");
-    // Fixed screen from lg, with measured fallbacks for the first paint.
-    expect(html).toContain("lg:h-[var(--pos-h,calc(100dvh_-_6.5rem))]");
-    expect(html).toContain("lg:mb-[var(--pos-mb,-7rem)]");
+    // Fixed screen from md (a counter tablet too), with measured fallbacks for the first paint.
+    expect(html).toContain("md:h-[var(--pos-h,calc(100dvh_-_6.5rem))]");
+    expect(html).toContain("md:mb-[var(--pos-mb,-7rem)]");
+    expect(html).toContain("md:grid-cols-[minmax(0,1fr)_340px]");
     expect(html).toContain("lg:grid-cols-[minmax(0,1fr)_380px]");
     // The clutter the brief removed.
     expect(html).not.toContain('aria-label="Everyday tools"');
@@ -322,7 +323,7 @@ describe("the one-screen register's layout classes", () => {
     expect(html).toContain("Use my phone as a scanner");
     expect(html).toContain('aria-label="Everyday tools"');
     expect(html).toContain("Ask your shop assistant");
-    expect(html).not.toContain("lg:h-[var(--pos-h");
+    expect(html).not.toContain("md:h-[var(--pos-h");
     expect(html).toContain("lg:grid-cols-[minmax(0,1fr)_360px]");
   });
 
@@ -362,9 +363,9 @@ describe("ProductGrid: the picture shelves", () => {
   it("terminal: four across on a tablet, five on a wide screen, two on a phone", () => {
     const html = grid("terminal");
     expect(html).toContain("grid-cols-2");
-    expect(html).toContain("md:grid-cols-4");
-    expect(html).toContain("xl:grid-cols-5");
-    expect(grid("classic")).not.toContain("md:grid-cols-4");
+    expect(html).toContain("lg:grid-cols-3");
+    expect(html).toContain("2xl:grid-cols-5");
+    expect(grid("classic")).not.toContain("2xl:grid-cols-5");
   });
 
   it("terminal: a big search bar that keeps its accessible name", () => {
@@ -377,13 +378,13 @@ describe("ProductGrid: the picture shelves", () => {
 
   it("terminal: only the boxes scroll on a tablet, never the search bar", () => {
     const html = grid("terminal");
-    expect(html).toContain("lg:overflow-y-auto");
-    expect(html).toContain("lg:flex-1");
-    expect(grid("classic")).not.toContain("lg:overflow-y-auto");
+    expect(html).toContain("md:overflow-y-auto");
+    expect(html).toContain("md:flex-1");
+    expect(grid("classic")).not.toContain("md:overflow-y-auto");
   });
 });
 
-describe("PayBar: the sticky bar for phones and portrait tablets", () => {
+describe("PayBar: the sticky bar for phones", () => {
   const bar = (className?: string) =>
     renderToStaticMarkup(
       createElement(PayBar, {
@@ -396,19 +397,18 @@ describe("PayBar: the sticky bar for phones and portrait tablets", () => {
       }),
     );
 
-  it("shows what is due now with Cash, Card and More", () => {
+  it("says N items · $X · Pay, and rests on screen (not below it)", () => {
     const html = bar();
-    expect(html).toContain("3 items · due now");
+    expect(html).toContain("3 items");
     expect(html).toContain("$245.45");
-    expect(html).toContain("Cash");
-    expect(html).toContain("Card");
-    expect(html).toContain('aria-label="More ways to pay"');
-    expect(html).toContain("sticky");
+    expect(html).toContain(">Pay</button>");
+    expect(html).toContain("sticky bottom-3");
+    expect(html).not.toContain("bottom-[-");
   });
 
-  it("can step aside from lg, where the one-screen cart pins its own Pay row", () => {
-    expect(bar("lg:hidden")).toContain("lg:hidden");
-    expect(bar()).not.toContain("lg:hidden");
+  it("can step aside from md, where the cart is its own column", () => {
+    expect(bar("md:hidden")).toContain("md:hidden");
+    expect(bar()).not.toContain("md:hidden");
   });
 
   it("shows nothing for an empty sale", () => {

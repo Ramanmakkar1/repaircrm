@@ -36,7 +36,7 @@ import {
   ScheduleActiveSwitch,
 } from "@/components/recurring/schedule-controls";
 
-export const metadata = { title: "Repeat bills · Repairs helper" };
+export const metadata = { title: "Recurring invoices · Repairs helper" };
 
 /**
  * The saved views. Every schedule is already in memory — this list is small by
@@ -112,9 +112,9 @@ export default async function RecurringSchedulesPage({
       icon={ICONS.recurring}
       title={
         schedules.length === 0
-          ? "No repeat bills yet"
+          ? "No recurring invoices yet"
           : q
-            ? "No repeat bills match that search"
+            ? "No recurring invoices match that search"
             : "Nothing in this view"
       }
       hint={
@@ -154,7 +154,7 @@ export default async function RecurringSchedulesPage({
       )}
 
       <PageHeader
-        title="Repeat bills"
+        title="Recurring invoices"
         description={
           easy
             ? "Bills that make themselves on a schedule, like a monthly support plan."

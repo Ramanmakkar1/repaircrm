@@ -11,6 +11,7 @@ import { WorkspaceControls } from "./workspace-controls";
 import type { CurrentUser } from "./user-menu";
 import { InstallProvider } from "@/components/pwa/install-provider";
 import { MobileNavigation } from "./mobile-navigation";
+import { GroupedRail, SlimRail } from "./app-rail";
 import { AttentionProvider } from "./attention-provider";
 import { BackTrailRecorder } from "./back-button";
 import { NavigationProgress } from "./navigation-progress";
@@ -70,8 +71,10 @@ export function AppShell({
       <div
         data-density={prefs.density}
         data-touch-workspace={prefs.simple ? "true" : undefined}
-        className="flex h-dvh w-full flex-col overflow-hidden bg-background"
+        className="flex h-dvh w-full overflow-hidden bg-background"
       >
+        {/* Persistent navigation: Easy's five tabs as a slim rail from lg (the bottom bar below that), Full's grouped rail from md. */}
+        {prefs.simple ? <SlimRail role={user.role} /> : <GroupedRail role={user.role} collapsed={prefs.railCollapsed} />}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="rf-gutter shrink-0 border-b border-border bg-surface pb-2 pt-[max(.5rem,env(safe-area-inset-top))] print:hidden"><div className="mx-auto w-full max-w-[1440px]">
             <WorkspaceControls user={user} locations={locations} currentLocationId={currentLocationId} prefs={prefs} onSearch={() => setSearchOpen(true)} />
@@ -82,7 +85,7 @@ export function AppShell({
               {children}
             </div>
           </main>
-          <MobileNavigation role={user.role} />
+          <MobileNavigation role={user.role} simple={prefs.simple} />
         </div>
       </div>
       <AssistantLauncher
@@ -91,6 +94,7 @@ export function AppShell({
         owner={user.role === "OWNER"}
         name={user.name}
         showMoney={user.role !== "TECH"}
+        simple={prefs.simple}
       />
       <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} showMoney={user.role !== "TECH"} />
       {/* j/k down a list, Enter to open. Renders nothing; finds its rows by

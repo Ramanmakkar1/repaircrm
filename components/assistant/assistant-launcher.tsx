@@ -97,7 +97,15 @@ export function AssistantLauncher({
   owner = false,
   name = "",
   showMoney = true,
+  simple = false,
 }: {
+  /**
+   * Easy mode: Ask is already in the bottom bar (below lg) and the slim rail
+   * (from lg), so there is no round button, only Home's wide Ask bar from lg.
+   * Full view: the bottom bar has Ask on a phone; from md, where the grouped
+   * rail replaces the bar, the round button (and Home's bar) come back.
+   */
+  simple?: boolean;
   cloud?: boolean;
   enabled?: boolean;
   owner?: boolean;
@@ -108,7 +116,8 @@ export function AssistantLauncher({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  // At the register the button sits above the pinned total and pay buttons.
+  // The register has no floating button at all: it covered the total and the
+  // Cash/Card row. Ask is still one tap away in the tab bar and the rail.
   const atRegister = pathname === "/pos";
   // The wide "Ask anything" bar lives only on Home and its hub screens, where
   // there is room for it. Everywhere else it is one round button in the
@@ -310,7 +319,7 @@ export function AssistantLauncher({
 
   return (
     <>
-      {collapsed || !roomy || busy ? (
+      {atRegister ? null : collapsed || !roomy || busy ? (simple ? null : (
         <button
           type="button"
           onClick={(event) => launch(event, false)}
@@ -319,20 +328,17 @@ export function AssistantLauncher({
           aria-haspopup="dialog"
           aria-expanded={open}
           className={cn(
-            "rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] z-30 hidden size-14 sm:flex items-center justify-center rounded-full shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden",
-            // The register pins its total and pay buttons to the bottom edge.
-            atRegister
-              ? "bottom-[max(6rem,calc(env(safe-area-inset-bottom)+5rem))]"
-              : "bottom-[max(1rem,env(safe-area-inset-bottom))]",
+            "rf-assistant-talk fixed right-[max(1rem,env(safe-area-inset-right))] z-30 hidden size-14 md:flex items-center justify-center rounded-full shadow-lg hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 print:hidden",
+            "bottom-[max(1rem,env(safe-area-inset-bottom))]",
           )}
         >
           <AudioLines className="size-6" aria-hidden />
         </button>
-      ) : (
+      )) : (
         <div
           role="group"
           aria-label="Ask the shop assistant"
-          className="rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden w-[calc(100%-2rem)] sm:flex max-w-[420px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 print:hidden"
+          className={cn("rf-assistant-dock fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 hidden w-[calc(100%-2rem)] max-w-[420px] items-center gap-1.5 rounded-full bg-surface p-2 sm:gap-2 print:hidden", simple ? "lg:flex" : "md:flex")}
         >
           {/* No aria-label: the words on the button are its name, so what a person sees is what a screen reader says. */}
           <button

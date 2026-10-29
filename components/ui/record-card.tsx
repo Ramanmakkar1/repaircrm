@@ -10,9 +10,13 @@ import { cn } from "./cn";
  * the left, a plain title, one quiet line, at most a few small facts, and the
  * state on the right.
  *
- *   [ visual ]  Title ............................ [ status ]
- *               one line of detail                [ trailing ]
+ *   [ visual ]  Title, up to two lines .............. [ trailing ]
+ *               [ status ]
+ *               one line of detail
  *               (fact) (fact) (fact)
+ *
+ * The status sits under the title, not beside it: on a counter tablet a pill
+ * on the title's line cut every name to "Okonkwo De...".
  *
  * The whole card is the link. Status always carries its word (use StatusBadge
  * or StatusPill), never colour alone.
@@ -57,10 +61,8 @@ export function RecordCard({
     >
       {visual ? <span className="shrink-0">{visual}</span> : null}
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex items-start justify-between gap-3">
-          <span className="min-w-0 truncate text-lg font-semibold leading-tight">{title}</span>
-          {status ? <span className="shrink-0">{status}</span> : null}
-        </span>
+        <span className="line-clamp-2 min-w-0 text-lg font-semibold leading-tight [overflow-wrap:anywhere]">{title}</span>
+        {status ? <span className="flex min-w-0 flex-wrap items-center">{status}</span> : null}
         {subtitle ? <span className="line-clamp-2 text-sm leading-snug text-muted-foreground">{subtitle}</span> : null}
         {meta ? <span className="mt-1 flex flex-wrap items-center gap-1.5">{meta}</span> : null}
       </span>
@@ -69,9 +71,14 @@ export function RecordCard({
   );
 }
 
-/** The responsive grid for a page of RecordCards: one column on a phone, two on a tablet, three on a wide screen. */
+/**
+ * The responsive grid for a page of RecordCards: full-width rows on a phone
+ * and a counter tablet (up to 1024px, where two columns squeezed each card to
+ * ~370px and stacked its chips one per line), two columns on a laptop, three
+ * on a wide screen.
+ */
 export function RecordGrid({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <ul className={cn("grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3", className)}>{children}</ul>;
+  return <ul className={cn("grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3", className)}>{children}</ul>;
 }
 
 /** A product or device photo on its white canvas (photos are shot on white, in every theme). */

@@ -60,7 +60,7 @@ export function NewAppointmentButton({
         onClick={() => setOpen(true)}
       >
         <CalendarPlus />
-        {simple ? "Book a visit" : "New Appointment"}
+        Book appointment
       </Button>
       {/* Remounting on open throws away whatever a cancelled draft left behind. */}
       {open ? (

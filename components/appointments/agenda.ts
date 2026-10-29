@@ -70,10 +70,10 @@ export function stripDays(input: {
   });
 }
 
-/** "No visits", "1 visit", "3 visits". */
+/** "None", "1 booked", "3 booked": the same words as the day headings. */
 export function visitsWord(count: number): string {
-  if (count <= 0) return "No visits";
-  return count === 1 ? "1 visit" : `${count} visits`;
+  if (count <= 0) return "None";
+  return `${count} booked`;
 }
 
 // ---------------------------------------------------------------------------

@@ -108,13 +108,9 @@ export type RepairFactsInput = {
   checklist?: ChecklistProgress | null;
 };
 
-/** Never more than this many facts under the due date; the rest fold into "+N more". */
+/** Never more than this many facts on a card, the due date included; the rest fold into "+N more". */
 export const MAX_FACTS = 3;
 
-/**
- * Everything worth a chip, most urgent first: a loud priority, a customer who
- * is waiting for an answer, parts on order, money already taken, the checklist.
- */
 export function repairFacts(input: RepairFactsInput): RepairFact[] {
   const facts: RepairFact[] = [];
 
@@ -146,9 +142,10 @@ export type RepairChips = {
 };
 
 /**
- * Due date first, then at most MAX_FACTS facts. When there are more than that,
- * the first two stay and the rest fold into one "+N more" chip, so a card never
- * grows past a due date and three chips however busy the repair is.
+ * Due date first, then the facts, never more than MAX_FACTS in all (the due
+ * date counts as one). When there are more, the last slot becomes one
+ * "+N more" chip, so a card keeps to one line of chips however busy the
+ * repair is.
  */
 export function repairChips(
   input: RepairFactsInput & { dueDate?: Date | null },
@@ -158,9 +155,10 @@ export function repairChips(
 ): RepairChips {
   const due = dueWords(input.dueDate, isResolved(input.status), now, zone);
   const facts = repairFacts(input);
-  if (facts.length <= MAX_FACTS) return { due, shown: facts, more: null };
-  const shown = facts.slice(0, MAX_FACTS - 1);
-  const hidden = facts.slice(MAX_FACTS - 1);
+  const room = MAX_FACTS - (due ? 1 : 0);
+  if (facts.length <= room) return { due, shown: facts, more: null };
+  const shown = facts.slice(0, room - 1);
+  const hidden = facts.slice(room - 1);
   return { due, shown, more: { label: `+${hidden.length} more`, detail: hidden.map((fact) => fact.label).join(", ") } };
 }
 
