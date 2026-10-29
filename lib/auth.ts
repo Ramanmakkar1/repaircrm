@@ -276,7 +276,12 @@ export const signupSchema = z.object({
 export type LoginOutcome =
   | { status: "ok"; user: SessionUser }
   | { status: "2fa" }
-  | { status: "error"; error: string };
+  | { status: "error"; error: string }
+  /** Right password, but the shop is scheduled for deletion and this login was switched off by it. */
+  | { status: "shop-deletion-pending"; error: string };
+
+export const SHOP_DELETION_PENDING_MESSAGE =
+  "This shop is scheduled for deletion, so sign-in is switched off. An owner can still keep the shop.";
 
 /**
  * Verifies credentials and, when nothing else is required, issues the session.
@@ -331,6 +336,18 @@ export async function login(
     user?.passwordHash ??
     "$2b$10$0000000000000000000000000000000000000000000000000000";
   const valid = await verifyPassword(parsed.data.password, hash);
+
+  if (user && valid && !user.active) {
+    // Only after the password proved who this is: say why, instead of
+    // "incorrect password", when the shop's pending deletion switched it off.
+    const shop = await db.shop.findUnique({
+      where: { id: user.shopId },
+      select: { deletionRequestedAt: true, deletionSuspendedUserIds: true },
+    });
+    if (shop?.deletionRequestedAt && shop.deletionSuspendedUserIds.includes(user.id)) {
+      return { status: "shop-deletion-pending", error: SHOP_DELETION_PENDING_MESSAGE };
+    }
+  }
 
   if (!user || !valid || !user.active) {
     return { status: "error", error: "Incorrect email or password." };

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { login, signOutCurrentUser, signup } from "@/lib/auth";
 import { HOME_PATH } from "@/lib/prefs";
 
-export type AuthFormState = { error?: string } | undefined;
+export type AuthFormState = { error?: string; shopDeletionPending?: boolean } | undefined;
 
 function safeRedirectTarget(value: FormDataEntryValue | null): string {
   const target = typeof value === "string" ? value : "";
@@ -25,6 +25,7 @@ export async function loginAction(
   );
 
   if (result.status === "error") return { error: result.error };
+  if (result.status === "shop-deletion-pending") return { error: result.error, shopDeletionPending: true };
 
   // redirect() throws — keep it out of any try/catch.
   if (result.status === "2fa") {
