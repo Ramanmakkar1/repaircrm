@@ -1,0 +1,47 @@
+{
+  "appId": "com.repairshelper.app",
+  "appName": "Repairs helper",
+  "webDir": "www",
+  "appendUserAgent": "RepairsHelperApp/1.0",
+  "backgroundColor": "#ffffff",
+  "server": {
+    "url": "https://repairshelper.com",
+    "errorPath": "index.html",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "never"
+  },
+  "android": {
+    "appendUserAgent": "RepairsHelperApp/1.0 push-off",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 4000,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 200,
+      "backgroundColor": "#ffffff",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": false,
+      "splashImmersive": false
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DEFAULT"
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover"
+    },
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}

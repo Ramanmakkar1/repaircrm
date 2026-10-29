@@ -1,0 +1,8 @@
+node_modules/
+# Firebase config is per-project and holds API keys: add it locally / in CI.
+android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
+# Signing material never goes in git.
+*.keystore
+*.jks
+android/keystore.properties
