@@ -39,7 +39,10 @@ describe("browser pass", () => {
   it("carries a short-lived session for exactly the requested path, once", async () => {
     const pass = await sealBrowserPass(session, "/api/exports/invoices.csv?from=2026-01-01");
     expect(pass).toBeTruthy();
-    expect(pass).not.toContain("u1"); // encrypted, not just signed
+    // Encrypted (a five-part JWE), not just signed: the session token inside is unreadable.
+    const parts = String(pass).split(".");
+    expect(parts).toHaveLength(5);
+    expect(JSON.parse(Buffer.from(parts[0], "base64url").toString())).toEqual({ alg: "dir", enc: "A256GCM" });
 
     const opened = await openBrowserPass(pass);
     expect(opened).toMatchObject({ pathname: "/api/exports/invoices.csv", target: "/api/exports/invoices.csv?from=2026-01-01" });
