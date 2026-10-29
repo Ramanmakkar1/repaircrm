@@ -106,7 +106,7 @@ describe("plain words on the customer screens", () => {
   });
 });
 
-describe("Book a visit", () => {
+describe("Book appointment", () => {
   it("opens the booking with this customer already chosen", () => {
     expect(read("app/(app)/customers/[id]/page.tsx")).toContain("bookHref={`/appointments?book=1&customerId=${customer.id}`}");
   });

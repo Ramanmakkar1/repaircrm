@@ -70,7 +70,7 @@ const draw = (values: AppointmentFormValues, extra: Record<string, unknown> = {}
 const pressed = (html: string, label: string) =>
   new RegExp(`<button[^>]*aria-pressed="true"[^>]*>(?:(?!</button>)[\\s\\S])*${label}`).test(html);
 
-describe("Book a visit, first paint of a new booking", () => {
+describe("Book appointment, first paint of a new booking", () => {
   const html = draw(blank);
 
   it("opens on Who, with the three steps in a row and the first one current", () => {
@@ -94,16 +94,16 @@ describe("Book a visit, first paint of a new booking", () => {
   });
 
   it("has a live Who - When - What strip", () => {
-    const strip = html.match(/<div role="group" aria-label="This visit"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? html;
+    const strip = html.match(/<div role="group" aria-label="This appointment"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? html;
     expect(text(strip)).toContain("Walk-in");
     expect(strip).toContain('aria-label="When: Today, 3–4 PM. Change"');
     expect(text(strip)).toContain("3–4 PM");
     expect(text(strip)).toContain("Not chosen");
   });
 
-  it("has ONE primary action: Skip on the first step, and no Book visit yet", () => {
+  it("has ONE primary action: Skip on the first step, and no Book appointment yet", () => {
     expect(text(html)).toContain("Skip, walk-in");
-    expect(text(html)).not.toContain("Book visit");
+    expect(text(html)).not.toContain("Book appointment");
     expect(text(html)).not.toContain("Save changes");
     // Cancel is a quiet ghost button; the only filled black button is the primary.
     expect(html.match(/bg-accent text-accent-foreground shadow-xs/g)).toHaveLength(1);
@@ -115,13 +115,13 @@ describe("Book a visit, first paint of a new booking", () => {
   });
 });
 
-describe("Book a visit, editing", () => {
+describe("Book appointment, editing", () => {
   const html = draw(existing);
 
   it("opens on When and says Save changes on every step", () => {
     expect(text(html)).toContain("When?");
     expect(text(html)).toContain("Save changes");
-    expect(text(html)).not.toContain("Book visit");
+    expect(text(html)).not.toContain("Book appointment");
     expect(text(html)).not.toContain("Next:");
   });
 
@@ -261,7 +261,7 @@ describe("the Who step", () => {
     expect(html).toContain('value="780-555-0142"');
     expect(text(html)).toContain("A name or a phone number is enough.");
     expect(text(html)).toContain("They’re happy to get texts about this booking and their repair");
-    expect(text(html)).toContain("They get a confirmation text now and a reminder before the visit.");
+    expect(text(html)).toContain("They get a confirmation text now and a reminder before the appointment.");
     expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*checked/);
     expect(text(html)).toContain("Search instead");
   });

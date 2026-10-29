@@ -120,7 +120,7 @@ export default async function CustomersPage({
           },
         })
       : Promise.resolve([]),
-    // "Last visit Sep 30" on the Easy cards: the newest repair each person
+    // "Last repair Sep 30" on the Easy cards: the newest repair each person
     // brought in. Only the Easy list shows it, so the ledger never pays for it.
     easy && ids.length
       ? db.ticket.groupBy({

@@ -77,7 +77,7 @@ function one(value: string | string[] | undefined): string | undefined {
  * Every day boundary and every time on this page is read on the SHOP'S clock
  * (`Shop.timezone`), never the server's.
  *
- * `?book=1&customerId=<id>` (the customer page's "Book a visit") opens the
+ * `?book=1&customerId=<id>` (the customer page's "Book appointment") opens the
  * booking with that customer already chosen; an id that is not this shop's is
  * an ordinary empty booking.
  */
@@ -207,7 +207,7 @@ export default async function AppointmentsPage({
       editId
         ? db.appointment.findFirst({ where: { id: editId, shopId }, select })
         : Promise.resolve(null),
-      // The customer a "Book a visit" link came with: this shop's, or nobody.
+      // The customer a "Book appointment" link came with: this shop's, or nobody.
       bookFor
         ? db.customer.findFirst({ where: { id: bookFor, shopId }, select: customerSelect })
         : Promise.resolve(null),

@@ -17,7 +17,7 @@ const app = "/marketing/app";
 export const SHOTS = {
   home: {
     src: `${app}/home-tablet.webp`,
-    alt: "The Home screen on a counter tablet: big New repair and New sale buttons, a Needs attention list, and picture tiles for Repairs, Pickup and pay, Take payment, Add customer, Find customer and Book a visit.",
+    alt: "The Home screen on a counter tablet: big New repair and New sale buttons, a Needs attention list, and picture tiles for Repairs, Pickup and pay, Take payment, Add customer, Find customer and Book appointment.",
   },
   homePhone: {
     src: `${app}/home-phone.webp`,

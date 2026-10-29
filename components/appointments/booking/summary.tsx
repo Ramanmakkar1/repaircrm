@@ -17,7 +17,7 @@ export function SummaryStrip({
   className?: string;
 }) {
   return (
-    <div role="group" aria-label="This visit" className={cn("grid grid-cols-[1fr_1.4fr_1fr] gap-2", className)}>
+    <div role="group" aria-label="This appointment" className={cn("grid grid-cols-[1fr_1.4fr_1fr] gap-2", className)}>
       {parts.map((part) => (
         <button
           key={part.label}

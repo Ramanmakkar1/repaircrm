@@ -152,8 +152,8 @@ export function customerSummary({
     ...money,
     {
       key: "visit",
-      label: "Last visit",
-      value: visit ? shortDate(visit, now, timeZone) : "No visits yet",
+      label: "Last repair",
+      value: visit ? shortDate(visit, now, timeZone) : "No repairs yet",
       detail: since ? `Customer since ${formatInZone(since, "MMM d, yyyy", timeZone)}` : undefined,
       tone: visit ? "neutral" : "muted",
     },

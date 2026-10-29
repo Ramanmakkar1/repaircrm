@@ -69,7 +69,7 @@ describe("steps", () => {
   });
 });
 
-describe("what the visit is for", () => {
+describe("what the appointment is for", () => {
   it("offers Drop-off, Pick-up, Quote, Repair check-in and Other, each with a picture", () => {
     expect(VISIT_KINDS.map((tile) => tile.label)).toEqual(["Drop-off", "Pick-up", "Quote", "Repair check-in", "Other"]);
     for (const tile of VISIT_KINDS) expect(tile.photo).toMatch(/^\/images\/(home|products)\/[a-z-]+\.webp$/);
@@ -300,12 +300,12 @@ describe("what is missing", () => {
 describe("the one big button", () => {
   const base = { step: 0, editing: false, complete: false, conflict: false, chosenWho: false };
 
-  it("walks forward until there is enough, then says Book visit", () => {
+  it("walks forward until there is enough, then says Book appointment", () => {
     expect(primaryAction(base)).toEqual({ label: "Skip, walk-in", mode: "next" });
     expect(primaryAction({ ...base, chosenWho: true })).toEqual({ label: "Next: When", mode: "next" });
     expect(primaryAction({ ...base, step: 1 })).toEqual({ label: "Next: What for", mode: "next" });
-    expect(primaryAction({ ...base, step: 2 })).toEqual({ label: "Book visit", mode: "save" });
-    expect(primaryAction({ ...base, complete: true })).toEqual({ label: "Book visit", mode: "save" });
+    expect(primaryAction({ ...base, step: 2 })).toEqual({ label: "Book appointment", mode: "save" });
+    expect(primaryAction({ ...base, complete: true })).toEqual({ label: "Book appointment", mode: "save" });
   });
 
   it("says Save changes when editing", () => {

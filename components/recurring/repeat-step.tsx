@@ -21,7 +21,7 @@ import {
 import { FREQUENCIES, type Frequency } from "./meta";
 
 /**
- * The last step of a repeat bill: "How often?".
+ * The last step of a recurring invoice: "How often?".
  *
  * One sentence says the whole schedule back ("Bills Okonkwo Dental Group
  * $450.00 every month, from Oct 18, 2026."), then the choices as big tiles

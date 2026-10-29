@@ -40,7 +40,7 @@ export type CustomerInfo = {
  * the same way): the number the header dials is the one edited here, and a
  * second number, when there is one, stays a plain tap-to-call line. It also
  * carries "Total paid"; "Customer since" lives in the summary strip under the
- * header, beside "Last visit".
+ * header, beside "Last repair".
  *
  * Full mode keeps the contact lines read-only `tel:` / `mailto:` links, because
  * its ObjectHeader strip carries the phone and email editors.

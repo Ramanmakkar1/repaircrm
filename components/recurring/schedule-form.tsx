@@ -148,7 +148,7 @@ export function ScheduleForm({
       ) : null}
 
       <Card>
-        <CardHeader icon={ICONS.recurring} title="Repeat bill" />
+        <CardHeader icon={ICONS.recurring} title="Recurring invoice" />
         <CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Name in your list</Label>
@@ -261,7 +261,7 @@ export function ScheduleForm({
               </span>
             </div>
             <p className="text-[13.5px] text-muted-foreground">
-              A paused repeat bill makes no bills until it is turned back on.
+              A paused recurring invoice makes no bills until it is turned back on.
             </p>
           </div>
         </CardContent>

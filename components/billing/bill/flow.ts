@@ -38,13 +38,13 @@ export const MAX_QUANTITY = 100_000;
 export const MAX_PRICE_CENTS = 100_000_000;
 
 /**
- * What is being built. "repeat" is a recurring invoice ("repeat bill"): the
+ * What is being built. "repeat" is a recurring invoice: the
  * same customer and items steps, then "How often" in place of the review, and
  * it posts the schedule's fields to createScheduleAction / updateScheduleAction.
  */
 export type BillKind = "invoice" | "estimate" | "repeat";
 
-/** The extra choices a repeat bill carries. Posted exactly as the old schedule form posted them. */
+/** The extra choices a recurring invoice carries. Posted exactly as the old schedule form posted them. */
 export type RepeatDetails = {
   /** For the shop's own list; filled in from the customer and how often when left blank. */
   name: string;
@@ -113,7 +113,7 @@ export type BillInitial = {
    * unbilled charges on the bill straight away, as "From repair" does.
    */
   withRepairCharges?: boolean;
-  /** A repeat bill's own choices (kind "repeat"). */
+  /** A recurring invoice's own choices (kind "repeat"). */
   repeat?: Partial<RepeatDetails>;
 };
 
@@ -164,9 +164,9 @@ export function copyFor(kind: BillKind, mode: BillMode = "new"): Copy {
 function newCopyFor(kind: BillKind): Copy {
   if (kind === "repeat") {
     return {
-      noun: "repeat bill",
+      noun: "recurring invoice",
       panel: "Each bill",
-      save: "Save repeat bill",
+      save: "Save recurring invoice",
       saving: "Saving…",
       itemsTitle: "What goes on each bill?",
       itemsHint: "Tap a picture to add it. Tap again for one more.",
@@ -174,7 +174,7 @@ function newCopyFor(kind: BillKind): Copy {
       dateHint: "The first bill is made on this day. The ones after follow on from it.",
       dateEmpty: "Not picked yet",
       saveNote: "Nothing is billed until the first bill day.",
-      stepsLabel: "Repeat bill steps",
+      stepsLabel: "Recurring invoice steps",
     };
   }
   if (kind === "invoice") {
@@ -214,7 +214,7 @@ export const STEPS = [
 ] as const;
 export const LAST_STEP = STEPS.length - 1;
 
-/** The three steps' names: the last is "How often" for a repeat bill. */
+/** The three steps' names: the last is "How often" for a recurring invoice. */
 export function stepLabels(kind: BillKind): string[] {
   return STEPS.map((item, index) => (kind === "repeat" && index === LAST_STEP ? "How often" : item.label));
 }
@@ -265,7 +265,7 @@ export type BillState = {
   notes: string;
   /** The linked repair ("" = none). */
   ticketId: string;
-  /** A repeat bill's own choices; unused (and never posted) by an invoice or an estimate. */
+  /** A recurring invoice's own choices; unused (and never posted) by an invoice or an estimate. */
   repeat: RepeatDetails;
   /** Counts the lines made so far, so each gets its own key. */
   seq: number;
@@ -713,11 +713,11 @@ export function stepStatuses(state: BillState, ctx: BillContext): StepStatus[] {
   ];
 }
 
-/** What a repeat bill is called in the shop's list when nobody typed a name: "Okonkwo Dental Group · Monthly". */
+/** What a recurring invoice is called in the shop's list when nobody typed a name: "Okonkwo Dental Group · Monthly". */
 export function repeatName(state: BillState, ctx: Pick<BillContext, "customers">): string {
   const typed = state.repeat.name.trim();
   if (typed) return typed.slice(0, 120);
-  const who = customerName(state, ctx) || "Repeat bill";
+  const who = customerName(state, ctx) || "Recurring invoice";
   return `${who} · ${FREQUENCY_LABEL[asFrequency(state.repeat.frequency)]}`.slice(0, 120);
 }
 

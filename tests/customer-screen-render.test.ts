@@ -67,7 +67,7 @@ describe("CustomerHeader", () => {
     expect(anchors(html).find((link) => link.open.includes("tel:"))?.open).toMatch(/text-2xl/);
   });
 
-  it("has one black New repair action beside the New invoice, Book a visit, Message and More tiles", () => {
+  it("has one black New repair action beside the New invoice, Book appointment, Message and More tiles", () => {
     const html = header();
     const links = anchors(html);
     const repair = links.find((link) => link.open.includes('href="/tickets/new?customerId=cus_1"'));
@@ -75,11 +75,11 @@ describe("CustomerHeader", () => {
     // The one primary action is a default (black) Button; the tiles are not.
     expect(repair?.open).toContain('data-slot="button"');
     expect(links.find((link) => link.open.includes('href="/invoices/new?customerId=cus_1"'))?.inner).toContain("New invoice");
-    expect(links.find((link) => link.open.includes('href="/appointments"'))?.inner).toContain("Book a visit");
+    expect(links.find((link) => link.open.includes('href="/appointments"'))?.inner).toContain("Book appointment");
     expect(html).toContain(">Message<");
     expect(html).toContain(">More<");
     expect(html.indexOf("New repair")).toBeLessThan(html.indexOf("New invoice"));
-    expect(html.indexOf("New invoice")).toBeLessThan(html.indexOf("Book a visit"));
+    expect(html.indexOf("New invoice")).toBeLessThan(html.indexOf("Book appointment"));
     // The black button leaves the panel on a phone (the pinned bar takes over).
     expect(repair?.open).toContain("max-sm:hidden");
   });
@@ -133,7 +133,7 @@ describe("SummaryStrip", () => {
     const html = render(
       customerSummary({ openRepairs: 2, totalRepairs: 3, owedCents: 2705, creditCents: 3788, lastVisit: new Date(2026, 8, 29), customerSince: new Date(2026, 5, 4), now: NOW }),
     );
-    for (const text of ["Open repairs", "2 open", "3 repairs in all", "Unpaid", "$27.05 owed", "Store credit", "$37.88 credit", "Last visit", "Sep 29", "Customer since Jun 4, 2026"]) {
+    for (const text of ["Open repairs", "2 open", "3 repairs in all", "Unpaid", "$27.05 owed", "Store credit", "$37.88 credit", "Last repair", "Sep 29", "Customer since Jun 4, 2026"]) {
       expect(html).toContain(text);
     }
     expect(html).toContain("<dt");
@@ -143,7 +143,7 @@ describe("SummaryStrip", () => {
 
   it("reads plainly for a customer with no repairs, no balance, no credit and no visits", () => {
     const html = render(customerSummary({ openRepairs: 0, totalRepairs: 0, owedCents: 0, creditCents: 0, lastVisit: null, now: NOW }));
-    for (const text of ["None yet", "Nothing owed", "No credit", "No visits yet"]) expect(html).toContain(text);
+    for (const text of ["None yet", "Nothing owed", "No credit", "No repairs yet"]) expect(html).toContain(text);
     expect(html).not.toContain("text-status-overdue-fg");
     expect(html).not.toContain("$0.00");
   });
@@ -153,7 +153,7 @@ describe("SummaryStrip", () => {
     const html = render(items, React.createElement("button", { type: "button" }, "Add Credit"));
     expect(html.match(/Add Credit/g)).toHaveLength(1);
     expect(html.indexOf("Add Credit")).toBeGreaterThan(html.indexOf("Store credit"));
-    expect(html.indexOf("Add Credit")).toBeLessThan(html.indexOf("Last visit"));
+    expect(html.indexOf("Add Credit")).toBeLessThan(html.indexOf("Last repair"));
     expect(render(items)).not.toContain("Add Credit");
   });
 });

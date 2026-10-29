@@ -383,7 +383,7 @@ export function BillBuilder({
             <BillPanel
               {...panelHandlers}
               onStep={goTo}
-              // A repeat bill's day is on its "How often" step, and it has no printed notes.
+              // A recurring invoice's day is on its "How often" step, and it has no printed notes.
               showOptions={step !== LAST_STEP && kind !== "repeat"}
               idPrefix="aside"
               className="lg:h-[calc(100dvh-7rem)] lg:min-h-[28rem]"

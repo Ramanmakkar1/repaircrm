@@ -206,7 +206,7 @@ describe("Visits: the Week view opens on today", () => {
   });
 });
 
-describe("Book a visit from a customer's page", () => {
+describe("Book appointment from a customer's page", () => {
   const pickers: AppointmentPickers = {
     customers: [{ value: "cus_1", label: "Daniel Brooks", phone: "(512) 555-0145" }],
     ticketsByCustomer: {},

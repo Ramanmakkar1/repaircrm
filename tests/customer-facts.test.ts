@@ -21,7 +21,7 @@ describe("customerFacts", () => {
       lastVisit: new Date(2026, 8, 30),
       now: NOW,
     });
-    expect(facts.map((fact) => fact.label)).toEqual(["2 open repairs", "$120.00 owed", "Last visit Sep 30"]);
+    expect(facts.map((fact) => fact.label)).toEqual(["2 open repairs", "$120.00 owed", "Last repair Sep 30"]);
     // Money owed is the only one that is emphasised, and it still says "owed".
     expect(facts.map((fact) => fact.tone)).toEqual(["neutral", "alert", "neutral"]);
   });
@@ -33,12 +33,12 @@ describe("customerFacts", () => {
 
   it("leaves the owed fact off when nothing is owed", () => {
     const labels = customerFacts({ openRepairs: 0, owedCents: 0, lastVisit: new Date(2026, 8, 30), now: NOW }).map((fact) => fact.label);
-    expect(labels).toEqual(["Last visit Sep 30"]);
+    expect(labels).toEqual(["Last repair Sep 30"]);
   });
 
   it("adds the year once the last visit was not this year", () => {
     const [fact] = customerFacts({ openRepairs: 0, owedCents: 0, lastVisit: new Date(2025, 8, 30), now: NOW });
-    expect(fact.label).toBe("Last visit Sep 30, 2025");
+    expect(fact.label).toBe("Last repair Sep 30, 2025");
   });
 
   it("ignores an invalid date instead of printing it", () => {

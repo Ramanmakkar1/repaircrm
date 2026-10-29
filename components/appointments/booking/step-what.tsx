@@ -16,7 +16,7 @@ import { NEW, VISIT_KINDS, hasCustomer, type BookingContext, type Issue, type Vi
 import { VisitTileButton } from "./tiles";
 
 /**
- * Step 3: what the visit is for. Five boxes write the title for you; "Other"
+ * Step 3: what the appointment is for. Five boxes write the title for you; "Other"
  * asks for it in words. The title itself, the repair it belongs to, the
  * technician, the place and any notes are all still here, behind one "More
  * options".

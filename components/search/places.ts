@@ -30,7 +30,7 @@ export const START_TILES: Row[] = [
   { id: "start-repair", title: "New repair", subtitle: "Check a device in", href: "/tickets/new", picture: `${PRODUCTS}/phone.webp`, add: true },
   { id: "start-sale", title: "New sale", subtitle: "Scan or tap items", href: "/pos", picture: `${HOME}/card-terminal.webp` },
   { id: "start-customer", title: "Add customer", subtitle: "Name or phone", href: "/customers/new", picture: `${HOME}/customers-cards.webp`, add: true },
-  { id: "start-visit", title: "Book a visit", subtitle: "Drop-off or pickup", href: "/appointments?new=1", picture: `${HOME}/diary.webp` },
+  { id: "start-visit", title: "Book appointment", subtitle: "Drop-off or pickup", href: "/appointments?new=1", picture: `${HOME}/diary.webp` },
 ];
 
 /** Everywhere else, in the shop's own words. Matched as you type ("inv" offers Invoices). */

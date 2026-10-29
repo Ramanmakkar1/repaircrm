@@ -11,7 +11,7 @@ import { plural } from "./format";
 
 export type CustomerFact = {
   key: "open" | "owed" | "visit";
-  /** Always words: "2 open repairs", "$120.00 owed", "Last visit Sep 30". */
+  /** Always words: "2 open repairs", "$120.00 owed", "Last repair Sep 30". */
   label: string;
   /** `alert` only adds emphasis (money owed); the words carry the meaning. */
   tone: "neutral" | "alert";
@@ -33,7 +33,7 @@ export function customerFacts({
   owedCents: number;
   lastVisit: Date | null | undefined;
   now?: Date;
-  /** The shop's time zone (Shop.timezone): the visit is dated on the shop's calendar. */
+  /** The shop's time zone (Shop.timezone): the repair is dated on the shop's calendar. */
   timeZone?: string | null;
 }): CustomerFact[] {
   const facts: CustomerFact[] = [];
@@ -49,7 +49,7 @@ export function customerFacts({
     // visit never reads as a recent one.
     facts.push({
       key: "visit",
-      label: `Last visit ${shortDateIn(lastVisit, now.getTime(), timeZone)}`,
+      label: `Last repair ${shortDateIn(lastVisit, now.getTime(), timeZone)}`,
       tone: "neutral",
     });
   }

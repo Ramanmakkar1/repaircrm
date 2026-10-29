@@ -101,7 +101,7 @@ describe("edit screens for a document past changing", () => {
   });
 });
 
-describe("repeat bills on the bill builder", () => {
+describe("recurring invoices on the bill builder", () => {
   const ctx: BillContext = {
     kind: "repeat",
     customers: [
@@ -153,7 +153,7 @@ describe("repeat bills on the bill builder", () => {
     expect(flow.repeatSentence(state, ctx)).toBe("Bills Okonkwo Dental Group $450.00 every month from Oct 18, 2026.");
     expect(flow.validate({ ...state, date: "" }, ctx).map((issue) => issue.message)).toContain("Pick the day of the first bill.");
     expect(flow.stepLabels("repeat")).toEqual(["Customer", "Items", "How often"]);
-    expect(flow.copyFor("repeat").save).toBe("Save repeat bill");
+    expect(flow.copyFor("repeat").save).toBe("Save recurring invoice");
     expect(flow.copyFor("repeat", "edit").dateLabel).toBe("Next bill on");
     expect(flow.payWithinLabel(14)).toBe("Pay within 14 days");
     expect(flow.payWithinLabel(0)).toBe("Due on receipt");

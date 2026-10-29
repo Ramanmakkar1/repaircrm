@@ -24,12 +24,12 @@ export async function generateMetadata({
   return {
     title: schedule
       ? `Edit ${schedule.name} · Repairs helper`
-      : "Edit repeat bill · Repairs helper",
+      : "Edit recurring invoice · Repairs helper",
   };
 }
 
 /**
- * Change a repeat bill. Easy mode is the bill builder in edit mode, opened on
+ * Change a recurring invoice. Easy mode is the bill builder in edit mode, opened on
  * "How often?" and posting the schedule's `id` and the same fields to
  * `updateScheduleAction`; Full mode keeps the dense form.
  */
@@ -73,11 +73,11 @@ export default async function EditSchedulePage({
           header={
             <PageHeader
               breadcrumbs={[
-                { label: "Repeat bills", href: "/invoices/recurring" },
+                { label: "Recurring invoices", href: "/invoices/recurring" },
                 { label: schedule.name, href: `/invoices/recurring/${schedule.id}` },
                 { label: "Change" },
               ]}
-              title="Change repeat bill"
+              title="Change recurring invoice"
             />
           }
           initial={{

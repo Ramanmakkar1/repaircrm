@@ -45,7 +45,7 @@ export function NewAppointmentButton({
   pickers: AppointmentPickers;
   defaults: AppointmentFormValues;
   /**
-   * Easy mode: the big, touch-sized button that says "Book a visit" (the same
+   * Easy mode: the big, touch-sized button that says "Book appointment" (the same
    * words as the Home tile), opening the four-field form.
    */
   simple?: boolean;

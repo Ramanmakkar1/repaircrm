@@ -16,7 +16,7 @@ import {
 } from "@/components/appointments/booking/flow";
 
 /**
- * The Easy-mode "Book a visit" flow must send the server exactly what the
+ * The Easy-mode "Book appointment" flow must send the server exactly what the
  * dialog has always sent, field for field: same names, same values, same order.
  *
  * `oldDialogFormData` is the original inline code of `save()` in

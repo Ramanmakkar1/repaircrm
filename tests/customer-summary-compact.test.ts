@@ -34,7 +34,7 @@ describe("SummaryStrip on a phone", () => {
     expect(html).toContain("lg:grid-cols-[1fr_1fr_1.6fr_1.15fr]");
     expect(pairTag(html, "Store credit")).toContain("max-sm:order-last");
     expect(pairTag(html, "Store credit")).toContain("max-sm:col-span-3");
-    for (const label of ["Open repairs", "Unpaid", "Last visit"]) {
+    for (const label of ["Open repairs", "Unpaid", "Last repair"]) {
       expect(pairTag(html, label)).not.toContain("order-last");
       expect(pairTag(html, label)).not.toContain("col-span");
     }
@@ -45,7 +45,7 @@ describe("SummaryStrip on a phone", () => {
     const at = (text: string) => html.indexOf(text);
     expect(at("Open repairs")).toBeLessThan(at("Unpaid"));
     expect(at("Unpaid")).toBeLessThan(at("Store credit"));
-    expect(at("Store credit")).toBeLessThan(at("Last visit"));
+    expect(at("Store credit")).toBeLessThan(at("Last repair"));
   });
 
   it("puts the Add credit button beside the amount on a phone, in a cell of its own, and renders it once", () => {
@@ -88,7 +88,7 @@ describe("SummaryStrip on a phone", () => {
   it("states a quiet customer in plain words on the same layout", () => {
     const quiet = customerSummary({ openRepairs: 0, totalRepairs: 0, owedCents: 0, creditCents: 0, lastVisit: null, now: NOW });
     const html = renderToStaticMarkup(React.createElement(SummaryStrip, { items: quiet, creditAction: addCredit }));
-    for (const text of ["None yet", "Nothing owed", "No credit", "No visits yet"]) expect(html).toContain(text);
+    for (const text of ["None yet", "Nothing owed", "No credit", "No repairs yet"]) expect(html).toContain(text);
     expect(pairTag(html, "Store credit")).toContain("max-sm:order-last");
   });
 });
@@ -133,7 +133,7 @@ describe("CustomerHeader on a phone", () => {
   it("still has the very large call button and the four tiles", () => {
     expect(header).toMatch(/<a[^>]*tel:5125550111[^>]*min-h-16/);
     expect(header).toContain("New invoice");
-    expect(header).toContain("Book a visit");
+    expect(header).toContain("Book appointment");
   });
 });
 

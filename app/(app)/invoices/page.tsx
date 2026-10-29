@@ -197,7 +197,7 @@ export default async function InvoicesPage({
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline" className={cn(easy && "px-5 text-base")}>
               <Link href="/invoices/recurring">
-                <ICONS.recurring /> Repeat bills
+                <ICONS.recurring /> Recurring invoices
               </Link>
             </Button>
             <Button asChild className={cn(easy && "px-5 text-base")}>

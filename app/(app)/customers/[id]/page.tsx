@@ -243,7 +243,7 @@ export default async function CustomerHubPage({
           select: REPAIR_ROW_SELECT,
         })
       : Promise.resolve([]),
-    // "Last visit": the newest repair they brought in, as on the customer list.
+    // "Last repair": the newest repair they brought in, as on the customer list.
     easy
       ? db.ticket.aggregate({ where: { shopId, customerId: id }, _max: { createdAt: true } })
       : Promise.resolve(null),

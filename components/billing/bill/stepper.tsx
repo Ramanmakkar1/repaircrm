@@ -22,7 +22,7 @@ export function BillStepper({
   statuses: StepStatus[];
   onStep: (next: number) => void;
   label: string;
-  /** Other names for the steps (a repeat bill's last step is "How often"). */
+  /** Other names for the steps (a recurring invoice's last step is "How often"). */
   labels?: string[];
 }) {
   return (

@@ -80,7 +80,7 @@ describe("the summary strip, in words", () => {
   });
 
   it("keeps four labelled pairs in a fixed order", () => {
-    expect(customerSummary(base).map((item) => item.label)).toEqual(["Open repairs", "Unpaid", "Store credit", "Last visit"]);
+    expect(customerSummary(base).map((item) => item.label)).toEqual(["Open repairs", "Unpaid", "Store credit", "Last repair"]);
   });
 
   it("reads quietly for a new customer: no zeros, only plain words", () => {
@@ -89,7 +89,7 @@ describe("the summary strip, in words", () => {
     expect(items.repairs.detail).toBeUndefined();
     expect(items.owed).toMatchObject({ value: "Nothing owed", tone: "muted" });
     expect(items.credit).toMatchObject({ value: "No credit", tone: "muted" });
-    expect(items.visit).toMatchObject({ value: "No visits yet", tone: "muted" });
+    expect(items.visit).toMatchObject({ value: "No repairs yet", tone: "muted" });
   });
 
   it("separates 'nothing open' from 'never had a repair'", () => {
@@ -106,7 +106,7 @@ describe("the summary strip, in words", () => {
 
   it("ignores an invalid date instead of printing 'Invalid Date'", () => {
     const items = byKey(customerSummary({ ...base, lastVisit: new Date("nope"), customerSince: new Date("nope") }));
-    expect(items.visit.value).toBe("No visits yet");
+    expect(items.visit.value).toBe("No repairs yet");
     expect(items.visit.detail).toBeUndefined();
   });
 });

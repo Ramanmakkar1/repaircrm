@@ -35,7 +35,7 @@ export function CustomerCards({
 }: {
   rows: CustomerCardRow[];
   now?: Date;
-  /** The shop's time zone (Shop.timezone): "Last visit Sep 30" is the shop's calendar day. */
+  /** The shop's time zone (Shop.timezone): "Last repair Sep 30" is the shop's calendar day. */
   timeZone?: string | null;
 }) {
   return (

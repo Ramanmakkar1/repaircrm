@@ -128,12 +128,12 @@ export default async function RecurringSchedulesPage({
         schedules.length === 0 ? (
           <Button asChild className={cn(easy && "px-6 text-base")}>
             <Link href="/invoices/recurring/new">
-              <ACTIONS.add /> New repeat bill
+              <ACTIONS.add /> New recurring invoice
             </Link>
           </Button>
         ) : (
           <Button variant="outline" asChild className={cn(easy && "px-6 text-base")}>
-            <Link href="/invoices/recurring">Show all repeat bills</Link>
+            <Link href="/invoices/recurring">Show all recurring invoices</Link>
           </Button>
         )
       }
@@ -171,7 +171,7 @@ export default async function RecurringSchedulesPage({
             {dueCount > 0 ? <GenerateDueButton dueCount={dueCount} /> : null}
             <Button variant={dueCount > 0 ? "outline" : "default"} asChild className={cn(easy && "px-5 text-base")}>
               <Link href="/invoices/recurring/new">
-                <ACTIONS.add /> New repeat bill
+                <ACTIONS.add /> New recurring invoice
               </Link>
             </Button>
           </div>

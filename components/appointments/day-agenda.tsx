@@ -46,7 +46,7 @@ export function DayAgenda({
   }
 
   return (
-    <section aria-label={`Visits on ${dayLabel}`}>
+    <section aria-label={`Appointments on ${dayLabel}`}>
       <ol className="flex flex-col">
         {agenda.rows.map((row) => (
           <li

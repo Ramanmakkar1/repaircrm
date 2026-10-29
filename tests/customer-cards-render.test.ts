@@ -38,7 +38,7 @@ describe("CustomerCards", () => {
     expect(html).toContain("elena@example.com");
     expect(html).toContain("2 open repairs");
     expect(html).toContain("$27.05 owed");
-    expect(html).toContain("Last visit Sep 29");
+    expect(html).toContain("Last repair Sep 29");
   });
 
   it("offers tap-to-call as a sibling of the card link, never inside it", () => {
@@ -67,7 +67,7 @@ describe("CustomerCards", () => {
     expect(html).toContain("Okonkwo Dental");
     expect(html).not.toContain("open repair");
     expect(html).not.toContain("owed");
-    expect(html).not.toContain("Last visit");
+    expect(html).not.toContain("Last repair");
   });
 
   it("uses an icon, not 'C5' initials, for a quick-added customer", () => {

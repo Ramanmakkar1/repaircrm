@@ -160,7 +160,7 @@ describe("Customers: dates in the shop's zone, and plain words", () => {
       now: new Date(EVENING),
       timeZone: EDMONTON,
     });
-    expect(facts).toEqual([{ key: "visit", label: "Last visit Sep 29", tone: "neutral" }]);
+    expect(facts).toEqual([{ key: "visit", label: "Last repair Sep 29", tone: "neutral" }]);
   });
 
   it("dates the summary strip's last visit and 'Customer since' on the shop's calendar", () => {

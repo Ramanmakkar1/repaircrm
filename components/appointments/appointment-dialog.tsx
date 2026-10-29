@@ -593,7 +593,7 @@ function CustomerPicker({
             <span className="block text-[12.5px] text-muted-foreground">
               {newPhone.trim() === ""
                 ? "Add a mobile number to text them."
-                : "They get a confirmation text now and a reminder before the visit."}
+                : "They get a confirmation text now and a reminder before the appointment."}
             </span>
           </span>
         </label>

@@ -12,7 +12,7 @@ import { QuickTile } from "./quick-tile";
  * are (a big picture and name, the business under it), how to reach them (the
  * number as a very large tap-to-call button, a Text button beside it, the email
  * as a link), then ONE big black action, "New repair", beside four quick tiles:
- * New invoice, Book a visit, Message and More.
+ * New invoice, Book appointment, Message and More.
  *
  * Who they are and how to reach them sit side by side from `lg` (1024px) up; on
  * a portrait tablet there is not room for a name, an email and a 24px phone
@@ -133,7 +133,7 @@ export function CustomerHeader({
           </QuickTile>
         ) : null}
         <QuickTile href={bookHref} icon={ICONS.appointment}>
-          Book a visit
+          Book appointment
         </QuickTile>
         {messageMenu}
         {moreMenu}

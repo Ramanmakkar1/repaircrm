@@ -11,10 +11,10 @@ import { shopTodayKey } from "@/components/billing/shop-clock";
 import { ScheduleForm } from "@/components/recurring/schedule-form";
 import { createScheduleAction } from "../actions";
 
-export const metadata = { title: "New repeat bill · Repairs helper" };
+export const metadata = { title: "New recurring invoice · Repairs helper" };
 
 /**
- * A new repeat bill (recurring invoice).
+ * A new recurring invoice.
  *
  * Easy mode is the bill builder: who, what goes on each bill, then "How
  * often?" as tiles with the whole schedule said back in one sentence. It posts
@@ -62,10 +62,10 @@ export default async function NewSchedulePage({
             <PageHeader
               breadcrumbs={[
                 { label: "Invoices", href: "/invoices" },
-                { label: "Repeat bills", href: "/invoices/recurring" },
+                { label: "Recurring invoices", href: "/invoices/recurring" },
                 { label: "New" },
               ]}
-              title="New repeat bill"
+              title="New recurring invoice"
             />
           }
           initial={{
@@ -81,7 +81,7 @@ export default async function NewSchedulePage({
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="New repeat bill"
+        title="New recurring invoice"
         description="Each time it comes round, a draft invoice is made for you to check before it goes out."
       />
       <ScheduleForm

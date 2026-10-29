@@ -163,7 +163,7 @@ export function WhoStep({
               They&rsquo;re happy to get texts about this booking and their repair
               <span className="block text-[13px] text-muted-foreground">
                 {hasPhone
-                  ? "They get a confirmation text now and a reminder before the visit."
+                  ? "They get a confirmation text now and a reminder before the appointment."
                   : "Add a mobile number to text them."}
               </span>
             </span>

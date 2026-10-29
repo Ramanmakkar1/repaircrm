@@ -1,5 +1,5 @@
 /**
- * The Easy-mode "Book a visit" flow, as plain data and plain functions.
+ * The Easy-mode "Book appointment" flow, as plain data and plain functions.
  *
  * Same idea as the repair check-in (components/tickets/intake/flow.ts): what has
  * been chosen, what each step has to say about it, what is still missing and
@@ -54,7 +54,7 @@ export const LAST_STEP = STEPS.length - 1;
 /**
  * A new visit starts on Who. An existing one is usually being moved, so it
  * opens on When, and so does a new one that came with its customer already
- * chosen ("Book a visit" on a customer's page).
+ * chosen ("Book appointment" on a customer's page).
  */
 export function initialStep(values: Pick<AppointmentFormValues, "id"> & { customerId?: string }): number {
   if (values.id) return 1;
@@ -63,7 +63,7 @@ export function initialStep(values: Pick<AppointmentFormValues, "id"> & { custom
 
 /**
  * Where the cursor goes when the dialog opens or a step comes up. The first step's search box takes it
- * itself, but only where there is a keyboard and it really is on screen. Anywhere else (Edit visit
+ * itself, but only where there is a keyboard and it really is on screen. Anywhere else (Edit appointment
  * opens on When, a touch screen keeps its keyboard down, somebody was already chosen) the heading
  * takes it, so focus is always inside the dialog: Tab and a screen reader start at the step instead
  * of on the page behind the overlay. The heading is not a field, so no keyboard comes up on a phone.
@@ -401,8 +401,8 @@ export const MSG = {
   when: "Pick a start date and time.",
   endTime: "Pick an end time.",
   endAfter: "The end time has to be after the start time.",
-  title: "Choose what the visit is for.",
-  titleOther: "Say what the visit is for in a few words.",
+  title: "Choose what the appointment is for.",
+  titleOther: "Say what the appointment is for in a few words.",
 } as const;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -515,9 +515,9 @@ export type Primary = { label: string; mode: "next" | "save" | "overlap" };
 /**
  * What the one black button says and does:
  *   - after a clash: "Book anyway" (it sends the same booking with the override);
- *   - once everything needed is there: "Book visit" / "Save changes", from any step;
+ *   - once everything needed is there: "Book appointment" / "Save changes", from any step;
  *   - until then: "Next: ..." to the following step, and on the last one the
- *     same "Book visit", which says what is missing when pressed too early.
+ *     same "Book appointment", which says what is missing when pressed too early.
  */
 export function primaryAction(input: {
   step: number;
@@ -526,7 +526,7 @@ export function primaryAction(input: {
   conflict: boolean;
   chosenWho: boolean;
 }): Primary {
-  const save = input.editing ? "Save changes" : "Book visit";
+  const save = input.editing ? "Save changes" : "Book appointment";
   if (input.conflict) return { label: "Book anyway", mode: "overlap" };
   if (input.complete) return { label: save, mode: "save" };
   if (input.step >= LAST_STEP) return { label: save, mode: "save" };

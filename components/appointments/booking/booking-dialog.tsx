@@ -64,12 +64,12 @@ export const SHEET = cn(
 );
 
 /**
- * Easy mode's "Book a visit" (and "Edit visit"): a dialog on a tablet, a
+ * Easy mode's "Book appointment" (and "Edit appointment"): a dialog on a tablet, a
  * full-height sheet on a phone.
  *
  * Who -> When -> What for, one step on screen at a time, a live Who - When -
  * What strip and ONE big black button underneath that says what comes next and,
- * once there is enough, "Book visit" (or "Save changes" when editing).
+ * once there is enough, "Book appointment" (or "Save changes" when editing).
  *
  * The request is the one the dense dialog has always sent: same fields, same
  * values, same server action, same "already booked" warning with its "Book

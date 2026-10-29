@@ -146,7 +146,7 @@ export default async function ScheduleDetailPage({
       />,
       <Link key="list" href="/invoices/recurring" data-touch-control className={TILE_CLASS}>
         <ICONS.recurring aria-hidden />
-        All repeat bills
+        All recurring invoices
       </Link>,
     ];
 
@@ -254,7 +254,7 @@ export default async function ScheduleDetailPage({
                 <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4">
                   <p className="text-base leading-snug text-muted-foreground">
                     {canDelete
-                      ? "Deleting removes this repeat bill for good. No invoice is touched."
+                      ? "Deleting removes this recurring invoice for good. No invoice is touched."
                       : `It has made ${invoicesSoFarWords(generatedCount).toLowerCase()}, so it can't be deleted: pause it instead and the history stays.`}
                   </p>
                   {canDelete ? (
@@ -262,11 +262,11 @@ export default async function ScheduleDetailPage({
                       <ConfirmActionDialog
                         action={deleteScheduleAction}
                         fields={{ id: schedule.id }}
-                        triggerLabel="Delete repeat bill"
+                        triggerLabel="Delete recurring invoice"
                         triggerIcon={<ACTIONS.delete />}
                         title={`Delete ${schedule.name}?`}
-                        description="The repeat bill and its items go for good. This can't be undone."
-                        confirmLabel="Delete repeat bill"
+                        description="The recurring invoice and its items go for good. This can't be undone."
+                        confirmLabel="Delete recurring invoice"
                       />
                     </div>
                   ) : null}
@@ -293,7 +293,7 @@ export default async function ScheduleDetailPage({
         raised lives in the generated-invoices table below.
       */}
       <ObjectHeader
-        back={{ label: "Repeat bills", href: "/invoices/recurring" }}
+        back={{ label: "Recurring invoices", href: "/invoices/recurring" }}
         value={formatCents(totals.totalCents)}
         title={schedule.name}
         subtitle={`Each bill — bills ${FREQUENCY_CADENCE[frequency]}`}
