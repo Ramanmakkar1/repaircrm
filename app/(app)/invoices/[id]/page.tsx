@@ -24,7 +24,7 @@ import {
   stripeTestMode,
 } from "@/lib/payments";
 import { listSquareDevices, squareConnectionStatus } from "@/lib/payments/square";
-import { refundAwareTotals } from "@/components/billing/refund-math";
+import { refundAwareTotals, refundDefaultMethod } from "@/components/billing/refund-math";
 import { shopNow, shopWall } from "@/components/billing/shop-clock";
 import { safeTimeZone } from "@/lib/dashboard/logic";
 import {
@@ -259,7 +259,8 @@ export default async function InvoiceDetailPage({
 
   // A customer who paid with store credit almost always wants it back the same
   // way, so the dialog opens on CREDIT for them rather than on CARD.
-  const paidWithCredit = invoice.payments.some((p) => p.method === "CREDIT");
+  // The same for cash, cheque and other: the newest payment's own way (refundDefaultMethod).
+  const refundMethod = refundDefaultMethod(invoice.payments);
   // Shown only when it is true. "Online payments: off" on every invoice of
   // every shop that never enabled Stripe is an advert, not a status.
   const onlinePayments = (paymentsLive() || square.connected) && canTakePayment;
@@ -423,7 +424,7 @@ export default async function InvoiceDetailPage({
               action: refundInvoiceAction,
               refundableCents: totals.refundableCents,
               payments: refundablePayments,
-              defaultMethod: paidWithCredit ? "CREDIT" : "CARD",
+              defaultMethod: refundMethod,
               owingNowCents: totals.balanceCents,
             }
           : null
@@ -880,7 +881,7 @@ export default async function InvoiceDetailPage({
                     refundableCents={totals.refundableCents}
                     payments={refundablePayments}
                     customerName={customerName}
-                    defaultMethod={paidWithCredit ? "CREDIT" : "CARD"}
+                    defaultMethod={refundMethod}
                     owingNowCents={totals.balanceCents}
                     size="lg"
                   />

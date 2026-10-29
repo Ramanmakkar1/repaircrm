@@ -131,3 +131,24 @@ export function statusForNetPaid(
   if (netPaidCents < totalCents) return "PARTIAL";
   return "PAID";
 }
+
+/**
+ * Which method tile the refund dialog opens on: the way the money came in.
+ * Store credit wins (it almost always goes back as credit), then the newest
+ * payment's own method, so an invoice paid in cash does not open on "Their
+ * card" and get written down as a card refund the cash drawer never sees.
+ */
+export function refundDefaultMethod(
+  payments: readonly { method: string; amountCents: number }[],
+): "CARD" | "CASH" | "CHECK" | "CREDIT" | "OTHER" {
+  if (payments.some((payment) => payment.method === "CREDIT")) return "CREDIT";
+  const newest = [...payments].reverse().find((payment) => payment.amountCents > 0);
+  switch (newest?.method) {
+    case "CASH":
+    case "CHECK":
+    case "OTHER":
+      return newest.method;
+    default:
+      return "CARD";
+  }
+}
