@@ -206,7 +206,7 @@ describe("Purchase orders list", () => {
     expect(html).toContain("<table");
     expect(html).toContain("#1002");
     expect(html).toContain("All inventory");
-    expect(html).toContain("New Purchase Order");
+    expect(html).toContain("New purchase order");
     expect(html).not.toContain('role="search"');
     expect(callsTo("purchaseOrder.groupBy")).toHaveLength(0);
   });
@@ -298,7 +298,7 @@ describe("Suppliers list", () => {
     const html = await render(VendorsPage);
 
     expect(html).toContain(">Vendors<");
-    expect(html).toContain("New Vendor");
+    expect(html).toContain("New vendor");
     expect(html).toContain("Active only");
     expect(html).toContain("Include inactive");
     expect(html).not.toContain('role="search"');

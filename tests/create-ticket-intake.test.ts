@@ -85,7 +85,7 @@ describe("createTicketAction — new customer and new device", () => {
       newDeviceModel: "iPhone 14",
     });
 
-    expect(result).toEqual({ redirect: "/tickets/tkt_1" });
+    expect(result).toEqual({ redirect: "/tickets/tkt_1?checkedIn=1" });
     expect(dataOf("customer.create")).toEqual({
       shopId: "shop_1",
       firstName: "Anna",
@@ -196,7 +196,7 @@ describe("createTicketAction — a new customer who is already on file", () => {
     // Too few digits to identify anybody: no lookup, so the customer is added.
     const result = await submit({ customerId: "__new__", newCustomerName: "Sam Lee", newCustomerPhone: "555-01" });
 
-    expect(result).toEqual({ redirect: "/tickets/tkt_1" });
+    expect(result).toEqual({ redirect: "/tickets/tkt_1?checkedIn=1" });
     expect(callsTo("$queryRaw")).toEqual([]);
     expect(callsTo("customer.findFirst")).toEqual([]);
     expect(callsTo("customer.create")).toHaveLength(1);
@@ -205,7 +205,7 @@ describe("createTicketAction — a new customer who is already on file", () => {
   it("adds the customer when nobody on file matches", async () => {
     const result = await submit({ customerId: "__new__", newCustomerName: "Sam Lee", newCustomerPhone: "780-555-0199" });
 
-    expect(result).toEqual({ redirect: "/tickets/tkt_1" });
+    expect(result).toEqual({ redirect: "/tickets/tkt_1?checkedIn=1" });
     expect(callsTo("$queryRaw")[0].args.values).toEqual(["shop_1", "%5550199%", "%5550199%", 50]);
     expect(callsTo("customer.create")).toHaveLength(1);
   });

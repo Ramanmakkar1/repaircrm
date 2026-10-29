@@ -350,15 +350,15 @@ describe("what is missing, in plain words, on the right step", () => {
 
 describe("the device step's buttons", () => {
   it("says Skip until something is entered", () => {
-    expect(deviceNextLabel(initialState())).toBe("Skip, I'll add it later");
+    expect(deviceNextLabel(initialState())).toBe("Continue with no device");
     expect(deviceNextLabel(withNoDevice(initialState()))).toBe("Next: Problem");
     expect(deviceNextLabel(withSavedDevice(initialState(), "ast_1"))).toBe("Next: Problem");
     const kind = withDeviceKind(initialState(), "Phone", []);
-    expect(deviceNextLabel(kind)).toBe("Skip, I'll add it later");
+    expect(deviceNextLabel(kind)).toBe("Skip the brand");
     const typedBrand = { ...kind, device: { ...kind.device, make: "Acme" } };
     expect(deviceNextLabel(typedBrand)).toBe("Next: Model");
     const model = withMake(kind, "Apple");
-    expect(deviceNextLabel(model)).toBe("Skip, I'll add it later");
+    expect(deviceNextLabel(model)).toBe("Skip the model");
     expect(deviceNextLabel(withModel(model, "iPhone 14"))).toBe("Next: Problem");
   });
 

@@ -529,13 +529,17 @@ export function summaryLine(state: CheckInState, ctx: CheckInContext): string {
   return parts.join(" · ") || "Nothing chosen yet";
 }
 
-/** What the device step's main button says: "Skip" until something is entered, then "Next". */
+/**
+ * What the device step's main button says. With nothing chosen it says, in
+ * words, that the repair goes on with NO device, so "No device" is a choice the
+ * counter made, never something recorded silently behind a "Skip".
+ */
 export function deviceNextLabel(state: CheckInState): string {
-  if (!deviceChosen(state)) return "Skip, I'll add it later";
+  if (!deviceChosen(state)) return "Continue with no device";
   if (state.assetId === NEW) {
     const { make, model, serial, password } = state.device;
-    if (state.deviceStage === "brand") return make.trim() ? "Next: Model" : "Skip, I'll add it later";
-    if (state.deviceStage === "model" && !model.trim() && !serial.trim() && !password) return "Skip, I'll add it later";
+    if (state.deviceStage === "brand") return make.trim() ? "Next: Model" : "Skip the brand";
+    if (state.deviceStage === "model" && !model.trim() && !serial.trim() && !password) return "Skip the model";
   }
   return "Next: Problem";
 }

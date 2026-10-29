@@ -92,7 +92,7 @@ export default async function VendorsPage({
       trigger={
         <Button>
           <ACTIONS.add />
-          {easy ? "Add supplier" : "New Vendor"}
+          {easy ? "Add supplier" : "New vendor"}
         </Button>
       }
     />

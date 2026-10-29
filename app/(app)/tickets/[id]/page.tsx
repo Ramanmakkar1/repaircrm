@@ -26,6 +26,7 @@ import {
   type AttachmentRow,
 } from "@/components/tickets/attachments-card";
 import { ChargesCard } from "@/components/tickets/charges-card";
+import { CheckedInHandoff } from "@/components/tickets/checked-in-handoff";
 import { ChecklistCard } from "@/components/tickets/checklist-card";
 import { TicketLocation } from "@/components/tickets/ticket-location";
 import { CustomFieldsCard } from "@/components/tickets/custom-fields-card";
@@ -506,6 +507,17 @@ export default async function TicketDetailPage({
   const showsInvoiceButton = actionPair.primary === "invoice" || actionPair.secondary === "invoice";
   // Every status the repair has really been in (each move is logged with the
   // status it moved to) and where it is now: skipped steps say so in both views.
+  // Just checked in (?checkedIn=1): the hand-off, once.
+  const checkedIn = (Array.isArray(query.checkedIn) ? query.checkedIn[0] : query.checkedIn) === "1";
+  const handoff = checkedIn ? (
+    <CheckedInHandoff
+      ticketId={ticket.id}
+      ticketNumber={ticket.number}
+      customerName={firstName}
+      canText={ticket.customer.smsOptIn && Boolean(ticket.customer.mobile?.trim()) && smsDriverName() !== "log"}
+      doneHref={`/tickets/${ticket.id}`}
+    />
+  ) : null;
   const visitedStatuses = [
     ticket.status,
     ...ticket.comments.flatMap((comment) => (comment.updateType ? [comment.updateType] : [])),
@@ -840,6 +852,8 @@ export default async function TicketDetailPage({
         >
           <JobScreen
             header={
+              <>
+              {handoff}
               <JobHeader
                 // No "Repairs" link here: the shell's Back is the one way back.
                 number={ticket.number}
@@ -865,6 +879,7 @@ export default async function TicketDetailPage({
                 extras={warrantyPill}
                 more={moreActions(!showsInvoiceButton)}
               />
+              </>
             }
             steps={<StatusSteps statuses={statuses} visited={visitedStatuses} />}
             side={
@@ -1075,6 +1090,7 @@ export default async function TicketDetailPage({
       {/* gap-6 between page sections, gap-5 inside the two card stacks below —
           the same rhythm the customer and lead hubs use. */}
       <div className="flex flex-col gap-6">
+        {handoff}
         {/* ------------------------------------------------------------ header */}
         {/*
           One big title, the status beside it, the customer one tap away, and

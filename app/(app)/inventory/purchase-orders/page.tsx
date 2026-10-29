@@ -119,7 +119,7 @@ export default async function PurchaseOrdersPage({
     <Button asChild>
       <Link href="/inventory/purchase-orders/new">
         <ACTIONS.add />
-        {easy ? "New order" : "New Purchase Order"}
+        {easy ? "New order" : "New purchase order"}
       </Link>
     </Button>
   );

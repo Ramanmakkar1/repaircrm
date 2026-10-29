@@ -96,7 +96,7 @@ describe("'Different device' with nothing entered is not a device", () => {
   });
 
   it("says Skip on the button, and Next (or a tap on a stepper) leaves with 'No device'", () => {
-    expect(deviceNextLabel(blank)).toBe("Skip, I'll add it later");
+    expect(deviceNextLabel(blank)).toBe("Continue with no device");
     const next = advanceDevice(blank);
     expect(next.leave).toBe(true);
     expect(next.state.assetId).toBe("none");

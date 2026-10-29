@@ -192,14 +192,14 @@ describe("2 Device", () => {
     for (const photo of ["phone", "tablet", "laptop", "desktop-computer", "game-console", "television"]) expect(html).toContain(`${photo}.webp`);
     expect(text(html)).toContain("More devices");
     expect(text(html)).toContain("No device");
-    expect(text(html)).toContain("Skip, I'll add it later");
+    expect(text(html)).toContain("Add it later");
   });
 
   it("asks for the brand next, as tiles, skippable", () => {
     const html = render(DeviceStep, withDeviceKind(withCustomer, "Phone", ctx.problemTypes));
     for (const brand of ["Apple", "Samsung", "Google", "Motorola"]) expect(text(html)).toContain(brand);
     expect(text(html)).toContain("Type a different brand");
-    expect(text(html)).toContain("Skip, I'll add it later");
+    expect(text(html)).toContain("Skip the brand");
     expect(text(html)).toContain("Change"); // the kind chosen so far, with a way back
   });
 
@@ -209,7 +209,7 @@ describe("2 Device", () => {
     expect(text(html)).toContain("Type a different model");
     expect(text(html)).toContain("More device details");
     expect(html).not.toContain("Unlock code"); // behind the toggle
-    expect(text(html)).toContain("Skip, I'll add it later");
+    expect(text(html)).toContain("Skip the model");
   });
 
   it("lets a TV have no model list, only the plain field", () => {

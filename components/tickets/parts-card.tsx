@@ -166,7 +166,7 @@ export function PartsCard({
           trigger={
             <Button variant="outline" size="sm">
               <ACTIONS.add className="size-4" />
-              Order Part
+              Order part
             </Button>
           }
         />

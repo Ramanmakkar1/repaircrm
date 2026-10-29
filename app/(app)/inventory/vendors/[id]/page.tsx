@@ -164,7 +164,7 @@ export default async function VendorPage({
             <Button asChild>
               <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
                 <ACTIONS.add />
-                New Purchase Order
+                New purchase order
               </Link>
             </Button>
           </div>
@@ -273,7 +273,7 @@ export default async function VendorPage({
                 <Button asChild>
                   <Link href={`/inventory/purchase-orders/new?vendorId=${vendor.id}`}>
                     <ACTIONS.add />
-                    New Purchase Order
+                    New purchase order
                   </Link>
                 </Button>
               }

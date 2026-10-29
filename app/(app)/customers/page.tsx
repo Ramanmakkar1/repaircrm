@@ -262,7 +262,7 @@ export default async function CustomersPage({
             <Button asChild>
               <Link href="/customers/new">
                 <ACTIONS.add />
-                New Customer
+                New customer
               </Link>
             </Button>
           </>
@@ -291,7 +291,7 @@ export default async function CustomersPage({
                   <Button asChild>
                     <Link href="/customers/new">
                       <ACTIONS.add />
-                      New Customer
+                      New customer
                     </Link>
                   </Button>
                 )

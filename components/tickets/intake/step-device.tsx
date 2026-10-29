@@ -204,7 +204,7 @@ export function DeviceStep({
           >
             <Ban aria-hidden className="size-5 text-muted-foreground" />
             <span>No device</span>
-            <span className="text-[15px] font-normal text-muted-foreground">Skip, I&apos;ll add it later</span>
+            <span className="text-[15px] font-normal text-muted-foreground">Add it later</span>
           </button>
           {saved.length > 0 || saveOptions ? (
             <div className="flex flex-wrap items-center gap-x-6">

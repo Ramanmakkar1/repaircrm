@@ -363,7 +363,8 @@ export async function createTicketAction(
 
   revalidatePath("/tickets");
   // redirect() throws to unwind — never put it inside a try/catch.
-  redirect(`/tickets/${ticket.id}`);
+  // ?checkedIn=1: the repair opens on the hand-off (claim stub, receipt text, next customer).
+  redirect(`/tickets/${ticket.id}?checkedIn=1`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1697,6 +1698,35 @@ export async function markPickedUpAction(ticketId: string): Promise<ActionState>
 
   revalidateTicket(ticket.id);
   return { ok: true };
+}
+
+/**
+ * The check-in receipt, by text: the repair number and the link to follow it.
+ * Only for a customer who said yes to texts (lib/comms enforces it too and logs
+ * the skip); the counter is told the truth about what happened.
+ */
+export async function textCheckInReceiptAction(ticketId: string): Promise<ActionState> {
+  const { shopId } = await requireUser();
+  const ticket = await db.ticket.findFirst({
+    where: { id: ticketId, shopId },
+    select: { id: true, number: true, customerId: true, customer: { select: { smsOptIn: true, mobile: true } } },
+  });
+  if (!ticket) return { error: "Repair not found." };
+  if (!ticket.customer.smsOptIn || !ticket.customer.mobile) {
+    return { error: "This customer has not said yes to texts." };
+  }
+  const shop = await db.shop.findUnique({ where: { id: shopId }, select: { name: true } });
+  const sent = await sendSms({
+    shopId,
+    customerId: ticket.customerId,
+    ticketId: ticket.id,
+    body: `${shop?.name ?? "The shop"} has your device. Your repair number is #${ticket.number}. Follow it here:`,
+    portalPath: `/portal/tickets/${ticket.id}`,
+  });
+  revalidateTicket(ticket.id);
+  if (sent.status === "sent") return { ok: true, done: "Receipt texted." };
+  if (sent.status === "logged") return { ok: true, notice: "Texting isn't switched on yet, so nothing went out." };
+  return { error: `The text didn't send (${sent.status.replace(/^(failed|skipped):\s*/, "")}).` };
 }
 
 // ---------------------------------------------------------------------------
