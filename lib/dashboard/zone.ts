@@ -27,6 +27,18 @@ export function safeTimeZone(zone: string | null | undefined): string {
   }
 }
 
+/**
+ * Whether this runtime's time zone data knows Alberta stopped changing clocks
+ * (permanent UTC-6 from 2026; IANA tzdata 2026c). Older data (Node 22.22.x ships
+ * 2026a) still turns Edmonton's clocks back on 2026-11-01, an hour off every
+ * shop time after that. Node 22.23.3+ (`.nvmrc`) is required; the server logs
+ * an error at start when this is false.
+ */
+export function runtimeKnowsAlbertaPermanentTime(): boolean {
+  // Noon UTC on 2026-12-01 reads 06:00 on a UTC-6 clock, 05:00 on the old UTC-7.
+  return wallClock(Date.UTC(2026, 11, 1, 12), "America/Edmonton").hour === 6;
+}
+
 export type WallClock = {
   year: number;
   /** 1-12. */
