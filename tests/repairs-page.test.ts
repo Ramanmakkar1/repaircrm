@@ -175,8 +175,19 @@ describe("Repairs list, Full mode", () => {
     expect(html).not.toContain("Overdue</a>");
   });
 
-  it("does not run the tab-count queries", async () => {
-    await render();
-    expect(callsTo("ticket.groupBy")).toHaveLength(0);
+  it("carries the same counts on its tabs", async () => {
+    const html = await render();
+    expect(callsTo("ticket.groupBy")).toHaveLength(1);
+    const count = (label: string) => html.match(new RegExp(`${label}<span[^>]*>(\\d+)</span>`))?.[1];
+    expect(count("Open jobs")).toBe("3");
+    expect(count("All")).toBe("5");
+    expect(count("Needs reply")).toBe("4");
+    expect(count("Resolved")).toBe("2");
+    expect(count("Waiting for Parts")).toBe("0");
+  });
+
+  it("drops the tab counts under a due filter, which overrides the tab's status", async () => {
+    const html = await render({ due: "overdue" });
+    expect(html).not.toMatch(/Open jobs<span[^>]*>\d+<\/span>/);
   });
 });

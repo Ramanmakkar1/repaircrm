@@ -259,16 +259,12 @@ export default async function TicketsPage({
         },
       },
     }),
-    // The tab counts (Easy mode only; Full mode does not show them).
-    simple
-      ? db.ticket.groupBy({ by: ["status"], where: base, _count: { _all: true } })
-      : Promise.resolve(null),
+    // The tab counts, in both modes. Overdue is an Easy-mode tab only.
+    db.ticket.groupBy({ by: ["status"], where: base, _count: { _all: true } }),
     simple
       ? db.ticket.count({ where: { ...base, dueDate: { lt: requestNow }, status: { not: RESOLVED_STATUS } } })
       : Promise.resolve(0),
-    simple
-      ? db.ticket.count({ where: { ...base, id: { in: [...needsReply] } } })
-      : Promise.resolve(0),
+    db.ticket.count({ where: { ...base, id: { in: [...needsReply] } } }),
   ]);
 
   // In urgency order when the page was picked by id, and never a deposit for a technician.
@@ -339,6 +335,21 @@ export default async function TicketsPage({
     ...statuses.map((s) => ({ key: s, label: s })),
   ];
 
+  const counts = buildViewCounts(
+    statusRows.map((row) => ({ status: row.status, count: row._count._all })),
+    { needsReply: needsReplyCount, overdue: overdueCount },
+  );
+  // A Full-view tab's number. A due filter (set from Filters) replaces the
+  // status a tab picks, so under one the per-status numbers would not be what
+  // the tab opens: then the tabs carry none.
+  const fullViewCount = (key: string): number | undefined => {
+    if (due !== "all") return undefined;
+    if (key === "open") return counts.open;
+    if (key === "all") return counts.all;
+    if (key === NEEDS_REPLY_FILTER) return counts.needsReply;
+    return counts.byStatus[key] ?? 0;
+  };
+
   // ------------------------------------------------------------ Easy mode ---
   // The register-style screen: one primary action, big tabs that carry their
   // counts, one big search, and a picture card per repair. Everything the Full
@@ -350,12 +361,6 @@ export default async function TicketsPage({
     if (tickets.length === 0 && total > 0 && page > 1) redirect(pageHref(pageCount));
 
     const easyViews = repairViews(statuses);
-    const counts = statusRows
-      ? buildViewCounts(
-          statusRows.map((row) => ({ status: row.status, count: row._count._all })),
-          { needsReply: needsReplyCount, overdue: overdueCount },
-        )
-      : null;
     const from = (page - 1) * PAGE_SIZE + 1;
     const clearHref = filterHref({ q: "", status: "open", tech: "all", problemType: "all", due: "all" });
     const empty = repairEmpty({ status, due, filtered: isFiltered });
@@ -537,6 +542,7 @@ export default async function TicketsPage({
                 label: view.label,
                 href: filterHref({ status: view.key }),
                 active: status === view.key,
+                count: fullViewCount(view.key),
               })),
               ...savedViews.map((view) => ({
                 label: view.name,
