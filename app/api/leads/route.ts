@@ -144,6 +144,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!input.email && !input.phone) {
     return fail(400, "An email address or a phone number is required.");
   }
+  // A typo'd address is no way to reply either: "not-an-email" used to be
+  // stored as the lead's only contact.
+  if (input.email && !z.string().email().safeParse(input.email).success) {
+    return fail(400, "Enter a valid email address.");
+  }
 
   const lead = await db.lead.create({
     data: {
