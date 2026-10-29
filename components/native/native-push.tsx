@@ -11,7 +11,10 @@ import { nativePlatform, nativePlugin, nativePushEnabled } from "@/lib/native/ca
  * sign-in, when "notifications for your shop" means something — never on the
  * marketing page. Asks once; the OS remembers the answer.
  *
- * A tapped notification may carry `data.url` (a same-site path) to open.
+ * A tapped notification may carry `data.url` (a same-site path) to open:
+ * lib/push/apns.ts puts `url` beside `aps` (iOS hands the whole payload over
+ * as `data`), lib/push/fcm.ts sends it as FCM `data.url`. A tap that launched
+ * the app is retained by the plugin until this listener is added.
  */
 export function NativePush() {
   React.useEffect(() => {
@@ -57,6 +60,13 @@ export function NativePush() {
           }
         }),
       );
+      if (platform === "android") {
+        // The channel FCM messages name (lib/push/fcm.ts → ANDROID_CHANNEL_ID),
+        // so Android settings show "Shop alerts" rather than "Miscellaneous".
+        await push
+          .createChannel({ id: "shop", name: "Shop alerts", description: "Jobs and messages waiting for you", importance: 4 })
+          .catch(() => {});
+      }
       if (!cancelled) await push.register();
     })().catch(() => {});
 

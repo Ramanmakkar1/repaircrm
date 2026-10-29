@@ -12,7 +12,7 @@ import {clearRateLimit} from "@/lib/rate-limit";
 import {subscribePushAction, unsubscribePushAction, testPushAction} from "@/app/(app)/settings/push-actions";
 import {runStaffPushForShop} from "@/lib/jobs/push";
 const subscription = {endpoint: "https://fcm.googleapis.com/fcm/send/demo", keys: {p256dh: "a".repeat(87), auth: "b".repeat(22)}};
-beforeEach(() => {resetDb(); vi.clearAllMocks(); vi.mocked(sendPush).mockResolvedValue({statusCode: 201, body: "", headers: {}}); clearRateLimit("push-subscribe:u1"); clearRateLimit("push-test:u1"); handlers["pushSubscription.upsert"] = () => ({id: "device"}); handlers["pushSubscription.deleteMany"] = () => ({count: 1});});
+beforeEach(() => {resetDb(); vi.clearAllMocks(); vi.mocked(sendPush).mockResolvedValue({statusCode: 201, body: "", headers: {}}); clearRateLimit("push-subscribe:u1"); clearRateLimit("push-test:u1"); handlers["pushSubscription.upsert"] = () => ({id: "device"}); handlers["pushSubscription.deleteMany"] = () => ({count: 1}); handlers["nativePushDevice.deleteMany"] = () => ({count: 1});});
 describe("staff phone notifications", () => {
  it.each(["http://fcm.googleapis.com/x", "https://127.0.0.1/x", "https://example.com/x", "https://fcm.googleapis.com.evil.test/x", "https://user:pass@fcm.googleapis.com/x", "https://fcm.googleapis.com:444/x"])('rejects non-push endpoints %s', endpoint => {expect(validPushEndpoint(endpoint)).toBe(false);});
  it.each(["https://fcm.googleapis.com/x", "https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/x", "https://wns2.notify.windows.com/x"])('accepts browser service %s', endpoint => {expect(validPushEndpoint(endpoint)).toBe(true);});
