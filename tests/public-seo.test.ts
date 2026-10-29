@@ -42,14 +42,14 @@ describe("public search metadata", () => {
     expect(JSON.parse(json!)).toEqual({
       "@context": "https://schema.org",
       "@type": "WebSite",
-      name: "RepairsHelper",
+      name: "Repairs helper",
       url: `${PUBLIC_SITE_URL}/`,
     });
   });
   it("describes browser software without inventing reviews or ratings", async () => {
     const out = renderToStaticMarkup(await RootPage());
     const schemas = [...out.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
-    expect(schemas[1]).toMatchObject({ "@type": "WebApplication", name: "RepairsHelper", applicationCategory: "BusinessApplication", operatingSystem: "Web browser" });
+    expect(schemas[1]).toMatchObject({ "@type": "WebApplication", name: "Repairs helper", applicationCategory: "BusinessApplication", operatingSystem: "Web browser" });
     expect(schemas[1].featureList).toContain("Mobile, tablet and desktop browser access");
     expect(schemas[1]).not.toHaveProperty("aggregateRating");
     expect(schemas[1]).not.toHaveProperty("review");

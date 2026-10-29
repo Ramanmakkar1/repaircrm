@@ -15,7 +15,7 @@ export const PUBLIC_SITE_URL = (() => {
 export const WEBSITE_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "RepairsHelper",
+  name: "Repairs helper",
   url: `${PUBLIC_SITE_URL}/`,
 };
 
@@ -23,7 +23,7 @@ export const WEBSITE_SCHEMA = {
 export const SOFTWARE_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "RepairsHelper",
+  name: "Repairs helper",
   url: `${PUBLIC_SITE_URL}/`,
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web browser",
