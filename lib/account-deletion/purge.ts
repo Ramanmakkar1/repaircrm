@@ -118,6 +118,7 @@ export async function purgeShop(shopId: string, now: Date = new Date()): Promise
       await run("campaignSend", tx.campaignSend.deleteMany({ where: byShop }));
       await run("campaign", tx.campaign.deleteMany({ where: byShop }));
       await run("pushSubscription", tx.pushSubscription.deleteMany({ where: byShop }));
+      await run("nativePushDevice", tx.nativePushDevice.deleteMany({ where: byShop }));
       await run("savedView", tx.savedView.deleteMany({ where: byShop }));
 
       // Money and stock movements.

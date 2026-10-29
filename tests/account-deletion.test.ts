@@ -189,7 +189,7 @@ describe("deleting your own login", () => {
   it("anonymises the row and removes what authenticates the person", async () => {
     handlers["user.findFirst"] = () => ({ name: "Sam Tech", email: "sam@example.com", role: "TECH", shop: { name: "Fixit" } });
     handlers["user.updateMany"] = () => ({ count: 1 });
-    for (const path of ["pushSubscription", "savedView", "scanSession", "passwordResetToken", "emailAuthCode"]) {
+    for (const path of ["pushSubscription", "nativePushDevice", "savedView", "scanSession", "passwordResetToken", "emailAuthCode"]) {
       handlers[`${path}.deleteMany`] = () => ({ count: 1 });
     }
     handlers["productFeedback.updateMany"] = () => ({ count: 0 });

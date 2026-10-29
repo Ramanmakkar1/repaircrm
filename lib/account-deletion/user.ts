@@ -108,6 +108,7 @@ export async function anonymiseUser(user: { userId: string; shopId: string }): P
       },
     });
     await tx.pushSubscription.deleteMany({ where: { userId, shopId } });
+    await tx.nativePushDevice.deleteMany({ where: { userId, shopId } });
     await tx.savedView.deleteMany({ where: { userId, shopId } });
     await tx.scanSession.deleteMany({ where: { userId, shopId } });
     await tx.passwordResetToken.deleteMany({ where: { userId } });
