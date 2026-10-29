@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <LegalPage
-      eyebrow="Last updated October 28, 2026"
+      eyebrow="Last updated October 29, 2026"
       title="Privacy policy"
       intro="Repairs helper is repair shop management software operated by Town Media Labs of Edmonton, Alberta, Canada. This policy explains what information we handle, why we use it and the choices available to you."
     >
@@ -109,6 +109,22 @@ export default function PrivacyPage() {
             Microsoft Privacy Statement
           </a>
           .
+        </p>
+      </section>
+
+      <section>
+        <h2>The iPhone, iPad and Android apps</h2>
+        <p>
+          The Repairs helper apps show this same service and handle the same
+          information. The camera is used only when you take a ticket photo or
+          scan a barcode; the microphone only while you dictate or talk to the
+          voice assistant, and that audio is sent to our speech-to-text provider
+          to be turned into text. If you allow notifications, we store your
+          phone&apos;s push token with your login, send alerts through Apple Push
+          Notification service or Firebase Cloud Messaging, and delete the token
+          when you sign out or delete your login. The apps contain no
+          advertising and no third-party analytics, and do not track you across
+          other companies&apos; apps or websites.
         </p>
       </section>
 
