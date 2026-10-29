@@ -25,7 +25,7 @@ export type WorkspaceAction = {
   count?: HubCountKey;
   /** The count needs someone (ready, overdue, unpaid, low): shown as a pill with its word. */
   alert?: boolean;
-  /** Money: hidden from technicians, who see no money anywhere else either. */
+  /** Money: hidden from technicians. The rule itself lives in lib/money-access.ts and is enforced on the server; this only keeps them from tapping into a page that will refuse them. */
   money?: boolean;
 };
 export type Workspace = { title: string; description: string; route: string; steps: string[]; actions: WorkspaceAction[] };
@@ -81,7 +81,7 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
     steps: ["Find a product", "Check stock", "Receive or sell"],
     actions: [
       { label: "View stock", description: "See parts, accessories, and services.", href: "/inventory", photo: `${HOME}/parts-bin.webp`, mark: "find" },
-      { label: "Add product", description: "Add a product, price, and photo.", href: "/inventory/new", photo: `${HOME}/price-tag.webp`, mark: "add" },
+      { label: "Add product", description: "Add a product, price, and photo.", href: "/inventory/new", photo: `${HOME}/price-tag.webp`, mark: "add", money: true },
       { label: "Purchase orders", description: "Order parts and receive deliveries.", href: "/inventory/purchase-orders", ownerOnly: true, photo: `${HOME}/delivery-boxes.webp`, count: "orders-open" },
       { label: "Suppliers", description: "Manage where your parts come from.", href: "/inventory/vendors", ownerOnly: true, photo: `${HOME}/delivery-van.webp`, count: "suppliers-total" },
       { label: "Import stock", description: "Upload an existing product list.", href: "/inventory/import", ownerOnly: true, photo: `${HOME}/import-folder.webp`, mark: "import" },

@@ -70,7 +70,7 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
   const stock: Tile[] = [
     { href: "/inventory", title: "View & add stock", detail: "Find an item, tap +", photo: `${HOME}/parts-bin.webp` },
     { href: "/inventory?filter=low", title: "Low stock", detail: low ? `${low} running low` : "Nothing running low", photo: `${PRODUCTS}/screen-protector.webp`, alert: low ? `${low} low` : undefined },
-    { href: "/inventory/new", title: "Add product", detail: "Name, price, quantity", photo: `${HOME}/price-tag.webp` },
+    { href: "/inventory/new", title: "Add product", detail: "Name, price, quantity", photo: `${HOME}/price-tag.webp`, money: true },
     { href: "/inventory/purchase-orders", title: "Purchase orders", detail: "Order parts, receive deliveries", photo: `${HOME}/delivery-boxes.webp`, ownerOnly: true },
     { href: "/inventory/vendors", title: "Suppliers", detail: "Where you buy parts", photo: `${HOME}/delivery-van.webp`, ownerOnly: true },
     { href: "/inventory/import", title: "Import stock", detail: "From Excel or CSV", photo: `${HOME}/import-folder.webp`, ownerOnly: true },
@@ -105,7 +105,7 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
             <h1 className="text-[26px] font-semibold leading-9 tracking-tight">{firstName ? `Hello, ${firstName}` : "Your shop"}</h1>
             <p className="text-base text-muted-foreground">Tap a box to get started.</p>
           </div>
-          <StartButtons />
+          <StartButtons canSell={role !== "TECH"} />
           <AttentionList items={attention} />
           <SettingsLink className="mt-auto hidden lg:flex" />
         </aside>

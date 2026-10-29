@@ -4,6 +4,7 @@ import * as React from "react";
 import { StaffPin } from "./staff-pin";
 import { PushSettings } from "./push-settings";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -79,7 +80,26 @@ export function ProfileTab({ profile }: { profile: ProfileValues }) {
       <GoogleCard profile={profile} />
       <PasswordCard />
       <TwoFactorCard profile={profile} />
+      <DeleteAccountCard />
     </div>
+  );
+}
+
+/** Self-serve deletion lives on its own page; this is the way there. */
+function DeleteAccountCard() {
+  return (
+    <Card>
+      <CardHeader
+        icon={ICONS.apiKey}
+        title="Delete your account"
+        description="Remove your login, or, if you own the shop, delete the whole shop. You confirm who you are first."
+      />
+      <CardFooter>
+        <Button asChild variant="outline">
+          <Link href="/account">Go to account deletion</Link>
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
 

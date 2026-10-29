@@ -98,6 +98,12 @@ export function UserMenu({
               Your profile
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem asChild className="min-h-12 text-[15px]">
+            <Link href="/account">
+              <ProfileIcon className="size-5 text-muted-foreground" />
+              Account
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild className="min-h-12 text-[15px]"><Link href="/staff-switch"><ProfileIcon className="size-5" />Switch staff</Link></DropdownMenuItem>
           {/* Offers a native prompt when supported, otherwise installation steps. */}
           <InstallAppItem />

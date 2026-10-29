@@ -6,10 +6,14 @@ import { LinkPending } from "@/components/ui/link-pending";
 
 export type AttentionItem = { href: string; label: string; count: number };
 
-/** The two jobs that happen all day: always on screen, always the biggest things on it. */
-export function StartButtons() {
+/**
+ * The two jobs that happen all day: always on screen, always the biggest things
+ * on it. A technician cannot sell (the register is money), so they get the
+ * repair button on its own rather than a door that opens onto "not found".
+ */
+export function StartButtons({ canSell = true }: { canSell?: boolean }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+    <div className={cn("grid gap-3 lg:grid-cols-1", canSell ? "grid-cols-2" : "grid-cols-1")}>
       <Link
         href="/tickets/new"
         className={cn(
@@ -27,7 +31,7 @@ export function StartButtons() {
         </span>
         <LinkPending />
       </Link>
-      <Link
+      {canSell ? <Link
         href="/pos"
         className={cn(
           "relative flex min-h-28 flex-col justify-between gap-3 rounded-2xl border-2 border-accent bg-surface p-4 sm:p-5 lg:min-h-24 lg:flex-row lg:items-center lg:justify-start lg:gap-4",
@@ -43,7 +47,7 @@ export function StartButtons() {
           <span className="block text-sm text-muted-foreground"><span className="lg:hidden">Scan or tap</span><span className="hidden lg:inline">Scan or tap items</span></span>
         </span>
         <LinkPending />
-      </Link>
+      </Link> : null}
     </div>
   );
 }
