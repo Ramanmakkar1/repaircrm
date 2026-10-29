@@ -15,4 +15,5 @@ export const PUBLIC_PATHS: string[] = [
   "/contact",
   "/privacy",
   "/terms",
+  "/delete-account",
 ];

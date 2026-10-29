@@ -127,7 +127,8 @@ export async function requirePortalCustomer(next?: string) {
   if (!session) redirect(signInPath(next));
 
   const customer = await db.customer.findFirst({
-    where: { id: session.customerId, shopId: session.shopId },
+    // A shop awaiting deletion is closed to its customers as well as its staff.
+    where: { id: session.customerId, shopId: session.shopId, shop: { deletionRequestedAt: null } },
     select: {
       id: true,
       shopId: true,
@@ -205,10 +206,11 @@ export async function consumePortalToken(
       id: true,
       expiresAt: true,
       usedAt: true,
-      customer: { select: { id: true, shopId: true } },
+      customer: { select: { id: true, shopId: true, shop: { select: { deletionRequestedAt: true } } } },
     },
   });
   if (!row || row.expiresAt.getTime() < Date.now()) return null;
+  if (row.customer.shop.deletionRequestedAt) return null;
 
   if (!row.usedAt) {
     await db.portalToken.update({

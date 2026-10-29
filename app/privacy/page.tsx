@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { LegalPage } from "@/components/legal/legal-page";
@@ -116,6 +117,8 @@ export default function PrivacyPage() {
         <p>
           We keep account and shop information while the account is active and
           as needed for legitimate business, security, backup and legal purposes.
+          Database backups are taken nightly and only the most recent few are
+          kept, so deleted information leaves our backups within a week.
           We use access controls, encrypted connections, audit records and
           infrastructure safeguards designed to protect information. No online
           service can guarantee absolute security.
@@ -126,7 +129,12 @@ export default function PrivacyPage() {
         <h2>Your choices</h2>
         <p>
           Account owners can review and update most shop information in the app,
-          export supported records and request account deletion. You may also ask
+          export supported records and delete their account or their whole shop
+          in the app at any time (see <Link href="/delete-account">how account
+          deletion works</Link>). A deleted shop can be restored for 7 days, then
+          its records and files are erased. When a staff member deletes their own
+          login, their name and contact details are removed but the shop keeps
+          the work records they created, shown as &ldquo;Deleted user&rdquo;. You may also ask
           to access, correct or delete personal information, subject to applicable
           law and necessary identity checks. Disconnecting an integration stops
           future use of that connection but does not automatically delete records

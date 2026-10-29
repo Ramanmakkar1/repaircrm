@@ -77,7 +77,7 @@ export async function submitCheckinAction(
   if (text(formData, "website") !== "") return { ok: true, ticketNumber: 0 };
 
   const shop = await db.shop.findUnique({
-    where: { slug: slug.toLowerCase() },
+    where: { slug: slug.toLowerCase(), deletionRequestedAt: null },
     select: { id: true, name: true, settings: true },
   });
   if (!shop) return { ok: false, error: "This check-in link is no longer active." };

@@ -127,8 +127,8 @@ export default async function DeleteAccountPage({
           settings, connected-service links, the shop logo and every uploaded photo and file.
         </p>
         <p>
-          <strong>What is kept:</strong> nothing in the app. Our database backups are kept for 14 days and then
-          deleted, so copies roll off within two weeks of the deletion; backups are only used to recover from a
+          <strong>What is kept:</strong> nothing in the app. Our database backups are replaced nightly and only the most recent few are kept, so copies roll off within a week of the deletion;
+          backups are only used to recover from a
           disaster. Payment records held by your own Stripe or accounting accounts are yours and are not affected.
         </p>
       </section>

@@ -30,7 +30,7 @@ export async function loadPublicShopBySlug(
 ): Promise<{ shop: PublicShop; slug: string; statusLookup: boolean } | null> {
   const clean = slug.trim().toLowerCase();
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(clean)) return null;
-  const row = await db.shop.findUnique({ where: { slug: clean }, select: PUBLIC_SHOP_SELECT });
+  const row = await db.shop.findUnique({ where: { slug: clean, deletionRequestedAt: null }, select: PUBLIC_SHOP_SELECT });
   if (!row) return null;
   const hub = readPublicHub(row.settings);
   if (!hub.enabled && !readCheckinSettings(row.settings).enabled) return null;

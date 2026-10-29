@@ -57,7 +57,7 @@ describe("the new check-in screen against the unchanged action", () => {
     const result = await submitCheckinAction("demo", form({ ...fields, website: "" }));
 
     expect(result).toEqual({ ok: true, ticketNumber: 1042 });
-    expect(whereOf("shop.findUnique")).toEqual({ slug: "demo" });
+    expect(whereOf("shop.findUnique")).toEqual({ slug: "demo", deletionRequestedAt: null });
     expect(whereOf("ticket.count")).toMatchObject({ shopId: "shop_1", source: "checkin" });
     const ticket = dataOf("ticket.create");
     expect(ticket).toMatchObject({ shopId: "shop_1", problemType: "Screen Repair", status: "New", source: "checkin" });

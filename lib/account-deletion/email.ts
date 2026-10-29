@@ -122,7 +122,7 @@ export async function sendShopDeletedEmail(input: { to: string; name: string; sh
       heading: "Your shop has been deleted",
       paragraphs: [
         `Hi ${input.name}, ${input.shopName} and everything in it has now been permanently deleted from Repairs helper: customers, repairs, invoices, payments, stock, staff logins, settings and uploaded files.`,
-        "Our database backups are kept for 14 days and then deleted, so copies in them roll off within two weeks. Backups are only ever used to recover from a disaster. Thank you for using Repairs helper.",
+        "Our database backups are replaced nightly and only the most recent few are kept, so copies in them roll off within a week. Backups are only ever used to recover from a disaster. Thank you for using Repairs helper.",
       ],
     }),
   );

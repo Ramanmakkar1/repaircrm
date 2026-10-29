@@ -128,7 +128,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (input.website && input.website.trim() !== "") return ok();
 
   const shop = await db.shop.findUnique({
-    where: { slug: input.shop.toLowerCase() },
+    where: { slug: input.shop.toLowerCase(), deletionRequestedAt: null },
     select: { id: true },
   });
   if (!shop) return fail(404, "Unknown shop.");

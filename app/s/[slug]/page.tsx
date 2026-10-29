@@ -42,7 +42,7 @@ type Params = { params: Promise<{ slug: string }> };
 
 async function loadShop(slug: string) {
   const row = await db.shop.findUnique({
-    where: { slug: slug.toLowerCase() },
+    where: { slug: slug.toLowerCase(), deletionRequestedAt: null },
     select: PUBLIC_SHOP_SELECT,
   });
   if (!row) return null;

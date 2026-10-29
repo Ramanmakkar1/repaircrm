@@ -142,13 +142,15 @@ export async function signOutCurrentUser(): Promise<void> {
  */
 export async function getSession(): Promise<SessionUser | null> {
   const session = await readSessionCookie();
-  if (!session?.pinv) return session;
-  // Read-only APIs use this nullable guard instead of requireUser's redirects.
-  // They must revoke a switched session too, and use the account's current role.
+  if (!session) return null;
+  // Routes that use this nullable guard (file downloads, uploads, receipts)
+  // get requireUser's checks without its redirects: a deactivated, deleted or
+  // password-changed account is signed out here too, not in seven days, and
+  // the role is the account's current one rather than the cookie's.
   const account = await liveAccount(session.userId, session.shopId);
-  if (!account?.active || session.pinv !== account.pinVersion || !account.pinHash ||
-      account.totpEnabledAt || account.mustChangePassword ||
-      (session.pv ?? 0) < passwordVersion(account.passwordChangedAt)) return null;
+  if (!account?.active || (session.pv ?? 0) < passwordVersion(account.passwordChangedAt)) return null;
+  if (session.pinv && (session.pinv !== account.pinVersion || !account.pinHash ||
+      account.totpEnabledAt || account.mustChangePassword)) return null;
   return { ...session, role: account.role as SessionRole, email: account.email };
 }
 

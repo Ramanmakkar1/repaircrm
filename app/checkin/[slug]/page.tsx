@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const shop = await db.shop.findUnique({
-    where: { slug: slug.toLowerCase() },
+    where: { slug: slug.toLowerCase(), deletionRequestedAt: null },
     select: { name: true, settings: true },
   });
   const live = shop && readCheckinSettings(shop.settings).enabled;
@@ -57,7 +57,7 @@ export default async function CheckinPage({
   const query = await searchParams;
 
   const row = await db.shop.findUnique({
-    where: { slug: slug.toLowerCase() },
+    where: { slug: slug.toLowerCase(), deletionRequestedAt: null },
     select: PUBLIC_SHOP_SELECT,
   });
   if (!row) notFound();
