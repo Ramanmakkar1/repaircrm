@@ -80,6 +80,7 @@ export function TicketSheet({
   terms,
   showPasscode = false,
   passcodeToggleHref,
+  showCharges = true,
 }: {
   number: number;
   shop: PrintParty;
@@ -106,6 +107,8 @@ export function TicketSheet({
   showPasscode?: boolean;
   /** The same page with the passcode shown (or hidden again), for the toolbar. */
   passcodeToggleHref?: string;
+  /** False for a technician: the work order prints without any prices (lib/money-access.ts). */
+  showCharges?: boolean;
 }) {
   const totals = calcTotals(charges, taxRateBps);
   const code = `T${number}`;
@@ -195,7 +198,7 @@ export function TicketSheet({
           </section>
 
           {/* --------------------------------------------------- charges --- */}
-          {charges.length === 0 ? (
+          {!showCharges ? null : charges.length === 0 ? (
             <section className="rf-section-tight rf-avoid">
               <SectionHead title="Charges so far" />
               <p className="rf-note" style={{ marginTop: 0 }}>

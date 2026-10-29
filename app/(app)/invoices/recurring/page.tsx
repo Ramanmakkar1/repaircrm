@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
@@ -62,7 +62,7 @@ export default async function RecurringSchedulesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [params, prefs] = await Promise.all([searchParams, readUiPrefs()]);
   const view = asView(params.view);
   // Easy mode (the default) shows cards and a search box; Full mode keeps the table.

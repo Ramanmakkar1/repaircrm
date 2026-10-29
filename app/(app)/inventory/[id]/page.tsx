@@ -40,6 +40,7 @@ import { db } from "@/lib/db";
 import { formatInstant } from "@/lib/inventory/dates";
 import { shopZone } from "@/lib/inventory/shop-zone";
 import { formatCents } from "@/lib/money";
+import { canSeeMoney } from "@/lib/money-access";
 import { readUiPrefs } from "@/lib/prefs";
 
 const RECENT = 10;
@@ -70,6 +71,8 @@ export default async function ProductPage({
   const { shopId, role } = await requireUser();
   const [{ id }, { flash }, prefs, zone] = await Promise.all([params, searchParams, readUiPrefs(), shopZone(shopId)]);
   const showCost = role === "OWNER";
+  // A technician sees what is on the shelf, never what it sells for or who bought it for how much.
+  const showMoney = canSeeMoney(role);
   const easy = prefs.simple;
   // Every time on this page is the shop's wall clock, never the server's.
   const formatDateTime = (value: Date | null | undefined) => formatInstant(value, zone);
@@ -85,8 +88,8 @@ export default async function ProductPage({
       upc: true,
       description: true,
       category: true,
-      priceCents: true,
-      costCents: true,
+      priceCents: showMoney,
+      costCents: showCost,
       taxable: true,
       stockQty: true,
       lowStockAt: true,
@@ -118,7 +121,7 @@ export default async function ProductPage({
     }),
     // InvoiceLine carries no shopId of its own — reached through its invoice,
     // which does.
-    db.invoiceLine.findMany({
+    !showMoney ? Promise.resolve([]) : db.invoiceLine.findMany({
       where: { productId: product.id, invoice: { shopId } },
       orderBy: { invoice: { createdAt: "desc" } },
       take: RECENT,
@@ -176,7 +179,7 @@ export default async function ProductPage({
 
   const status = stockStatus(product);
   const meta = STOCK_META[status];
-  const margin = marginPct(product.priceCents, product.costCents);
+  const margin = showCost ? marginPct(product.priceCents ?? 0, product.costCents ?? null) : null;
   const soldQty = sales.reduce((sum, line) => sum + line.quantity, 0);
 
   return (
@@ -219,31 +222,23 @@ export default async function ProductPage({
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:justify-end">
-            <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
-              <Link href={`/print/labels/${product.id}`}>
-                <ACTIONS.print />
-                {easy ? "Shelf labels" : "Print Labels"}
-              </Link>
-            </Button>
-            <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
-              <Link href={`/inventory/${product.id}/edit`}>
-                <ACTIONS.edit />
-                Edit
-              </Link>
-            </Button>
-            <AdjustStockDialog
-              productId={product.id}
-              productName={product.name}
-              stockQty={product.stockQty}
-              serialized={product.serialized}
-              serials={inStockSerials}
-              trigger={
-                <Button className={easy ? "h-12 px-5 text-base" : undefined}>
-                  <ICONS.stockMove />
-                  {easy ? "Change stock" : "Adjust Stock"}
+            {/* Labels print the price and the edit form holds price and cost: money pages. */}
+            {showMoney ? (
+              <>
+                <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
+                  <Link href={`/print/labels/${product.id}`}>
+                    <ACTIONS.print />
+                    {easy ? "Shelf labels" : "Print labels"}
+                  </Link>
                 </Button>
-              }
-            />
+                <Button variant="outline" asChild className={easy ? "h-12 px-5 text-base" : undefined}>
+                  <Link href={`/inventory/${product.id}/edit`}>
+                    <ACTIONS.edit />
+                    Edit
+                  </Link>
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
@@ -284,7 +279,7 @@ export default async function ProductPage({
               trigger={
                 <Button variant="soft" size="lg" className={cn("w-full", easy && "h-12 text-base")}>
                   <ICONS.stockMove />
-                  {easy ? "Change stock" : "Adjust Stock"}
+                  {easy ? "Change stock" : "Adjust stock"}
                 </Button>
               }
             />
@@ -305,7 +300,7 @@ export default async function ProductPage({
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-5 sm:grid-cols-3">
-              <Stat label="Price" value={formatCents(product.priceCents)} big />
+              {showMoney ? <Stat label="Price" value={formatCents(product.priceCents ?? 0)} big /> : null}
               {showCost ? (
                 <Stat
                   label="Cost"
@@ -424,6 +419,7 @@ export default async function ProductPage({
         </Card>
 
         {/* ------------------------------------------------------ sales --- */}
+        {showMoney ? (
         <Card>
           <CardHeader>
             <CardTitle>Sales history</CardTitle>
@@ -479,6 +475,7 @@ export default async function ProductPage({
             )}
           </CardContent>
         </Card>
+        ) : null}
       </div>
 
     </div>

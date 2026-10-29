@@ -51,7 +51,8 @@ export function CustomerHeader({
   /** Where "Add a phone number" goes when there is neither number nor email. */
   detailsHref: string;
   newRepairHref: string;
-  newInvoiceHref: string;
+  /** Null for a technician, who makes no invoices: the tile is left out. */
+  newInvoiceHref: string | null;
   bookHref: string;
   messageMenu: React.ReactNode;
   moreMenu: React.ReactNode;
@@ -126,9 +127,11 @@ export function CustomerHeader({
             New repair
           </Link>
         </Button>
-        <QuickTile href={newInvoiceHref} icon={ICONS.invoice}>
-          New invoice
-        </QuickTile>
+        {newInvoiceHref ? (
+          <QuickTile href={newInvoiceHref} icon={ICONS.invoice}>
+            New invoice
+          </QuickTile>
+        ) : null}
         <QuickTile href={bookHref} icon={ICONS.appointment}>
           Book a visit
         </QuickTile>

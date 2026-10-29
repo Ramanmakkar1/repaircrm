@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { requestNow } from "@/lib/now";
 import { readUiPrefs } from "@/lib/prefs";
@@ -26,7 +26,7 @@ export default async function NewSchedulePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [params, { simple }, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
 
   const { customers, products, taxRateBps, taxRates } =

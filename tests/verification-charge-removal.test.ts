@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { callsTo, fakeClient, handlers, resetDb } from "./helpers/db-mock";
 
 vi.mock("@/lib/db", () => ({ db: fakeClient }));
-vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ shopId: "shop_1", userId: "user_1" }) }));
+vi.mock("@/lib/auth", () => ({ requireUser: async () => ({ shopId: "shop_1", userId: "user_1", role: "FRONT_DESK" }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const { removeChargeAction, deleteChargeAction, updateChargeAction } = await import("@/app/(app)/tickets/actions");

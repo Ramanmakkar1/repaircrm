@@ -5,13 +5,13 @@ import { Barcode } from "@/components/billing/barcode";
 import { barcodeValue, clampLabelCount } from "@/components/inventory/format";
 import { LabelOptions } from "@/components/inventory/label-options";
 import { BARCODE_SIZE, asLabelSize } from "@/components/inventory/label-sizes";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 
 /** The tab says which product, not the raw address, while the sheet is open. */
 export async function generateMetadata({ params }: { params: Promise<{ productId: string }> }): Promise<Metadata> {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { productId } = await params;
   const product = await db.product.findFirst({ where: { id: productId, shopId }, select: { name: true } });
   return { title: product ? `Labels: ${product.name} · Repairs helper` : "Shelf labels · Repairs helper" };
@@ -40,7 +40,7 @@ export default async function ProductLabelsPage({
   params: Promise<{ productId: string }>;
   searchParams: Promise<{ count?: string; size?: string; units?: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { productId } = await params;
   const { count: rawCount, size: rawSize, units: rawUnits } = await searchParams;
 

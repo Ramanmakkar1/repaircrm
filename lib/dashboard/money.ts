@@ -17,10 +17,8 @@ import { customerLabel } from "@/components/customers/format";
 import { primaryPhone, telHref } from "@/components/customers/customer-facts";
 import { reportDays, type OwedInvoice, type PaymentRow, type ProductLine, type RefundRow } from "./logic";
 
-/** Owners and front desk see money; technicians do not. Same rule as the Reports page. */
-export function canSeeMoney(role: string): boolean {
-  return role === "OWNER" || role === "FRONT_DESK";
-}
+// The rule itself lives in lib/money-access.ts (pure, so client code can ask too).
+export { canSeeMoney } from "@/lib/money-access";
 
 /**
  * Today on the shop's own wall calendar: from its local midnight to the next

@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { estimateTokenPath, portalUrl } from "@/lib/comms";
 import {
   defaultEstimateMessage,
@@ -77,7 +77,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
   const estimate = await db.estimate.findFirst({
     where: { id, shopId },
@@ -97,7 +97,7 @@ export default async function EstimateDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string | string[] }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [{ id }, prefs, query] = await Promise.all([params, readUiPrefs(), searchParams]);
   // Easy mode (the default): one big action chosen by status, the rest under "More".
   const easy = prefs.simple;

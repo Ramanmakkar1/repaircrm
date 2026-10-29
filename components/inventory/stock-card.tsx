@@ -18,7 +18,8 @@ export type StockCardProduct = {
   name: string;
   sku: string | null;
   category: string | null;
-  priceCents: number;
+  /** Null for a technician, who sees quantities but no prices (lib/money-access.ts). */
+  priceCents: number | null;
   stockQty: number;
   lowStockAt: number | null;
   active: boolean;
@@ -68,7 +69,10 @@ export function StockCard({ product, orderHref }: { product: StockCardProduct; o
         />
     ),
     title: <span className="block line-clamp-2 whitespace-normal break-words">{product.name}</span>,
-    subtitle: stockSubtitle({ sku: product.sku, priceLabel: formatCents(product.priceCents) }),
+    subtitle:
+      product.priceCents === null
+        ? product.sku?.trim() || "No SKU"
+        : stockSubtitle({ sku: product.sku, priceLabel: formatCents(product.priceCents) }),
     status: product.active ? null : <StatusPill tone="neutral" label="Inactive" />,
     trailing: (
         <span className="flex h-full min-w-14 flex-col items-end justify-center gap-1.5">

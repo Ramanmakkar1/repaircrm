@@ -9,7 +9,7 @@ vi.mock("@/lib/db", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
-  requireUser: vi.fn(async () => ({ userId: "user_1", shopId: "shop_1", role: "TECHNICIAN", name: "Tess" })),
+  requireUser: vi.fn(async () => ({ userId: "user_1", shopId: "shop_1", role: "FRONT_DESK", name: "Tess" })),
 }));
 
 const { removeChargeAction, restoreChargeAction } = await import("@/app/(app)/tickets/actions");

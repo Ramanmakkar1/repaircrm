@@ -50,6 +50,8 @@ export function CustomerActionsMenu({
   blockedReason,
   easy = false,
   tile = false,
+  showMoney = true,
+  documents = false,
 }: {
   customerId: string;
   customerName: string;
@@ -57,6 +59,13 @@ export function CustomerActionsMenu({
   blockedReason: string | null;
   easy?: boolean;
   tile?: boolean;
+  /** False for a technician: no invoice, estimate or statement entries (lib/money-access.ts). */
+  showMoney?: boolean;
+  /**
+   * Full view: the header keeps ONE button ("New repair"), so the new invoice,
+   * new estimate and statement entries move into this menu there too.
+   */
+  documents?: boolean;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = React.useState(false);
@@ -90,6 +99,11 @@ export function CustomerActionsMenu({
               <ACTIONS.more className="size-5" />
               More
             </Button>
+          ) : documents ? (
+            <Button variant="outline" size="sm">
+              <ACTIONS.more className="size-4" />
+              More
+            </Button>
           ) : (
             // size-8, not the 36px `icon` default: it closes a header row of
             // `sm` buttons and has to end level with them.
@@ -103,8 +117,8 @@ export function CustomerActionsMenu({
             </Button>
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className={easy ? "min-w-56" : undefined}>
-          {easy ? (
+        <DropdownMenuContent align="end" className={easy ? "min-w-56" : "min-w-48"}>
+          {(easy || documents) && showMoney ? (
             <>
               {tile ? null : (
                 <DropdownMenuItem asChild className="min-h-12 text-base">

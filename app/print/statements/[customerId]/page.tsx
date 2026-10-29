@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { requestNow } from "@/lib/now";
 import { StatementSheet } from "@/components/billing/print-statement-sheet";
@@ -26,7 +26,7 @@ export default async function StatementPrintPage({
   params: Promise<{ customerId: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [{ customerId }, query] = await Promise.all([params, searchParams]);
 
   // The logo and the zone first: the period's days are the shop's own days.

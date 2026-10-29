@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { calcTotals, formatBps, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
@@ -48,7 +48,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
   const schedule = await db.recurringInvoice.findFirst({
     where: { id, shopId },
@@ -66,7 +66,7 @@ export default async function ScheduleDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId, role } = await requireUser();
+  const { shopId, role } = await requireMoneyUser();
   const [{ id }, { simple }] = await Promise.all([params, readUiPrefs()]);
 
   const schedule = await db.recurringInvoice.findFirst({

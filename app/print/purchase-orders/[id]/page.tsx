@@ -10,7 +10,7 @@ import {
   type PrintTotalRow,
 } from "@/components/billing/print-sheet";
 import { PO_STATUS_META, asPoStatus, poTotals } from "@/components/inventory/purchasing";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 
@@ -30,7 +30,7 @@ export default async function PurchaseOrderPrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const [order, shop] = await Promise.all([

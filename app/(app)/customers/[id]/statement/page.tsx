@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Hash } from "lucide-react";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
@@ -43,7 +43,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const customer = await db.customer.findFirst({
@@ -65,7 +65,7 @@ export default async function CustomerStatementPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [{ id }, query, { simple }, zone] = await Promise.all([
     params,
     searchParams,

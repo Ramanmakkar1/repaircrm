@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ProductForm } from "@/components/inventory/product-form";
 import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { PRODUCT_IMAGE_SELECT } from "@/lib/inventory/product-images";
 import { readUiPrefs } from "@/lib/prefs";
@@ -15,7 +15,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const product = await db.product.findFirst({
@@ -33,7 +33,7 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ shopId, role }, { simple }] = await Promise.all([requireUser(), readUiPrefs()]);
+  const [{ shopId, role }, { simple }] = await Promise.all([requireMoneyUser(), readUiPrefs()]);
   const { id } = await params;
 
   // Scoped by shopId, so a guessed id from another tenant 404s rather than

@@ -2,9 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Prisma } from "@prisma/client";
-// Pencil / ScrollText have no concept in components/ui/icons.ts; everything
-// else on this screen comes from the shared map.
-import { Pencil, ScrollText } from "lucide-react";
 
 import {
   CommunicationsCard,
@@ -57,6 +54,7 @@ import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { refundAwareTotals } from "@/components/billing/refund-math";
 import { formatCents } from "@/lib/money";
+import { canSeeMoney } from "@/lib/money-access";
 import { readUiPrefs } from "@/lib/prefs";
 import { customerWarranties } from "@/lib/warranty";
 import { cardExpired, cardOnFile, paymentsLive } from "@/lib/payments";
@@ -130,12 +128,16 @@ export default async function CustomerHubPage({
   // a summary in words, then one section at a time (?tab=). Full keeps the
   // dense two-column layout.
   const easy = prefs.simple;
-  const tab = resolveCustomerTab(tabParam, flash);
+  // A technician sees the customer and their repairs, never what they owe or paid:
+  // the money queries below do not run for them (lib/money-access.ts).
+  const showMoney = canSeeMoney(role);
+  const resolvedTab = resolveCustomerTab(tabParam, flash);
+  const tab = !showMoney && resolvedTab === "invoices" ? "repairs" : resolvedTab;
   // Easy loads only the section on screen; Full shows everything, so it loads all.
   const needs = {
     tickets: !easy,
     repairs: easy && tab === "repairs",
-    invoices: !easy || tab === "invoices",
+    invoices: showMoney && (!easy || tab === "invoices"),
     details: !easy || tab === "details",
   };
   const now = new Date();
@@ -282,7 +284,7 @@ export default async function CustomerHubPage({
         })
       : Promise.resolve([]),
     // Payment carries shopId; scoping through the invoice keeps it to this customer.
-    needs.details
+    showMoney && needs.details
       ? db.payment.findMany({
           where: { shopId, invoice: { customerId: id } },
           orderBy: { createdAt: "desc" },
@@ -316,25 +318,29 @@ export default async function CustomerHubPage({
     db.ticket.count({
       where: { shopId, customerId: id, status: { notIn: CLOSED_TICKET_STATUSES } },
     }),
-    db.payment.aggregate({
-      where: { shopId, invoice: { customerId: id } },
-      _sum: { amountCents: true },
-      _count: { _all: true },
-    }),
+    showMoney
+      ? db.payment.aggregate({
+          where: { shopId, invoice: { customerId: id } },
+          _sum: { amountCents: true },
+          _count: { _all: true },
+        })
+      : Promise.resolve({ _sum: { amountCents: 0 }, _count: { _all: 0 } }),
     // Every owing invoice, not just the recent page — the stat must be the truth.
-    db.invoice.findMany({
-      where: { shopId, customerId: id, status: { in: OWING_INVOICE_STATUSES } },
-      select: {
-        taxRateBps: true,
-        lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
-        payments: { select: { amountCents: true } },
-        refunds: { select: { amountCents: true, status: true } },
-      },
-    }),
+    showMoney
+      ? db.invoice.findMany({
+          where: { shopId, customerId: id, status: { in: OWING_INVOICE_STATUSES } },
+          select: {
+            taxRateBps: true,
+            lines: { select: { quantity: true, unitPriceCents: true, taxable: true } },
+            payments: { select: { amountCents: true } },
+            refunds: { select: { amountCents: true, status: true } },
+          },
+        })
+      : Promise.resolve([]),
     needs.details ? db.communicationLog.count({ where: { shopId, customerId: id } }) : Promise.resolve(0),
     // The store-credit audit trail, for the credit dialog. Only techs never see
     // the dialog, so their request never runs this query.
-    role === "OWNER" || role === "FRONT_DESK"
+    showMoney
       ? db.creditAdjustment.findMany({
           where: { shopId, customerId: id },
           orderBy: { createdAt: "desc" },
@@ -380,8 +386,10 @@ export default async function CustomerHubPage({
   // there is one, otherwise the office phone): see primaryPhone.
   const phone = primaryPhone(customer);
 
+  // Store credit is money too: a technician's props never carry it.
+  const creditCents = showMoney ? customer.creditBalanceCents : 0;
   const creditDialog =
-    role === "OWNER" || role === "FRONT_DESK" ? (
+    showMoney ? (
       <CreditDialog
         customerId={customer.id}
         timeZone={timeZone}
@@ -403,7 +411,7 @@ export default async function CustomerHubPage({
     const canMessage = messageOptions({ customerId: customer.id, phone: phone.value || null, email: customer.email });
     const sections = {
       repairs: customer._count.tickets,
-      invoices: customer._count.invoices,
+      invoices: showMoney ? customer._count.invoices : 0,
       devices: customer.assets.length,
     };
 
@@ -434,7 +442,7 @@ export default async function CustomerHubPage({
           email={customer.email?.trim() || null}
           detailsHref={customerTabHref(customer.id, "details")}
           newRepairHref={`/tickets/new?customerId=${customer.id}`}
-          newInvoiceHref={`/invoices/new?customerId=${customer.id}`}
+          newInvoiceHref={showMoney ? `/invoices/new?customerId=${customer.id}` : null}
           // Opens the booking with this customer already chosen.
           bookHref={`/appointments?book=1&customerId=${customer.id}`}
           messageMenu={<MessageMenu options={canMessage} />}
@@ -442,6 +450,7 @@ export default async function CustomerHubPage({
             <CustomerActionsMenu
               easy
               tile
+              showMoney={showMoney}
               customerId={customer.id}
               customerName={title}
               canDelete={role === "OWNER"}
@@ -454,8 +463,8 @@ export default async function CustomerHubPage({
           items={customerSummary({
             openRepairs: openTicketCount,
             totalRepairs: customer._count.tickets,
-            owedCents: unpaidBalanceCents,
-            creditCents: customer.creditBalanceCents,
+            owedCents: showMoney ? unpaidBalanceCents : null,
+            creditCents: showMoney ? creditCents : null,
             lastVisit: lastVisit?._max.createdAt ?? null,
             customerSince: customer.createdAt,
             now,
@@ -475,7 +484,7 @@ export default async function CustomerHubPage({
             // On a phone all four names must be on screen (Details holds the contact
             // fields), so the counts drop out there and the tabs share the row.
             className="max-sm:[&>a>span]:hidden max-sm:[&>a]:flex-1 max-sm:[&>a]:justify-center max-sm:[&>a]:px-2"
-            tabs={customerTabs({ customerId: customer.id, active: tab, counts: sections })}
+            tabs={customerTabs({ customerId: customer.id, active: tab, counts: sections, showMoney })}
           />
         </div>
         <RevealSections />
@@ -509,24 +518,29 @@ export default async function CustomerHubPage({
           <div className="flex flex-col gap-5">
             {/* The short cards sit side by side; the tables below need the full width. */}
             <div className="grid items-start gap-5 lg:grid-cols-2">
-              <InfoCard customer={customer} easy totalPaidCents={paymentTotals._sum.amountCents ?? 0} />
+              <InfoCard customer={customer} easy totalPaidCents={showMoney ? (paymentTotals._sum.amountCents ?? 0) : undefined} />
               <div className="flex min-w-0 flex-col gap-5">
                 <NotesCard customerId={customer.id} notes={customer.notes} />
                 <ContactsCard customerId={customer.id} contacts={customer.contacts} />
-                <CardOnFileCard
-                  customerId={customer.id}
-                  customerName={title}
-                  card={savedCard}
-                  paymentsConfigured={paymentsLive()}
-                  canManage={role === "OWNER" || role === "FRONT_DESK"}
-                  justSaved={flash === "card-saved"}
-                  saveAction={startSaveCardAction}
-                  removeAction={removeCardAction}
-                />
+                {showMoney ? (
+                  <CardOnFileCard
+                    customerId={customer.id}
+                    customerName={title}
+                    card={savedCard}
+                    paymentsConfigured={paymentsLive()}
+                    canManage={showMoney}
+                    isOwner={role === "OWNER"}
+                    justSaved={flash === "card-saved"}
+                    saveAction={startSaveCardAction}
+                    removeAction={removeCardAction}
+                  />
+                ) : null}
               </div>
             </div>
             <WarrantiesCard easy warranties={warranties} timeZone={timeZone} />
-            <PaymentsCard easy payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
+            {showMoney ? (
+              <PaymentsCard easy payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
+            ) : null}
             {/* The Message tile's "Past messages" lands here. */}
             <div id="messages" className="min-w-0 scroll-mt-4">
               <CommunicationsCard entries={communications} total={communicationCount} timeZone={timeZone} />
@@ -553,7 +567,7 @@ export default async function CustomerHubPage({
       */}
       <ObjectHeader
         back={{ label: "Customers", href: "/customers" }}
-        value={formatCents(unpaidBalanceCents)}
+        value={showMoney ? formatCents(unpaidBalanceCents) : undefined}
         title={
           <span className="flex min-w-0 items-center gap-2.5">
             <Avatar className="size-6 shrink-0">
@@ -566,13 +580,15 @@ export default async function CustomerHubPage({
         }
         subtitle={customer.businessName ?? undefined}
         status={
-          unpaidBalanceCents > 0 ? (
+          !showMoney ? undefined : unpaidBalanceCents > 0 ? (
             <StatusPill tone="danger" label="Balance due" />
           ) : (
             <StatusPill tone="neutral" label="Nothing outstanding" />
           )
         }
-        id={<CopyableId value={customer.id} label="customer id" />}
+        // The thing the counter actually copies is the phone number; the record's
+        // internal id means nothing to a person and is never shown.
+        id={phone.value ? <CopyableId value={phone.value} label="phone number" /> : undefined}
         meta={[
           {
             /*
@@ -618,36 +634,42 @@ export default async function CustomerHubPage({
               </span>
             ),
           },
-          {
-            label: "Lifetime",
-            value: (
-              <span className="rf-num">
-                {formatCents(paymentTotals._sum.amountCents ?? 0)}
-              </span>
-            ),
-          },
-          {
-            label: "Store credit",
-            value: (
-              <span
-                className={cn(
-                  "rf-num",
-                  customer.creditBalanceCents > 0
-                    ? "font-medium text-status-resolved-fg"
-                    : "text-muted-foreground",
-                )}
-              >
-                {formatCents(customer.creditBalanceCents)}
-              </span>
-            ),
-          },
+          ...(showMoney
+            ? [
+                {
+                  label: "Lifetime",
+                  value: (
+                    <span className="rf-num">
+                      {formatCents(paymentTotals._sum.amountCents ?? 0)}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Store credit",
+                  // The adjust button sits with the figure it changes, not in the header row.
+                  value: (
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "rf-num",
+                          creditCents > 0
+                            ? "font-medium text-status-resolved-fg"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {formatCents(creditCents)}
+                      </span>
+                      {creditDialog}
+                    </span>
+                  ),
+                },
+              ]
+            : []),
           { label: "Customer since", value: formatDate(customer.createdAt, timeZone) },
         ]}
         actions={
-          // The width cap is the same local workaround the ticket page
-          // carries, and for the same reason: `ObjectHeader` pins its actions
-          // slot with `shrink-0`, so seven buttons would scroll the page
-          // sideways on a phone instead of wrapping.
+          // ONE primary button. Everything else about the customer (new invoice,
+          // new estimate, statement, edit, delete) is behind More.
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" asChild>
               <Link href={`/tickets/new?customerId=${customer.id}`}>
@@ -655,32 +677,9 @@ export default async function CustomerHubPage({
                 New repair
               </Link>
             </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/invoices/new?customerId=${customer.id}`}>
-                <ICONS.invoice />
-                New Invoice
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/estimates/new?customerId=${customer.id}`}>
-                <ICONS.estimate />
-                New Estimate
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/customers/${customer.id}/statement`}>
-                <ScrollText />
-                Statement
-              </Link>
-            </Button>
-            {creditDialog}
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/customers/${customer.id}/edit`}>
-                <Pencil />
-                Edit
-              </Link>
-            </Button>
             <CustomerActionsMenu
+              documents
+              showMoney={showMoney}
               customerId={customer.id}
               customerName={name}
               canDelete={role === "OWNER"}
@@ -694,16 +693,19 @@ export default async function CustomerHubPage({
         <div className="flex flex-col gap-5">
           <InfoCard customer={customer} />
           <NotesCard customerId={customer.id} notes={customer.notes} />
-          <CardOnFileCard
-            customerId={customer.id}
-            customerName={name}
-            card={savedCard}
-            paymentsConfigured={paymentsLive()}
-            canManage={role === "OWNER" || role === "FRONT_DESK"}
-            justSaved={flash === "card-saved"}
-            saveAction={startSaveCardAction}
-            removeAction={removeCardAction}
-          />
+          {showMoney ? (
+            <CardOnFileCard
+              customerId={customer.id}
+              customerName={name}
+              card={savedCard}
+              paymentsConfigured={paymentsLive()}
+              canManage={showMoney}
+              isOwner={role === "OWNER"}
+              justSaved={flash === "card-saved"}
+              saveAction={startSaveCardAction}
+              removeAction={removeCardAction}
+            />
+          ) : null}
           <ContactsCard customerId={customer.id} contacts={customer.contacts} />
           <AssetsCard customerId={customer.id} assets={customer.assets} />
         </div>
@@ -715,20 +717,26 @@ export default async function CustomerHubPage({
             total={customer._count.tickets}
             timeZone={timeZone}
           />
-          <InvoicesCard
-            customerId={customer.id}
-            invoices={invoices}
-            total={customer._count.invoices}
-            timeZone={timeZone}
-          />
-          <EstimatesCard
-            customerId={customer.id}
-            estimates={estimates}
-            total={customer._count.estimates}
-            timeZone={timeZone}
-          />
+          {showMoney ? (
+            <>
+              <InvoicesCard
+                customerId={customer.id}
+                invoices={invoices}
+                total={customer._count.invoices}
+                timeZone={timeZone}
+              />
+              <EstimatesCard
+                customerId={customer.id}
+                estimates={estimates}
+                total={customer._count.estimates}
+                timeZone={timeZone}
+              />
+            </>
+          ) : null}
           <WarrantiesCard warranties={warranties} timeZone={timeZone} />
-          <PaymentsCard payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
+          {showMoney ? (
+            <PaymentsCard payments={payments} total={paymentTotals._count._all} timeZone={timeZone} />
+          ) : null}
           <CommunicationsCard entries={communications} total={communicationCount} timeZone={timeZone} />
         </div>
       </div>

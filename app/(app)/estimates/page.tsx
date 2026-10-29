@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { customerMatchClauses, documentNumber } from "@/lib/customers/phone-search";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
@@ -39,7 +39,7 @@ export default async function EstimatesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [params, prefs, zone] = await Promise.all([searchParams, readUiPrefs(), loadShopZone(shopId)]);
   // Easy mode (the default) shows cards and big buttons; Full mode keeps the table.
   const easy = prefs.simple;

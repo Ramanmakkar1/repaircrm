@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ export function CardOnFileCard({
   card,
   paymentsConfigured,
   canManage,
+  isOwner = false,
   justSaved,
   saveAction,
   removeAction,
@@ -58,6 +60,11 @@ export function CardOnFileCard({
   paymentsConfigured: boolean;
   /** Owner and front desk only — a technician has no business here. */
   canManage: boolean;
+  /**
+   * Only the owner can switch card payments on, so only the owner is told how.
+   * Everyone else sees no card at all while they are off.
+   */
+  isOwner?: boolean;
   /** True right after the Stripe redirect, while the webhook catches up. */
   justSaved: boolean;
   saveAction: (
@@ -105,6 +112,9 @@ export function CardOnFileCard({
     });
   };
 
+  // Nothing to keep a card with, and nobody here who can change that: no card at all.
+  if (!paymentsConfigured && !isOwner) return null;
+
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-3.5">
@@ -129,9 +139,12 @@ export function CardOnFileCard({
       <CardContent className="flex flex-col gap-4">
         {!paymentsConfigured ? (
           <p className="rounded-md bg-surface-hover px-3.5 py-3 text-[13.5px] leading-relaxed text-muted-foreground">
-            Online payments aren&rsquo;t set up on this server yet, so there is
-            nowhere to keep a card. Ask whoever runs Repairs helper to add a Stripe
-            key, then connect the shop under Settings → Payments.
+            Card payments are off, so there is nowhere to keep a card yet. Turn
+            them on in{" "}
+            <Link href="/settings?tab=payments" className="font-semibold text-accent-soft-foreground hover:underline">
+              Settings → Payments
+            </Link>{" "}
+            and you can save a customer&rsquo;s card and charge it later.
           </p>
         ) : card ? (
           <>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
+import { canSeeMoney } from "@/lib/money-access";
 import { db } from "@/lib/db";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { ticketSheetProps } from "@/components/billing/print-mappers";
@@ -30,7 +31,9 @@ export default async function TicketPrintPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ passcode?: string | string[] }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // A technician's work order carries no prices: the charges are not even loaded.
+  const showCharges = canSeeMoney(role);
   const [{ id }, query] = await Promise.all([params, searchParams]);
   // The passcode is printed only when asked for (?passcode=show): the sheet is
   // pinned to the device and passed around the shop.
@@ -43,7 +46,7 @@ export default async function TicketPrintPage({
         customer: true,
         asset: true,
         assignedTo: { select: { name: true } },
-        charges: { orderBy: { createdAt: "asc" } },
+        charges: showCharges ? { orderBy: { createdAt: "asc" } } : { take: 0 },
       },
     }),
     loadPrintShop(shopId),
@@ -53,6 +56,7 @@ export default async function TicketPrintPage({
   return (
     <TicketSheet
       {...ticketSheetProps(ticket, shop, { showPasscode })}
+      showCharges={showCharges}
       passcodeToggleHref={showPasscode ? `/print/tickets/${ticket.id}` : `/print/tickets/${ticket.id}?passcode=show`}
     />
   );

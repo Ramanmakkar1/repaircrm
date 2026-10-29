@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ProductForm } from "@/components/inventory/product-form";
 import { ACTIONS } from "@/components/ui/icons";
 import { PageHeader } from "@/components/ui/page-header";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { readUiPrefs } from "@/lib/prefs";
 
@@ -23,7 +23,7 @@ export default async function NewProductPage({
 }: {
   searchParams: Promise<{ upc?: string; sku?: string }>;
 }) {
-  const [{ shopId, role }, { simple }] = await Promise.all([requireUser(), readUiPrefs()]);
+  const [{ shopId, role }, { simple }] = await Promise.all([requireMoneyUser(), readUiPrefs()]);
   const seed = await searchParams;
 
   const vendors = await db.vendor.findMany({

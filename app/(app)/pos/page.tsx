@@ -1,7 +1,7 @@
 import { formatInZone } from "@/lib/shop-time";
 
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { readUiPrefs } from "@/lib/prefs";
 import { newRecordLocationId } from "@/lib/location";
 import { paymentsLive, readTerminalLocationId, stripeTestMode } from "@/lib/payments";
@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
  * product tile. The only server round-trip in a sale is the checkout itself.
  */
 export default async function PosPage() {
-  const [{ shopId, userId, role }, prefs] = await Promise.all([requireUser(), readUiPrefs()]);
+  const [{ shopId, userId, role }, prefs] = await Promise.all([requireMoneyUser(), readUiPrefs()]);
   // Easy mode is the one-screen register with a drawer chip in its toolbar;
   // Full mode keeps the page and the drawer strip as they were.
   const simple = prefs.simple;

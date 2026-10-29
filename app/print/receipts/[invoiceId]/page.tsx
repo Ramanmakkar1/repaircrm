@@ -2,7 +2,8 @@ import * as React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getSession, requireUser } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatBps, formatCents } from "@/lib/money";
 import { Barcode } from "@/components/billing/barcode";
@@ -63,7 +64,7 @@ export default async function ReceiptPage({
   params: Promise<{ invoiceId: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { invoiceId } = await params;
   const query = await searchParams;
 

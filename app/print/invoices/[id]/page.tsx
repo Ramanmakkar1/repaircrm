@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { PRINTABLE_INVOICE_INCLUDE, invoiceIsPayable, invoiceSheetProps, type PrintableInvoice } from "@/components/billing/print-mappers";
@@ -16,7 +16,7 @@ export default async function InvoicePrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const [invoice, shop] = await Promise.all([

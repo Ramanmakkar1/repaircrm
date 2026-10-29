@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { readUiPrefs } from "@/lib/prefs";
 import { PageHeader } from "@/components/ui/page-header";
@@ -16,7 +16,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
   const estimate = await db.estimate.findFirst({
     where: { id, shopId },
@@ -39,7 +39,7 @@ export default async function EditEstimatePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const [{ id }, { simple }] = await Promise.all([params, readUiPrefs()]);
 
   const estimate = await db.estimate.findFirst({

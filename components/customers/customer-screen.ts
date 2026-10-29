@@ -62,12 +62,15 @@ export function customerTabs({
   customerId,
   active,
   counts,
+  showMoney = true,
 }: {
   customerId: string;
   active: CustomerTab;
   counts: { repairs: number; invoices: number; devices: number };
+  /** False for a technician: there is no Invoices section (lib/money-access.ts). */
+  showMoney?: boolean;
 }): FilterTab[] {
-  return CUSTOMER_TABS.map(({ key, label }) => ({
+  return CUSTOMER_TABS.filter(({ key }) => showMoney || key !== "invoices").map(({ key, label }) => ({
     label,
     href: `${customerTabHref(customerId, key)}#${CUSTOMER_SECTIONS_ID}`,
     active: key === active,
@@ -113,8 +116,9 @@ export function customerSummary({
 }: {
   openRepairs: number;
   totalRepairs: number;
-  owedCents: number;
-  creditCents: number;
+  /** Null for a technician, who sees no money: the Unpaid and Store credit items are left out. */
+  owedCents: number | null;
+  creditCents: number | null;
   lastVisit: Date | null | undefined;
   customerSince?: Date | null;
   now?: Date;
@@ -131,14 +135,21 @@ export function customerSummary({
         ? { key: "repairs", label: "Open repairs", value: `${openRepairs} open`, detail: `${plural(totalRepairs, "repair")} in all`, tone: "neutral" }
         : { key: "repairs", label: "Open repairs", value: "None open", detail: `${plural(totalRepairs, "repair")} in all`, tone: "muted" };
 
+  const money: SummaryItem[] =
+    owedCents === null || creditCents === null
+      ? []
+      : [
+          owedCents > 0
+            ? { key: "owed", label: "Unpaid", value: `${formatCents(owedCents)} owed`, tone: "alert" }
+            : { key: "owed", label: "Unpaid", value: "Nothing owed", tone: "muted" },
+          creditCents > 0
+            ? { key: "credit", label: "Store credit", value: `${formatCents(creditCents)} credit`, tone: "good" }
+            : { key: "credit", label: "Store credit", value: "No credit", tone: "muted" },
+        ];
+
   return [
     repairs,
-    owedCents > 0
-      ? { key: "owed", label: "Unpaid", value: `${formatCents(owedCents)} owed`, tone: "alert" }
-      : { key: "owed", label: "Unpaid", value: "Nothing owed", tone: "muted" },
-    creditCents > 0
-      ? { key: "credit", label: "Store credit", value: `${formatCents(creditCents)} credit`, tone: "good" }
-      : { key: "credit", label: "Store credit", value: "No credit", tone: "muted" },
+    ...money,
     {
       key: "visit",
       label: "Last visit",

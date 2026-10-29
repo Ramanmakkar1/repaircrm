@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { Barcode } from "@/components/billing/barcode";
@@ -29,7 +29,7 @@ export default async function DepositReceiptPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const [deposit, shop] = await Promise.all([

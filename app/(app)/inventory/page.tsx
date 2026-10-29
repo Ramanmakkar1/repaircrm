@@ -38,6 +38,7 @@ import { aiEnabled, sttEnabled } from "@/lib/ai";
 import { requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
+import { canSeeMoney } from "@/lib/money-access";
 import { readUiPrefs } from "@/lib/prefs";
 import { inventoryGroups } from "@/lib/inventory/groups";
 
@@ -66,6 +67,8 @@ export default async function InventoryPage({
   const filter = asFilter(params.filter);
   const category = (params.category ?? "").trim();
   const showCost = role === "OWNER";
+  // Price is money too: a technician sees what is on the shelf, not what it sells for.
+  const showPrice = canSeeMoney(role);
   // Gates the mic in Quick Add — voice needs a configured model. Read on the
   // server so the env check never reaches the browser bundle. Cloud voice
   // (Whisper) adds spoken Hindi/Hinglish/Punjabi and iPhone support.
@@ -108,8 +111,8 @@ export default async function InventoryPage({
         upc: true,
         category: true,
         catalogImage: true,
-        priceCents: true,
-        costCents: true,
+        priceCents: showPrice,
+        costCents: showCost,
         stockQty: true,
         lowStockAt: true,
         reorderQty: true,
@@ -182,7 +185,10 @@ export default async function InventoryPage({
                 </Button>
               </>
             ) : null}
-            <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} label={prefs.simple ? "Add product" : undefined} />
+            {/* A new product is priced as it is added: not a technician's form. */}
+            {showPrice ? (
+              <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} label={prefs.simple ? "Add product" : undefined} />
+            ) : null}
           </>
         }
       />
@@ -355,7 +361,7 @@ export default async function InventoryPage({
               title={empty.title}
               hint={empty.hint}
               action={
-                empty.action === "add" ? (
+                empty.action === "add" && !showPrice ? null : empty.action === "add" ? (
                   <QuickAddProduct aiEnabled={aiOn} cloudVoice={sttOn} label={prefs.simple ? "Add product" : undefined} />
                 ) : (
                   <Button variant="outline" asChild className={prefs.simple ? "h-12 px-5 text-base" : undefined}>
@@ -384,7 +390,7 @@ export default async function InventoryPage({
                     name: product.name,
                     sku: product.sku,
                     category: product.category,
-                    priceCents: product.priceCents,
+                    priceCents: showPrice ? (product.priceCents ?? 0) : null,
                     stockQty: product.stockQty,
                     lowStockAt: product.lowStockAt,
                     active: product.active,
@@ -432,14 +438,14 @@ export default async function InventoryPage({
                     <Th>SKU · UPC</Th>
                     <Th>Category</Th>
                     <Th>Stock</Th>
-                    <Th className="text-right">Price</Th>
+                    {showPrice ? <Th className="text-right">Price</Th> : null}
                     {showCost ? <Th className="text-right">Cost</Th> : null}
                     {showCost ? <Th className="text-right">Margin</Th> : null}
                   </Tr>
                 </THead>
                 <TBody>
                   {products.map((product) => {
-                    const margin = marginPct(product.priceCents, product.costCents);
+                    const margin = showCost ? marginPct(product.priceCents ?? 0, product.costCents ?? null) : null;
                     const identifiers = `${product.sku ?? "No SKU"}${
                       product.upc ? ` · ${product.upc}` : ""
                     }`;
@@ -480,9 +486,11 @@ export default async function InventoryPage({
                         <Td>
                           <StockBadge product={product} />
                         </Td>
-                        <Td className="text-right font-semibold text-foreground">
-                          {formatCents(product.priceCents)}
-                        </Td>
+                        {showPrice ? (
+                          <Td className="text-right font-semibold text-foreground">
+                            {formatCents(product.priceCents ?? 0)}
+                          </Td>
+                        ) : null}
                         {showCost ? (
                           <Td className="text-right text-muted-foreground">
                             {product.costCents == null

@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { readUiPrefs } from "@/lib/prefs";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +14,7 @@ export default async function NewEstimatePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const params = await searchParams;
 
   const [{ customers, products, taxRateBps, taxRates }, uiPrefs] =

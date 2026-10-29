@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { PrintSheet } from "@/components/billing/print-sheet";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { BULK_LIMIT } from "@/lib/bulk";
 import { db } from "@/lib/db";
 
@@ -30,7 +30,7 @@ export default async function InvoiceBatchPrintPage({
 }: {
   searchParams: Promise<{ ids?: string | string[] }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { ids: rawIds } = await searchParams;
 
   const ids = parseIds(rawIds);

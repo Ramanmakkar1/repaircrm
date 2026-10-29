@@ -19,6 +19,7 @@ import { customerIdsByPhone, phoneQueryDigits } from "@/lib/customers/phone-sear
 import { db } from "@/lib/db";
 import { refundAwareTotals } from "@/components/billing/refund-math";
 import { formatCents } from "@/lib/money";
+import { canSeeMoney } from "@/lib/money-access";
 import { readUiPrefs } from "@/lib/prefs";
 
 export const metadata: Metadata = { title: "Customers · Repairs helper" };
@@ -56,6 +57,8 @@ export default async function CustomersPage({
   // Front desk keeps the customer book, so they get the importer too; a tech
   // has no reason to bulk-load customers.
   const canImport = role === "OWNER" || role === "FRONT_DESK";
+  // A technician never sees what a customer owes: the balances are not even queried.
+  const showMoney = canSeeMoney(role);
   const query = (params.q ?? "").trim();
   const where = await buildWhere(shopId, query);
 
@@ -101,7 +104,7 @@ export default async function CustomersPage({
           _count: { _all: true },
         })
       : Promise.resolve([]),
-    ids.length
+    showMoney && ids.length
       ? db.invoice.findMany({
           where: {
             shopId,
@@ -305,7 +308,7 @@ export default async function CustomersPage({
                     <Th>Email</Th>
                     <Th>Customer since</Th>
                     <Th className="text-right">Open</Th>
-                    <Th className="text-right">Balance</Th>
+                    {showMoney ? <Th className="text-right">Balance</Th> : null}
                   </Tr>
                 </THead>
                 <TBody>
@@ -364,6 +367,7 @@ export default async function CustomersPage({
                           {open > 0 ? open : "—"}
                         </Td>
 
+                        {showMoney ? (
                         <Td
                           className={cn(
                             "text-right tabular-nums",
@@ -374,6 +378,7 @@ export default async function CustomersPage({
                         >
                           {balance > 0 ? formatCents(balance) : "—"}
                         </Td>
+                        ) : null}
                       </RowLink>
                     );
                   })}

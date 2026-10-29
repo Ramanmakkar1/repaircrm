@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getSession, requireUser } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { formatCents } from "@/lib/money";
 import { safeTimeZone } from "@/lib/dashboard/logic";
@@ -69,7 +70,7 @@ export default async function DrawerZReportPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const [session, shop] = await Promise.all([

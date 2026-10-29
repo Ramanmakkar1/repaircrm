@@ -49,11 +49,14 @@ export function TimerCard({
   entries,
   completedSeconds,
   myRunningEntry,
+  showMoney = true,
 }: {
   ticketId: string;
   entries: TimeEntryRow[];
   completedSeconds: number;
   myRunningEntry: TimeEntryRow | null;
+  /** False for a technician: the hours show, what they bill as does not (lib/money-access.ts). */
+  showMoney?: boolean;
 }) {
   const unbilled = entries.filter(
     (entry) => entry.billable && !entry.invoiceId && !entry.running,
@@ -119,7 +122,7 @@ export function TimerCard({
         ) : (
           <ul className="flex flex-col divide-y divide-border">
             {entries.map((entry) => (
-              <TimeRow key={entry.id} entry={entry} />
+              <TimeRow key={entry.id} entry={entry} showMoney={showMoney} />
             ))}
           </ul>
         )}
@@ -129,9 +132,11 @@ export function TimerCard({
             <span className="text-[13px] font-semibold text-muted-foreground">
               {unbilled.length} unbilled · {formatHm(unbilledSeconds)}
             </span>
-            <span className="text-[15px] font-bold tabular-nums text-foreground">
-              {formatCents(unbilledCents)}
-            </span>
+            {showMoney ? (
+              <span className="text-[15px] font-bold tabular-nums text-foreground">
+                {formatCents(unbilledCents)}
+              </span>
+            ) : null}
           </div>
         ) : null}
       </CardContent>
@@ -146,7 +151,7 @@ export function TimerCard({
  * only one that reports back: an entry already on an invoice is locked, and
  * says so, rather than silently ignoring the click.
  */
-function TimeRow({ entry }: { entry: TimeEntryRow }) {
+function TimeRow({ entry, showMoney }: { entry: TimeEntryRow; showMoney: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   const billed = entry.invoiceId !== null;
@@ -187,7 +192,7 @@ function TimeRow({ entry }: { entry: TimeEntryRow }) {
               {billed
                 ? "Billed"
                 : entry.billable
-                  ? `Unbilled · ${formatCents(entry.amountCents)}`
+                  ? showMoney ? `Unbilled · ${formatCents(entry.amountCents)}` : "Unbilled"
                   : "Not billable"}
             </p>
           )}

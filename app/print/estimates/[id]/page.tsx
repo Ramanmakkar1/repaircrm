@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
+import { requireMoneyUser } from "@/lib/money-guard";
 import { db } from "@/lib/db";
 import { calcTotals, formatCents } from "@/lib/money";
 import { requestNow } from "@/lib/now";
@@ -21,7 +21,7 @@ export default async function EstimatePrintPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId } = await requireMoneyUser();
   const { id } = await params;
 
   const [estimate, shop] = await Promise.all([

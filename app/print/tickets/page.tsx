@@ -6,6 +6,7 @@ import { loadPrintShop } from "@/components/billing/print-queries";
 import { TicketSheet } from "@/components/billing/print-ticket-sheet";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
 import { requireUser } from "@/lib/auth";
+import { canSeeMoney } from "@/lib/money-access";
 import { BULK_LIMIT } from "@/lib/bulk";
 import { db } from "@/lib/db";
 
@@ -37,7 +38,9 @@ export default async function TicketBatchPrintPage({
 }: {
   searchParams: Promise<{ ids?: string | string[] }>;
 }) {
-  const { shopId } = await requireUser();
+  const { shopId, role } = await requireUser();
+  // A technician's work order carries no prices: the charges are not even loaded.
+  const showCharges = canSeeMoney(role);
   const { ids: rawIds } = await searchParams;
 
   const ids = parseIds(rawIds);
@@ -51,7 +54,7 @@ export default async function TicketBatchPrintPage({
         customer: true,
         asset: true,
         assignedTo: { select: { name: true } },
-        charges: { orderBy: { createdAt: "asc" } },
+        charges: showCharges ? { orderBy: { createdAt: "asc" } } : { take: 0 },
       },
     }),
     loadPrintShop(shopId),
@@ -71,7 +74,7 @@ export default async function TicketBatchPrintPage({
 
       {tickets.map((ticket) => (
         <div key={ticket.id} className="rf-batch-item">
-          <TicketSheet {...ticketSheetProps(ticket, shop)} chrome={false} />
+          <TicketSheet {...ticketSheetProps(ticket, shop)} chrome={false} showCharges={showCharges} />
         </div>
       ))}
     </>
