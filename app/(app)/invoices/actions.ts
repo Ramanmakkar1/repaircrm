@@ -1081,7 +1081,7 @@ async function deliverInvoice(
   invoice: InvoiceForSend,
   input: SendRequest
 ): Promise<{ outcomes: SendChannelOutcome[]; statusChanged: boolean; status: string }> {
-  const { message, payOnline } = composeInvoiceMessage(invoice, input);
+  const { message, payOnline, totals } = composeInvoiceMessage(invoice, input);
 
   const outcomes: SendChannelOutcome[] = [];
   const emailTo = (input.emailTo ?? "").trim();
@@ -1136,11 +1136,15 @@ async function deliverInvoice(
   let status = invoice.status;
   let statusChanged = false;
   if (invoice.status === "DRAFT" && anyDelivered) {
+    // A bill for nothing (a warranty recheck at $0.00) is settled the moment
+    // it leaves draft. SENT would sit in the Unpaid tab forever, with no
+    // payment that could ever move it on.
+    const settled = totals.totalCents <= 0 && totals.balanceCents <= 0;
     await db.invoice.update({
       where: { id: invoice.id },
-      data: { status: "SENT" },
+      data: settled ? { status: "PAID", paidAt: new Date() } : { status: "SENT" },
     });
-    status = "SENT";
+    status = settled ? "PAID" : "SENT";
     statusChanged = true;
   }
 

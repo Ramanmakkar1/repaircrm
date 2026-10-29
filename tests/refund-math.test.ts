@@ -248,3 +248,14 @@ describe("refunded invoices and the payment ceiling", () => {
     expect(blind.balanceCents).toBe(0);
   });
 });
+
+describe("refundDefaultMethod", () => {
+  it("opens on the way the money came in", async () => {
+    const { refundDefaultMethod } = await import("@/components/billing/refund-math");
+    expect(refundDefaultMethod([{ method: "CASH", amountCents: 5000 }, { method: "CASH", amountCents: 9070 }])).toBe("CASH");
+    expect(refundDefaultMethod([{ method: "CARD", amountCents: 5000 }, { method: "CHECK", amountCents: 100 }])).toBe("CHECK");
+    expect(refundDefaultMethod([{ method: "CASH", amountCents: 5000 }, { method: "CARD", amountCents: 100 }])).toBe("CARD");
+    expect(refundDefaultMethod([{ method: "CASH", amountCents: 5000 }, { method: "CREDIT", amountCents: 100 }])).toBe("CREDIT");
+    expect(refundDefaultMethod([])).toBe("CARD");
+  });
+});

@@ -520,6 +520,15 @@ describe("invoices — bulk send", () => {
     expectEveryQueryScoped(SHOP);
   });
 
+  it("settles a $0 bill as paid when it is sent, so it never sits in Unpaid", async () => {
+    stubInvoices({ rec_1: invoiceRow({ lines: [{ quantity: 1, unitPriceCents: 0, taxable: true }] }) });
+
+    await invoices.bulkSendInvoicesAction(["rec_1"]);
+
+    expect(callsTo("invoice.update")[0]?.args.data).toMatchObject({ status: "PAID" });
+    expect(callsTo("invoice.update")[0]?.args.where).toMatchObject({ id: "rec_1" });
+  });
+
   it("skips a foreign id rather than sending anything for it", async () => {
     stubInvoices({ rec_1: invoiceRow() });
 

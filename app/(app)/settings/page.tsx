@@ -25,7 +25,7 @@ import {
   WEBHOOK_EVENTS,
 } from "@/lib/payments";
 import { readCardMachine } from "@/lib/payments/card-machine";
-import { readAutomation, recentRuns } from "@/lib/jobs";
+import { readAutomation } from "@/lib/jobs";
 import { readInboundEmail } from "@/app/api/inbound/_lib/shop";
 import { readUiPrefs } from "@/lib/prefs";
 import { loadIntegrationCards } from "@/lib/integrations/cards";
@@ -451,9 +451,10 @@ export default async function SettingsPage({
     cronUrl: `${appUrl()}/api/cron`,
     lastRunAt: stored.lastRunAt ?? null,
     lastSummary: stored.lastSummary ?? null,
-    // In-memory, so this is empty on a freshly restarted server — which is
-    // exactly why the stored `lastSummary` above exists alongside it.
-    recentRuns: isOwner ? recentRuns() : [],
+    // The in-memory ring holds whole-platform runs (every tenant's names and
+    // errors), so a shop's own Settings never show it; `lastSummary` above is
+    // this shop's slice alone.
+    recentRuns: [],
     canRun: isOwner,
   };
 

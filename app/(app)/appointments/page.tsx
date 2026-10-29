@@ -317,7 +317,12 @@ export default async function AppointmentsPage({
     : at
       ? { ...defaults, startDate: toDateParam(at), startTime: toTimeParam(at) }
       : booking
-        ? { ...defaults, customerId: bookCustomer?.id ?? "" }
+        ? {
+            ...defaults,
+            // Booking from a later day on screen lands on that day, not today.
+            ...(view === "day" && toDateParam(anchor) > defaults.startDate ? { startDate: toDateParam(anchor) } : {}),
+            customerId: bookCustomer?.id ?? "",
+          }
         : null;
 
   const staffChips = [

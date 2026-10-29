@@ -7,6 +7,7 @@ import { TicketSheet } from "@/components/billing/print-ticket-sheet";
 import { PrintToolbar } from "@/components/billing/print-toolbar";
 import { requireUser } from "@/lib/auth";
 import { canSeeMoney } from "@/lib/money-access";
+import { quotedPriceCents } from "@/lib/ticket-quote";
 import { BULK_LIMIT } from "@/lib/bulk";
 import { db } from "@/lib/db";
 
@@ -74,7 +75,7 @@ export default async function TicketBatchPrintPage({
 
       {tickets.map((ticket) => (
         <div key={ticket.id} className="rf-batch-item">
-          <TicketSheet {...ticketSheetProps(ticket, shop)} chrome={false} showCharges={showCharges} />
+          <TicketSheet {...ticketSheetProps(ticket, shop, { quotedCents: showCharges ? quotedPriceCents(ticket.customFields) : null })} chrome={false} showCharges={showCharges} />
         </div>
       ))}
     </>

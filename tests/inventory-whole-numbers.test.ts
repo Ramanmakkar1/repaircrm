@@ -159,6 +159,16 @@ describe("product form whole-number fields", () => {
     }
   });
 
+  it("refuses a price or cost too large to store, in plain words, instead of a 500", async () => {
+    for (const [field, value] of [["price", "99999999999"], ["cost", "99999999999"]]) {
+      resetDb();
+      const result = await createProductAction(undefined, form({ ...base, [field]: value }));
+      const errors = (result as { fieldErrors?: Record<string, string> }).fieldErrors ?? {};
+      expect(Object.values(errors).join(" ")).toMatch(/under \$1,000,000/);
+      expectNoWrites();
+    }
+  });
+
   it("does not let a mistyped warranty quietly become 'no warranty'", async () => {
     const result = await createProductAction(undefined, form({ ...base, warrantyDays: "ninety" }));
     expect(result).toMatchObject({ fieldErrors: { warrantyDays: expect.any(String) } });

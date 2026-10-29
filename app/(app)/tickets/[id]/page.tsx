@@ -82,6 +82,7 @@ import {
 } from "@/components/tickets/ticket-actions";
 import { Timeline } from "@/components/tickets/timeline";
 import { TimerCard, type TimeEntryRow } from "@/components/tickets/timer-card";
+import { quotedPriceCents, shopCustomFields } from "@/lib/ticket-quote";
 import { UpdateComposer } from "@/components/tickets/update-composer";
 import {
   assetLabel,
@@ -127,9 +128,9 @@ const DEPOSIT_METHOD_LABELS: Record<string, string> = {
 
 /** `customFields` is untyped JSON — coerce it to flat string pairs for display. */
 function readCustomFields(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const out: Record<string, string> = {};
-  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+  // Without check-in's own keys: the quote is a price, shown as one below.
+  for (const [key, raw] of Object.entries(shopCustomFields(value))) {
     out[key] =
       raw === null || raw === undefined
         ? ""
@@ -314,6 +315,10 @@ export default async function TicketDetailPage({
   });
 
   if (!ticket) notFound();
+
+  // The price promised at the counter; a price, so only for those who see money.
+  const quoted = showMoney ? quotedPriceCents(ticket.customFields) : null;
+  const quoteFact = quoted === null ? [] : [{ label: "Quoted", value: formatCents(quoted) }];
 
   const [
     shop,
@@ -890,6 +895,7 @@ export default async function TicketDetailPage({
                     { label: "Device", value: deviceValue, wide: true },
                     { label: "Assigned to", value: assigneeControl },
                     { label: "Due", value: dueControl },
+                    ...quoteFact,
                     { label: "Location", value: locationControl },
                     { label: "Last touched", value: lastTouched },
                   ]}
@@ -1014,6 +1020,7 @@ export default async function TicketDetailPage({
                         },
                         { label: "Assigned to", value: assigneeControl },
                         { label: "Due", value: dueControl },
+                    ...quoteFact,
                         { label: "Location", value: locationControl },
                         { label: "Opened", value: format(ticket.createdAt, "MMM d, yyyy") },
                         ...(ticket.resolvedAt
@@ -1151,6 +1158,7 @@ export default async function TicketDetailPage({
             { label: "Device", value: deviceValue },
             { label: "Assigned to", value: assigneeControl },
             { label: "Due", value: dueControl },
+                    ...quoteFact,
             { label: "Location", value: locationControl },
             { label: "Last touched", value: lastTouched },
             // No charges yet, no total: "$0.00" would be the loudest fact on

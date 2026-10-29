@@ -4,6 +4,7 @@ import { STATUS_TONE, TONE_CLASS, normalizeStatus } from "@/components/ui/badge"
 import { cn } from "@/components/ui/cn";
 import { stalenessLevel } from "@/components/tickets/ticket-meta";
 import { spanWords } from "@/lib/dashboard/logic";
+import { nameInitials } from "@/lib/initials";
 
 export type DisplayTicket = {
   id: string;
@@ -19,10 +20,7 @@ export type DisplayTicket = {
 
 /** Initials for the assigned-tech badge — "Jane Doe" -> "JD", solo name -> first 2 letters. */
 function initialsFor(name: string | null | undefined): string {
-  const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  if (parts.length === 0) return "—";
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return (parts[0]![0] + parts[parts.length - 1]![0]).toUpperCase();
+  return nameInitials(name, "—");
 }
 
 /** "Updated 3 days ago": how long it has sat, in words (the same rounding as the Repairs list). */

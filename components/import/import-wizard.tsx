@@ -531,7 +531,8 @@ export function ImportWizard({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <BigNumber label="Added" value={summary.created} />
             <BigNumber label="Filled in" value={summary.updated} />
-            <BigNumber label="Skipped" value={summary.skipped} />
+            {/* `skipped` also counts the left-out rows; shown once each, the four add up to the file. */}
+            <BigNumber label="Skipped" value={Math.max(0, summary.skipped - summary.errors.length)} />
             <BigNumber label="Left out" value={summary.errors.length} />
           </div>
 

@@ -315,11 +315,17 @@ async function execute(source: JobSource): Promise<JobsSummary> {
         // A settings write failing must not cancel the shop's actual billing.
       }
 
+      // This shop's own slice. It is what the shop's Settings show, so it must
+      // hold nothing about any other tenant: the whole-run summary carries
+      // other shops' names and error text, and every owner could read it.
+      const shopSummary = { ...emptySummary(source), startedAt: startedIso, shops: 1 };
+      const shopStartedMs = Date.now();
       try {
-        await runShop(shop.id, summary);
+        await runShop(shop.id, shopSummary);
       } catch (error) {
-        summary.errors.push(`${shop.name}: ${message(error)}`);
+        shopSummary.errors.push(message(error));
       }
+      addSummary(summary, shopSummary, shop.name);
 
       try {
         const finishedIso = new Date().toISOString();
@@ -328,10 +334,7 @@ async function execute(source: JobSource): Promise<JobsSummary> {
           lastFinishedAt: finishedIso,
           lastRunAt: finishedIso,
           lastSource: source,
-          // The whole-run summary, not this shop's slice. With one shop they
-          // are the same thing; with many, every shop's record answers "when
-          // did automation last run, and what did it do overall".
-          lastSummary: { ...summary, ms: Date.now() - startedAtMs },
+          lastSummary: { ...shopSummary, ms: Date.now() - shopStartedMs },
         });
       } catch (error) {
         summary.errors.push(`${shop.name}: could not record run (${message(error)})`);
@@ -345,6 +348,73 @@ async function execute(source: JobSource): Promise<JobsSummary> {
   summary.ms = Date.now() - startedAtMs;
   remember(summary);
   return summary;
+}
+
+/**
+ * "Run now" in a shop's Settings: every job for THAT shop only, recorded on
+ * that shop. An owner of one tenant used to run (and read the summary of)
+ * every tenant's jobs. Platform-wide work (shop deletions) stays with the
+ * timer and the cron route.
+ */
+export async function runShopJobs(shopId: string, source: JobSource): Promise<JobsSummary> {
+  const startedAtMs = Date.now();
+  const summary: JobsSummary = { ...emptySummary(source), startedAt: new Date(startedAtMs).toISOString(), shops: 1 };
+
+  const shop = await db.shop.findFirst({
+    where: { id: shopId, deletionRequestedAt: null },
+    select: { id: true, settings: true },
+  });
+  if (!shop) return { ...summary, skipped: "recent-run" };
+  // A double press, or the timer already on this shop: the downstream claims
+  // would hold, but there is nothing to add.
+  if (recentlyStarted([shop], startedAtMs)) return { ...summary, skipped: "recent-run" };
+
+  try {
+    await stampAutomation(shop.id, { lastStartedAt: summary.startedAt, lastSource: source });
+  } catch {
+    // As in the full run: a settings write failing must not cancel the work.
+  }
+  try {
+    await runShop(shop.id, summary);
+  } catch (error) {
+    summary.errors.push(message(error));
+  }
+  summary.ms = Date.now() - startedAtMs;
+  try {
+    const finishedIso = new Date().toISOString();
+    await stampAutomation(shop.id, {
+      lastStartedAt: summary.startedAt,
+      lastFinishedAt: finishedIso,
+      lastRunAt: finishedIso,
+      lastSource: source,
+      lastSummary: summary,
+    });
+  } catch (error) {
+    summary.errors.push(`could not record run (${message(error)})`);
+  }
+  return summary;
+}
+
+/** Adds one shop's slice into the whole-run summary, its errors named for the shop. */
+function addSummary(total: JobsSummary, part: JobsSummary, shopName: string): void {
+  total.recurring.created += part.recurring.created;
+  total.charges.attempted += part.charges.attempted;
+  total.charges.succeeded += part.charges.succeeded;
+  total.charges.failed += part.charges.failed;
+  total.campaigns.queued += part.campaigns.queued;
+  total.campaigns.sent += part.campaigns.sent;
+  total.campaigns.failed += part.campaigns.failed;
+  total.sla.breached += part.sla.breached;
+  total.sla.notified += part.sla.notified;
+  total.webhooks.delivered += part.webhooks.delivered;
+  total.webhooks.failed += part.webhooks.failed;
+  total.reminders.sent += part.reminders.sent;
+  total.reviews.sent += part.reviews.sent;
+  total.accounting.pushed += part.accounting.pushed;
+  total.accounting.failed += part.accounting.failed;
+  total.tokensPurged += part.tokensPurged;
+  total.scanSessionsPurged += part.scanSessionsPurged;
+  for (const error of part.errors) total.errors.push(`${shopName}: ${error}`);
 }
 
 /** Every job for one shop. Each is isolated so one failure is not all of them. */

@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "./cn";
+import { nameInitials } from "@/lib/initials";
 
 /**
  * The card every list screen is made of, so Repairs, Invoices, Customers and
@@ -92,8 +93,7 @@ export function PhotoVisual({ src, alt = "", className }: { src: string; alt?: s
 
 /** Initials in a soft circle: the picture for a person or a business. */
 export function InitialsVisual({ name, className }: { name: string; className?: string }) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const initials = ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
+  const initials = nameInitials(name);
   return (
     <span
       aria-hidden
