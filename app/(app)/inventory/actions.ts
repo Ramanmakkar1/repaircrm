@@ -147,8 +147,10 @@ const productSchema = z.object({
   sku: z.string().max(60).nullable(),
   upc: z.string().max(40).nullable(),
   description: z.string().max(2000).nullable(),
-  priceCents: z.number().int().min(0, "Price can't be negative"),
-  costCents: z.number().int().min(0, "Cost can't be negative").nullable(),
+  // Capped below the 32-bit column: past it Postgres refused the row and the
+  // save threw a 500 rather than saying what was wrong.
+  priceCents: z.number().int().min(0, "Price can't be negative").max(100_000_000, "Price must be under $1,000,000"),
+  costCents: z.number().int().min(0, "Cost can't be negative").max(100_000_000, "Cost must be under $1,000,000").nullable(),
   taxable: z.boolean(),
   stockQty: wholeNumber("Stock"),
   lowStockAt: wholeNumber("The reorder point")
