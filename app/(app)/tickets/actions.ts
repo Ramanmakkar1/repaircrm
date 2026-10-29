@@ -572,12 +572,41 @@ export async function postUpdateAction(
 // Charges
 // ---------------------------------------------------------------------------
 
+/**
+ * A catalogue part charged to a repair is a part off the shelf: adding the
+ * charge takes it out of stock, and taking the charge off (or Undo, or a new
+ * quantity) moves the difference back, each with its StockAdjustment row. This
+ * is the bench's stock event — the register skips ticket lines because of it
+ * (app/(app)/pos/checkout.ts, rule 3). Serial-tracked products are left to
+ * their own unit flow, which keeps their count.
+ */
+async function moveChargeStock(
+  tx: Prisma.TransactionClient,
+  input: { shopId: string; userId: string; productId: string | null; delta: number; reason: string },
+): Promise<void> {
+  const { shopId, userId, productId, delta, reason } = input;
+  if (!productId || delta === 0) return;
+  const product = await tx.product.findFirst({
+    where: { id: productId, shopId },
+    select: { serialized: true },
+  });
+  if (!product || product.serialized) return;
+  const moved = await tx.product.updateMany({
+    where: { id: productId, shopId },
+    data: { stockQty: { increment: delta } },
+  });
+  if (moved.count === 0) return;
+  await tx.stockAdjustment.create({
+    data: { shopId, productId, delta, reason, userId },
+  });
+}
+
 export async function addChargeAction(
   ticketId: string,
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
   if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   const ticket = await findTicket(shopId, ticketId);
@@ -604,19 +633,29 @@ export async function addChargeAction(
 
   const quantity = Math.max(1, Math.round(Number(str(formData, "quantity")) || 1));
 
-  await db.ticketCharge.create({
-    data: {
+  await db.$transaction(async (tx) => {
+    await tx.ticketCharge.create({
+      data: {
+        shopId,
+        ticketId: ticket.id,
+        productId,
+        description,
+        quantity,
+        unitPriceCents,
+        taxable,
+      },
+    });
+    await moveChargeStock(tx, {
       shopId,
-      ticketId: ticket.id,
+      userId,
       productId,
-      description,
-      quantity,
-      unitPriceCents,
-      taxable,
-    },
+      delta: -quantity,
+      reason: `Used on repair #${ticket.number}`,
+    });
   });
 
   revalidateTicket(ticket.id);
+  if (productId) revalidatePath("/inventory");
   return { ok: true };
 }
 
@@ -625,13 +664,13 @@ export async function updateChargeAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
   if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
 
   const charge = await db.ticketCharge.findFirst({
     where: { id: chargeId, shopId },
-    select: { id: true, ticketId: true, invoiceId: true },
+    select: { id: true, ticketId: true, invoiceId: true, productId: true, quantity: true, ticket: { select: { number: true } } },
   });
   if (!charge) return { error: "Charge not found." };
   if (charge.invoiceId) {
@@ -641,14 +680,28 @@ export async function updateChargeAction(
   const description = str(formData, "description");
   if (!description) return { error: "Describe the charge." };
 
-  const updated = await db.ticketCharge.updateMany({
-    where: { id: charge.id, shopId, invoiceId: null },
-    data: {
-      description,
-      quantity: Math.max(1, Math.round(Number(str(formData, "quantity")) || 1)),
-      unitPriceCents: parseCents(str(formData, "unitPrice")),
-      taxable: bool(formData, "taxable"),
-    },
+  const quantity = Math.max(1, Math.round(Number(str(formData, "quantity")) || 1));
+  const updated = await db.$transaction(async (tx) => {
+    const result = await tx.ticketCharge.updateMany({
+      where: { id: charge.id, shopId, invoiceId: null },
+      data: {
+        description,
+        quantity,
+        unitPriceCents: parseCents(str(formData, "unitPrice")),
+        taxable: bool(formData, "taxable"),
+      },
+    });
+    if (result.count > 0) {
+      // Two used where one was: one more off the shelf (and the reverse).
+      await moveChargeStock(tx, {
+        shopId,
+        userId,
+        productId: charge.productId,
+        delta: charge.quantity - quantity,
+        reason: `Quantity changed on repair #${charge.ticket.number}`,
+      });
+    }
+    return result;
   });
   if (updated.count === 0) {
     return { error: "This charge is already gone, or it is on an invoice now." };
@@ -659,18 +712,30 @@ export async function updateChargeAction(
 }
 
 export async function deleteChargeAction(chargeId: string): Promise<void> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
   if (!canSeeMoney(role)) return;
 
   const charge = await db.ticketCharge.findFirst({
     where: { id: chargeId, shopId, invoiceId: null },
-    select: { id: true, ticketId: true },
+    select: { id: true, ticketId: true, productId: true, quantity: true, ticket: { select: { number: true } } },
   });
   if (!charge) return;
 
-  const deleted = await db.ticketCharge.deleteMany({
-    where: { id: charge.id, shopId, invoiceId: null },
+  const deleted = await db.$transaction(async (tx) => {
+    const result = await tx.ticketCharge.deleteMany({
+      where: { id: charge.id, shopId, invoiceId: null },
+    });
+    if (result.count > 0) {
+      await moveChargeStock(tx, {
+        shopId,
+        userId,
+        productId: charge.productId,
+        delta: charge.quantity,
+        reason: `Taken off repair #${charge.ticket.number}`,
+      });
+    }
+    return result;
   });
   if (deleted.count === 0) return;
   revalidateTicket(charge.ticketId);
@@ -699,7 +764,7 @@ export type RemovedCharge = {
 export async function removeChargeAction(
   chargeId: string,
 ): Promise<{ ok: true; removed: RemovedCharge } | { ok?: undefined; error: string }> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
   if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   if (!chargeId) return { error: "Charge not found." };
@@ -715,12 +780,25 @@ export async function removeChargeAction(
       unitPriceCents: true,
       taxable: true,
       createdAt: true,
+      ticket: { select: { number: true } },
     },
   });
   if (!charge) return { error: "That charge is already gone, or it is on an invoice now." };
 
-  const deleted = await db.ticketCharge.deleteMany({
-    where: { id: charge.id, shopId, invoiceId: null },
+  const deleted = await db.$transaction(async (tx) => {
+    const result = await tx.ticketCharge.deleteMany({
+      where: { id: charge.id, shopId, invoiceId: null },
+    });
+    if (result.count > 0) {
+      await moveChargeStock(tx, {
+        shopId,
+        userId,
+        productId: charge.productId,
+        delta: charge.quantity,
+        reason: `Taken off repair #${charge.ticket.number}`,
+      });
+    }
+    return result;
   });
   if (deleted.count === 0) {
     return { error: "That charge is already gone, or it is on an invoice now." };
@@ -753,7 +831,7 @@ const RESTORE_MAX_QUANTITY = 100_000;
  * It is a new row (a new id) with the old values, which is all anything reads.
  */
 export async function restoreChargeAction(removed: RemovedCharge): Promise<ActionState> {
-  const { shopId, role } = await requireUser();
+  const { shopId, userId, role } = await requireUser();
   // Charges are prices: a technician neither sees nor changes them (lib/money-access.ts).
   if (!canSeeMoney(role)) return { error: MONEY_REFUSED };
   const ticket = await findTicket(shopId, typeof removed?.ticketId === "string" ? removed.ticketId : "");
@@ -778,17 +856,26 @@ export async function restoreChargeAction(removed: RemovedCharge): Promise<Actio
   const now = new Date();
   const createdAt = Number.isNaN(added.getTime()) || added > now ? now : added;
 
-  await db.ticketCharge.create({
-    data: {
+  await db.$transaction(async (tx) => {
+    await tx.ticketCharge.create({
+      data: {
+        shopId,
+        ticketId: ticket.id,
+        productId,
+        description,
+        quantity,
+        unitPriceCents,
+        taxable: removed.taxable === true,
+        createdAt,
+      },
+    });
+    await moveChargeStock(tx, {
       shopId,
-      ticketId: ticket.id,
+      userId,
       productId,
-      description,
-      quantity,
-      unitPriceCents,
-      taxable: removed.taxable === true,
-      createdAt,
-    },
+      delta: -quantity,
+      reason: `Used on repair #${ticket.number}`,
+    });
   });
 
   revalidateTicket(ticket.id);

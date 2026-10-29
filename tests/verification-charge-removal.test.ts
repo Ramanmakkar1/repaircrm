@@ -11,6 +11,7 @@ const charge = {
   id: "charge_1", ticketId: "ticket_1", productId: null,
   description: "Screen repair", quantity: 1, unitPriceCents: 10000,
   taxable: true, invoiceId: null, createdAt: new Date("2026-10-04T12:00:00Z"),
+  ticket: { number: 1000 },
 };
 
 describe("charge writes when invoicing races the repair screen", () => {

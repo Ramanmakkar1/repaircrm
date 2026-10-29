@@ -37,7 +37,7 @@ beforeEach(() => {
   resetDb();
   handlers["ticketCharge.findFirst"] = (args) => {
     const where = args.where as { id?: string; shopId?: string; invoiceId?: unknown };
-    return where.shopId === SHOP && where.id === "ch_1" && where.invoiceId === null ? ROW : null;
+    return where.shopId === SHOP && where.id === "ch_1" && where.invoiceId === null ? { ...ROW, ticket: { number: 1008 } } : null;
   };
   // Guarded delete: matches only while the charge is still this shop's and still on no invoice.
   handlers["ticketCharge.deleteMany"] = (args) => {
@@ -51,8 +51,14 @@ beforeEach(() => {
   };
   handlers["product.findFirst"] = (args) => {
     const where = args.where as { id?: string; shopId?: string };
-    return where.shopId === SHOP && where.id === "prod_1" ? { id: "prod_1" } : null;
+    return where.shopId === SHOP && where.id === "prod_1" ? { id: "prod_1", serialized: false } : null;
   };
+  // The part goes back on the shelf when its charge comes off, and off again on Undo.
+  handlers["product.updateMany"] = (args) => {
+    const where = args.where as { id?: string; shopId?: string };
+    return { count: where.shopId === SHOP && where.id === "prod_1" ? 1 : 0 };
+  };
+  handlers["stockAdjustment.create"] = (args) => args.data;
 });
 
 describe("removeChargeAction", () => {
@@ -73,6 +79,12 @@ describe("removeChargeAction", () => {
         createdAt: ADDED.toISOString(),
       },
     });
+    // Both stock writes carry the shop: the two parts go back on this shop's shelf.
+    expect(callsTo("product.updateMany")[0].args).toEqual({
+      where: { id: "prod_1", shopId: SHOP },
+      data: { stockQty: { increment: 2 } },
+    });
+    expect(dataOf("stockAdjustment.create")).toMatchObject({ shopId: SHOP, productId: "prod_1", delta: 2 });
   });
 
   it("deletes nothing for a charge on an invoice, another shop's charge or an empty id", async () => {
@@ -113,6 +125,8 @@ describe("restoreChargeAction (Undo)", () => {
       taxable: true,
       createdAt: ADDED,
     });
+    // Off the shelf again: +2 on removal, -2 on Undo.
+    expect(callsTo("product.updateMany").map((call) => (call.args.data as { stockQty: { increment: number } }).stockQty.increment)).toEqual([2, -2]);
   });
 
   it("refuses a repair from another shop and writes nothing", async () => {
@@ -148,5 +162,56 @@ describe("restoreChargeAction (Undo)", () => {
     const at = (dataOf("ticketCharge.create").createdAt as Date).getTime();
     expect(at).toBeGreaterThanOrEqual(before);
     expect(at).toBeLessThanOrEqual(Date.now());
+  });
+});
+
+describe("addChargeAction and updateChargeAction move stock", () => {
+  it("takes a catalogue part off this shop's shelf when it is charged to a repair", async () => {
+    const { addChargeAction } = await import("@/app/(app)/tickets/actions");
+    handlers["product.findFirst"] = (args) => {
+      const where = args.where as { id?: string; shopId?: string };
+      return where.shopId === SHOP && where.id === "prod_1"
+        ? { name: "iPhone 14 screen", priceCents: 12_345, taxable: true, serialized: false }
+        : null;
+    };
+    const form = new FormData();
+    form.set("productId", "prod_1");
+    form.set("quantity", "2");
+
+    expect(await addChargeAction("tkt_1", {}, form)).toEqual({ ok: true });
+    expect(callsTo("product.updateMany")[0].args).toEqual({
+      where: { id: "prod_1", shopId: SHOP },
+      data: { stockQty: { increment: -2 } },
+    });
+    expect(dataOf("stockAdjustment.create")).toMatchObject({ shopId: SHOP, productId: "prod_1", delta: -2, reason: "Used on repair #1008" });
+  });
+
+  it("moves no stock for a custom line, nor for a serial-tracked product", async () => {
+    const { addChargeAction } = await import("@/app/(app)/tickets/actions");
+    const custom = new FormData();
+    custom.set("description", "Labour");
+    custom.set("unitPrice", "45");
+    await addChargeAction("tkt_1", {}, custom);
+
+    handlers["product.findFirst"] = () => ({ name: "iPad", priceCents: 1, taxable: true, serialized: true });
+    const serial = new FormData();
+    serial.set("productId", "prod_1");
+    await addChargeAction("tkt_1", {}, serial);
+
+    expect(callsTo("product.updateMany")).toEqual([]);
+    expect(callsTo("stockAdjustment.create")).toEqual([]);
+  });
+
+  it("moves only the difference when a part's quantity changes", async () => {
+    const { updateChargeAction } = await import("@/app/(app)/tickets/actions");
+    handlers["ticketCharge.findFirst"] = () => ({ ...ROW, invoiceId: null, ticket: { number: 1008 } });
+    handlers["ticketCharge.updateMany"] = () => ({ count: 1 });
+    const form = new FormData();
+    form.set("description", "iPhone 14 screen");
+    form.set("quantity", "3");
+    form.set("unitPrice", "123.45");
+
+    expect(await updateChargeAction("ch_1", {}, form)).toEqual({ ok: true });
+    expect(dataOf("stockAdjustment.create")).toMatchObject({ delta: -1 });
   });
 });

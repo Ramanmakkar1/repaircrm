@@ -68,8 +68,8 @@ import type { CheckoutInput, CheckoutResult } from "@/components/pos/types";
  *   3. TICKET LINES DO NOT MOVE STOCK. A catalogue line at the register is a
  *      part leaving the shelf right now, so it decrements. A ticket charge is
  *      work ALREADY DONE — the part went into the customer's device on the
- *      bench days ago, and its stock left through parts-receiving or an
- *      inventory adjustment at that time. Decrementing again here would count
+ *      bench days ago, and its stock left when the charge was added to the
+ *      repair (moveChargeStock in app/(app)/tickets/actions.ts). Decrementing again here would count
  *      the same physical part out of stock twice. Services and labour have no
  *      stock to move at all. See the loop at the bottom of the transaction.
  *
@@ -697,8 +697,8 @@ export async function performCheckout(
         //
         // TICKET LINES ARE SKIPPED (rule 3 in the header). A ticket charge is
         // work already performed: any part in it physically left the shelf on
-        // the bench, and its stock movement was recorded then — by receiving a
-        // part order, or by an inventory adjustment. Decrementing again at the
+        // the bench, and its stock movement was recorded then — when the charge
+        // was added to the repair. Decrementing again at the
         // till would count one physical part out of stock twice and quietly
         // corrupt the on-hand number. Labour and diagnostic fees have no stock
         // at all. The `productId` on a ticket charge is kept for traceability
