@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { canSeeMoney } from "@/lib/money-access";
+import { quotedPriceCents } from "@/lib/ticket-quote";
 import { db } from "@/lib/db";
 import { loadPrintShop } from "@/components/billing/print-queries";
 import { ticketSheetProps } from "@/components/billing/print-mappers";
@@ -55,7 +56,10 @@ export default async function TicketPrintPage({
 
   return (
     <TicketSheet
-      {...ticketSheetProps(ticket, shop, { showPasscode })}
+      {...ticketSheetProps(ticket, shop, {
+        showPasscode,
+        quotedCents: showCharges ? quotedPriceCents(ticket.customFields) : null,
+      })}
       showCharges={showCharges}
       passcodeToggleHref={showPasscode ? `/print/tickets/${ticket.id}` : `/print/tickets/${ticket.id}?passcode=show`}
     />

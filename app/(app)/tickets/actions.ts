@@ -14,6 +14,7 @@ import { newRecordLocationId, validLocationId } from "@/lib/location";
 import { warrantyDaysByProduct } from "@/lib/warranty";
 import { slaDueDate } from "@/lib/sla";
 import { sendEmail, sendSms } from "@/lib/comms";
+import { intakeCustomFields } from "@/lib/ticket-quote";
 import { emitTicketEvent } from "@/lib/events";
 import { withNextNumber } from "@/lib/sequence";
 import { applyTicketDeposits } from "@/lib/deposits";
@@ -1193,13 +1194,21 @@ export async function saveCustomFieldsAction(
     fields[key] = typeof rawValue === "string" ? rawValue.trim() : "";
   });
 
+  // The card edits only the shop's own fields; the quote and terms stamp that
+  // check-in keeps in the same blob are carried over, never erased by a save.
+  const current = await db.ticket.findFirst({
+    where: { id: ticket.id, shopId },
+    select: { customFields: true },
+  });
+  const merged: Record<string, unknown> = { ...fields, ...intakeCustomFields(current?.customFields) };
+
   await db.ticket.update({
     where: { id: ticket.id },
     data: {
       // Prisma reads a bare `null` as "leave alone" on a Json column — clearing
       // the blob needs the explicit JsonNull sentinel.
       customFields:
-        Object.keys(fields).length > 0 ? fields : Prisma.JsonNull,
+        Object.keys(merged).length > 0 ? (merged as Prisma.InputJsonObject) : Prisma.JsonNull,
     },
   });
 

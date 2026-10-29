@@ -241,7 +241,8 @@ const TICKET_TERMS =
 export function ticketSheetProps(
   ticket: PrintableTicket,
   shop: PrintShop,
-  options: { showPasscode?: boolean } = {},
+  /** quotedCents: the check-in quote, passed only to someone who may see prices. */
+  options: { showPasscode?: boolean; quotedCents?: number | null } = {},
 ): ComponentProps<typeof TicketSheet> {
   const customerName = partyName(ticket.customer);
 
@@ -273,6 +274,9 @@ export function ticketSheetProps(
         // A repair's promise is an instant (a pickup time), so the shop's day.
         value: ticket.dueDate ? formatDate(ticket.dueDate, shop.timezone) : "—",
       },
+      ...(options.quotedCents != null
+        ? [{ label: "Quoted", value: formatCents(options.quotedCents) }]
+        : []),
     ],
     subject: ticket.subject,
     problemType: ticket.problemType,
