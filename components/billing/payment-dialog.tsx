@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Link2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -549,6 +550,7 @@ function SquareReaderPayment({
   onKeyIn: () => void;
   onDone: () => void;
 }) {
+  const router = useRouter();
   const [deviceId, setDeviceId] = React.useState(terminal.devices[0]?.id ?? "");
   const [message, setMessage] = React.useState("Ready when you are.");
   const [busy, setBusy] = React.useState(false);
@@ -587,6 +589,9 @@ function SquareReaderPayment({
           setApproved(true);
           setBusy(false);
           toast.success(`Approved — ${formatCents(balanceCents)} recorded from Square.`);
+          // The payment was recorded by an API route, which cannot refresh this
+          // page: re-render it so "Hand over now" appears without a reload.
+          router.refresh();
           return;
         }
         if (status?.status === "canceled") throw new Error("Square Terminal canceled the payment.");
@@ -665,6 +670,7 @@ function ReaderPayment({
   onKeyIn: () => void;
   onDone: () => void;
 }) {
+  const router = useRouter();
   const reader = useStripeTerminal(terminal.testMode);
 
   const start = () => {
@@ -695,10 +701,13 @@ function ReaderPayment({
       record: async (paymentIntentId) => {
         const result = await terminal.record(invoiceId, paymentIntentId);
         if (!result.ok) return { ok: false as const, error: result.error };
-        // The action revalidates the invoice, which re-renders it as PAID and
-        // takes this whole dialog away with it. A toast is what survives that
-        // to tell the cashier the card went through.
+        // Re-rendering the invoice as PAID takes this whole dialog away with
+        // it. A toast is what survives that to tell the cashier the card went
+        // through.
         toast.success(result.message);
+        // Refresh explicitly: in practice the invoice only showed "Hand over
+        // now" after a manual reload when the action ran from this callback.
+        router.refresh();
         return { ok: true as const };
       },
     });
