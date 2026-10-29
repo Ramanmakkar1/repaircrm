@@ -53,7 +53,7 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
       { label: "Find an invoice", description: "View, print, or send an existing bill.", href: "/invoices", photo: `${CATALOG}/printer.webp`, mark: "find" },
       { label: "Unpaid invoices", description: "Sent and part-paid invoices waiting for payment.", href: "/invoices?status=unpaid", photo: `${HOME}/card-terminal.webp`, count: "invoices-unpaid", alert: true },
       { label: "Part-paid invoices", description: "Find invoices with a remaining balance.", href: "/invoices?status=PARTIAL", photo: `${HOME}/cash-register.webp`, count: "invoices-partial", alert: true },
-      { label: "Recurring invoices", description: "Manage bills that repeat.", href: "/invoices/recurring", photo: `${HOME}/diary.webp`, count: "recurring-active" },
+      { label: "Recurring invoices", description: "Manage bills that repeat.", href: "/invoices/recurring", photo: `${HOME}/time-clock.webp`, count: "recurring-active" },
       { label: "Estimates", description: "Prepare a quote before billing.", href: "/estimates", photo: `${HOME}/price-tag.webp`, count: "estimates-open" },
     ],
   },
@@ -71,9 +71,9 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
     steps: ["Find or add", "Open customer", "View repairs & invoices"],
     actions: [
       { label: "Find a customer", description: "Search by name, phone, or email.", href: "/customers", photo: `${HOME}/customers-cards.webp`, mark: "find", count: "customers-total" },
-      { label: "New customer", description: "Add someone to your shop.", href: "/customers/new", photo: `${HOME}/customers-cards.webp`, mark: "add" },
+      { label: "New customer", description: "Add someone to your shop.", href: "/customers/new", photo: `${CATALOG}/wallet-case.webp`, mark: "add" },
       { label: "Import customers", description: "Bring in an existing customer list.", href: "/customers/import", hideForTech: true, photo: `${HOME}/import-folder.webp`, mark: "import" },
-      { label: "Enquiries", description: "Follow up with people asking for help.", href: "/leads", photo: `${CATALOG}/microphone.webp`, mark: "ask", count: "enquiries-new", alert: true },
+      { label: "Enquiries", description: "Follow up with people asking for help.", href: "/leads", photo: `${CATALOG}/gaming-headset.webp`, mark: "ask", count: "enquiries-new", alert: true },
     ],
   },
   products: {
@@ -88,12 +88,12 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
     ],
   },
   appointments: {
-    title: "Appointments", description: "Book visits and see who is coming to the shop.", route: "/appointments",
-    steps: ["Choose a day", "Book a visit", "Check in repair"],
+    title: "Appointments", description: "Book appointments and see who is coming to the shop.", route: "/appointments",
+    steps: ["Choose a day", "Book an appointment", "Check in a repair"],
     actions: [
-      { label: "Open appointments", description: "View the calendar or book a visit.", href: "/appointments", photo: `${HOME}/diary.webp`, count: "appointments-today" },
+      { label: "Open appointments", description: "View the calendar or book an appointment.", href: "/appointments", photo: `${HOME}/diary.webp`, count: "appointments-today" },
       { label: "Check in a repair", description: "Start a job when the customer arrives.", href: "/tickets/new", photo: `${PRODUCTS}/phone.webp`, mark: "add" },
-      { label: "Enquiries", description: "Follow up and arrange a visit.", href: "/leads", photo: `${CATALOG}/microphone.webp`, mark: "ask", count: "enquiries-new", alert: true },
+      { label: "Enquiries", description: "Follow up and book an appointment.", href: "/leads", photo: `${CATALOG}/gaming-headset.webp`, mark: "ask", count: "enquiries-new", alert: true },
     ],
   },
   tools: {
@@ -106,15 +106,15 @@ export const TOUCH_WORKSPACES: Record<string, Workspace> = {
       { label: "Time clock", description: "Clock in or out and view time entries.", href: "/time-clock", photo: `${HOME}/time-clock.webp` },
       { label: "Shop display", description: "Open the customer-facing display.", href: "/display", photo: `${HOME}/display-screen.webp` },
       { label: "Assistant settings", description: "Set up the shop assistant.", href: "/settings/assistant", ownerOnly: true, photo: `${CATALOG}/microphone.webp` },
-      { label: "New estimate", description: "Prepare a quote for a customer.", href: "/estimates/new", photo: `${HOME}/invoice-pad.webp`, mark: "add" },
-      { label: "Shop overview", description: "Priorities, queues and money at a glance.", href: "/dashboard", photo: `${CATALOG}/monitor.webp` },
-      { label: "Enquiries", description: "Questions and booking requests.", href: "/leads", photo: `${HOME}/customers-cards.webp`, mark: "ask", count: "enquiries-new", alert: true },
+      { label: "New estimate", description: "Prepare a quote for a customer.", href: "/estimates/new", photo: `${HOME}/price-tag.webp`, mark: "add" },
+      { label: "Shop overview", description: "Priorities, queues and money at a glance.", href: "/dashboard", photo: `${PRODUCTS}/tablet.webp` },
+      { label: "Enquiries", description: "Questions and booking requests.", href: "/leads", photo: `${CATALOG}/gaming-headset.webp`, mark: "ask", count: "enquiries-new", alert: true },
       { label: "Purchase orders", description: "Order parts and receive deliveries.", href: "/inventory/purchase-orders", ownerOnly: true, photo: `${HOME}/delivery-boxes.webp`, count: "orders-open" },
       { label: "Suppliers", description: "Where you buy parts.", href: "/inventory/vendors", ownerOnly: true, photo: `${HOME}/delivery-van.webp` },
       { label: "Import stock", description: "Excel, CSV or Google Sheets.", href: "/inventory/import", ownerOnly: true, photo: `${HOME}/import-folder.webp`, mark: "import" },
       { label: "Import customers", description: "Bring in your contact list.", href: "/customers/import", hideForTech: true, photo: `${CATALOG}/usb-flash-drive.webp`, mark: "import" },
       { label: "Cash drawers", description: "Open, count and close the till.", href: "/pos/drawers", ownerOnly: true, photo: `${HOME}/cash-register.webp`, count: "drawers-open" },
-      { label: "Recurring bills", description: "Invoices that repeat.", href: "/invoices/recurring", hideForTech: true, photo: `${HOME}/diary.webp`, count: "recurring-active" },
+      { label: "Recurring invoices", description: "Invoices that repeat.", href: "/invoices/recurring", hideForTech: true, photo: `${HOME}/invoice-pad.webp`, count: "recurring-active" },
     ],
   },
 };
@@ -193,7 +193,7 @@ const LIST_NAMES: Record<string, string> = {
   "/tickets": "Repairs",
   "/customers": "Customers",
   "/invoices": "Invoices",
-  "/invoices/recurring": "Recurring",
+  "/invoices/recurring": "Recurring invoices",
   "/estimates": "Estimates",
   "/inventory": "Stock",
   "/inventory/vendors": "Suppliers",
@@ -237,7 +237,7 @@ export function screenName(href: string): string {
   if (parts[0] === "settings") return "Settings";
   if (path.startsWith("/inventory/vendors/")) return "Supplier";
   if (path.startsWith("/inventory/purchase-orders/")) return "Purchase order";
-  if (path.startsWith("/invoices/recurring/")) return "Recurring bill";
+  if (path.startsWith("/invoices/recurring/")) return "Recurring invoice";
   if (parts.length >= 2 && RECORD_NAMES[parts[0]]) return RECORD_NAMES[parts[0]];
   return LIST_NAMES[`/${parts[0] ?? ""}`] ?? "Home";
 }
@@ -267,15 +267,15 @@ const ACTION_PHOTO: Record<string, string> = {
   "/tickets/new": `${PRODUCTS}/phone.webp`,
   "/invoices": `${HOME}/invoice-pad.webp`,
   "/invoices/new": `${HOME}/invoice-pad.webp`,
-  "/invoices/recurring": `${HOME}/diary.webp`,
+  "/invoices/recurring": `${HOME}/time-clock.webp`,
   "/estimates": `${HOME}/price-tag.webp`,
-  "/estimates/new": `${HOME}/invoice-pad.webp`,
+  "/estimates/new": `${HOME}/price-tag.webp`,
   "/pos": `${HOME}/card-terminal.webp`,
   "/pos/drawers": `${HOME}/cash-register.webp`,
   "/customers": `${HOME}/customers-cards.webp`,
-  "/customers/new": `${HOME}/customers-cards.webp`,
+  "/customers/new": `${CATALOG}/wallet-case.webp`,
   "/customers/import": `${HOME}/import-folder.webp`,
-  "/leads": `${HOME}/customers-cards.webp`,
+  "/leads": `${CATALOG}/gaming-headset.webp`,
   "/inventory": `${HOME}/parts-bin.webp`,
   "/inventory?filter=low": `${PRODUCTS}/screen-protector.webp`,
   "/inventory/new": `${HOME}/price-tag.webp`,
@@ -286,7 +286,7 @@ const ACTION_PHOTO: Record<string, string> = {
   "/settings": `${HOME}/gears.webp`,
   "/settings/assistant": `${CATALOG}/microphone.webp`,
   "/reports": `${HOME}/report-chart.webp`,
-  "/dashboard": `${CATALOG}/monitor.webp`,
+  "/dashboard": `${PRODUCTS}/tablet.webp`,
   "/marketing": `${HOME}/megaphone.webp`,
   "/time-clock": `${HOME}/time-clock.webp`,
   "/display": `${HOME}/display-screen.webp`,

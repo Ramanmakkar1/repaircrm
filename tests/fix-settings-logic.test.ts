@@ -103,7 +103,7 @@ describe("resolveHubPanel: Easy mode's ?tab=", () => {
   });
 
   it("gives every panel a picture from the shared library", () => {
-    for (const panel of OWNER_PANELS) expect(panel.photo).toMatch(/^\/images\/(home|products)\/[a-z-]+\.webp$/);
+    for (const panel of OWNER_PANELS) expect(panel.photo).toMatch(/^\/images\/(home|products|catalog)\/[a-z-]+\.webp$/);
   });
 });
 

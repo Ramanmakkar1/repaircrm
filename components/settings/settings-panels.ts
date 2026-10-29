@@ -40,6 +40,7 @@ export interface SettingsGroup {
 
 const HOME = "/images/home";
 const PRODUCTS = "/images/products";
+const CATALOG = "/images/catalog";
 
 /**
  * Owner settings, grouped the way a shop owner thinks about them rather than
@@ -76,7 +77,7 @@ export const OWNER_PANELS: SettingsPanel[] = [
     blurb: "The branches you work out of, and which one each person starts in.",
     group: "Shop",
     icon: MapPin,
-    photo: `${HOME}/delivery-van.webp`,
+    photo: `${CATALOG}/tracker-tag.webp`,
   },
   {
     value: "canned",
@@ -84,7 +85,7 @@ export const OWNER_PANELS: SettingsPanel[] = [
     blurb: "Messages your team sends often, ready to drop into a customer update.",
     group: "Shop",
     icon: MessageSquareText,
-    photo: `${PRODUCTS}/phone.webp`,
+    photo: `${CATALOG}/keyboard.webp`,
   },
   {
     value: "team",
@@ -171,7 +172,7 @@ export const OWNER_PANELS: SettingsPanel[] = [
     blurb: "Who changed what in this shop, and when, day by day.",
     group: "System",
     icon: ScrollText,
-    photo: `${HOME}/diary.webp`,
+    photo: `${CATALOG}/microscope.webp`,
   },
 ];
 

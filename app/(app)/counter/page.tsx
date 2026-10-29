@@ -24,6 +24,7 @@ type Tile = PictureTileProps & { money?: boolean; ownerOnly?: boolean };
 
 const PRODUCTS = "/images/products";
 const HOME = "/images/home";
+const CATALOG = "/images/catalog";
 
 /**
  * Home works like a register: the two jobs that happen all day are pinned,
@@ -46,11 +47,12 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
   const { ready, unpaid, low } = counts;
 
   const allowed = (tile: Tile) => (!tile.money || role !== "TECH") && (!tile.ownerOnly || role === "OWNER");
-  const render = (tiles: Tile[]) => (
+  // Only the counter's everyday tiles are prefetched; the rest load on tap.
+  const render = (tiles: Tile[], prefetch = false) => (
     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
       {tiles.filter(allowed).map((tile) => (
         <li key={tile.title}>
-          <PictureTile href={tile.href} title={tile.title} detail={tile.detail} photo={tile.photo} alert={tile.alert} mark={tile.mark} />
+          <PictureTile href={tile.href} title={tile.title} detail={tile.detail} photo={tile.photo} alert={tile.alert} mark={tile.mark} prefetch={prefetch && tile.prefetch !== false} />
         </li>
       ))}
     </ul>
@@ -60,9 +62,9 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
     { href: "/tickets", title: "Repairs", detail: `${open} open · ${ready} ready`, photo: `${PRODUCTS}/phone.webp` },
     { href: "/tickets?status=Ready%20for%20Pickup", title: "Pickup & pay", detail: "Hand a device back", photo: `${HOME}/pickup-bag.webp`, alert: ready ? `${ready} ready` : undefined },
     { href: "/invoices?status=unpaid", title: "Take payment", detail: unpaid ? `${unpaid} unpaid` : "Collect what's owed", photo: `${HOME}/card-terminal.webp`, money: true },
-    { href: "/customers/new", title: "Add customer", detail: "Name or phone", photo: `${HOME}/customers-cards.webp`, mark: Plus },
+    { href: "/customers/new", title: "Add customer", detail: "Name or phone", photo: `${CATALOG}/wallet-case.webp`, mark: Plus, prefetch: false },
     { href: "/customers", title: "Find customer", detail: "Search name or phone", photo: `${HOME}/customers-cards.webp`, mark: Search },
-    { href: "/appointments", title: "Book a visit", detail: booked ? `${booked} booked today` : "Appointments", photo: `${HOME}/diary.webp` },
+    { href: "/appointments", title: "Appointments", detail: booked ? `${booked} booked today` : "Book or check today", photo: `${HOME}/diary.webp` },
   ];
 
   const stock: Tile[] = [
@@ -84,7 +86,7 @@ export default async function CounterPage({ searchParams }: { searchParams: Prom
   ];
 
   const tabs: HomeTab[] = [
-    { key: "counter", label: "Counter", short: "Counter", icon: <Store className="size-5" />, content: render(counter) },
+    { key: "counter", label: "Counter", short: "Counter", icon: <Store className="size-5" />, content: render(counter, true) },
     { key: "stock", label: "Stock & purchasing", short: "Stock", icon: <Boxes className="size-5" />, content: render(stock) },
     { key: "shop", label: "Shop management", short: "Shop", icon: <LayoutGrid className="size-5" />, content: render(shop) },
   ];

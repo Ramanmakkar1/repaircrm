@@ -84,6 +84,7 @@ export function SettingsLink({ className }: { className?: string }) {
   return (
     <Link
       href="/settings"
+      prefetch={false}
       className={cn(
         "relative flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface px-3 text-base font-semibold lg:min-h-12 transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         className,

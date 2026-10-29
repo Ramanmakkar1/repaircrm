@@ -14,6 +14,8 @@ export type PictureTileProps = {
   alert?: string;
   /** Small round mark over the picture to tell look-alike tiles apart (add vs find). */
   mark?: LucideIcon;
+  /** false for the long tail, so Home does not fetch thirty screens nobody is about to open. */
+  prefetch?: boolean;
   className?: string;
 };
 
@@ -22,10 +24,11 @@ export type PictureTileProps = {
  * glance, a plain name, one line of live detail. The whole tile is the tap
  * target (never smaller than 11rem tall).
  */
-export function PictureTile({ href, title, detail, photo, alert, mark: Mark, className }: PictureTileProps) {
+export function PictureTile({ href, title, detail, photo, alert, mark: Mark, prefetch, className }: PictureTileProps) {
   return (
     <Link
       href={href}
+      prefetch={prefetch === false ? false : undefined}
       className={cn(
         "group relative flex h-full min-h-44 flex-col overflow-hidden rounded-2xl border border-border bg-surface",
         "transition-[border-color,transform] duration-150 hover:border-ring active:scale-[0.98]",
@@ -35,7 +38,14 @@ export function PictureTile({ href, title, detail, photo, alert, mark: Mark, cla
       )}
     >
       <span className="relative block aspect-[4/3] w-full bg-white">
-        <Image src={photo} alt="" fill sizes="(max-width: 640px) 45vw, (max-width: 1280px) 22vw, 220px" className="object-contain p-3" />
+        {/*
+          `unoptimized`: the tile photos are already 768px WebPs of 15-85 KB, so
+          resizing them buys little, and Next 16.3's optimizer wedges a URL for
+          the life of the server once one request for it is aborted mid-resize
+          (a tap away from Home while tiles load): every later request for that
+          width hangs and the tile stays blank. Served as-is, they cannot.
+        */}
+        <Image src={photo} alt="" fill unoptimized className="object-contain p-3" />
         {Mark ? (
           <span className="absolute bottom-2 right-2 flex size-9 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
             <Mark className="size-5" aria-hidden />

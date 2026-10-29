@@ -68,7 +68,7 @@ describe("Back says where it goes, in the shop's words", () => {
     ["/counter/invoices", "Invoices"],
     ["/counter/products", "Stock"],
     ["/settings/assistant", "Settings"],
-    ["/invoices/recurring/r1", "Recurring bill"],
+    ["/invoices/recurring/r1", "Recurring invoice"],
   ])("%s is called %s", (href, name) => {
     expect(screenName(href)).toBe(name);
   });
@@ -130,6 +130,19 @@ describe("the visit trail", () => {
 
   it("ignores addresses that are not app screens", () => {
     expect(backTarget(["/login", "/tickets/t1"], "/tickets/t1")).toBe("/tickets");
+  });
+
+  it("never offers another section's list: Appointments from Purchase orders goes Home", () => {
+    const trail = walk("/counter", "/inventory/purchase-orders", "/appointments");
+    expect(backTarget(trail, "/appointments")).toBe("/counter");
+    // A record from another section still goes to its own list, not sideways.
+    expect(backTarget(walk("/inventory/purchase-orders", "/tickets/t1"), "/tickets/t1")).toBe("/tickets");
+  });
+
+  it("still returns to Home's hubs and to a record in another section", () => {
+    expect(backTarget(walk("/counter/tools", "/appointments"), "/appointments")).toBe("/counter/tools");
+    expect(backTarget(walk("/customers/c1", "/tickets/t1"), "/tickets/t1")).toBe("/customers/c1");
+    expect(backTarget(walk("/estimates", "/invoices/i1"), "/invoices/i1")).toBe("/estimates");
   });
 
   it("keeps the last 30 screens", () => {

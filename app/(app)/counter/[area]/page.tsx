@@ -50,7 +50,7 @@ export default async function TaskWorkspace({ params }: { params: Promise<{ area
         </ol>
       ) : null}
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {actions.map((action) => {
+        {actions.map((action, index) => {
           const count = action.count ? counts[action.count] : undefined;
           const words = action.count && typeof count === "number" ? hubCountWords(action.count, count) : null;
           // Waiting work is a pill with its word on the picture; anything else is the tile's live line.
@@ -65,6 +65,8 @@ export default async function TaskWorkspace({ params }: { params: Promise<{ area
                 photo={hubTilePhoto(action, hero)}
                 alert={alert}
                 mark={action.mark ? MARKS[action.mark] : undefined}
+                // The first two are what the hub is for; the rest load on tap.
+                prefetch={index < 2}
               />
             </li>
           );
