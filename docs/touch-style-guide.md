@@ -19,8 +19,11 @@ picture helps, plain words.
    Plenty of space; no dense tables in Easy mode.
 5. **Words, never colour alone.** Status always shows its word (StatusBadge /
    StatusPill). Counts are numbers in a pill, not just a red dot.
-6. **Same vocabulary everywhere.** Repairs, Invoices, Customers, Stock, Sell,
-   Home, Back, Settings. No "ticket" in Easy mode copy (use "repair").
+6. **Same vocabulary everywhere.** Repairs, Appointments, Customers, Enquiries,
+   Invoices, Recurring invoices, Estimates, Stock, Suppliers, Sell, Home, Back,
+   Settings. "Book appointment", never "visit" or "New Appointment". No
+   "ticket" in Easy mode copy (use "repair"). Sentence case on every label
+   and button ("New invoice", not "New Invoice").
 7. **Nothing removed.** Easy mode reorganises; every feature stays reachable.
    Full mode (account menu) keeps the dense tables and bulk actions.
 
@@ -52,13 +55,17 @@ white in every theme). Light and dark must both work.
 
 ### Hub (a screen of boxes)
 Title, one line, then a `PictureTile` grid (`grid-cols-2 sm:grid-cols-3 xl:grid-cols-4`).
-Every tile has a picture from `public/images/home` or `public/images/products`.
+Every tile has its own picture from `public/images/home`, `products` or
+`catalog`, and it shows what the label says; no two tiles on one hub share
+one (`tests/hub-pictures.test.ts`). Only the first few tiles prefetch.
 
 ### List (Repairs, Invoices, Estimates, Customers, Enquiries, Stock, Orders, ...)
 1. `PageHeader`: title, one short description, ONE primary action.
 2. `FilterTabs` for the main views, with counts.
 3. One large search field (min 48px) and, if needed, one "Filters" button.
-4. Easy mode: `RecordGrid` of `RecordCard`. Full mode: keep the existing table.
+4. Easy mode: `RecordGrid` of `RecordCard` (full-width rows up to 1024px, then
+   two columns; the title gets two lines and the status sits under it; at most
+   three facts). Full mode: keep the existing table.
 5. Empty state that names the next action.
 6. Pagination as two big buttons (Previous / Next) with "Page 2 of 5".
 
@@ -110,10 +117,26 @@ inputs, everything else behind one toggle.
   (`next`, `done`, `send`) so the keyboard's return key says what it does.
 - The viewport uses `interactive-widget=resizes-content`: fixed Next / Save /
   Pay bars ride above the keyboard.
-- The bottom belongs to the phone tab bar, the flows' Next bars and the round
-  Ask button (the wide Ask bar only shows on Home and its hubs, and steps back
-  while a dialog is open or someone types). `<main>` keeps `--rf-dock-space`
-  free at its foot. Toasts appear top centre, never at the bottom.
+- **Navigation never disappears.** Easy mode keeps the five tabs (Home,
+  Repairs, Sell, Stock, Ask) along the bottom up to 1024px, phones and counter
+  tablets alike, and shows the same five as a slim rail on the left above
+  that. Full view uses the bottom tabs on a phone and its grouped rail from
+  768px (`components/shell/app-rail.tsx`).
+- **Back never hops sideways.** Opening Appointments from the tab bar while
+  on Purchase orders, Back goes to Appointments' parent (Home), not "Back to
+  Purchase orders". A record in another section (the customer a repair was
+  opened from) and Home's hubs still count as "where I came from".
+- The bottom belongs to the tab bar and the flows' Next bars. In Easy mode
+  Ask lives in the tab bar / slim rail; the wide Ask bar shows on Home and its
+  hubs from 1024px. Full view adds the round Ask button from 768px. The
+  register (/pos) has no floating Ask: it covered the total and Pay. `<main>`
+  keeps `--rf-dock-space` free at its foot. Toasts appear top centre, never
+  at the bottom.
+- **Whole-row targets.** A checkbox or switch sits inside a `<label>` row, and
+  that row is the 48px target (globals.css lifts any such label, and any
+  `[data-touch-row]`). A link in a table cell or a card header fills the row.
+- **Rows of tabs or chips** scroll sideways on a phone and fade at the edge
+  that has more (`data-scroll-fade`); never let a label be cut with no sign.
 
 ## Feedback
 
