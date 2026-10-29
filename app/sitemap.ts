@@ -1,9 +1,8 @@
 import type { MetadataRoute } from "next";
-import { PUBLIC_SITE_URL } from "@/lib/public-site";
+import { PUBLIC_PATHS } from "@/lib/seo/pages";
+import { absoluteUrl } from "@/lib/seo/site";
 
 /** Public pages only. Dates are omitted rather than inventing modification times. */
 export default function sitemap(): MetadataRoute.Sitemap {
-  return ["/", "/privacy", "/terms"].map((path) => ({
-    url: `${PUBLIC_SITE_URL}${path}`,
-  }));
+  return PUBLIC_PATHS.map((path) => ({ url: absoluteUrl(path) }));
 }

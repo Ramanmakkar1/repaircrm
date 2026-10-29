@@ -55,14 +55,18 @@ describe("public search metadata", () => {
     expect(schemas[1]).not.toHaveProperty("review");
   });
   it("lists only public pages and allows the assets needed to render them", () => {
-    expect(sitemap().map((item) => item.url)).toEqual([
-      `${PUBLIC_SITE_URL}/`,
-      `${PUBLIC_SITE_URL}/privacy`,
-      `${PUBLIC_SITE_URL}/terms`,
-    ]);
-    expect(robots()).toEqual({
-      rules: { userAgent: "*", allow: "/", disallow: "/api/" },
-      sitemap: `${PUBLIC_SITE_URL}/sitemap.xml`,
-    });
+    const urls = sitemap().map((item) => item.url);
+    expect(urls[0]).toBe(`${PUBLIC_SITE_URL}/`);
+    for (const path of ["/pricing", "/features", "/contact", "/compare/repairshopr-alternative", "/privacy", "/terms"])
+      expect(urls).toContain(`${PUBLIC_SITE_URL}${path}`);
+    expect(new Set(urls).size).toBe(urls.length);
+    expect(sitemap().every((item) => item.lastModified === undefined)).toBe(true);
+    const rules = robots();
+    expect(rules.sitemap).toBe(`${PUBLIC_SITE_URL}/sitemap.xml`);
+    const disallow = (Array.isArray(rules.rules) ? rules.rules[0] : rules.rules).disallow as string[];
+    expect(disallow).toContain("/api/");
+    // Public pages, their images and opted-in shop pages must stay crawlable.
+    for (const open of ["/pricing", "/features", "/s/", "/marketing/app/", "/shop-logo/", "/login", "/signup"])
+      expect(disallow.some((rule) => !rule.endsWith("$") && open.startsWith(rule))).toBe(false);
   });
 });
