@@ -23,10 +23,17 @@ export function ReplyBox({ ticketId }: { ticketId: string }) {
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [sent, setSent] = React.useState(false);
+  // `busy` disables the button only after a render: a double tap lands both
+  // submits first and the shop got the message twice. The ref is immediate.
+  const inFlight = React.useRef(false);
 
   async function submit(formData: FormData) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
-    const result = await replyToTicketAction(ticketId, formData);
+    const result = await replyToTicketAction(ticketId, formData).finally(() => {
+      inFlight.current = false;
+    });
     setBusy(false);
 
     if (!result.ok) {
