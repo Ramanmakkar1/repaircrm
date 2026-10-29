@@ -21,6 +21,7 @@ import {
   repairWords,
   telHref,
   whenWords,
+  withAnswerFallback,
   type PublicShop,
 } from "@/lib/portal-display";
 import { requirePortalCustomer } from "@/lib/portal-session";
@@ -65,6 +66,9 @@ export default async function PortalHomePage() {
           take: 1,
           select: { id: true, body: true, createdAt: true },
         },
+        // Whether the shop has written them anything (an author is the shop),
+        // the same test the repair page uses before it says "call instead".
+        _count: { select: { comments: { where: { isPublic: true, authorId: { not: null } } } } },
       },
     }),
     db.estimate.findMany({
@@ -106,7 +110,12 @@ export default async function PortalHomePage() {
   const repairs = tickets
     .map((ticket) => {
       const device = deviceName(ticket.asset);
-      return { ...ticket, device, words: repairWords(ticket.status, device) };
+      const words = withAnswerFallback(repairWords(ticket.status, device), {
+        shopMessage: ticket._count.comments > 0,
+        shopName: shop.name,
+        phone: shop.phone,
+      });
+      return { ...ticket, device, words };
     })
     // Open repairs first (in the order the shop last touched them), finished ones after.
     .sort((a, b) => Number(a.words.stage === 3 || a.words.stage === null) - Number(b.words.stage === 3 || b.words.stage === null));
@@ -287,7 +296,7 @@ type Repair = {
   number: number;
   device: string | null;
   asset: { type: string; make: string | null; model: string | null } | null;
-  words: ReturnType<typeof repairWords>;
+  words: ReturnType<typeof withAnswerFallback>;
 };
 
 /**
@@ -354,8 +363,16 @@ function NowCard({
   if (answer) {
     return (
       <Hero picture={devicePicture(answer.asset)} kicker="Waiting for your answer" title={answer.words.headline} body={answer.words.next}>
-        <Button asChild size="lg" className={HUGE_BUTTON}>
-          <Link href={`/portal/tickets/${answer.id}#message`}>Reply to the shop</Link>
+        {answer.words.callInstead && shop.phone ? (
+          <Button asChild size="lg" className={HUGE_BUTTON}>
+            <a href={telHref(shop.phone)}>
+              <Phone aria-hidden />
+              Call {shop.phone}
+            </a>
+          </Button>
+        ) : null}
+        <Button asChild size="lg" variant={answer.words.callInstead && shop.phone ? "outline" : "default"} className={answer.words.callInstead && shop.phone ? BIG_BUTTON : HUGE_BUTTON}>
+          <Link href={`/portal/tickets/${answer.id}#message`}>{answer.words.callInstead ? "Message the shop" : "Reply to the shop"}</Link>
         </Button>
       </Hero>
     );
