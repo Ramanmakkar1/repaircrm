@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUser } from "@/lib/auth";
-import { runAllJobs } from "@/lib/jobs";
+import { runShopJobs } from "@/lib/jobs";
 import type { JobsSummary } from "@/lib/jobs/types";
 
 /**
@@ -29,9 +29,10 @@ export async function runJobsNowAction(): Promise<RunJobsResult> {
     return { ok: false, error: "Only an owner can run the automation jobs." };
   }
 
-  // runAllJobs never throws — a failure comes back inside summary.errors, so
-  // the button always has something to render.
-  const summary = await runAllJobs("manual");
+  // This shop only (runShopJobs): one tenant's owner neither runs nor reads
+  // another tenant's jobs. It never throws — a failure comes back inside
+  // summary.errors, so the button always has something to render.
+  const summary = await runShopJobs(session.shopId, "manual");
 
   // A run can mint invoices and move campaign rows; refresh the screens that
   // show them, plus this one for the freshly written "last run" stamp.
