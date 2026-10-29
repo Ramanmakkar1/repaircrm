@@ -169,7 +169,8 @@ function TimeRow({ entry, showMoney }: { entry: TimeEntryRow; showMoney: boolean
 
   return (
     <li className="flex items-start justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
-      <div className="flex min-w-0 items-start gap-2.5">
+      {/* The whole row is the checkbox's label, so it is a 48px target in Easy mode (globals.css). */}
+      <label className={cn("flex min-w-0 flex-1 items-start gap-2.5", !(busy || billed || entry.running) && "cursor-pointer")}>
         <Checkbox
           className="mt-0.5 size-4"
           checked={entry.billable}
@@ -177,27 +178,27 @@ function TimeRow({ entry, showMoney }: { entry: TimeEntryRow; showMoney: boolean
           onCheckedChange={(next) => toggle(next === true)}
           aria-label={`Bill ${entry.userName}'s time on this repair`}
         />
-        <div className="min-w-0">
-          <p className="truncate text-foreground">
+        <span className="block min-w-0">
+          <span className="block truncate text-foreground">
             {entry.userName}
             <span className="ml-1.5 text-xs text-faint-foreground">
               {entry.startedAtLabel}
             </span>
-          </p>
+          </span>
           {entry.note ? (
-            <p className="truncate text-xs text-muted-foreground">{entry.note}</p>
+            <span className="block truncate text-xs text-muted-foreground">{entry.note}</span>
           ) : null}
           {entry.running ? null : (
-            <p className="text-xs text-faint-foreground">
+            <span className="block text-xs text-faint-foreground">
               {billed
                 ? "Billed"
                 : entry.billable
                   ? showMoney ? `Unbilled · ${formatCents(entry.amountCents)}` : "Unbilled"
                   : "Not billable"}
-            </p>
+            </span>
           )}
-        </div>
-      </div>
+        </span>
+      </label>
       <div className="flex shrink-0 items-center gap-1">
         <span
           className={cn(
