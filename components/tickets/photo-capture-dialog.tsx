@@ -55,6 +55,7 @@ export function PhotoCaptureDialog({
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
+  const pickerRef = React.useRef<HTMLInputElement>(null);
 
   // Feature detection via useSyncExternalStore rather than an effect: the
   // server has no `navigator`, so the server snapshot is a flat `false` and the
@@ -209,12 +210,34 @@ export function PhotoCaptureDialog({
         </DialogHeader>
 
         {error ? (
-          <p
-            role="alert"
-            className="rounded-md bg-destructive-soft px-3.5 py-2.5 text-[13.5px] text-destructive"
-          >
-            {error}
-          </p>
+          <div className="flex flex-col gap-3">
+            <p
+              role="alert"
+              className="rounded-md bg-destructive-soft px-3.5 py-2.5 text-[13.5px] text-destructive"
+            >
+              {error}
+            </p>
+            {/* A desk PC has getUserMedia but often no camera: the dialog must
+                not be a dead end, so the photo can still come from a file. */}
+            <Button type="button" variant="outline" className="h-12" onClick={() => pickerRef.current?.click()}>
+              Choose a photo instead
+            </Button>
+            <input
+              ref={pickerRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                onCapture(file);
+                setOpen(false);
+              }}
+            />
+          </div>
         ) : (
           <div className="overflow-hidden rounded-lg bg-surface-hover">
             <video
