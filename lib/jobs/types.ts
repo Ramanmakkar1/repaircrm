@@ -54,6 +54,12 @@ export type JobsSummary = {
   /** Dead phone-scanner pairings swept (lib/jobs/housekeeping.ts). */
   scanSessionsPurged: number;
   /**
+   * Shops hard-deleted after their deletion grace period
+   * (lib/account-deletion/purge.ts). OPTIONAL because summaries stored by
+   * older builds do not have it: every reader must optional-chain it.
+   */
+  deletions?: { purged: number; failed: number };
+  /**
    * One line per failure, already prefixed with the shop it came from. A run
    * that fills this is still a successful run: every other shop was processed.
    */
@@ -96,6 +102,7 @@ export function emptySummary(source: JobSource): JobsSummary {
     accounting: { pushed: 0, failed: 0 },
     tokensPurged: 0,
     scanSessionsPurged: 0,
+    deletions: { purged: 0, failed: 0 },
     errors: [],
     source,
   };
@@ -127,6 +134,8 @@ export function summaryLine(summary: JobsSummary): string {
     `${summary.tokensPurged} token${summary.tokensPurged === 1 ? "" : "s"} purged`,
     // `?? 0` again: summaries stored before Wave 9 have no pairing counter.
     `${summary.scanSessionsPurged ?? 0} pairing${(summary.scanSessionsPurged ?? 0) === 1 ? "" : "s"} purged`,
+    // Optional-chained: summaries stored before account deletion have no key.
+    `${summary.deletions?.purged ?? 0} shop${(summary.deletions?.purged ?? 0) === 1 ? "" : "s"} deleted`,
     `${summary.ms}ms`,
   ].join(", ");
 }

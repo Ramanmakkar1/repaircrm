@@ -13,6 +13,7 @@ import { runSlaChecksForShop } from "./sla";
 import { runStaffPushForShop } from "./push";
 import { runDueWebhookDeliveries } from "./webhooks";
 import { runDueReviewRequestsForShop } from "./reviews";
+import { runDueShopDeletions } from "@/lib/account-deletion/purge";
 import {
   emptySummary,
   summaryLine,
@@ -50,6 +51,15 @@ export { summaryLine };
  *                          has elapsed (lib/jobs/reviews.ts)
  *   8. housekeeping        drop portal tokens expired for over a week, and
  *                          phone-scanner pairings dead for over a day
+ *
+ * Plus one job across shops, before the per-shop loop:
+ *
+ *   shop deletions         hard-delete every shop whose deletion grace period
+ *                          is over (lib/account-deletion/purge.ts). Shops that
+ *                          are pending deletion are suspended, so the per-shop
+ *                          jobs above skip them: no invoices, campaigns,
+ *                          reminders or webhooks go out for a shop on its way
+ *                          out.
  *
  * Order matters only between 2a and 2b: syncing first means an event that
  * qualified since the last pass can go out in the same pass rather than
@@ -265,6 +275,8 @@ async function execute(source: JobSource): Promise<JobsSummary> {
 
   try {
     const shops = await db.shop.findMany({
+      // A shop scheduled for deletion is suspended: nothing runs for it.
+      where: { deletionRequestedAt: null },
       select: { id: true, name: true, settings: true },
       orderBy: { createdAt: "asc" },
     });
@@ -280,6 +292,14 @@ async function execute(source: JobSource): Promise<JobsSummary> {
     }
 
     summary.shops = shops.length;
+
+    try {
+      const deletions = await runDueShopDeletions();
+      summary.deletions = { purged: deletions.purged, failed: deletions.failed };
+      for (const error of deletions.errors) summary.errors.push(`shop deletions: ${error}`);
+    } catch (error) {
+      summary.errors.push(`shop deletions: ${message(error)}`);
+    }
 
     for (const shop of shops) {
       const startedIso = new Date().toISOString();

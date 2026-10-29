@@ -160,6 +160,20 @@ model Shop {
   appointments      Appointment[]
   partOrders        PartOrder[]
   refunds           Refund[]
+
+  // --- Scheduled deletion (lib/account-deletion) ---
+  /// Set when an owner asks for the whole shop to be deleted. While set, every
+  /// login and API key of the shop is switched off and automation skips it.
+  deletionRequestedAt        DateTime?
+  /// When the purge job may hard-delete the shop (request + grace period).
+  deletionPurgeAfter         DateTime?
+  deletionRequestedById      String?
+  /// The users and API keys that were active at the request, so a cancel
+  /// switches back on exactly those and leaves already-disabled ones alone.
+  deletionSuspendedUserIds   String[]  @default([])
+  deletionSuspendedApiKeyIds String[]  @default([])
+
+  @@index([deletionPurgeAfter])
 }
 
 model Location {
