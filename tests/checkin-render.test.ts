@@ -249,14 +249,13 @@ describe("3 Problem", () => {
     expect(labels).toEqual(["Screen Repair", "Battery Replacement", "Charging Port Repair", "Water Damage", "Software / Virus", "Diagnostic", "Hardware", "Other"]);
   });
 
-  it("uses a picture where one fits and an icon in a soft square otherwise", () => {
+  it("shows every problem as a photo", () => {
     const html = render(ProblemStep, state);
     expect(html).toContain("display-assembly.webp");
     expect(html).toContain("phone-battery.webp");
     expect(html).toContain("charging-port.webp");
     expect(html).toContain("repair-tools.webp");
-    expect(html).toContain("bg-surface-hover"); // the icon boxes
-    expect(html).toContain("<svg");
+    expect(html).toContain("toolbox.webp"); // Other
   });
 
   it("marks the problem chosen, and keeps the title and notes one toggle away", () => {

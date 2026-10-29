@@ -189,7 +189,7 @@ describe("the problem step with chosen pictures", () => {
     const box = (label: string) => html.split("<button").find((chunk) => text(chunk).includes(label)) ?? "";
     expect(box("Charging Port Repair")).toContain("drone.webp");
     expect(box("Screen Repair")).toContain("display-assembly.webp");
-    expect(box("Other")).toContain("<svg");
+    expect(box("Other")).toContain("toolbox.webp");
   });
 
   it("without a choice it looks as it always did", () => {

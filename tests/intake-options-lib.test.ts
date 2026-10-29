@@ -529,12 +529,12 @@ describe("tidy", () => {
 });
 
 describe("a problem box's picture in the check-in", () => {
-  it("uses the picture the shop chose, else the guessed one, else the icon", () => {
+  it("uses the picture the shop chose, else the guessed one", () => {
     expect(problemVisualFor("Screen Repair")).toEqual(problemVisual("Screen Repair"));
     expect(problemVisualFor("Screen Repair", {})).toEqual(problemVisual("Screen Repair"));
     expect(problemVisualFor("Charging port", { "Charging port": "drone" })).toEqual({ kind: "photo", src: catalogEntryByKey("drone")!.image });
     // a key that no longer exists must not break the box
-    expect(problemVisualFor("Water Damage", { "Water Damage": "gone" })).toEqual({ kind: "icon", icon: "water" });
+    expect(problemVisualFor("Water Damage", { "Water Damage": "gone" })).toEqual({ kind: "photo", src: "/images/catalog/water-damage.webp" });
   });
 
   it("finds a choice by name ignoring case, and for the same box under another wording", () => {

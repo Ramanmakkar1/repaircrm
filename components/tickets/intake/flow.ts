@@ -245,37 +245,41 @@ export type ProblemIcon =
   | "damage" | "intermittent" | "maintenance" | "hardware" | "camera" | "other";
 export type ProblemVisual = { kind: "photo"; src: string } | { kind: "icon"; icon: ProblemIcon };
 
-const PRODUCTS = "/images/products";
+const IMAGES = "/images";
 
-/** A picture where one fits, a clear icon otherwise, the toolbox as the fallback. */
+/**
+ * Every problem box is a photo, so the step reads as one row of pictures (a
+ * photo beside a line icon looked like a missing picture at 390 and 820 wide).
+ * The toolbox is the fallback. The icon kind stays for callers that still map it.
+ */
 export function problemVisual(label: string): ProblemVisual {
   const text = label.toLowerCase();
-  const photo = (name: string): ProblemVisual => ({ kind: "photo", src: `${PRODUCTS}/${name}.webp` });
-  const icon = (name: ProblemIcon): ProblemVisual => ({ kind: "icon", icon: name });
-  if (isOtherProblem(label)) return icon("other");
-  if (/hdmi/.test(text)) return photo("hdmi-port");
-  if (/charg/.test(text)) return photo("charging-port");
-  if (/batter/.test(text)) return photo("phone-battery");
-  if (/screen|display|lcd|crack/.test(text)) return photo("display-assembly");
-  if (/diagnos|inspect|check.?up/.test(text)) return photo("repair-tools");
-  if (/remote/.test(text)) return photo("tv-remote");
-  if (/controller|joystick|stick drift/.test(text)) return photo("game-controller");
-  if (/overheat|too hot|fan/.test(text)) return photo("console-cooling-fan");
-  if (/water|liquid|spill|wet/.test(text)) return icon("water");
-  if (/virus|malware/.test(text)) return icon("virus");
-  if (/software|windows|operating|slow|update/.test(text)) return icon("software");
-  if (/data|recover|backup|photos/.test(text)) return icon("data");
-  if (/no power|power|won.?t turn|dead/.test(text)) return icon("power");
-  if (/picture|video|image|backlight/.test(text)) return icon("picture");
-  if (/sound|audio|speaker|mic/.test(text)) return icon("sound");
-  if (/keyboard|trackpad|key/.test(text)) return icon("keyboard");
-  if (/disc|drive/.test(text)) return icon("disc");
-  if (/physical|damage|broken|bent|drop/.test(text)) return icon("damage");
-  if (/intermittent|random|sometimes|restart|freez|crash/.test(text)) return icon("intermittent");
-  if (/maintenance|clean|service|tune/.test(text)) return icon("maintenance");
-  if (/hardware|board|chip|motherboard/.test(text)) return icon("hardware");
-  if (/camera|lens/.test(text)) return icon("camera");
-  return photo("repair-tools");
+  const photo = (name: string): ProblemVisual => ({ kind: "photo", src: `${IMAGES}/${name}.webp` });
+  if (isOtherProblem(label)) return photo("home/toolbox");
+  if (/hdmi/.test(text)) return photo("products/hdmi-port");
+  if (/charg/.test(text)) return photo("products/charging-port");
+  if (/batter/.test(text)) return photo("products/phone-battery");
+  if (/screen|display|lcd|crack/.test(text)) return photo("products/display-assembly");
+  if (/diagnos|inspect|check.?up/.test(text)) return photo("products/repair-tools");
+  if (/remote/.test(text)) return photo("products/tv-remote");
+  if (/controller|joystick|stick drift/.test(text)) return photo("products/game-controller");
+  if (/overheat|too hot|fan/.test(text)) return photo("products/console-cooling-fan");
+  if (/water|liquid|spill|wet/.test(text)) return photo("catalog/water-damage");
+  if (/virus|malware/.test(text)) return photo("catalog/unlock-service");
+  if (/software|windows|operating|slow|update/.test(text)) return photo("home/gears");
+  if (/data|recover|backup|photos/.test(text)) return photo("catalog/external-hard-drive");
+  if (/no power|power|won.?t turn|dead/.test(text)) return photo("catalog/pc-power-supply");
+  if (/backlight/.test(text)) return photo("products/tv-backlight-strips");
+  if (/picture|video|image/.test(text)) return photo("catalog/laptop-lcd");
+  if (/sound|audio|speaker|mic/.test(text)) return photo("catalog/loudspeaker");
+  if (/keyboard|trackpad|key/.test(text)) return photo("catalog/laptop-keyboard");
+  if (/disc|drive/.test(text)) return photo("catalog/disc-drive");
+  if (/physical|damage|broken|bent|drop/.test(text)) return photo("products/back-glass");
+  if (/intermittent|random|sometimes|restart|freez|crash/.test(text)) return photo("catalog/multimeter");
+  if (/maintenance|clean|service|tune/.test(text)) return photo("catalog/cleaning-kit");
+  if (/hardware|board|chip|motherboard/.test(text)) return photo("catalog/motherboard");
+  if (/camera|lens/.test(text)) return photo("products/camera-module");
+  return photo("products/repair-tools");
 }
 
 /**

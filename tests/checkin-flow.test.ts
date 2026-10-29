@@ -98,7 +98,7 @@ describe("problem boxes", () => {
     expect(isOtherProblem("Screen Repair")).toBe(false);
   });
 
-  it("gives every box a picture where one fits and an icon otherwise", () => {
+  it("gives every box a photo, never an icon beside a photo", () => {
     const photo = (label: string) => problemVisual(label);
     expect(photo("Screen Repair")).toEqual({ kind: "photo", src: "/images/products/display-assembly.webp" });
     expect(photo("Screen")).toEqual({ kind: "photo", src: "/images/products/display-assembly.webp" });
@@ -106,16 +106,17 @@ describe("problem boxes", () => {
     expect(photo("Charging Port Repair")).toEqual({ kind: "photo", src: "/images/products/charging-port.webp" });
     expect(photo("Diagnostic")).toEqual({ kind: "photo", src: "/images/products/repair-tools.webp" });
     expect(photo("HDMI Port Repair")).toEqual({ kind: "photo", src: "/images/products/hdmi-port.webp" });
-    expect(photo("Water Damage")).toEqual({ kind: "icon", icon: "water" });
-    expect(photo("Software / Virus")).toEqual({ kind: "icon", icon: "virus" });
-    expect(photo("Data Recovery")).toEqual({ kind: "icon", icon: "data" });
-    expect(photo("Other")).toEqual({ kind: "icon", icon: "other" });
+    expect(photo("Water Damage")).toEqual({ kind: "photo", src: "/images/catalog/water-damage.webp" });
+    expect(photo("Software / Virus")).toEqual({ kind: "photo", src: "/images/catalog/unlock-service.webp" });
+    expect(photo("Data Recovery")).toEqual({ kind: "photo", src: "/images/catalog/external-hard-drive.webp" });
+    expect(photo("Other")).toEqual({ kind: "photo", src: "/images/home/toolbox.webp" });
     // Something nobody planned for gets the toolbox, never a broken picture.
     expect(photo("Squeaky hinge")).toEqual({ kind: "photo", src: "/images/products/repair-tools.webp" });
   });
 
   it("only points at pictures that exist", () => {
-    const files = ["Screen", "Battery", "Charging port", "Diagnostic", "HDMI Port Repair", "Remote Problem", "Controller Repair", "Overheating", "Anything else"];
+    const files = ["Screen", "Battery", "Charging port", "Diagnostic", "HDMI Port Repair", "Remote Problem", "Controller Repair", "Overheating", "Anything else", "Water Damage", "Virus", "Software", "Data Recovery", "No Power", "Backlight", "No Picture", "Sound", "Keyboard", "Disc Drive", "Physical Damage", "Intermittent", "Maintenance", "Hardware", "Camera", "Other"];
+    for (const label of files) expect(problemVisual(label).kind, label).toBe("photo");
     for (const label of files) {
       const visual = problemVisual(label);
       if (visual.kind === "photo") expect(() => readFileSync(`public${visual.src}`)).not.toThrow();
