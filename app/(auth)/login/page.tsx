@@ -67,13 +67,9 @@ export default async function LoginPage({
         {offersSignup(google) ? (
           <>
             {" "}
-            <Link
-              href="/signup"
-              className="font-semibold underline underline-offset-4"
-            >
+            <Link href="/signup" className={AUTH_LINK}>
               Create a shop
-            </Link>
-            .
+            </Link>.
           </>
         ) : null}
       </GoogleNoticeBanner>
@@ -82,7 +78,7 @@ export default async function LoginPage({
           unset — a button that can only fail is worse than no button. */}
       {googleOn ? (
         <>
-          <GoogleButton intent="signin" next={redirectTo} />
+          <GoogleButton intent="signin" next={redirectTo} className="rounded-full" />
           <AuthDivider />
         </>
       ) : null}
@@ -92,13 +88,13 @@ export default async function LoginPage({
         <Link href="/email-code">Email me a sign-in code instead</Link>
       </Button>
 
-      <p className="mt-4 text-center text-[15px]">
+      <p className="mt-6 text-center text-[15px]">
         <Link href="/forgot-password" className={AUTH_LINK}>
           Forgot password?
         </Link>
       </p>
 
-      <p className="text-center text-[15px] text-muted-foreground">
+      <p className="mt-5 text-center text-[15px] text-muted-foreground">
         New here?{" "}
         <Link href="/signup" className={AUTH_LINK}>
           Create a shop
@@ -110,7 +106,7 @@ export default async function LoginPage({
         their repair ends up — /portal already points people the other way, and
         without the return leg they have nowhere to go but the back button.
       */}
-      <p className="mt-4 border-t border-border pt-4 text-center text-[15px] text-muted-foreground">
+      <p className="mt-6 border-t border-border pt-5 text-center text-[15px] text-muted-foreground">
         Had a device repaired?{" "}
         <Link href="/portal" className={AUTH_LINK}>
           Check your repair here

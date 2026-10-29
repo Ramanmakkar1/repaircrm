@@ -43,12 +43,11 @@ export default async function VerifyPage({
 
       <VerifyForm next={target} />
 
-      <p className="mt-4 text-center text-[15px] text-muted-foreground">
+      <p className="mt-6 text-center text-[15px] text-muted-foreground">
         Lost your phone? Type one of your recovery codes instead, or{" "}
         <Link href="/login" className={AUTH_LINK}>
           start over
-        </Link>
-        .
+        </Link>.
       </p>
     </>
   );

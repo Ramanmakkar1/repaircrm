@@ -23,7 +23,7 @@ export default async function EmailCodePage({ searchParams }: { searchParams: Pr
         </p>
       </div>
       <EmailCodeForm purpose={purpose} />
-      <p className="mt-4 text-center text-[15px]">
+      <p className="mt-6 text-center text-[15px]">
         <Link href="/login" className={AUTH_LINK}>
           Back to sign in
         </Link>

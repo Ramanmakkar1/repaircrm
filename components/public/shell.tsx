@@ -5,6 +5,7 @@ import { RepairPilotMark } from "@/components/brand/repairpilot";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { shopInitials, telHref, type PublicShop } from "@/lib/portal-display";
+import { PUBLIC_SCOPE } from "./scope";
 import { BIG_BUTTON } from "./sizes";
 
 /**
@@ -60,7 +61,7 @@ export function PublicShell({
   );
 
   return (
-    <div className="flex min-h-dvh w-full flex-1 flex-col bg-background text-foreground">
+    <div className={cn(PUBLIC_SCOPE, "flex min-h-dvh w-full flex-1 flex-col bg-background text-foreground")}>
       <header className="border-b border-border bg-surface">
         <div className={cn("mx-auto flex w-full items-center justify-between gap-3 px-4 py-2.5 sm:px-6", WIDTH[width])}>
           {homeHref && !kiosk ? (

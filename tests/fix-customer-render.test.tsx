@@ -2,6 +2,10 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+// next/font only works inside the Next compiler; the public frame only needs the class names.
+vi.mock("@/components/landing/fonts", () => ({
+  manrope: { className: "font-manrope", variable: "var-manrope" },
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => "/portal",
@@ -128,10 +132,10 @@ describe("one public frame with the shop's contact (item 4, 11)", () => {
 });
 
 describe("friendly dead ends (item 8)", () => {
-  it("the root 404 is branded, with a picture and three ways out", () => {
+  it("the root 404 is branded, with the husky and three ways out", () => {
     const out = html(createElement(NotFound));
     expect(out).toContain("We can&#x27;t find that page");
-    expect(out).toContain("display-screen");
+    expect(out).toContain("husky-mark-blue");
     expect(out).toContain('href="/portal"');
     expect(out).toContain('href="/"');
     expect(out).toContain('href="/login"');

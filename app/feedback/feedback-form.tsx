@@ -12,7 +12,7 @@ export function FeedbackForm({ returnHref }: { returnHref: string }) {
     <div className="site-feedback-success" role="status">
       <CheckCircle2 size={36} aria-hidden="true" />
       <h2>Thanks. Your feedback is saved.</h2>
-      <p>The RepairsHelper team can now review your report. If you included an email, we can contact you if we need more detail.</p>
+      <p>The Repairs helper team can now review your report. If you included an email, we can contact you if we need more detail.</p>
       <Link href={returnHref} className="site-button">Continue <ArrowRight size={17} aria-hidden="true" /></Link>
     </div>
   );
@@ -32,7 +32,7 @@ export function FeedbackForm({ returnHref }: { returnHref: string }) {
       <label htmlFor="feedback-page">Where did it happen? <span>(optional)</span><input id="feedback-page" name="page" maxLength={200} defaultValue={state.values?.page} placeholder="For example: Counter, repair check-in or /inventory" /></label>
       <label htmlFor="feedback-email">Email for follow-up <span>(optional)</span><input id="feedback-email" name="email" type="email" autoComplete="email" maxLength={254} defaultValue={state.values?.email} placeholder="you@shop.com" /></label>
       <div className="site-feedback-honey" aria-hidden="true"><label htmlFor="feedback-website">Leave this empty<input id="feedback-website" name="website" tabIndex={-1} autoComplete="off" /></label></div>
-      <p className="site-small">Please leave out passwords, payment details and private customer information. Your report is shared with the RepairsHelper team. <Link href="/privacy">Privacy policy</Link></p>
+      <p className="site-small">Please leave out passwords, payment details and private customer information. Your report is shared with the Repairs helper team. <Link href="/privacy">Privacy policy</Link></p>
       <button type="submit" className="site-button" disabled={pending}>{pending ? "Saving your report…" : "Send feedback"}<ArrowRight size={17} aria-hidden="true" /></button>
     </form>
   );

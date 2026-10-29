@@ -1,0 +1,85 @@
+/*
+ * The signed-out look outside the landing page (sign-in family, legal pages,
+ * feedback, 404, customer portal): the landing page's Manrope type, blue pill
+ * buttons and light palette, applied by re-pointing the app's own tokens for
+ * this subtree. Combined with `.rf-landing` (globals.css), which pins the light
+ * values over the dark-mode media query.
+ *
+ * Plain (unlayered) CSS on purpose: it has to win over Tailwind utilities.
+ * The signed-in app never renders `.public-site`, so it is untouched.
+ */
+.rf-landing.public-site {
+  --site-accent: #2563eb;
+  --site-accent-fill: #1d4ed8;
+  --site-accent-ink: #1e40af;
+  --site-ink: #111827;
+  --site-muted: #4b5563;
+  --site-tray: #f8f9fb;
+  --site-line: #d4dae3;
+
+  --foreground: var(--site-ink);
+  --muted-foreground: var(--site-muted);
+  --border: #e3e8ee;
+  --border-strong: #c3ccd8;
+  --surface-hover: #f4f6f8;
+  --accent: var(--site-accent-fill);
+  --accent-hover: var(--site-accent-ink);
+  --accent-foreground: #ffffff;
+  --accent-soft: #eff6ff;
+  --accent-soft-foreground: var(--site-accent-ink);
+  --ring: var(--site-accent);
+
+  font-family: var(--site-font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Buttons: the landing page's pill shape. */
+.public-site [data-slot="button"] {
+  border-radius: 999px;
+}
+
+/* One visible focus ring for every control, as on the landing page. */
+.public-site :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 3px;
+}
+
+.public-site .public-skip {
+  position: absolute;
+  left: 16px;
+  top: -80px;
+  z-index: 60;
+  border-radius: 8px;
+  background: var(--site-ink);
+  color: white;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.public-site .public-skip:focus {
+  top: 16px;
+}
+
+/*
+ * An inline text link with a 48px-tall hit area that does not push the line
+ * apart: vertical padding on an inline box adds to the clickable area but not
+ * to the line box, and the matching negative margin keeps neighbours in place.
+ */
+.public-site .public-inline-link {
+  padding-block: 12px;
+  margin-inline: -2px;
+  padding-inline: 2px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--site-accent-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.public-site .public-inline-link:hover {
+  color: var(--site-ink);
+}

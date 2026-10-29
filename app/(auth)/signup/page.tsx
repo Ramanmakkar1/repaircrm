@@ -35,7 +35,10 @@ export default async function SignupPage({
           Create your shop
         </h1>
         <p className="text-[15px] text-muted-foreground">
-          Free to start. It sets up your shop and makes you the owner; you can add your team after.
+          It sets up your shop and makes you the owner; you can add your team after.
+        </p>
+        <p className="pt-1 text-sm font-semibold text-(--site-accent-ink)">
+          Free during early access · No credit card
         </p>
       </div>
 
@@ -45,7 +48,7 @@ export default async function SignupPage({
         <>
           {/* Creates the same Shop + Main location + OWNER a password signup
               does, then lands on the same /setup wizard. */}
-          <GoogleButton intent="signup" label="Sign up with Google" />
+          <GoogleButton intent="signup" label="Sign up with Google" className="rounded-full" />
           <AuthDivider />
         </>
       ) : null}
@@ -53,7 +56,7 @@ export default async function SignupPage({
       <SignupForm email={email?.slice(0, 254)} />
 
       {/* Consent where the account (and its personal data) is created. */}
-      <p className="mt-4 text-center text-[14px] leading-relaxed text-muted-foreground">
+      <p className="mt-5 text-center text-[14px] leading-7 text-muted-foreground">
         By creating a shop you agree to the{" "}
         <Link href="/terms" className={AUTH_LINK}>
           Terms
@@ -61,11 +64,10 @@ export default async function SignupPage({
         and the{" "}
         <Link href="/privacy" className={AUTH_LINK}>
           Privacy policy
-        </Link>
-        .
+        </Link>.
       </p>
 
-      <p className="mt-2 border-t border-border pt-4 text-center text-[15px] text-muted-foreground">
+      <p className="mt-5 border-t border-border pt-5 text-center text-[15px] text-muted-foreground">
         Already have an account?{" "}
         <Link href="/login" className={AUTH_LINK}>
           Sign in

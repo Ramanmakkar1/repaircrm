@@ -12,9 +12,9 @@ export const metadata: Metadata = {
 export default function TermsPage() {
   return (
     <LegalPage
-      eyebrow="Effective September 12, 2026"
+      eyebrow="Last updated October 28, 2026"
       title="Terms of service"
-      intro="These terms govern your access to Repairs helper, repair shop management software operated by Townmedia Labs. By creating an account or using the service, you agree to them."
+      intro="These terms govern your access to Repairs helper, repair shop management software operated by Town Media Labs of Edmonton, Alberta, Canada. By creating an account or using the service, you agree to them."
     >
       <section>
         <h2>Accounts and authority</h2>
@@ -104,7 +104,7 @@ export default function TermsPage() {
         <h2>Warranty and liability</h2>
         <p>
           To the extent permitted by law, Repairs helper is provided “as is” and
-          without implied warranties. Townmedia Labs is not liable for indirect,
+          without implied warranties. Town Media Labs is not liable for indirect,
           incidental, special, consequential or punitive damages, lost profits,
           lost business or lost data. Our aggregate liability relating to the
           service will not exceed the amount you paid us for Repairs helper during
@@ -120,7 +120,7 @@ export default function TermsPage() {
           Canada applicable there, without regard to conflict-of-law rules. If a
           dispute arises, contact us first so we can try to resolve it. Questions
           about these terms can be sent to{" "}
-          <a href="mailto:townmedialabs@gmail.com">townmedialabs@gmail.com</a>.
+          <a href="mailto:support@repairshelper.com">support@repairshelper.com</a>.
         </p>
       </section>
     </LegalPage>

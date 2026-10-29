@@ -15,6 +15,7 @@ import { cn } from "@/components/ui/cn";
  */
 export function FriendlyScreen({
   picture,
+  art,
   icon: Icon,
   title,
   body,
@@ -25,6 +26,8 @@ export function FriendlyScreen({
 }: {
   /** A photo from /public/images, shot on white. */
   picture?: string;
+  /** In place of the boxed photo: a transparent picture that sits on the card itself. */
+  art?: React.ReactNode;
   /** Used when there is no picture (the offline page cannot load one). */
   icon?: LucideIcon;
   title: string;
@@ -43,7 +46,9 @@ export function FriendlyScreen({
         {header === undefined ? <BrandHeader /> : header}
 
         <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-          {picture ? (
+          {art ? (
+            <div className="flex w-full justify-center px-6 pt-8">{art}</div>
+          ) : picture ? (
             <div className="relative aspect-[16/9] w-full bg-white">
               <Image src={picture} alt="" fill sizes="(max-width: 480px) 100vw, 448px" className="object-contain p-5" priority />
             </div>

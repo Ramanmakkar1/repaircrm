@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertCircle, Mail, MailCheck, Phone } from "lucide-react";
 
-import { BrandHeader } from "@/components/public/friendly-screen";
+import { PublicSite } from "@/components/public/public-site";
+import { PUBLIC_SCOPE } from "@/components/public/scope";
 import { LegalLinks, PoweredBy, ShopMark } from "@/components/public/shell";
 import { BIG_BUTTON, TOUCH_LINK } from "@/components/public/sizes";
 import { Button } from "@/components/ui/button";
@@ -90,17 +91,14 @@ export default async function PortalEntryPage({
   const shop: PublicShop | null = named?.shop ?? (session ? await loadPortalShop(session.shopId) : null);
   const shopParam = named ? named.slug : "";
 
-  return (
-    <div className="flex min-h-dvh w-full flex-1 flex-col items-center bg-background px-4 py-8 text-foreground sm:justify-center sm:py-12">
+  const body = (
       <div className="flex w-full max-w-md flex-col gap-6">
         {shop ? (
           <div className="flex items-center justify-center gap-3">
             <ShopMark name={shop.name} logoUrl={shop.logoUrl} className="size-12" />
             <span className="min-w-0 truncate text-xl font-bold tracking-tight">{shop.name}</span>
           </div>
-        ) : (
-          <BrandHeader />
-        )}
+        ) : null}
 
         <section className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-6">
           {sent ? (
@@ -191,16 +189,33 @@ export default async function PortalEntryPage({
         <div className="flex flex-col items-center gap-1 text-center">
           <p className="text-[15px] text-muted-foreground">
             Shop staff?{" "}
-            <Link href="/login" className={cn(TOUCH_LINK, "underline")}>
+            <Link href="/login" className="public-inline-link">
               Sign in here
             </Link>
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-4">
-            <LegalLinks />
-            <PoweredBy />
-          </div>
+          {/* Without a shop the public footer below carries Privacy and Terms. */}
+          {shop ? (
+            <div className="flex flex-wrap items-center justify-center gap-x-4">
+              <LegalLinks />
+              <PoweredBy />
+            </div>
+          ) : null}
         </div>
       </div>
+  );
+
+  /*
+   * A shop's own link (or a stale cookie) is that shop's front door: its name on
+   * top and no Repairs helper sales header. The bare /portal sits inside the
+   * public site.
+   */
+  return shop ? (
+    <div className={cn(PUBLIC_SCOPE, "flex min-h-dvh w-full flex-1 flex-col items-center bg-background px-4 py-8 text-foreground sm:justify-center sm:py-12")}>
+      {body}
     </div>
+  ) : (
+    <PublicSite>
+      <div className="flex w-full justify-center px-4 pt-6 pb-14 sm:pt-10 sm:pb-20">{body}</div>
+    </PublicSite>
   );
 }

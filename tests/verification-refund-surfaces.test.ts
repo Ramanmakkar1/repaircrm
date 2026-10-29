@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { callsTo, fakeClient, handlers, resetDb } from "./helpers/db-mock";
 
+// next/font only works inside the Next compiler; the public frame only needs the class names.
+vi.mock("@/components/landing/fonts", () => ({
+  manrope: { className: "font-manrope", variable: "var-manrope" },
+}));
 vi.mock("@/lib/db", () => ({ db: fakeClient }));
 vi.mock("@/lib/events", () => ({ emitInvoiceEvent: vi.fn(), emitPaymentEvent: vi.fn() }));
 vi.mock("@/lib/portal-session", () => ({ requirePortalCustomer: async () => ({ id: "customer_1", shopId: "shop_1", firstName: "Test", lastName: "Customer" }), getPortalSession: async () => null }));

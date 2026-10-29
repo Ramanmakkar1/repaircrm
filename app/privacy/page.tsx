@@ -12,9 +12,9 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <LegalPage
-      eyebrow="Effective September 12, 2026"
+      eyebrow="Last updated October 28, 2026"
       title="Privacy policy"
-      intro="Repairs helper is repair shop management software operated by Townmedia Labs. This policy explains what information we handle, why we use it and the choices available to you."
+      intro="Repairs helper is repair shop management software operated by Town Media Labs of Edmonton, Alberta, Canada. This policy explains what information we handle, why we use it and the choices available to you."
     >
       <section>
         <h2>Information we collect</h2>
@@ -36,7 +36,8 @@ export default function PrivacyPage() {
           <li>
             <strong>Usage and device information:</strong> IP address, browser,
             device type, timestamps, security events, error logs and the parts
-            of Repairs helper you use.
+            of Repairs helper you use, including how you interact with pages
+            (see Analytics below).
           </li>
           <li>
             <strong>Integration information:</strong> identifiers and limited
@@ -71,12 +72,14 @@ export default function PrivacyPage() {
       <section>
         <h2>Service providers and disclosure</h2>
         <p>
-          We use service providers to host the application and database, store
-          files, monitor performance and support integrations. Current core
-          infrastructure uses a VPS for the website and PostgreSQL database,
-          Cloudflare R2 for attachments, and Hostinger for email. When you connect a
-          third-party service, information needed for that feature is also
-          handled under that provider&apos;s privacy terms. We may disclose
+          The Repairs helper application, its PostgreSQL database and uploaded
+          files run on our own server in Alberta, Canada. We use service
+          providers for the rest: Cloudflare for our network, content delivery
+          and DNS; Hostinger to send email; OpenAI to process the information
+          an AI feature needs when AI features are enabled; and Microsoft
+          Clarity for analytics (see below). When you connect a third-party
+          service, information needed for that feature is also handled under
+          that provider&apos;s privacy terms. We may disclose
           information when required by law, to protect people or the service, or
           as part of a business transfer with appropriate safeguards.
         </p>
@@ -88,8 +91,23 @@ export default function PrivacyPage() {
           Repairs helper uses essential cookies and similar browser storage to keep
           you signed in, protect sessions, remember interface preferences and
           support offline behavior. We do not use third-party advertising
-          cookies. Google sign-in shares your basic profile and email with us
-          only after you choose to continue with Google.
+          cookies. Google sign-in is optional; it shares your basic profile and
+          email with us only after you choose to continue with Google.
+        </p>
+      </section>
+
+      <section>
+        <h2>Analytics</h2>
+        <p>
+          We use Microsoft Clarity to understand how people use Repairs helper
+          and to improve it. Clarity sets cookies and records how you interact
+          with pages, such as clicks, scrolling and mouse movement, to produce
+          heatmaps and session replays. Microsoft processes this information as
+          described in the{" "}
+          <a href="https://www.microsoft.com/privacy/privacystatement" target="_blank" rel="noopener noreferrer">
+            Microsoft Privacy Statement
+          </a>
+          .
         </p>
       </section>
 
@@ -120,7 +138,8 @@ export default function PrivacyPage() {
         <h2>Children and international processing</h2>
         <p>
           Repairs helper is a business service and is not directed to children under
-          13. Information may be processed in Canada, the United States or other
+          13. Our application, database and uploaded files are hosted in Alberta,
+          Canada. Information may also be processed in the United States or other
           places where our service providers operate, with safeguards required by
           applicable law.
         </p>
@@ -130,9 +149,9 @@ export default function PrivacyPage() {
         <h2>Changes and contact</h2>
         <p>
           We may update this policy as Repairs helper changes. We will revise the
-          effective date above and provide additional notice when required. For
+          date above and provide additional notice when required. For
           privacy questions or requests, email{" "}
-          <a href="mailto:townmedialabs@gmail.com">townmedialabs@gmail.com</a>.
+          <a href="mailto:support@repairshelper.com">support@repairshelper.com</a>.
         </p>
       </section>
     </LegalPage>

@@ -78,7 +78,7 @@ export default async function ResetPasswordPage({
           invite was sent to — see lib/google/account.ts. */}
       {googleConfigured() ? (
         <>
-          <GoogleButton intent={`invite:${token}`} />
+          <GoogleButton intent={`invite:${token}`} className="rounded-full" />
           <AuthDivider label="or set a password" />
         </>
       ) : null}

@@ -33,7 +33,7 @@ export default async function ForgotPasswordPage() {
         <Link href="/email-code?purpose=reset">Use a 6-digit email code instead</Link>
       </Button>
 
-      <p className="mt-4 text-center text-[15px] text-muted-foreground">
+      <p className="mt-6 text-center text-[15px] text-muted-foreground">
         Remembered it?{" "}
         <Link href="/login" className={AUTH_LINK}>
           Back to sign in
