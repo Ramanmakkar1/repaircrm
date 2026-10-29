@@ -8,6 +8,7 @@ import { ICONS } from "@/components/ui/icons";
 import { cn } from "@/components/ui/cn";
 import { formatInZone } from "@/lib/shop-time";
 import { relativeShort } from "./ticket-meta";
+import { nameInitials } from "@/lib/initials";
 
 /** The full date and time under the short "3h" (hover / long press), on the shop's own clock. */
 const STAMP = "EEEE d MMMM yyyy, h:mm a";
@@ -21,10 +22,7 @@ const STAMP = "EEEE d MMMM yyyy, h:mm a";
  * build time, which is what makes it worth calling out).
  */
 function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return nameInitials(name);
 }
 
 export type TimelineEntry = {

@@ -3,6 +3,7 @@
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cn } from "./cn";
+import { nameInitials } from "@/lib/initials";
 
 export function Avatar({
   className,
@@ -47,9 +48,5 @@ export function AvatarFallback({
 
 /** Derive up to 2 uppercase initials from a full name (or email fallback). */
 export function getInitials(name?: string | null) {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return nameInitials(name);
 }

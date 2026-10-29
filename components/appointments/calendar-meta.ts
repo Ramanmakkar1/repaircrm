@@ -27,6 +27,7 @@ import {
   wallClock,
   zonedInstant,
 } from "@/lib/dashboard/zone";
+import { nameInitials } from "@/lib/initials";
 
 // ---------------------------------------------------------------------------
 // The visible window
@@ -275,10 +276,7 @@ export function durationLabel(startsAt: Date, endsAt: Date): string {
 
 /** Up to two uppercase initials for the tech badge on a block. */
 export function initialsOf(name: string | null | undefined): string {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return nameInitials(name, "");
 }
 
 // ---------------------------------------------------------------------------
