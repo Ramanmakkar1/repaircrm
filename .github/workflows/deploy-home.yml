@@ -1,11 +1,16 @@
 name: Deploy to home server
+run-name: ${{ github.event.workflow_run.display_title }}
 
-# Every push to main ships repairshelper.com. The self-hosted runner on Raman's
-# home server checks the commit out; the root-owned deploy-repairhelper script
-# then builds the image, applies Prisma migrations, swaps the container and
-# health-checks it, putting the previous release back if the new one fails.
+# Every push to main ships repairshelper.com once CI has passed for that same
+# commit; a push whose checks fail deploys nothing. The self-hosted runner on
+# Raman's home server checks the commit out; the root-owned deploy-repairhelper
+# script then builds the image, applies Prisma migrations, swaps the container
+# and health-checks it, putting the previous release back if the new one fails.
+# "Run workflow" on the Actions page deploys main as it stands, without CI.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,7 +23,17 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    # Only a passed CI run of a push to this repository's main (a fork's pull
+    # request from its own "main" reports head_branch main too), and only while
+    # main still points at the commit CI tested: the checkout below is then
+    # exactly that commit, and re-running an old CI run cannot roll the site
+    # back. If main has moved on, the newer commit's own CI run decides.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_sha == github.sha)
     runs-on: [self-hosted, Linux, X64, local-repairhelper]
     timeout-minutes: 45
     steps:
