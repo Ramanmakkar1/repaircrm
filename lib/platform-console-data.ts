@@ -28,14 +28,6 @@ export type PlanetScaleMetrics =
   | ({ kind: "available" } & PlanetScaleMetricsSnapshot)
   | { kind: "unavailable"; reason: string };
 
-export type PlatformCounts = {
-  shops: number | null;
-  staff: number | null;
-  customers: number | null;
-  tickets: number | null;
-  invoices: number | null;
-};
-
 export type StorageFootprint = {
   r2RecordedBytes: number | null;
   r2Objects: number | null;
@@ -54,42 +46,6 @@ export type FailureFeed = {
   rows: PlatformFailure[];
   unavailableSources: string[];
 };
-
-export type PlatformAuditEvent = {
-  id: string;
-  action: string;
-  entity: string;
-  entityId: string | null;
-  summary: string;
-  createdAt: Date;
-  shopName: string;
-  actorName: string | null;
-};
-
-export type AuditFeed = {
-  rows: PlatformAuditEvent[];
-  unavailable: boolean;
-};
-
-async function safeCount(query: () => Promise<number>): Promise<number | null> {
-  try {
-    return await query();
-  } catch {
-    return null;
-  }
-}
-
-async function readPlatformCounts(): Promise<PlatformCounts> {
-  const [shops, staff, customers, tickets, invoices] = await Promise.all([
-    safeCount(() => db.shop.count()),
-    safeCount(() => db.user.count({ where: { active: true } })),
-    safeCount(() => db.customer.count()),
-    safeCount(() => db.ticket.count()),
-    safeCount(() => db.invoice.count()),
-  ]);
-
-  return { shops, staff, customers, tickets, invoices };
-}
 
 /** Attachment rows are the billable objects Repairs helper intentionally owns. */
 async function readStorageFootprint(): Promise<StorageFootprint> {
@@ -479,70 +435,30 @@ async function readPlatformFailures(): Promise<FailureFeed> {
   };
 }
 
-async function readPlatformAudit(): Promise<AuditFeed> {
-  try {
-    // Intentionally account-wide: callers must first pass requirePlatformAdmin.
-    // Meta and IP fields are omitted to keep this feed to operational context.
-    const rows = await db.auditLog.findMany({
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 18,
-      select: {
-        id: true,
-        action: true,
-        entity: true,
-        entityId: true,
-        summary: true,
-        createdAt: true,
-        shop: { select: { name: true } },
-        user: { select: { name: true } },
-      },
-    });
-
-    return {
-      rows: rows.map((row) => ({
-        id: row.id,
-        action: row.action,
-        entity: row.entity,
-        entityId: row.entityId,
-        summary: row.summary,
-        createdAt: row.createdAt,
-        shopName: row.shop.name,
-        actorName: row.user?.name ?? null,
-      })),
-      unavailable: false,
-    };
-  } catch {
-    return { rows: [], unavailable: true };
-  }
-}
-
 /**
- * Single secure entry point for the console data. The access check completes
- * before any cross-shop query starts, so another server route cannot
- * accidentally reuse an unguarded global-read helper.
+ * Single secure entry point for the System health data. The access check
+ * completes before any cross-shop query starts, so another server route cannot
+ * accidentally reuse an unguarded global-read helper. Shop counts and the
+ * audit trail moved to lib/platform-shops.ts (Overview, Shops, Activity).
  */
 export async function readPlatformConsole() {
   const admin = await requirePlatformAdmin();
-  const [counts, storage, database, databaseMetrics, worker, failures, audit] =
+  const [storage, database, databaseMetrics, worker, failures] =
     await Promise.all([
-    readPlatformCounts(),
     readStorageFootprint(),
     readDatabaseStats(),
     readPlanetScaleMetrics(),
     readCloudflareWorkerMetrics(),
     readPlatformFailures(),
-    readPlatformAudit(),
     ]);
 
   return {
     admin,
-    counts,
     storage,
     database,
     databaseMetrics,
     worker,
     failures,
-    audit,
     accountId: platformSetting("CLOUDFLARE_ACCOUNT_ID"),
     workerName: platformSetting("CF_WORKER_NAME") || "repairpilot",
     monthlyBudgetUsd: Math.max(

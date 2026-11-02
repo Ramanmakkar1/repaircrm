@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConsoleShell } from "@/components/platform/console-shell";
 import { db } from "@/lib/db";
 import { requirePlatformAdmin } from "@/lib/platform-admin";
 import { FEEDBACK_KINDS, FEEDBACK_STATUSES, FEEDBACK_STATUS_LABELS } from "@/lib/product-feedback";
@@ -6,7 +7,7 @@ import { updateFeedbackStatusAction } from "./actions";
 
 export const metadata = { title: "Product feedback · Repairs helper" };
 export default async function FeedbackInbox({ searchParams }: { searchParams: Promise<{ status?: string; page?: string }> }) {
-  await requirePlatformAdmin();
+  const admin = await requirePlatformAdmin();
   const params = await searchParams;
   const status = FEEDBACK_STATUSES.find((value) => value === params.status);
   const requestedPage = Number.parseInt(params.page || "1", 10);
@@ -18,10 +19,9 @@ export default async function FeedbackInbox({ searchParams }: { searchParams: Pr
   ]);
   const href = (next: number) => `/platform/feedback?page=${next}${status ? `&status=${status}` : ""}`;
   return (
-    <main className="min-h-screen bg-background px-5 py-10 text-foreground">
-      <div className="mx-auto max-w-5xl">
-        <Link href="/platform" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">← Platform operations</Link>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight">Product feedback</h1>
+    <ConsoleShell admin={admin} current="feedback">
+      <div className="max-w-5xl">
+        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] sm:text-[32px]">Product feedback</h1>
         <p className="mt-3 text-muted-foreground">Bugs, feature requests and suggestions submitted to Repairs helper. {count} report{count === 1 ? "" : "s"} in this view.</p>
         <nav aria-label="Filter feedback" className="my-6 flex flex-wrap gap-3">
           {[{ value: "", label: "All reports" }, ...FEEDBACK_STATUSES.map((value) => ({ value, label: FEEDBACK_STATUS_LABELS[value] }))].map((filter) => (
@@ -57,6 +57,6 @@ export default async function FeedbackInbox({ searchParams }: { searchParams: Pr
           {page * 30 < count ? <Link href={href(page + 1)} className="min-h-11 py-3 underline">Next</Link> : <span />}
         </nav>
       </div>
-    </main>
+    </ConsoleShell>
   );
 }

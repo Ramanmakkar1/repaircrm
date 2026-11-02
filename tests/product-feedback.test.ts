@@ -10,6 +10,8 @@ vi.mock("@/lib/platform-admin", () => ({ requirePlatformAdmin: mocks.admin }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "192.0.2.8" }) }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: mocks.limit, retryAfterLabel: () => "in about 10 minutes" }));
+// The inbox renders inside the console frame, whose Sign out reaches server-only session code.
+vi.mock("server-only", () => ({}));
 import { submitFeedbackAction } from "@/app/feedback/actions";
 import { updateFeedbackStatusAction } from "@/app/platform/feedback/actions";
 import FeedbackInbox from "@/app/platform/feedback/page";

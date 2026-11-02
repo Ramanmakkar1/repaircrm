@@ -108,16 +108,27 @@ export const fakeClient: Record<string, unknown> = new Proxy(
 
       if (property === "$queryRaw") {
         // Tagged `Prisma.sql`: the bound values are what a tenant assertion
-        // needs (`values[0]` is the shopId in every raw query here).
-        return async (query: { values?: unknown[] }) => {
-          calls.push({ path: "$queryRaw", args: { values: query?.values ?? [] } });
+        // needs (`values[0]` is the shopId in every raw query here). Called as
+        // a template tag instead, the values arrive as the rest arguments.
+        // `sql` is the text with `?` for each value, so a handler can tell
+        // two raw queries apart.
+        return async (
+          query: { values?: unknown[]; strings?: readonly string[] } | TemplateStringsArray,
+          ...templateValues: unknown[]
+        ) => {
+          const isTemplate = Array.isArray(query);
+          const values = isTemplate ? templateValues : ((query as { values?: unknown[] })?.values ?? []);
+          const sql = isTemplate
+            ? (query as TemplateStringsArray).join("?")
+            : ((query as { strings?: readonly string[] })?.strings?.join("?") ?? "");
+          calls.push({ path: "$queryRaw", args: { values, sql } });
           const handler = handlers["$queryRaw"];
           if (!handler) {
             throw new Error(
               "db-mock: no handler registered for $queryRaw. Register one in the test.",
             );
           }
-          return handler({ values: query?.values ?? [] });
+          return handler({ values, sql });
         };
       }
 
