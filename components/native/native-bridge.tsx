@@ -177,8 +177,8 @@ export function NativeBridge() {
     let removeListener: (() => void) | undefined;
     let disposed = false;
     if (app) {
-      app
-        .addListener("appUrlOpen", ({ url }) => openAppUrl(url))
+      // The injected bridge returns the handle itself, not a promise.
+      Promise.resolve(app.addListener("appUrlOpen", ({ url }) => openAppUrl(url)))
         .then((listener) => {
           if (disposed) void listener.remove();
           else removeListener = () => void listener.remove();

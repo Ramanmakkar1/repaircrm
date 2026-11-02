@@ -13,11 +13,18 @@
  */
 
 type Listener = { remove: () => Promise<void> };
+/**
+ * What a plugin's addListener returns. The bridge Capacitor injects into the
+ * page hands back the handle itself, not a promise (only @capacitor/core,
+ * which this site does not bundle, wraps it in one). A `.then` on it threw at
+ * launch in both apps, so callers must `await` it or `Promise.resolve` it.
+ */
+type ListenerResult = Listener | Promise<Listener>;
 type PushPermission = { receive: "prompt" | "prompt-with-rationale" | "granted" | "denied" };
 
 type Plugins = {
   App?: {
-    addListener(event: "appUrlOpen", cb: (e: { url: string }) => void): Promise<Listener>;
+    addListener(event: "appUrlOpen", cb: (e: { url: string }) => void): ListenerResult;
     getLaunchUrl(): Promise<{ url: string } | undefined>;
   };
   Browser?: {
@@ -47,12 +54,12 @@ type Plugins = {
     register(): Promise<void>;
     /** Android only. */
     createChannel(channel: { id: string; name: string; description?: string; importance?: 1 | 2 | 3 | 4 | 5 }): Promise<void>;
-    addListener(event: "registration", cb: (token: { value: string }) => void): Promise<Listener>;
-    addListener(event: "registrationError", cb: (error: { error: string }) => void): Promise<Listener>;
+    addListener(event: "registration", cb: (token: { value: string }) => void): ListenerResult;
+    addListener(event: "registrationError", cb: (error: { error: string }) => void): ListenerResult;
     addListener(
       event: "pushNotificationActionPerformed",
       cb: (action: { notification: { data?: Record<string, unknown> } }) => void,
-    ): Promise<Listener>;
+    ): ListenerResult;
   };
 };
 
