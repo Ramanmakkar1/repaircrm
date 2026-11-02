@@ -87,7 +87,7 @@ export async function consumeAiQuota(shopId: string, kind: AiKind): Promise<Quot
     // The counter table is missing: the code was deployed before its migration
     // ran. That took the assistant and the microphone down for every shop on
     // live. Metering is a guard, not the feature, so say so loudly and let the
-    // request through; PLATFORM_MONTHLY_BUDGET_USD still caps the spend.
+    // request through unmetered.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
       console.error("[ai-quota] UsageCounter table is missing, run `npm run db:deploy`. Allowing the request unmetered.");
       return { ok: true };

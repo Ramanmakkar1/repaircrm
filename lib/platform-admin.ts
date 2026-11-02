@@ -7,17 +7,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { db } from "@/lib/db";
 import { platformPasswordVersion, readPlatformCookie } from "@/lib/platform-session";
 
-type PlatformSetting =
-  | "PLATFORM_HOST"
-  | "CF_ANALYTICS_API_TOKEN"
-  | "CLOUDFLARE_ACCOUNT_ID"
-  | "CF_WORKER_NAME"
-  | "PLATFORM_MONTHLY_BUDGET_USD"
-  | "PLANETSCALE_SERVICE_TOKEN_ID"
-  | "PLANETSCALE_SERVICE_TOKEN"
-  | "PLANETSCALE_ORGANIZATION"
-  | "PLANETSCALE_DATABASE"
-  | "PLANETSCALE_BRANCH";
+type PlatformSetting = "PLATFORM_HOST";
 
 /** Read bindings in Workers and process env during local Next.js development. */
 export function platformSetting(name: PlatformSetting): string | undefined {

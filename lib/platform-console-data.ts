@@ -1,11 +1,12 @@
 import "server-only";
 
+import type { Dirent } from "node:fs";
+import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
+import path from "node:path";
+
 import { db } from "@/lib/db";
-import { platformSetting, requirePlatformAdmin } from "@/lib/platform-admin";
-import {
-  parsePlanetScaleMetrics,
-  type PlanetScaleMetricsSnapshot,
-} from "@/lib/planetscale-metrics";
+import { requirePlatformAdmin } from "@/lib/platform-admin";
+import { storageDriverName, type StorageDriverName } from "@/lib/storage";
 
 export type DatabaseStats = {
   storageBytes: number;
@@ -14,23 +15,36 @@ export type DatabaseStats = {
   maxConnections: number;
 } | null;
 
-export type WorkerMetrics = {
-  kind: "available" | "unavailable";
-  reason?: string;
-  requests?: number;
-  errors?: number;
-  cpuTimeP99?: number | null;
-  memoryUsageP99Bytes?: number | null;
-  sampleAt?: string | null;
-};
+/** The uploads folder on this server's disk (`public/uploads`, a Docker volume in production). */
+export type UploadsFolder = {
+  bytes: number;
+  files: number;
+  /** False when counting stopped at its time limit, so the real total is higher. */
+  complete: boolean;
+} | null;
 
-export type PlanetScaleMetrics =
-  | ({ kind: "available" } & PlanetScaleMetricsSnapshot)
-  | { kind: "unavailable"; reason: string };
+export type DiskSpace = {
+  totalBytes: number;
+  freeBytes: number;
+  /** The disk holding the uploads folder, or the app's own disk when there is no such folder. */
+  measured: "uploads" | "app";
+  /** Less than a tenth of the disk is free. */
+  low: boolean;
+} | null;
 
-export type StorageFootprint = {
-  r2RecordedBytes: number | null;
-  r2Objects: number | null;
+/** Files the app recorded, per place they are kept (`Attachment.storage`). */
+export type StoredFiles = Array<{ storage: string; files: number; bytes: number }> | null;
+
+export type AppRuntime = {
+  /** False on a development copy, which has no live build to describe. */
+  production: boolean;
+  /** Next.js's random ID for this build; it changes with every deploy. */
+  buildId: string | null;
+  builtAt: Date | null;
+  startedAt: Date;
+  nodeVersion: string;
+  /** Where new uploads are written (STORAGE_DRIVER). */
+  storageDriver: StorageDriverName;
 };
 
 export type PlatformFailure = {
@@ -47,24 +61,20 @@ export type FailureFeed = {
   unavailableSources: string[];
 };
 
-/** Attachment rows are the billable objects Repairs helper intentionally owns. */
-async function readStorageFootprint(): Promise<StorageFootprint> {
-  try {
-    const result = await db.attachment.aggregate({
-      where: { storage: "r2" },
-      _sum: { sizeBytes: true },
-      _count: { _all: true },
-    });
-    return {
-      r2RecordedBytes: result._sum.sizeBytes ?? 0,
-      r2Objects: result._count._all,
-    };
-  } catch {
-    return { r2RecordedBytes: null, r2Objects: null };
-  }
+/** How long one page load may spend adding up the uploads folder. */
+const UPLOADS_COUNT_MS = 3_000;
+/** Files measured at once while counting. */
+const STAT_BATCH = 64;
+/** Below this share of free space the page warns that the disk is running low. */
+const LOW_DISK_SHARE = 0.1;
+/** Next.js build IDs are URL-safe random strings; anything else in that file is not shown. */
+const BUILD_ID_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
+
+function errorCode(error: unknown): string | undefined {
+  return (error as NodeJS.ErrnoException | null)?.code;
 }
 
-/** PostgreSQL size and live sessions from the database itself, via Hyperdrive. */
+/** PostgreSQL size and live sessions from the database itself. */
 async function readDatabaseStats(): Promise<DatabaseStats> {
   try {
     const rows = await db.$queryRaw<
@@ -98,226 +108,135 @@ async function readDatabaseStats(): Promise<DatabaseStats> {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+/**
+ * Adds up the uploads folder. Only sizes are read, never contents; links are
+ * not followed, so the count cannot wander outside the folder; and it stops at
+ * UPLOADS_COUNT_MS so a huge folder or a slow disk cannot hold the page.
+ */
+async function readUploadsFolder(root: string): Promise<UploadsFolder> {
+  const deadline = Date.now() + UPLOADS_COUNT_MS;
+  const folders = [root];
+  let bytes = 0;
+  let files = 0;
+  let complete = true;
 
-function numeric(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
+  while (folders.length > 0) {
+    if (Date.now() > deadline) return { bytes, files, complete: false };
+    const folder = folders.pop() as string;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(folder, { withFileTypes: true });
+    } catch (error) {
+      // No folder yet means nothing has been saved to this disk.
+      if (folder === root) return errorCode(error) === "ENOENT" ? { bytes: 0, files: 0, complete: true } : null;
+      // A shop folder removed mid-count is simply gone; an unreadable one leaves the total short.
+      if (errorCode(error) !== "ENOENT") complete = false;
+      continue;
+    }
 
-/** Read-only primary-cluster CPU, memory, and disk metrics from PlanetScale. */
-async function readPlanetScaleMetrics(): Promise<PlanetScaleMetrics> {
-  const tokenId = platformSetting("PLANETSCALE_SERVICE_TOKEN_ID");
-  const token = platformSetting("PLANETSCALE_SERVICE_TOKEN");
-  const organization = platformSetting("PLANETSCALE_ORGANIZATION");
-  const database = platformSetting("PLANETSCALE_DATABASE");
-  const branch = platformSetting("PLANETSCALE_BRANCH");
+    const found: string[] = [];
+    for (const entry of entries) {
+      // Uploads get random hex names; dot-files such as .gitkeep are not uploads.
+      if (entry.name.startsWith(".")) continue;
+      if (entry.isDirectory()) folders.push(path.join(folder, entry.name));
+      else if (entry.isFile()) found.push(path.join(folder, entry.name));
+    }
 
-  if (!tokenId || !token || !organization || !database || !branch) {
-    return {
-      kind: "unavailable",
-      reason:
-        "PlanetScale CPU, memory, and volume metrics require a read-only service token scoped to this database branch.",
-    };
+    for (let start = 0; start < found.length; start += STAT_BATCH) {
+      if (Date.now() > deadline) return { bytes, files, complete: false };
+      await Promise.all(
+        found.slice(start, start + STAT_BATCH).map(async (file) => {
+          try {
+            const info = await lstat(file);
+            bytes += info.size;
+            files += 1;
+          } catch (error) {
+            if (errorCode(error) !== "ENOENT") complete = false;
+          }
+        }),
+      );
+    }
   }
 
-  const base =
-    `https://api.planetscale.com/v1/organizations/${encodeURIComponent(organization)}` +
-    `/databases/${encodeURIComponent(database)}/branches/${encodeURIComponent(branch)}`;
-  const timeSeriesUrl = new URL(`${base}/metrics`);
-  timeSeriesUrl.searchParams.set(
-    "metrics",
-    [
-      "planetscale_primary_pods_cpu_util_percentages",
-      "planetscale_primary_memory_rss_bytes",
-      "planetscale_primary_pods_mem_util_percentages",
-      "planetscale_storage_usage_bytes",
-      "planetscale_volume_usage_percentages",
-    ].join(","),
-  );
-  timeSeriesUrl.searchParams.set("period", "15m");
+  return { bytes, files, complete };
+}
 
-  const instantUrl = new URL(`${base}/metrics/instant`);
-  instantUrl.searchParams.set("metrics", "planetscale_volume_capacity_bytes");
+/** Free space on the disk holding the uploads folder (or, without one, the app's own disk). */
+async function readDiskSpace(uploadsRoot: string): Promise<DiskSpace> {
+  const targets = [
+    { folder: uploadsRoot, measured: "uploads" as const },
+    { folder: process.cwd(), measured: "app" as const },
+  ];
+  for (const { folder, measured } of targets) {
+    try {
+      const info = await statfs(folder);
+      const totalBytes = info.blocks * info.bsize;
+      const freeBytes = info.bavail * info.bsize;
+      if (!(totalBytes > 0)) return null;
+      return { totalBytes, freeBytes, measured, low: freeBytes < totalBytes * LOW_DISK_SHARE };
+    } catch {
+      // Try the next folder.
+    }
+  }
+  return null;
+}
 
+/** Bytes and counts per storage place, for uploads and automatic product photos together. */
+async function readStoredFiles(): Promise<StoredFiles> {
   try {
-    const headers = {
-      authorization: `${tokenId}:${token}`,
-      accept: "application/json",
-    };
-    const [timeSeriesResponse, instantResponse] = await Promise.all([
-      fetch(timeSeriesUrl, {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(5_000),
+    const [attachments, photos] = await Promise.all([
+      db.attachment.groupBy({
+        by: ["storage"],
+        _count: { _all: true },
+        _sum: { sizeBytes: true },
       }),
-      fetch(instantUrl, {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(5_000),
+      db.automaticProductPhoto.groupBy({
+        by: ["storage"],
+        where: { storage: { not: null } },
+        _count: { _all: true },
+        _sum: { sizeBytes: true },
       }),
     ]);
-
-    if (!timeSeriesResponse.ok || !instantResponse.ok) {
-      return {
-        kind: "unavailable",
-        reason:
-          "PlanetScale did not return metrics. Check the service token’s read_branch permission and database settings.",
-      };
+    const places = new Map<string, { storage: string; files: number; bytes: number }>();
+    for (const row of [...attachments, ...photos]) {
+      const storage = row.storage ?? "local";
+      const place = places.get(storage) ?? { storage, files: 0, bytes: 0 };
+      place.files += row._count._all;
+      place.bytes += row._sum.sizeBytes ?? 0;
+      places.set(storage, place);
     }
-
-    const [timeSeriesPayload, instantPayload]: [unknown, unknown] =
-      await Promise.all([timeSeriesResponse.json(), instantResponse.json()]);
-    const metrics = parsePlanetScaleMetrics(timeSeriesPayload, instantPayload);
-    if (
-      metrics.cpuPercent === null &&
-      metrics.memoryRssBytes === null &&
-      metrics.memoryUtilPercent === null &&
-      metrics.storageUsageBytes === null &&
-      metrics.volumeUsagePercent === null
-    ) {
-      return {
-        kind: "unavailable",
-        reason: "PlanetScale has not published resource metrics for this branch yet.",
-      };
-    }
-    return { kind: "available", ...metrics };
+    return [...places.values()].sort((a, b) => b.bytes - a.bytes);
   } catch {
-    return {
-      kind: "unavailable",
-      reason: "PlanetScale metrics could not be reached. Check the service token and retry.",
-    };
+    return null;
   }
 }
 
-/** Read-only one-hour Cloudflare Workers metrics; no mutations or provisioning. */
-async function readCloudflareWorkerMetrics(): Promise<WorkerMetrics> {
-  const token = platformSetting("CF_ANALYTICS_API_TOKEN");
-  const accountId = platformSetting("CLOUDFLARE_ACCOUNT_ID");
-  const workerName = platformSetting("CF_WORKER_NAME") || "repairpilot";
-
-  if (!token || !accountId) {
-    const missing = [
-      !token ? "CF_ANALYTICS_API_TOKEN" : null,
-      !accountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
-    ].filter((value): value is string => value !== null);
-    return {
-      kind: "unavailable",
-      reason: `Set ${missing.join(" and ")} to read Cloudflare Worker metrics.`,
-    };
+/**
+ * Which build is running and since when. The build is only described on a
+ * production server: a development copy can hold an older build's files.
+ */
+async function readRuntime(now: Date): Promise<AppRuntime> {
+  const production = process.env.NODE_ENV === "production";
+  let buildId: string | null = null;
+  let builtAt: Date | null = null;
+  if (production) {
+    const file = path.join(process.cwd(), ".next", "BUILD_ID");
+    try {
+      const [text, info] = await Promise.all([readFile(file, "utf8"), stat(file)]);
+      buildId = BUILD_ID_SHAPE.test(text.trim()) ? text.trim() : null;
+      builtAt = info.mtime;
+    } catch {
+      // Not started from a build folder; there is nothing to describe.
+    }
   }
-
-  const now = new Date();
-  const start = new Date(now.getTime() - 60 * 60 * 1000);
-  const quote = (value: string) => JSON.stringify(value);
-  const query = `query {
-    viewer {
-      accounts(filter: { accountTag: ${quote(accountId)} }) {
-        workersInvocationsAdaptive(
-          filter: {
-            scriptName: ${quote(workerName)},
-            datetime_geq: ${quote(start.toISOString())},
-            datetime_leq: ${quote(now.toISOString())}
-          },
-          limit: 1000
-        ) {
-          sum { requests errors }
-          quantiles { cpuTimeP99 memoryUsageBytesP99 }
-          dimensions { datetime }
-        }
-      }
-    }
-  }`;
-
-  try {
-    const response = await fetch("https://api.cloudflare.com/client/v4/graphql", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(5_000),
-    });
-
-    if (!response.ok) {
-      return {
-        kind: "unavailable",
-        reason:
-          "Cloudflare Analytics did not return metrics. Check the token’s Account Analytics: Read permission and the account and Worker names.",
-      };
-    }
-
-    const payload: unknown = await response.json();
-    if (!isRecord(payload) || !isRecord(payload.data)) {
-      return {
-        kind: "unavailable",
-        reason:
-          "Cloudflare Analytics did not return metrics. Check the token’s Account Analytics: Read permission and the account and Worker names.",
-      };
-    }
-
-    const viewer = payload.data.viewer;
-    const accounts = isRecord(viewer) ? viewer.accounts : null;
-    const account = Array.isArray(accounts) ? accounts[0] : null;
-    const rawRows = isRecord(account) ? account.workersInvocationsAdaptive : null;
-    const rows = Array.isArray(rawRows)
-      ? rawRows.filter(isRecord)
-      : [];
-
-    if (rows.length === 0) {
-      const errors = payload.errors;
-      return {
-        kind: "unavailable",
-        reason:
-          Array.isArray(errors) && errors.length > 0
-            ? "Cloudflare Analytics could not read this Worker’s metrics. Check the account ID, Worker name, and Account Analytics: Read permission."
-            : "No Worker metrics were reported for the past hour.",
-      };
-    }
-
-    const totals = rows.reduce<{ requests: number; errors: number }>(
-      (sum, row) => {
-        const values = isRecord(row.sum) ? row.sum : {};
-        sum.requests += numeric(values.requests) ?? 0;
-        sum.errors += numeric(values.errors) ?? 0;
-        return sum;
-      },
-      { requests: 0, errors: 0 },
-    );
-
-    const latest = rows
-      .map((row) => {
-        const dimensions = isRecord(row.dimensions) ? row.dimensions : {};
-        return {
-          row,
-          datetime:
-            typeof dimensions.datetime === "string" ? dimensions.datetime : null,
-        };
-      })
-      .sort((a, b) => (b.datetime ?? "").localeCompare(a.datetime ?? ""))[0];
-    const quantiles = isRecord(latest?.row.quantiles) ? latest.row.quantiles : {};
-
-    const cpuTimeMicros = numeric(quantiles.cpuTimeP99);
-
-    return {
-      kind: "available",
-      ...totals,
-      // Workers Analytics returns cpuTime quantiles in microseconds. Convert
-      // at the API boundary because the operations UI labels this value in ms.
-      cpuTimeP99: cpuTimeMicros === null ? null : cpuTimeMicros / 1_000,
-      memoryUsageP99Bytes: numeric(quantiles.memoryUsageBytesP99),
-      sampleAt: latest?.datetime ?? null,
-    };
-  } catch {
-    return {
-      kind: "unavailable",
-      reason:
-        "Cloudflare Analytics could not be reached. Check the token and retry later.",
-    };
-  }
+  return {
+    production,
+    buildId,
+    builtAt,
+    startedAt: new Date(now.getTime() - Math.round(process.uptime() * 1000)),
+    nodeVersion: process.version,
+    storageDriver: storageDriverName(),
+  };
 }
 
 /** Remove common credential forms before displaying provider error text. */
@@ -437,33 +356,28 @@ async function readPlatformFailures(): Promise<FailureFeed> {
 
 /**
  * Single secure entry point for the System health data. The access check
- * completes before any cross-shop query starts, so another server route cannot
- * accidentally reuse an unguarded global-read helper. Shop counts and the
- * audit trail moved to lib/platform-shops.ts (Overview, Shops, Activity).
+ * completes before any reading starts (database, uploads folder, disk), so
+ * another server route cannot accidentally reuse an unguarded global-read
+ * helper. Shop counts and the audit trail live in lib/platform-shops.ts
+ * (Overview, Shops, Activity).
+ *
+ * Everything here is read from inside the app itself, so it holds wherever the
+ * app runs (the home server's Docker container in production). Provider
+ * dashboards are not consulted: the Cloudflare Worker and PlanetScale readings
+ * went with that hosting, retired on 30 Sep 2026.
  */
 export async function readPlatformConsole() {
   const admin = await requirePlatformAdmin();
-  const [storage, database, databaseMetrics, worker, failures] =
-    await Promise.all([
-    readStorageFootprint(),
+  const now = new Date();
+  const uploadsRoot = path.join(process.cwd(), "public", "uploads");
+  const [database, uploads, disk, storedFiles, runtime, failures] = await Promise.all([
     readDatabaseStats(),
-    readPlanetScaleMetrics(),
-    readCloudflareWorkerMetrics(),
+    readUploadsFolder(uploadsRoot),
+    readDiskSpace(uploadsRoot),
+    readStoredFiles(),
+    readRuntime(now),
     readPlatformFailures(),
-    ]);
+  ]);
 
-  return {
-    admin,
-    storage,
-    database,
-    databaseMetrics,
-    worker,
-    failures,
-    accountId: platformSetting("CLOUDFLARE_ACCOUNT_ID"),
-    workerName: platformSetting("CF_WORKER_NAME") || "repairpilot",
-    monthlyBudgetUsd: Math.max(
-      5,
-      Number(platformSetting("PLATFORM_MONTHLY_BUDGET_USD")) || 10,
-    ),
-  };
+  return { admin, now, database, uploads, disk, storedFiles, runtime, failures };
 }
