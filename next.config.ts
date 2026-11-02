@@ -2,8 +2,13 @@ import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  // Voice and product-photo actions enforce their own 8 MB file limit.
-  experimental: { serverActions: { bodySizeLimit: "9mb" } },
+  experimental: {
+    // Voice and product-photo actions enforce their own 8 MB file limit.
+    serverActions: { bodySizeLimit: "9mb" },
+    // The home server builds the image in a memory-capped container; this
+    // lowers webpack's peak memory at the cost of a slightly slower compile.
+    webpackMemoryOptimizations: true,
+  },
   // Keep the standalone output for Docker while allowing OpenNext to produce
   // the Worker bundle for Cloudflare.
   output: process.env.CLOUDFLARE_BUILD === "1" ? undefined : "standalone",
