@@ -744,15 +744,17 @@ body:has(.site) {
 .site .site-phone-row img { width: 100%; height: auto; border: 5px solid #111827; border-radius: 22px; }
 .site .site-device-preview figcaption { margin-top: 16px; font-size: .8125rem; line-height: 1.6; color: var(--site-muted); }
 .site .site-footer { padding-block: 72px 24px; background: #f8f9fb; }
-.site .site-footer-top { display: grid; grid-template-columns: 1fr 1.8fr; gap: 80px; padding-bottom: 56px; }
+.site .site-footer-top { display: grid; grid-template-columns: 1fr 2.4fr; gap: 64px; padding-bottom: 56px; }
 .site .site-footer-logo { display: inline-flex; align-items: center; gap: 12px; }
 .site .site-footer-brand > p { font-size: 1.5rem; font-weight: 600; line-height: 1.35; letter-spacing: -.04em; margin-top: 24px; }
 .site .site-footer-brand > span { display: block; max-width: 340px; font-size: 1rem; line-height: 1.7; color: var(--site-muted); margin-top: 16px; }
 .site .site-footer-brand .site-text-link { margin-top: 20px; }
-.site .site-footer-links { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 32px; padding-top: 14px; }
+.site .site-footer-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; padding-top: 14px; }
 .site .site-footer-links h3 { font-size: .875rem; font-weight: 700; margin-bottom: 14px; }
 .site .site-footer-links a { display: inline-flex; align-items: center; min-height: 44px; overflow-wrap: anywhere; font-size: .875rem; line-height: 1.5; color: var(--site-muted); }
 .site .site-footer-links a:hover { color: var(--site-accent-ink); }
+/* Four link columns need the full width until the screen is wide enough to sit them beside the brand. */
+@media (max-width: 1199px) { .site .site-footer-top { grid-template-columns: 1fr; gap: 40px; } }
 .site .site-footer-bottom { border-top: 1px solid #d4dae3; padding-top: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; color: var(--site-muted); font-size: .75rem; }
 .site .site-footer-bottom a { display: inline-flex; align-items: center; min-height: 44px; gap: 8px; }
 @media (max-width: 1023px) {

@@ -16,9 +16,9 @@ export const PRICING_LINK: RelatedLink = {
   body: "Free during early access, with no card required. What is included and what costs extra.",
 };
 export const COMPARE_LINK: RelatedLink = {
-  href: "/compare/repairshopr-alternative",
-  title: "Compared with RepairShopr",
-  body: "A side-by-side look at features and published pricing, checked October 2026.",
+  href: "/compare",
+  title: "Compared with other software",
+  body: "Repairs helper next to other repair shop software, using each company's own published pricing and features.",
 };
 export const CONTACT_LINK: RelatedLink = {
   href: "/contact",

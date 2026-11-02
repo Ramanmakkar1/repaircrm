@@ -15,3 +15,10 @@ export const OPERATOR = {
 export function absoluteUrl(path: string): string {
   return path === "/" ? `${PUBLIC_SITE_URL}/` : `${PUBLIC_SITE_URL}${path}`;
 }
+
+/** "2026-10-28" → "October 28, 2026", independent of the server's time zone. */
+export function formatLongDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${iso}T00:00:00Z`),
+  );
+}

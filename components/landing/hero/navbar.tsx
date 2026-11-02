@@ -16,7 +16,8 @@ export const NAV_ITEMS = [
   { label: "Product", href: "/#product" },
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Compare", href: "/compare/repairshopr-alternative" },
+  { label: "Compare", href: "/compare" },
+  { label: "Guides", href: "/guides" },
   { label: "Contact", href: "/contact" },
 ] as const;
 export const SIGN_IN_HREF = "/login";

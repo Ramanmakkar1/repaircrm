@@ -32,7 +32,7 @@ const PUBLIC_EXACT = new Set([
   "/terms",
   "/delete-account",
 ]);
-const PUBLIC_PREFIXES = ["/pricing", "/features", "/contact", "/compare", "/software"];
+const PUBLIC_PREFIXES = ["/pricing", "/features", "/contact", "/compare", "/software", "/guides", "/free-repair-shop-software"];
 
 export function isClarityPath(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;

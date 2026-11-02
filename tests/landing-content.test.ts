@@ -76,7 +76,7 @@ describe("footer", () => {
 
   it("keeps the existing links and the copyright year", () => {
     const hrefs = FOOTER_GROUPS.flatMap((g) => g.links.map((l) => l.href));
-    for (const href of ["/login", "/signup", "/portal", "/privacy", "/terms", "/pricing", "/features", "/contact", "/compare/repairshopr-alternative", "/#assistant", "/#payments", "/feedback", "/#splitforms", "mailto:support@repairshelper.com"]) {
+    for (const href of ["/login", "/signup", "/portal", "/privacy", "/terms", "/pricing", "/features", "/contact", "/compare", "/guides", "/software/phone-repair-shop-software", "/free-repair-shop-software", "/#assistant", "/#payments", "/feedback", "/#splitforms", "mailto:support@repairshelper.com"]) {
       expect(hrefs).toContain(href);
       expect(out).toContain(`href="${href}"`);
     }

@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { homePath } from "@/lib/prefs";
 import { RepairsHome } from "@/components/landing/repairs-home";
+import { JsonLd } from "@/components/seo/json-ld";
 import { WEBSITE_SCHEMA, SOFTWARE_SCHEMA } from "@/lib/public-site";
+import { organizationSchema } from "@/lib/seo/schema";
 
 const TITLE = "Repair Shop Software for Check-in, Sales and Stock | Repairs helper";
 const DESCRIPTION =
@@ -64,6 +66,8 @@ export default async function RootPage() {
           __html: JSON.stringify(SOFTWARE_SCHEMA).replace(/</g, "\\u003c"),
         }}
       />
+      {/* Who operates the product, so search engines can tie the brand to a business. */}
+      <JsonLd data={organizationSchema()} />
       <RepairsHome />
     </>
   );

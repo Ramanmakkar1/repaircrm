@@ -48,7 +48,8 @@ const NAV = [
   { label: "Product", href: "/#product" },
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Compare", href: "/compare/repairshopr-alternative" },
+  { label: "Compare", href: "/compare" },
+  { label: "Guides", href: "/guides" },
   { label: "Contact", href: "/contact" },
 ] as const;
 
@@ -81,7 +82,8 @@ const FOOTER_GROUPS = [
     links: [
       { label: "Features", href: "/features" },
       { label: "Early-access pricing", href: "/pricing" },
-      { label: "Compare with RepairShopr", href: "/compare/repairshopr-alternative" },
+      { label: "Compare repair software", href: "/compare" },
+      { label: "Guides", href: "/guides" },
       { label: "Contact", href: "/contact" },
       { label: "Common questions", href: "/#faq" },
     ],

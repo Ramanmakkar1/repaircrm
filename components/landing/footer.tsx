@@ -18,9 +18,17 @@ export const FOOTER_GROUPS = [
     { label: "The shop helper", href: "/#assistant" },
     { label: "Splitforms integration", href: "/#splitforms" },
   ] },
+  { title: "Repair shops", links: [
+    { label: "Phone repair shops", href: "/software/phone-repair-shop-software" },
+    { label: "Computer repair shops", href: "/software/computer-repair-shop-software" },
+    { label: "Electronics repair shops", href: "/software/electronics-repair-shop-software" },
+    { label: "Game console repair", href: "/software/game-console-repair-software" },
+    { label: "Free repair shop software", href: "/free-repair-shop-software" },
+  ] },
   { title: "Company", links: [
     { label: "Contact", href: "/contact" },
-    { label: "Compare with RepairShopr", href: "/compare/repairshopr-alternative" },
+    { label: "Compare repair software", href: "/compare" },
+    { label: "Guides", href: "/guides" },
     { label: "Common questions", href: "/#faq" },
     { label: "Report an issue or idea", href: "/feedback" },
     { label: SUPPORT_EMAIL, href: `mailto:${SUPPORT_EMAIL}` },

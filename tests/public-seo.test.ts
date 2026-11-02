@@ -11,6 +11,7 @@ import { metadata as defaults } from "@/app/layout";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { PUBLIC_SITE_URL } from "@/lib/public-site";
+import { PATH_DATES } from "@/lib/seo/pages";
 
 describe("public search metadata", () => {
   it("describes the product and opts the homepage into search with a share image", () => {
@@ -60,7 +61,12 @@ describe("public search metadata", () => {
     for (const path of ["/pricing", "/features", "/contact", "/compare/repairshopr-alternative", "/privacy", "/terms"])
       expect(urls).toContain(`${PUBLIC_SITE_URL}${path}`);
     expect(new Set(urls).size).toBe(urls.length);
-    expect(sitemap().every((item) => item.lastModified === undefined)).toBe(true);
+    // Only pages with a real content date (guides, comparisons) carry one.
+    for (const item of sitemap()) {
+      const path = item.url.slice(PUBLIC_SITE_URL.length) || "/";
+      expect(item.lastModified).toBe(PATH_DATES[path]);
+    }
+    expect(sitemap().filter((item) => item.lastModified).length).toBeGreaterThan(0);
     const rules = robots();
     expect(rules.sitemap).toBe(`${PUBLIC_SITE_URL}/sitemap.xml`);
     const disallow = (Array.isArray(rules.rules) ? rules.rules[0] : rules.rules).disallow as string[];

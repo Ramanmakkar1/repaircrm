@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isClarityPath } from "@/components/analytics/clarity";
 
 describe("Clarity only records public pages", () => {
-  it.each(["/", "/pricing", "/features/pos", "/compare/repairshopr-alternative", "/login", "/privacy"])(
+  it.each(["/", "/pricing", "/features/pos", "/compare/repairshopr-alternative", "/guides/repair-intake-checklist", "/free-repair-shop-software", "/login", "/privacy"])(
     "records %s",
     (path) => expect(isClarityPath(path)).toBe(true),
   );

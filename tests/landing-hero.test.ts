@@ -39,7 +39,7 @@ describe("navigation", () => {
     expect(out).toContain("husky-mark-blue.webp");
     expect(out).toContain("Repairs ");
     for (const link of NAV_ITEMS) expect(out).toContain(`href="${link.href}"`);
-    for (const href of ["/features", "/pricing", "/contact", "/compare/repairshopr-alternative"]) {
+    for (const href of ["/features", "/pricing", "/contact", "/compare", "/guides"]) {
       expect(NAV_ITEMS.map((l) => l.href)).toContain(href);
     }
     expect(NAV_ITEMS.map((l) => l.label)).not.toContain("Home");

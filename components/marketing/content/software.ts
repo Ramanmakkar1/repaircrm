@@ -191,6 +191,167 @@ export const SOFTWARE_PAGES: SoftwarePage[] = [
     ],
     related: ["repair-ticket-management", "estimates-and-invoices", "integrations-and-api"],
   },
+  {
+    slug: "electronics-repair-shop-software",
+    name: "Electronics repair shops",
+    metaTitle: "Electronics Repair Shop Software | Repairs helper",
+    metaDescription:
+      "For shops that fix phones, laptops, consoles, TVs and more: your own device and problem boxes, estimates, parts on order, bench time and a workshop board.",
+    query: "electronics repair shop software",
+    h1: "Software for electronics repair shops",
+    lede:
+      "An electronics repair shop sees a bit of everything: a phone with a dead charging port, a laptop that will not boot, a console that overheats, a TV with no picture. Repairs helper puts every one of them on the same kind of ticket, so the counter and the bench follow one routine whatever the device.",
+    shot: SHOTS.newRepair,
+    shotCaption:
+      "Checking a device in, captured from the app with demo data: picture boxes for phone, tablet, laptop, computer, game console, TV, watch and other.",
+    dayTitle: "A mixed-device repair, the way it runs in Repairs helper",
+    dayIntro: "The same steps work for a phone, a laptop or a TV, so new staff learn one way of working.",
+    day: [
+      {
+        title: "Check any device in",
+        body: "Tap the device box and pick the problem. If you fix things the list does not show, owners can rename, hide or add device boxes and problem types in settings.",
+      },
+      {
+        title: "Record what came in",
+        body: "Save make, model and serial on the customer's device record, add photos of its condition, and let the customer sign the intake on screen.",
+      },
+      {
+        title: "Diagnose and quote",
+        body: "Write your findings on the ticket and send an estimate. The customer approves or declines from a private link, with an optional signature.",
+      },
+      {
+        title: "Order parts and do the work",
+        body: "Order the part from the ticket with supplier, cost and expected date, log bench time, and tick off a test checklist before the device goes back.",
+      },
+      {
+        title: "Invoice and hand over",
+        body: "Invoice from the ticket: logged time becomes labour lines and any deposit is applied. Take payment and hand the device over.",
+      },
+    ],
+    fitTitle: "Details that matter when you fix many kinds of device",
+    fit: [
+      {
+        title: "Status steps you can edit",
+        body: "Built-in steps run from New to Resolved, including Waiting for Parts and Waiting on Customer. Owners can add their own steps.",
+      },
+      {
+        title: "A board for the workshop",
+        body: "The shop-floor board shows every open repair as a large tile grouped by status and refreshes itself every 30 seconds. Leave it running on a wall TV.",
+      },
+      {
+        title: "Due times by priority",
+        body: "Urgent, high, normal and low each have a target in hours (4, 24, 72 and 120 by default). Late repairs are flagged on the ticket and counted on Home.",
+      },
+      {
+        title: "Parts, accessories and refurbished units",
+        body: "One stock list with low-stock levels, vendors and purchase orders, and serial numbers for the items where each unit matters.",
+      },
+    ],
+    limits: [
+      "There is no field-job module with customer addresses or routing; repairs and appointments happen at your shop's locations.",
+      "There is no connection to manufacturer warranty programs or insurance claim systems.",
+      "There is no built-in parts catalogue from suppliers. You add your own products or import them from a spreadsheet.",
+    ],
+    faqs: [
+      {
+        q: "Can I add device types that are not in the list?",
+        a: "Yes. Owners can rename, hide or add device boxes and problem types in settings, and the counter check-in uses your list.",
+      },
+      {
+        q: "Can I show the repair queue on a TV in the workshop?",
+        a: "Yes. The shop-floor board shows every open repair as a large tile grouped by status and refreshes itself every 30 seconds.",
+      },
+      {
+        q: "Can I charge for diagnosis or bench time?",
+        a: "Yes. Add a diagnostic charge as a line on the estimate or invoice, or log time on the ticket: billable time becomes labour lines at your labour rate when you invoice.",
+      },
+      {
+        q: "Does it work for more than one store?",
+        a: "Yes. Open another location and switch between them, or view all locations together. Single-location shops never see the switcher.",
+      },
+    ],
+    related: ["repair-ticket-management", "estimates-and-invoices", "inventory-management"],
+  },
+  {
+    slug: "game-console-repair-software",
+    name: "Game console repair shops",
+    metaTitle: "Game Console Repair Shop Software | Repairs helper",
+    metaDescription:
+      "For console and controller repair shops: check-in with serials and photos, parts on order, test checklists, warranty days and accessory sales on one bill.",
+    query: "game console repair software",
+    h1: "Software for game console repair shops",
+    lede:
+      "Console repairs cover a lot of ground: a broken HDMI port, drifting controller sticks, a console that overheats or will not read discs. Repairs helper keeps each job, its parts and its test routine on one ticket, and sells the controllers and cables at the same counter.",
+    shot: SHOTS.job,
+    shotCaption:
+      "A repair ticket, captured from the app with demo data: the status steps, a due-time badge and the buttons for parts, photos, messages and notes.",
+    dayTitle: "A console repair, the way it runs in Repairs helper",
+    dayIntro: "A typical port or drift repair, with the customer kept informed.",
+    day: [
+      {
+        title: "Check the console in",
+        body: "Tap Game console and pick the problem from your list (add your own, such as HDMI port or stick drift). Record make, model and serial, and photograph the condition before you open it.",
+      },
+      {
+        title: "Note what came with it",
+        body: "Write down controllers, cables and cases left with the console in the ticket notes, so what goes back at pickup matches what came in.",
+      },
+      {
+        title: "Quote and get the yes",
+        body: "Send an estimate. The customer approves from a private link with an optional signature, and the ticket moves on without a phone call.",
+      },
+      {
+        title: "Order the part and test",
+        body: "Order the port or stick module from the ticket with supplier, cost and expected date. Attach a test checklist and tick it off before the console goes back.",
+      },
+      {
+        title: "Invoice and sell the extras",
+        body: "Invoice the repair with warranty days on the part, and add a controller or cable to the same bill from the Sell screen.",
+      },
+    ],
+    fitTitle: "Details that matter in a console shop",
+    fit: [
+      {
+        title: "Serial numbers on file",
+        body: "Each customer's console is saved with make, model and serial, so a repeat visit or a warranty question starts from the device record.",
+      },
+      {
+        title: "Refurbished units in stock",
+        body: "Track refurbished consoles and controllers by serial number, note where each unit came from, and see which unit was sold on which invoice.",
+      },
+      {
+        title: "Photos before you open it",
+        body: "Add photos to the ticket to record scratches, missing screws or liquid damage before work starts.",
+      },
+      {
+        title: "Warranty you can check",
+        body: "Warranty days on a part or repair product are copied onto the invoice line and counted from the invoice date. Warranty repairs can be linked to the line they cover.",
+      },
+    ],
+    limits: [
+      "There is no trade-in or buy-back screen. A console you buy in can be added to stock as a serialised unit with a note on where it came from.",
+      "There is no built-in parts catalogue from suppliers. You add your own products or import them from a spreadsheet.",
+    ],
+    faqs: [
+      {
+        q: "Can I record the console's serial number?",
+        a: "Yes. Make, model and serial are saved on the customer's device record, so the console is already on file the next time it comes in.",
+      },
+      {
+        q: "Can I sell controllers and accessories with the repair?",
+        a: "Yes. Products and repair charges can sit on the same invoice or sale, and stock is updated for the products.",
+      },
+      {
+        q: "Can I charge a cleaning or diagnostic fee?",
+        a: "Yes. Add it as a line on the estimate or invoice, or set it up as a repair product with its own price.",
+      },
+      {
+        q: "Can customers check on their console without calling?",
+        a: "Yes. With a sender set up, customers get a sign-in link to their portal, where they can follow the repair, approve estimates and pay online when Stripe or Square is connected.",
+      },
+    ],
+    related: ["repair-ticket-management", "inventory-management", "point-of-sale"],
+  },
 ];
 
 export function softwareBySlug(slug: string): SoftwarePage | undefined {

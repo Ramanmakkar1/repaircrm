@@ -108,6 +108,39 @@ export function faqSchema(faqs: readonly Faq[]): Json {
   };
 }
 
+/**
+ * Article for a guide. The author is the operator, because no individual
+ * byline exists to cite; dates are the guide's own published/updated dates.
+ */
+export function articleSchema({
+  path,
+  headline,
+  description,
+  published,
+  updated,
+}: {
+  path: string;
+  headline: string;
+  description: string;
+  /** ISO date, e.g. "2026-11-01". */
+  published: string;
+  updated: string;
+}): Json {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline,
+    description,
+    datePublished: published,
+    dateModified: updated,
+    mainEntityOfPage: absoluteUrl(path),
+    image: absoluteUrl(`${path}/opengraph-image`),
+    inLanguage: "en-CA",
+    author: { "@type": "Organization", name: OPERATOR.name, url: OPERATOR.url },
+    publisher: { "@id": ORG_ID },
+  };
+}
+
 /** WebSite for the home page, with the brand spelled exactly. */
 export function websiteSchema(): Json {
   return {
