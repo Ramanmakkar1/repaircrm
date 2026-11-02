@@ -31,7 +31,7 @@ The site talks to the plugins through `window.Capacitor` (`../lib/native/capacit
 - **Push notifications:** registration stores the token in `NativePushDevice`. The server sends through APNs and FCM once their env is set (see Push below).
 - **Haptics:** a tick on every successful scan.
 - **Splash screen, status bar and safe areas:** the splash hides once the page renders. The status bar follows the light/dark theme. The page uses `viewport-fit=cover` with `env(safe-area-inset-*)`, and on Android `SystemBars.insetsHandling: "css"` supplies those values.
-- **Offline screen:** a bundled page that reconnects by itself.
+- **Offline screen:** a bundled page that reconnects by itself. It shows when the site cannot be reached: no connection, or a 5xx while the server is down. Capacitor on Android would also put it over a 404 or any other 4xx answer, so `MainActivity` leaves those to the site's own pages. Its logo is inline, because on Android the page is served alone.
 - **Deep links:** Universal Links (iOS) and App Links (Android) for the staff-app paths in `NATIVE_LINK_PATHS`, plus the custom scheme `com.repairshelper.app://` used for the Google return.
 
 ### Links that leave the app
